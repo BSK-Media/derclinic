@@ -78,6 +78,7 @@ model Patient {
   note      String?
 
   appointments Appointment[]
+  retailSales  RetailSale[]
 
   @@index([name])
   @@index([phone])
