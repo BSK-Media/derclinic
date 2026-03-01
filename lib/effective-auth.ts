@@ -35,7 +35,9 @@ export async function getEffectiveAuth(): Promise<EffectiveAuth> {
   }
 
   return {
-    user: { id: target.id, email: target.email, name: target.name, role: target.role },
+    // `User.email` is optional in the DB (e.g. specialists may not have one).
+    // AuthUser requires a string, so we normalize null -> empty string.
+    user: { id: target.id, email: target.email ?? "", name: target.name ?? "", role: target.role },
     adminUser,
     impersonating: true,
   };
