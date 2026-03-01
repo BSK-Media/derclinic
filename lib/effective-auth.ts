@@ -35,7 +35,7 @@ export async function getEffectiveAuth(): Promise<EffectiveAuth> {
   }
 
   return {
-    user: { id: target.id, email: target.email, name: target.name, role: target.role },
+    user: { id: target.id, email: target.email ?? "", name: target.name ?? "", role: target.role },
     adminUser,
     impersonating: true,
   };
