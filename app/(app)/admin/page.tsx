@@ -2,15 +2,75 @@
 // używamy <img> dla lokalnych SVG (bez konfiguracji Next/Image pod SVG)
 import { Bar, CartesianGrid, Cell, ComposedChart, Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { Bell, CalendarDays, ChevronDown, ClipboardList, DollarSign, Package, Plus, Users,
-} from "lucide-react"; import { ThemeToggle } from "@/components/theme-toggle"; type Period = "30d" | "7d" | "month" | "year"; const KPI = { visitsToday: 24, visitsDelta: "+8% z wczoraj", revenueToday: 18750, revenueDelta: "+12% vs. target", newPatients: 15, newPatientsDelta: "+3", stockAlerts: 4, stockAlertsNote: "4 preparaty blisko terminu",
-}; const chart30d = Array.from({ length: 30 }, (_, i) => { const day = i + 1; // stabilne, powtarzalne dane demo (bez losowości) const base = 280 + (day % 6) * 55; const revenue = base + (day % 3) * 80 + (day === 11 ? 320 : 0) + (day === 27 ? 260 : 0); const visits = 60 + (day % 7) * 9 + (day === 16 ? 35 : 0); return { day, revenue, visits };
-}); const chart7d = chart30d.slice(-7); const chartMonth = Array.from({ length: 12 }, (_, i) => { const m = i + 1; const revenue = 4200 + m * 180 + (m % 3) * 260; const visits = 520 + m * 22 + (m % 4) * 35; return { month: m, revenue, visits };
-}); const chartYear = Array.from({ length: 5 }, (_, i) => { const y = 2021 + i; const revenue = 52000 + i * 6800 + (i % 2) * 4200; const visits = 7200 + i * 720 + (i % 2) * 410; return { year: y, revenue, visits };
-}); const procedureStructure = [ { name: "Toksyna\nBotulinowa", value: 35 }, { name: "Wypełniacze", value: 30 }, { name: "Laseroterapia", value: 20 }, { name: "Inne", value: 15 },
-]; const topProcedures = [ { name: "Toksyna Botulinowa", volume: "35%", revenue: "PLN 18,750" }, { name: "Wypełniacze", volume: "30%", revenue: "PLN 18,750" }, { name: "Laseroterapia", volume: "20%", revenue: "PLN 8,250" }, { name: "Inne", volume: "15%", revenue: "PLN 5,500" },
-]; const upcomingVisits = [ { name: "Ewaa Kowalska", time: "09:00 PM", procedure: "Toksyna Botulinowa" }, { name: "Ewaa Kowalska", time: "09:00 PM", procedure: "Wypełniacze" }, { name: "Mara Łonsia", time: "07:00 AM", procedure: "Toksyna Botulinowa" },
-]; const stockStatus = [ { name: "Toksyna Botulinowa (35%)", prep: "35%", stock: 82 }, { name: "Wypełniacze (30%)", prep: "30%", stock: 61 }, { name: "Laseroterapia (20%)", prep: "20%", stock: 44 }, { name: "Inne (15%)", prep: "15%", stock: 33 },
+import { Bell, CalendarDays, ChevronDown, ClipboardList, DollarSign, Package, Plus, Users } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
+
+type Period = "30d" | "7d" | "month" | "year";
+
+const KPI = {
+  visitsToday: 24,
+  visitsDelta: "+8% z wczoraj",
+  revenueToday: 18750,
+  revenueDelta: "+12% vs. target",
+  newPatients: 15,
+  newPatientsDelta: "+3",
+  stockAlerts: 4,
+  stockAlertsNote: "4 preparaty blisko terminu",
+};
+
+type Chart30 = { day: number; revenue: number; visits: number };
+type ChartMonth = { month: number; revenue: number; visits: number };
+type ChartYear = { year: number; revenue: number; visits: number };
+
+const chart30d: Chart30[] = Array.from({ length: 30 }, (_, i): Chart30 => {
+  const day = i + 1;
+  const base = 280 + (day % 6) * 55;
+  const revenue = base + (day % 3) * 80 + (day === 11 ? 320 : 0) + (day === 27 ? 260 : 0);
+  const visits = 60 + (day % 7) * 9 + (day === 16 ? 35 : 0);
+  return { day, revenue, visits };
+});
+
+const chart7d: Chart30[] = chart30d.slice(-7);
+
+const chartMonth: ChartMonth[] = Array.from({ length: 12 }, (_, i): ChartMonth => {
+  const m = i + 1;
+  const revenue = 4200 + m * 180 + (m % 3) * 260;
+  const visits = 520 + m * 22 + (m % 4) * 35;
+  return { month: m, revenue, visits };
+});
+
+const chartYear: ChartYear[] = Array.from({ length: 5 }, (_, i): ChartYear => {
+  const y = 2021 + i;
+  const revenue = 52000 + i * 6800 + (i % 2) * 4200;
+  const visits = 7200 + i * 720 + (i % 2) * 410;
+  return { year: y, revenue, visits };
+});
+
+const procedureStructure = [
+  { name: "Toksyna\nBotulinowa", value: 35 },
+  { name: "Wypełniacze", value: 30 },
+  { name: "Laseroterapia", value: 20 },
+  { name: "Inne", value: 15 },
+];
+
+const topProcedures = [
+  { name: "Toksyna Botulinowa", volume: "35%", revenue: "PLN 18,750" },
+  { name: "Wypełniacze", volume: "30%", revenue: "PLN 18,750" },
+  { name: "Laseroterapia", volume: "20%", revenue: "PLN 8,250" },
+  { name: "Inne", volume: "15%", revenue: "PLN 5,500" },
+];
+
+const upcomingVisits = [
+  { name: "Ewaa Kowalska", time: "09:00 PM", procedure: "Toksyna Botulinowa" },
+  { name: "Ewaa Kowalska", time: "09:00 PM", procedure: "Wypełniacze" },
+  { name: "Mara Łonsia", time: "07:00 AM", procedure: "Toksyna Botulinowa" },
+];
+
+const stockStatus = [
+  { name: "Toksyna Botulinowa (35%)", prep: "35%", stock: 82 },
+  { name: "Wypełniacze (30%)", prep: "30%", stock: 61 },
+  { name: "Laseroterapia (20%)", prep: "20%", stock: 44 },
+  { name: "Inne (15%)", prep: "15%", stock: 33 },
 ]; function formatPLN(n: number) { return n.toLocaleString("pl-PL");
 } function KpiCard({ title, value, sub, accent, icon,
 }: { title: string; value: React.ReactNode; sub: string; accent: "green" | "blue" | "orange"; icon: React.ReactNode;
