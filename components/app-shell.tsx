@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 function NavLink({ href, label }: { href: string; label: string }) {
   const pathname = usePathname();
@@ -37,12 +38,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex gap-6">
           <aside className="w-72 shrink-0">
             <div className="rounded-xl border bg-white p-4 shadow-sm dark:bg-zinc-950">
-              <div className="flex items-center gap-3">
+              <div className="flex items-start justify-between gap-3">
                 <Image src="/derclinic-logo.webp" alt="DerClinic" width={56} height={56} />
                 <div>
                   <div className="font-semibold leading-tight">DerClinic OS</div>
                   <div className="text-xs text-zinc-500">{user.name} • {user.role}</div>
                 </div>
+                <ThemeToggle />
               </div>
 
               <div className="mt-4 space-y-1">
