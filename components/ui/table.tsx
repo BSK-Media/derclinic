@@ -6,3 +6,10 @@ export function TBody({ className, ...props }: React.HTMLAttributes<HTMLTableSec
 export function TR({ className, ...props }: React.HTMLAttributes<HTMLTableRowElement>) { return <tr className={cn("border-b border-zinc-100 dark:border-zinc-900", className)} {...props} />; }
 export function TH({ className, ...props }: React.ThHTMLAttributes<HTMLTableCellElement>) { return <th className={cn("px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-400", className)} {...props} />; }
 export function TD({ className, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) { return <td className={cn("px-3 py-2", className)} {...props} />; }
+
+// shadcn-style aliases (compat)
+export const TableHeader = THead;
+export const TableBody = TBody;
+export const TableRow = TR;
+export const TableHead = TH;
+export const TableCell = TD;
