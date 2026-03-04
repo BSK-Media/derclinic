@@ -51,14 +51,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 {isAdmin && (
                   <>
                     <NavLink href="/admin" label="Dashboard" />
-                    <NavLink href="/admin/appointments" label="Wizyty" />
-                    <NavLink href="/admin/patients" label="Pacjenci" />
-                    <NavLink href="/admin/services" label="Usługi i zabiegi" />
-                    <NavLink href="/admin/products" label="Produkty" />
-                    <NavLink href="/admin/warehouses" label="Magazyny" />
-                    <NavLink href="/admin/sales" label="Sprzedaż kosmetyków" />
-                    <NavLink href="/admin/settlements" label="Rozliczenia lekarzy" />
-                    <NavLink href="/admin/users" label="Użytkownicy" />
+                    <NavLink href="/admin/visits" label="Wizyty" />
+                    <NavLink href="/admin/revenue" label="Przychód" />
+                    <NavLink href="/admin/clinic-treatments" label="Zabiegów Klinika" />
+                    <NavLink href="/admin/new-patients" label="Nowi Pacjenci" />
+                    <NavLink href="/admin/profile" label="Drofila" />
+                    <NavLink href="/admin/inventory-alerts" label="Magazyn - Alerty" />
+                    <NavLink href="/admin/inventory" label="Magazyn preparatów" />
+                    <NavLink href="/admin/supplies" label="Wapozylanie" />
                   </>
                 )}
                 {isSpecialist && (
