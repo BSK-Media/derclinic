@@ -1,8 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Plus, FileText } from "lucide-react";
+import { Plus, FileText, ArrowRightLeft } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const kpis = [
   { title: "Łączna Wartość Magazynu", value: "PLN 458,200", accent: "green" as const, icon: "↗" },
@@ -112,6 +115,31 @@ export default function InventoryPage() {
   const [filter, setFilter] = React.useState<"Wszystkie" | "Wypełniacze" | "Toksyny" | "Kremy" | "Inne">("Wszystkie");
   const [q, setQ] = React.useState("");
 
+  const [warehouses, setWarehouses] = React.useState(() => [
+    { id: "wh-main", name: "Magazyn Główny", location: "Recepcja", note: "Główne stany i dostawy" },
+    { id: "wh-1", name: "Gabinet 1", location: "Piętro 1", note: "Preparaty do zabiegów" },
+    { id: "wh-2", name: "Gabinet 2", location: "Piętro 2", note: "Materiały eksploatacyjne" },
+  ]);
+  const [newWh, setNewWh] = React.useState({ name: "", location: "", note: "" });
+  const [transfers, setTransfers] = React.useState(() => [
+    {
+      id: "tr-1",
+      date: "Dziś",
+      from: "Magazyn Główny",
+      to: "Gabinet 1",
+      item: "Juvederm Voluma",
+      qty: 2,
+      note: "Uzupełnienie gabinetu",
+    },
+  ]);
+  const [newTr, setNewTr] = React.useState({
+    from: "Magazyn Główny",
+    to: "Gabinet 1",
+    item: "Juvederm Voluma",
+    qty: 1,
+    note: "",
+  });
+
   const filtered = items.filter((i) => {
     const byText = (i.name + " " + i.category + " " + i.location).toLowerCase().includes(q.toLowerCase());
     const byFilter =
@@ -142,6 +170,217 @@ export default function InventoryPage() {
             <FileText className="h-4 w-4" />
             Raport Magazynowy
           </button>
+        </div>
+      </div>
+
+      {/* Magazyny + przeniesienia */}
+      <div className="grid gap-6 xl:grid-cols-3">
+        <div className="rounded-2xl border border-white/60 bg-white/80 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 xl:col-span-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-base font-semibold">Magazyny</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                Dodawaj nowe magazyny oraz lokalizacje przechowywania.
+              </div>
+            </div>
+
+            <Dialog>
+              <DialogTrigger asChild>
+                <button className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
+                  <Plus className="h-4 w-4" /> Dodaj magazyn
+                </button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg rounded-2xl">
+                <DialogHeader>
+                  <DialogTitle>Nowy magazyn</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label>Nazwa magazynu</Label>
+                    <Input
+                      value={newWh.name}
+                      onChange={(e) => setNewWh((s) => ({ ...s, name: e.target.value }))}
+                      placeholder="np. Gabinet 3"
+                      className="rounded-2xl"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Lokalizacja</Label>
+                    <Input
+                      value={newWh.location}
+                      onChange={(e) => setNewWh((s) => ({ ...s, location: e.target.value }))}
+                      placeholder="np. Piętro 1"
+                      className="rounded-2xl"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Opis</Label>
+                    <Input
+                      value={newWh.note}
+                      onChange={(e) => setNewWh((s) => ({ ...s, note: e.target.value }))}
+                      placeholder="Krótka notatka (opcjonalnie)"
+                      className="rounded-2xl"
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      className="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                      onClick={() => {
+                        if (!newWh.name.trim()) return;
+                        setWarehouses((w) => [
+                          ...w,
+                          {
+                            id: `wh-${Math.random().toString(16).slice(2)}`,
+                            name: newWh.name.trim(),
+                            location: newWh.location.trim() || "-",
+                            note: newWh.note.trim() || "",
+                          },
+                        ]);
+                        setNewWh({ name: "", location: "", note: "" });
+                      }}
+                    >
+                      Zapisz
+                    </button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {warehouses.map((w) => (
+              <div
+                key={w.id}
+                className="rounded-2xl border border-white/60 bg-white/60 p-4 dark:border-white/10 dark:bg-white/5"
+              >
+                <div className="font-semibold text-slate-900 dark:text-white">{w.name}</div>
+                <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">{w.location}</div>
+                {w.note ? <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">{w.note}</div> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/60 bg-white/80 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-base font-semibold">Przeniesienia</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">Przesunięcia między magazynami.</div>
+            </div>
+            <Dialog>
+              <DialogTrigger asChild>
+                <button className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
+                  <ArrowRightLeft className="h-4 w-4" /> Przeniesienie
+                </button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg rounded-2xl">
+                <DialogHeader>
+                  <DialogTitle>Przesunięcie wewnętrzne</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label>Z magazynu</Label>
+                    <select
+                      className="h-10 rounded-2xl border border-slate-200/70 bg-white/60 px-3 text-sm outline-none dark:border-white/10 dark:bg-white/5"
+                      value={newTr.from}
+                      onChange={(e) => setNewTr((s) => ({ ...s, from: e.target.value }))}
+                    >
+                      {warehouses.map((w) => (
+                        <option key={w.id} value={w.name}>
+                          {w.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Do magazynu</Label>
+                    <select
+                      className="h-10 rounded-2xl border border-slate-200/70 bg-white/60 px-3 text-sm outline-none dark:border-white/10 dark:bg-white/5"
+                      value={newTr.to}
+                      onChange={(e) => setNewTr((s) => ({ ...s, to: e.target.value }))}
+                    >
+                      {warehouses.map((w) => (
+                        <option key={w.id} value={w.name}>
+                          {w.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Produkt / materiał</Label>
+                    <Input
+                      value={newTr.item}
+                      onChange={(e) => setNewTr((s) => ({ ...s, item: e.target.value }))}
+                      placeholder="np. Restylane Kysse"
+                      className="rounded-2xl"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Ilość</Label>
+                    <Input
+                      type="number"
+                      value={String(newTr.qty)}
+                      onChange={(e) => setNewTr((s) => ({ ...s, qty: Math.max(1, Number(e.target.value || 1)) }))}
+                      className="rounded-2xl"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Notatka</Label>
+                    <Input
+                      value={newTr.note}
+                      onChange={(e) => setNewTr((s) => ({ ...s, note: e.target.value }))}
+                      placeholder="opcjonalnie"
+                      className="rounded-2xl"
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      className="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                      onClick={() => {
+                        if (!newTr.item.trim()) return;
+                        if (newTr.from === newTr.to) return;
+                        setTransfers((t) => [
+                          {
+                            id: `tr-${Math.random().toString(16).slice(2)}`,
+                            date: "Dziś",
+                            from: newTr.from,
+                            to: newTr.to,
+                            item: newTr.item.trim(),
+                            qty: newTr.qty,
+                            note: newTr.note.trim(),
+                          },
+                          ...t,
+                        ]);
+                        setNewTr((s) => ({ ...s, note: "" }));
+                      }}
+                    >
+                      Zapisz przeniesienie
+                    </button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {transfers.slice(0, 6).map((t) => (
+              <div
+                key={t.id}
+                className="rounded-2xl border border-white/60 bg-white/60 px-4 py-3 text-sm dark:border-white/10 dark:bg-white/5"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="font-semibold text-slate-900 dark:text-white">{t.item}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">{t.date}</div>
+                </div>
+                <div className="mt-1 text-slate-600 dark:text-slate-300">
+                  {t.from} → {t.to} • ilość: <span className="font-semibold">{t.qty}</span>
+                </div>
+                {t.note ? <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t.note}</div> : null}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

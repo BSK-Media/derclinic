@@ -18,6 +18,7 @@ const NAV: NavItem[] = [
   { label: "Pacjenci", href: "/admin/patients", icon: <span className="text-lg">👥</span> },
   { label: "Magazyn", href: "/admin/inventory", icon: <span className="text-lg">📦</span> },
   { label: "Produkty", href: "/admin/products", icon: <span className="text-lg">🧴</span> },
+  { label: "Zabiegi i Procedury", href: "/admin/procedures", icon: <span className="text-lg">🩺</span> },
   { label: "Analityka", href: "/admin/analytics", icon: <span className="text-lg">📈</span> },
   { label: "Ustawienia", href: "/admin/settings", icon: <span className="text-lg">⚙️</span> },
 ];
