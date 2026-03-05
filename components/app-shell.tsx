@@ -1,88 +1,160 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useAuth } from "@/components/auth-provider";
-import { Button } from "@/components/ui/button";
+import {
+  BarChart3,
+  Bell,
+  Boxes,
+  CalendarDays,
+  ChevronDown,
+  LayoutDashboard,
+  Package,
+  Settings,
+  Stethoscope,
+  Users,
+} from "lucide-react";
+
+import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 
-function NavLink({ href, label }: { href: string; label: string }) {
-  const pathname = usePathname();
-  const active = pathname === href || pathname.startsWith(href + "/");
+const NAV = [
+  { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
+  { label: "Wizyty", href: "/admin/visits", icon: CalendarDays },
+  { label: "Specjaliści", href: "/admin/specialists", icon: Stethoscope },
+  { label: "Pacjenci", href: "/admin/patients", icon: Users },
+  { label: "Magazyn", href: "/admin/inventory", icon: Boxes },
+  { label: "Produkty", href: "/admin/products", icon: Package },
+  { label: "Analityka", href: "/admin/analytics", icon: BarChart3 },
+  { label: "Ustawienia", href: "/admin/settings", icon: Settings },
+];
+
+function AppHeader() {
   return (
-    <Link
-      href={href}
-      className={[
-        "block rounded-md px-3 py-2 text-sm transition",
-        active ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-900",
-      ].join(" ")}
-    >
-      {label}
-    </Link>
+    <header className="fixed top-0 z-40 h-16 w-full bg-gradient-to-b from-[#eef3f7]/95 to-[#f7fbff]/80 backdrop-blur dark:from-[#070b13]/95 dark:to-[#0b1220]/80">
+      <div className="flex h-full items-center gap-4 px-6 lg:pl-[18rem]">
+        <div className="relative flex-1">
+          <div className="flex h-11 items-center gap-3 rounded-2xl border border-white/60 bg-white/70 px-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55">
+            <span className="text-slate-400 dark:text-slate-500">⌕</span>
+            <input
+              aria-label="Search"
+              placeholder="Search..."
+              className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/60 bg-white/70 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55"
+            aria-label="Notifications"
+          >
+            <Bell className="h-5 w-5 text-slate-600 dark:text-slate-200" />
+            <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-red-500" />
+          </button>
+
+          <div className="hidden items-center gap-3 rounded-2xl border border-white/60 bg-white/70 px-3 py-2 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 sm:flex">
+            <div className="relative h-8 w-8 overflow-hidden rounded-full bg-slate-200">
+              <img
+                src="/demo-avatar-ewa.svg"
+                alt="Dr. Ewa Kowalska"
+                className="h-full w-full object-cover"
+              />
+            </div>
+            <div className="leading-tight">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                Dr. Ewa Kowalska
+              </div>
+            </div>
+            <ChevronDown className="h-4 w-4 text-slate-400" />
+          </div>
+
+          <button
+            type="button"
+            className="hidden h-11 items-center gap-2 rounded-2xl border border-white/60 bg-white/70 px-3 text-sm font-medium text-slate-700 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 dark:text-slate-200 sm:flex"
+          >
+            EN <ChevronDown className="h-4 w-4 opacity-60" />
+          </button>
+
+          <ThemeToggle />
+        </div>
+      </div>
+    </header>
   );
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, logout } = useAuth();
-
-  if (loading) return <div className="p-6 text-sm text-zinc-500">Ładowanie…</div>;
-  if (!user) return <div className="p-6 text-sm text-zinc-500">Brak sesji.</div>;
-
-  const isAdmin = user.role === "ADMIN" || user.role === "RECEPTION";
-  const isSpecialist = user.role === "SPECIALIST";
+  const pathname = usePathname();
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <div className="mx-auto max-w-7xl px-4 py-6">
-        <div className="flex gap-6">
-          <aside className="w-72 shrink-0">
-            <div className="rounded-xl border bg-white p-4 shadow-sm dark:bg-zinc-950">
-              <div className="flex items-start justify-between gap-3">
-                <Image src="/derclinic-logo.webp" alt="DerClinic" width={56} height={56} />
-                <div>
-                  <div className="font-semibold leading-tight">DerClinic OS</div>
-                  <div className="text-xs text-zinc-500">{user.name} • {user.role}</div>
-                </div>
-                <ThemeToggle />
-              </div>
-
-              <div className="mt-4 space-y-1">
-                {isAdmin && (
-                  <>
-                    <NavLink href="/admin" label="Dashboard" />
-                    <NavLink href="/admin/visits" label="Wizyty" />
-                    <NavLink href="/admin/revenue" label="Przychód" />
-                    <NavLink href="/admin/clinic-treatments" label="Zabiegów Klinika" />
-                    <NavLink href="/admin/new-patients" label="Nowi Pacjenci" />
-                    <NavLink href="/admin/profile" label="Drofila" />
-                    <NavLink href="/admin/inventory-alerts" label="Magazyn - Alerty" />
-                    <NavLink href="/admin/inventory" label="Magazyn preparatów" />
-                    <NavLink href="/admin/supplies" label="Wapozylanie" />
-                  </>
-                )}
-                {isSpecialist && (
-                  <>
-                    <NavLink href="/specialist" label="Mój dzień" />
-                    <NavLink href="/specialist/schedule" label="Grafik" />
-                    <NavLink href="/specialist/appointments" label="Wizyty" />
-                  </>
-                )}
-                {user.role === "ADMIN" && (
-                  <NavLink href="/specialist" label="Podgląd: specjalista" />
-                )}
-              </div>
-
-              <div className="mt-4">
-                <Button variant="outline" className="w-full" onClick={logout}>
-                  Wyloguj
-                </Button>
+    <div className="min-h-screen bg-gradient-to-b from-[#eef3f7] via-[#eef3f7] to-[#f7fbff] text-slate-900 dark:from-[#070b13] dark:via-[#070b13] dark:to-[#0b1220] dark:text-white">
+      {/* Sidebar fixed to the left edge */}
+      <aside className="fixed inset-y-0 left-0 z-50 hidden w-72 p-5 lg:block">
+        <div className="h-full rounded-3xl border border-white/60 bg-white/80 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55">
+          <div className="flex items-start gap-3">
+            <div className="relative h-11 w-11 overflow-hidden rounded-2xl bg-white shadow-sm">
+              <img
+                src="/derclinic-logo.webp"
+                alt="DerClinic"
+                className="h-full w-full object-contain"
+              />
+            </div>
+            <div>
+              <div className="text-base font-semibold">DerClinic OS</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                Administrator • ADMIN
               </div>
             </div>
-          </aside>
+          </div>
 
-          <main className="min-w-0 flex-1">{children}</main>
+          <nav className="mt-5 space-y-1">
+            {NAV.map((item) => {
+              const active = pathname === item.href;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-2xl px-4 py-2.5 text-sm font-medium transition",
+                    active
+                      ? "bg-[#dff3f2] text-[#0c6b6b]"
+                      : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
+                  )}
+                >
+                  <Icon
+                    className={cn(
+                      "h-4 w-4",
+                      active
+                        ? "text-[#0c6b6b]"
+                        : "text-slate-500 dark:text-slate-300"
+                    )}
+                  />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+
+          <div className="mt-6">
+            <button
+              type="button"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+            >
+              Wyloguj
+            </button>
+          </div>
         </div>
+      </aside>
+
+      {/* Header fixed to the top edge (shared across tabs) */}
+      <AppHeader />
+
+      {/* Main content fills full width; leaves room for fixed header/sidebar */}
+      <div className="pt-16 lg:pl-72">
+        <main className="min-h-[calc(100vh-4rem)] px-6 py-6">{children}</main>
       </div>
     </div>
   );
