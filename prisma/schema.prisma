@@ -159,6 +159,7 @@ model Warehouse {
   children  Warehouse[] @relation("WarehouseTree")
 
   stocks    Stock[]
+  lots      ProductLot[]
   consumptions Consumption[]
 
   @@index([parentId])
