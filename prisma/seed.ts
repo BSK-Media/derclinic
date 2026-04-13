@@ -3,6 +3,55 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+
+const TEMP_SPECIALIST_PASSWORD = "DerClinic2026!";
+
+type SeedSpecialist = {
+  specialistCode: number;
+  name: string;
+  login: string;
+  email: string | null;
+  phone: string | null;
+  isVisible: boolean;
+  isAvailable: boolean;
+  role: Role;
+  jobTitle?: string | null;
+  avatarUrl?: string | null;
+  sourceProfileUrl?: string | null;
+};
+
+const SPECIALISTS: SeedSpecialist[] = [
+  {
+    specialistCode: 1,
+    name: "Marta Szyderska",
+    login: "marta.szyderska",
+    email: "martaszyderska@derclinic.pl",
+    phone: "+48570070750",
+    isVisible: true,
+    isAvailable: true,
+    role: Role.SPECIALIST,
+    jobTitle: "Założycielka kliniki DerClinic / medycyna estetyczna",
+    avatarUrl: "https://derclinic.pl/wp-content/uploads/2024/04/240227MagazynEstetyczny_DerClinic-MK0092.jpg",
+    sourceProfileUrl: "https://derclinic.pl/o-klinice/zespol/dr-marta-szyderska/",
+  },
+  { specialistCode: 5, name: "Natalia Paryska", login: "natalia.paryska", email: "paryska.derclinic@gmail.com", phone: "+48723937325", isVisible: false, isAvailable: false, role: Role.SPECIALIST, jobTitle: "Specjalista" },
+  { specialistCode: 6, name: "Joanna Sankowska", login: "joanna.sankowska", email: "jkocieda@gmail.com", phone: "+48796443979", isVisible: true, isAvailable: true, role: Role.SPECIALIST, jobTitle: "Magister kosmetologii", avatarUrl: "https://derclinic.pl/wp-content/uploads/2026/02/a5670d6b-f2ba-44ba-a23a-292db6ddd12b.webp", sourceProfileUrl: "https://derclinic.pl/o-klinice/zespol/joanna-sankowska/" },
+  { specialistCode: 7, name: "Anna Krysa-Strzałkowska", login: "anna.krysa", email: "annakrysa@outlook.com", phone: "+48798929880", isVisible: true, isAvailable: false, role: Role.SPECIALIST, jobTitle: "Lekarz w trakcie specjalizacji z chirurgii onkologicznej", avatarUrl: "https://derclinic.pl/wp-content/uploads/2026/03/2E63003F-6C68-4D65-9A07-8BDDFB6D2F5E.png", sourceProfileUrl: "https://derclinic.pl/o-klinice/zespol/dr-anna-krysa-strzalkowska/" },
+  { specialistCode: 8, name: "Jakub Kobiałka", login: "jakub.kobialka", email: "jakub-kobialka@wp.pl", phone: "+48692430537", isVisible: true, isAvailable: false, role: Role.SPECIALIST, jobTitle: "Lekarz w trakcie specjalizacji z dermatologii i wenerologii, lekarz medycyny estetycznej", avatarUrl: "https://derclinic.pl/wp-content/uploads/2026/03/photo-scaled.webp", sourceProfileUrl: "https://derclinic.pl/o-klinice/zespol/dr-jakub-kobialka/" },
+  { specialistCode: 9, name: "Eliza Galińska", login: "eliza.galinska", email: "eliza.galinska96@gmail.com", phone: "+48726178240", isVisible: true, isAvailable: false, role: Role.SPECIALIST, jobTitle: "Lekarz w trakcie specjalizacji z dermatologii i wenerologii, lekarz medycyny estetycznej", sourceProfileUrl: "https://derclinic.pl/o-klinice/zespol/dr-eliza-galinska-zatyka/" },
+  { specialistCode: 10, name: "Ewelina Kumiszcza", login: "ewelina.kumiszcza", email: "ewelina.kumiszcza@gmail.com", phone: "+48794227649", isVisible: true, isAvailable: false, role: Role.SPECIALIST, jobTitle: "Lekarz medycyny estetycznej", avatarUrl: "https://derclinic.pl/wp-content/uploads/2025/08/dr-Ewelina-Kumiszcza.webp", sourceProfileUrl: "https://derclinic.pl/o-klinice/zespol/dr-ewelina-kumiszcza/" },
+  { specialistCode: 11, name: "Michał Świder", login: "michal.swider", email: "mswider@op.pl", phone: "+48600287788", isVisible: true, isAvailable: false, role: Role.SPECIALIST, jobTitle: "Chirurg naczyniowy, flebolog", avatarUrl: "https://derclinic.pl/wp-content/uploads/2023/05/dr-michal-swider.webp", sourceProfileUrl: "https://derclinic.pl/o-klinice/zespol/lek-michal-swider/" },
+  { specialistCode: 12, name: "Aneta Balcerzak", login: "aneta.balcerzak", email: "anetabalcerzakk@gmail.com", phone: "+48791762655", isVisible: true, isAvailable: false, role: Role.SPECIALIST, jobTitle: "Magister kosmetologii", avatarUrl: "https://derclinic.pl/wp-content/uploads/2023/11/anet1-min.jpg", sourceProfileUrl: "https://derclinic.pl/o-klinice/zespol/aneta-balcerzak/" },
+  { specialistCode: 13, name: "Alina Werner", login: "alina.werner", email: "aw_derclinic@onet.pl", phone: "+48792500322", isVisible: true, isAvailable: false, role: Role.SPECIALIST, jobTitle: "Lekarz dermatolog", avatarUrl: "https://derclinic.pl/wp-content/uploads/2022/10/lekarz-dermatolog-alina-werner.webp", sourceProfileUrl: "https://derclinic.pl/o-klinice/zespol/dr-alina-werner/" },
+  { specialistCode: 14, name: "mgr Magdalena Królak", login: "magdalena.krolak", email: "mk_derclinic@onet.pl", phone: "+48508820280", isVisible: true, isAvailable: true, role: Role.SPECIALIST, jobTitle: "Pielęgniarka, fizjoterapeuta estetyczny", avatarUrl: "https://derclinic.pl/wp-content/uploads/2023/11/mag1-min.jpg", sourceProfileUrl: "https://derclinic.pl/o-klinice/zespol/magdalena-krolak/" },
+  { specialistCode: 15, name: "Anna Frydecka", login: "anna.frydecka", email: "annafrydrycka@gmail.com", phone: "+48509540474", isVisible: true, isAvailable: false, role: Role.SPECIALIST, jobTitle: "Lekarz w trakcie specjalizacji z zakresu położnictwa i ginekologii", sourceProfileUrl: "https://derclinic.pl/o-klinice/zespol/dr-anna-frydecka/" },
+  { specialistCode: 16, name: "Mateusz Pyrka", login: "mateusz.pyrka", email: "mateusz.pyrka@onet.pl", phone: "+48790559668", isVisible: true, isAvailable: false, role: Role.SPECIALIST, jobTitle: "Lekarz medycyny estetycznej", avatarUrl: "https://derclinic.pl/wp-content/uploads/2024/01/mp1-1.jpg", sourceProfileUrl: "https://derclinic.pl/o-klinice/zespol/mateusz-pyrka/" },
+  { specialistCode: 17, name: "Adrian Skoczylas", login: "adrian.skoczylas", email: "adrian.sko@gmail.com", phone: "+48517398705", isVisible: true, isAvailable: false, role: Role.SPECIALIST, jobTitle: "Ginekolog, lekarz medycyny estetycznej", avatarUrl: "https://derclinic.pl/wp-content/uploads/2024/04/asdr.jpg", sourceProfileUrl: "https://derclinic.pl/o-klinice/zespol/dr-adrian-skoczylas/" },
+  { specialistCode: 18, name: "Anna Mikołajewska", login: "anna.mikolajewska", email: "malwinaw97@wp.pl", phone: "+48663223391", isVisible: true, isAvailable: false, role: Role.SPECIALIST, jobTitle: "Lekarz medycyny estetycznej", avatarUrl: "https://derclinic.pl/wp-content/uploads/2023/12/dr-ania.jpg", sourceProfileUrl: "https://derclinic.pl/o-klinice/zespol/dr-lek-anna-mikolajewska/" },
+  { specialistCode: 19, name: "Recepcja .", login: "recepcja", email: "azalewska12@gmail.com", phone: null, isVisible: true, isAvailable: true, role: Role.RECEPTION, jobTitle: "Recepcja" },
+  { specialistCode: 27, name: "Weronika Kaczor", login: "weronika.kaczor", email: "weronika.kaczor1997@wp.pl", phone: null, isVisible: false, isAvailable: false, role: Role.SPECIALIST, jobTitle: "Specjalista w leczeniu otyłości (obesitolog)", avatarUrl: "https://derclinic.pl/wp-content/uploads/2026/03/99a17e09-4431-480a-85c2-24b37451ca7e-scaled.webp", sourceProfileUrl: "https://derclinic.pl/o-klinice/zespol/weronika-kaczor/" },
+];
+
 const SERVICES: Array<{ name: string; price: number }> = [
   { name: 'PAKIET konsultacja+USG jamy brzusznej+USG tarczycy', price: 750 },
   { name: 'Kolejna wizyta- leczenie otyłości', price: 300 },
@@ -612,11 +661,48 @@ async function main() {
         name: "Administrator",
         role: Role.ADMIN,
         passwordHash,
+        isVisible: true,
+        isAvailable: true,
       },
     });
     console.log("✅ Seeded default admin (admin/admin)");
   } else {
     console.log("ℹ️ Default admin already exists");
+  }
+
+  const specialistHash = await bcrypt.hash(TEMP_SPECIALIST_PASSWORD, 10);
+  for (const specialist of SPECIALISTS) {
+    await prisma.user.upsert({
+      where: { login: specialist.login },
+      update: {
+        name: specialist.name,
+        email: specialist.email,
+        role: specialist.role,
+        phone: specialist.phone,
+        specialistCode: specialist.specialistCode,
+        isVisible: specialist.isVisible,
+        isAvailable: specialist.isAvailable,
+        avatarUrl: specialist.avatarUrl ?? null,
+        jobTitle: specialist.jobTitle ?? null,
+        sourceProfileUrl: specialist.sourceProfileUrl ?? null,
+        payoutPercent: specialist.role === Role.SPECIALIST ? 50 : 0,
+      },
+      create: {
+        login: specialist.login,
+        name: specialist.name,
+        email: specialist.email,
+        role: specialist.role,
+        passwordHash: specialistHash,
+        phone: specialist.phone,
+        specialistCode: specialist.specialistCode,
+        isVisible: specialist.isVisible,
+        isAvailable: specialist.isAvailable,
+        avatarUrl: specialist.avatarUrl ?? null,
+        jobTitle: specialist.jobTitle ?? null,
+        sourceProfileUrl: specialist.sourceProfileUrl ?? null,
+        payoutPercent: specialist.role === Role.SPECIALIST ? 50 : 0,
+      },
+    });
   }
 
   const mainWh = await prisma.warehouse.upsert({

@@ -13,7 +13,7 @@ export async function GET() {
 
   const users = await prisma.user.findMany({
     orderBy: [{ role: "asc" }, { name: "asc" }],
-    select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, createdAt: true },
+    select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true, createdAt: true },
   });
   return NextResponse.json({ ok: true, users });
 }
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
       passwordHash,
       payoutPercent: role === "SPECIALIST" ? (payoutPercent ?? 50) : 0,
     },
-    select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true },
+    select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true },
   });
 
   await logAudit({ actorId: user!.id, action: "CREATE", entity: "User", entityId: created.id, data: { login, role } });

@@ -10,6 +10,13 @@ const PatchSchema = z.object({
   role: z.enum(["ADMIN", "RECEPTION", "SPECIALIST"]).optional(),
   email: z.string().email().optional().or(z.literal("")).optional(),
   payoutPercent: z.number().int().min(0).max(100).optional(),
+  phone: z.string().optional().or(z.literal("")).optional(),
+  specialistCode: z.number().int().optional(),
+  isVisible: z.boolean().optional(),
+  isAvailable: z.boolean().optional(),
+  avatarUrl: z.string().url().optional().or(z.literal("")).optional(),
+  jobTitle: z.string().optional().or(z.literal("")).optional(),
+  sourceProfileUrl: z.string().url().optional().or(z.literal("")).optional(),
   password: z.string().min(4).optional(),
 });
 
@@ -28,12 +35,19 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (parsed.data.role !== undefined) data.role = parsed.data.role;
   if (parsed.data.email !== undefined) data.email = parsed.data.email ? parsed.data.email : null;
   if (parsed.data.payoutPercent !== undefined) data.payoutPercent = parsed.data.payoutPercent;
+  if (parsed.data.phone !== undefined) data.phone = parsed.data.phone || null;
+  if (parsed.data.specialistCode !== undefined) data.specialistCode = parsed.data.specialistCode;
+  if (parsed.data.isVisible !== undefined) data.isVisible = parsed.data.isVisible;
+  if (parsed.data.isAvailable !== undefined) data.isAvailable = parsed.data.isAvailable;
+  if (parsed.data.avatarUrl !== undefined) data.avatarUrl = parsed.data.avatarUrl || null;
+  if (parsed.data.jobTitle !== undefined) data.jobTitle = parsed.data.jobTitle || null;
+  if (parsed.data.sourceProfileUrl !== undefined) data.sourceProfileUrl = parsed.data.sourceProfileUrl || null;
   if (parsed.data.password) data.passwordHash = await bcrypt.hash(parsed.data.password, 10);
 
   const updated = await prisma.user.update({
     where: { id: params.id },
     data,
-    select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true },
+    select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true },
   });
 
   await logAudit({ actorId: user!.id, action: "UPDATE", entity: "User", entityId: updated.id, data });
