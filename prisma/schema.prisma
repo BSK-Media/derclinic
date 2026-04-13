@@ -90,17 +90,19 @@ model Service {
   updatedAt DateTime @updatedAt
 
   name        String
+  category    String?
   description String?
   durationMin Int    @default(30)
 
   // Suggested pricing (grosze)
-  priceFrom   Int?
+  priceFrom      Int?
   priceSuggested Int?
 
   suggestedProducts ServiceSuggestedProduct[]
   appointments      Appointment[]
 
   @@index([name])
+  @@index([category])
 }
 
 model ServiceSuggestedProduct {

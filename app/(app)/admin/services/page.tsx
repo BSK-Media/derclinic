@@ -14,7 +14,19 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 type Product = { id: string; name: string; unit: string };
 type Suggestion = { id: string; productId: string; quantity: string; unit: string; product: Product };
-type Service = { id: string; name: string; description?: string | null; durationMin: number; priceFrom?: number | null; priceSuggested?: number | null; suggestedProducts: Suggestion[] };
+const SERVICE_CATEGORIES = [
+  "Medycyna estetyczna",
+  "Dermatologia",
+  "Kosmetologia estetyczna",
+  "Ginekologia",
+  "Chirurgia plastyczna",
+  "Chirurgia naczyniowa",
+  "Badania USG",
+  "Centrum leczenia ran",
+  "Leczenie otyłości",
+] as const;
+
+type Service = { id: string; name: string; category?: string | null; description?: string | null; durationMin: number; priceFrom?: number | null; priceSuggested?: number | null; suggestedProducts: Suggestion[] };
 
 export default function ServicesPage() {
   const { data, mutate, isLoading } = useSWR("/api/admin/services", fetcher);
@@ -22,6 +34,7 @@ export default function ServicesPage() {
   const products: Product[] = data?.products ?? [];
 
   const [name, setName] = useState("");
+  const [category, setCategory] = useState<string>(SERVICE_CATEGORIES[0]);
   const [durationMin, setDurationMin] = useState("30");
   const [priceFrom, setPriceFrom] = useState("");
   const [priceSuggested, setPriceSuggested] = useState("");
@@ -35,6 +48,7 @@ export default function ServicesPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           name,
+          category,
           durationMin: Number(durationMin),
           priceFrom: priceFrom ? parsePLNToGrosze(priceFrom) : null,
           priceSuggested: priceSuggested ? parsePLNToGrosze(priceSuggested) : null,
@@ -43,7 +57,7 @@ export default function ServicesPage() {
       const out = await res.json().catch(() => ({}));
       if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
       toast.success("Usługa dodana");
-      setName(""); setDurationMin("30"); setPriceFrom(""); setPriceSuggested("");
+      setName(""); setCategory(SERVICE_CATEGORIES[0]); setDurationMin("30"); setPriceFrom(""); setPriceSuggested("");
       mutate();
     } finally {
       setSaving(false);
@@ -86,6 +100,18 @@ export default function ServicesPage() {
             <Label>Nazwa</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
+
+          <div className="space-y-2">
+            <Label>Kategoria</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger><SelectValue placeholder="Wybierz kategorię" /></SelectTrigger>
+              <SelectContent>
+                {SERVICE_CATEGORIES.map((item) => (
+                  <SelectItem key={item} value={item}>{item}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-2">
             <Label>Czas trwania (min)</Label>
             <Input value={durationMin} onChange={(e) => setDurationMin(e.target.value)} />
@@ -112,6 +138,7 @@ export default function ServicesPage() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="font-medium">{s.name}</div>
+                  <div className="text-xs text-zinc-500">{s.category || "Bez kategorii"}</div>
                   <div className="text-xs text-zinc-500">
                     {s.durationMin} min • {s.priceFrom ? `od ${formatPLNFromGrosze(s.priceFrom)}` : "—"} • sugerowana: {formatPLNFromGrosze(s.priceSuggested)}
                   </div>

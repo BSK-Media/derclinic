@@ -23,6 +23,7 @@ export async function GET() {
 
 const CreateSchema = z.object({
   name: z.string().min(2),
+  category: z.string().optional().nullable(),
   description: z.string().optional().or(z.literal("")),
   durationMin: z.number().int().min(5).max(480).optional(),
   priceFrom: z.number().int().optional().nullable(),
@@ -42,6 +43,7 @@ export async function POST(req: Request) {
   const s = await prisma.service.create({
     data: {
       name: parsed.data.name,
+      category: parsed.data.category ? parsed.data.category : null,
       description: parsed.data.description ? parsed.data.description : null,
       durationMin: parsed.data.durationMin ?? 30,
       priceFrom: parsed.data.priceFrom ?? null,
