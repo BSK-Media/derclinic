@@ -14,7 +14,7 @@ const PatchSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-export async function GET(_req: Request, {{ params }}: {{ params: {{ id: string }} }}) {
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireRole(user!.role, ["ADMIN"]);
