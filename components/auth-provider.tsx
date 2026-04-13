@@ -3,7 +3,7 @@
 import React from "react";
 
 export type Role = "ADMIN" | "RECEPTION" | "SPECIALIST";
-export type MeUser = { id: string; login: string; name: string; role: Role; payoutPercent?: number } | null;
+export type MeUser = { id: string; login: string; name: string; role: Role; payoutPercent?: number; avatarUrl?: string | null; jobTitle?: string | null } | null;
 
 type Ctx = {
   user: MeUser;

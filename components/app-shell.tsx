@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth-provider";
 
 type NavItem = {
   label: string;
@@ -18,12 +19,37 @@ const NAV: NavItem[] = [
   { label: "Pacjenci", href: "/admin/patients", icon: <span className="text-lg">👥</span> },
   { label: "Magazyn", href: "/admin/inventory", icon: <span className="text-lg">📦</span> },
   { label: "Produkty", href: "/admin/products", icon: <span className="text-lg">🧴</span> },
-  { label: "Zabiegi i Procedury", href: "/admin/procedures", icon: <span className="text-lg">🩺</span> },
+  { label: "Zabiegi i Procedury", href: "/admin/services", icon: <span className="text-lg">🩺</span> },
   { label: "Analityka", href: "/admin/analytics", icon: <span className="text-lg">📈</span> },
   { label: "Ustawienia", href: "/admin/settings", icon: <span className="text-lg">⚙️</span> },
 ];
 
+function UserAvatar({ name, avatarUrl, className = "h-8 w-8" }: { name?: string | null; avatarUrl?: string | null; className?: string }) {
+  const initials = (name ?? "U")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+
+  if (avatarUrl) {
+    return (
+      <div className={cn("relative overflow-hidden rounded-full bg-slate-200", className)}>
+        <img src={avatarUrl} alt={name ?? "Użytkownik"} className="h-full w-full object-cover" />
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("inline-flex items-center justify-center rounded-full bg-emerald-100 font-semibold text-emerald-800", className)}>
+      {initials || "U"}
+    </div>
+  );
+}
+
 function LogoBlock() {
+  const { user } = useAuth();
+
   return (
     <div className="flex items-center gap-3 px-3 py-2">
       <div className="relative h-11 w-11 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 dark:bg-[#0b1220]/55 dark:ring-white/10">
@@ -31,7 +57,9 @@ function LogoBlock() {
       </div>
       <div className="min-w-0">
         <div className="truncate text-sm font-semibold text-slate-900 dark:text-white">DerClinic OS</div>
-        <div className="truncate text-xs text-slate-500 dark:text-slate-400">Administrator • ADMIN</div>
+        <div className="truncate text-xs text-slate-500 dark:text-slate-400">
+          {user?.name ?? "Użytkownik"} • {user?.role ?? "—"}
+        </div>
       </div>
       <div className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-white/60 bg-white/70 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55">
         <span className="text-slate-700 dark:text-slate-200">☾</span>
@@ -42,6 +70,8 @@ function LogoBlock() {
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { logout } = useAuth();
+
   return (
     <aside className="fixed left-0 top-0 z-50 hidden h-screen w-[280px] shrink-0 border-r border-white/70 bg-white/65 p-3 backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/45 lg:block">
       <div className="flex h-full flex-col">
@@ -74,7 +104,10 @@ export function AppSidebar() {
         </nav>
 
         <div className="mt-2 rounded-2xl border border-white/60 bg-white/70 p-3 shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55">
-          <button className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10">
+          <button
+            onClick={() => logout()}
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+          >
             Wyloguj
           </button>
         </div>
@@ -84,6 +117,9 @@ export function AppSidebar() {
 }
 
 export function AppHeader() {
+  const { user } = useAuth();
+  const profileHref = user?.role === "SPECIALIST" ? "/specialist" : "/admin/profile";
+
   return (
     <header className="sticky top-0 z-40 w-full border-b border-white/60 bg-white/70 px-4 py-3 backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 lg:px-6">
       <div className="flex items-center gap-4">
@@ -109,14 +145,15 @@ export function AppHeader() {
           </button>
 
           <Link
-            href="/admin/profile"
+            href={profileHref}
             className="hidden items-center gap-3 rounded-2xl border border-white/60 bg-white/70 px-3 py-2 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 sm:flex"
             aria-label="Open profile"
           >
-            <div className="relative h-8 w-8 overflow-hidden rounded-full bg-slate-200">
-              <img src="/demo-avatar-ewa.svg" alt="Dr. Ewa Kowalska" className="h-full w-full object-cover" />
+            <UserAvatar name={user?.name} avatarUrl={user?.avatarUrl} className="h-8 w-8" />
+            <div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{user?.name ?? "Użytkownik"}</div>
+              {user?.jobTitle ? <div className="text-xs text-slate-400">{user.jobTitle}</div> : null}
             </div>
-            <div className="text-sm font-medium text-slate-700 dark:text-slate-200">Dr. Ewa Kowalska</div>
             <span className="text-slate-400">▾</span>
           </Link>
 
