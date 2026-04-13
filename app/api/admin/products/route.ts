@@ -12,8 +12,8 @@ export async function GET() {
 
   const [products, warehouses] = await Promise.all([
     prisma.product.findMany({
-      orderBy: { name: "asc" },
-      include: { stocks: true },
+      orderBy: [{ manufacturer: "asc" }, { name: "asc" }],
+      include: { stocks: true, lots: true },
     }),
     prisma.warehouse.findMany({ orderBy: { name: "asc" } }),
   ]);
@@ -26,6 +26,8 @@ const CreateSchema = z.object({
   name: z.string().min(2),
   sku: z.string().optional().or(z.literal("")),
   unit: z.enum(["UNIT", "ML", "AMPULE", "BOTOX_UNIT"]),
+  manufacturer: z.string().optional().nullable(),
+  catalogCategory: z.string().optional().nullable(),
   purchasePrice: z.number().int().optional().nullable(),
   salePrice: z.number().int().optional().nullable(),
 });
@@ -46,6 +48,8 @@ export async function POST(req: Request) {
       name: parsed.data.name,
       sku: parsed.data.sku ? parsed.data.sku : null,
       unit: parsed.data.unit as any,
+      manufacturer: parsed.data.manufacturer ?? null,
+      catalogCategory: parsed.data.catalogCategory ?? null,
       purchasePrice: parsed.data.purchasePrice ?? null,
       salePrice: parsed.data.salePrice ?? null,
     },

@@ -1,161 +1,103 @@
 "use client";
 
-import * as React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import useSWR from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+function money(value: number | null | undefined) {
+  if (value == null) return "—";
+  return new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN" }).format(value / 100);
+}
 
 export default function ProductDetailsPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id ?? "";
+  const { data } = useSWR(id ? `/api/admin/products/${id}` : null, fetcher);
+  const product = data?.product;
+
+  if (!product) {
+    return <div className="text-sm text-slate-500 dark:text-slate-400">Ładowanie danych produktu...</div>;
+  }
+
+  const totalQty = product.stocks.reduce((sum: number, stock: { quantity: string }) => sum + Number(stock.quantity), 0);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="text-sm text-slate-500 dark:text-slate-400">
-            <Link href="/admin/products" className="hover:underline">
-              Produkty
-            </Link>
-            <span className="mx-2">/</span>
-            <span className="text-slate-700 dark:text-slate-200">{id}</span>
-          </div>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
-            Produkt: {id}
-          </h1>
+      <div>
+        <div className="text-sm text-slate-500 dark:text-slate-400">
+          <Link href="/admin/products" className="hover:underline">Produkty</Link>
+          <span className="mx-2">/</span>
+          <span className="text-slate-700 dark:text-slate-200">{product.name}</span>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button className="rounded-2xl bg-teal-600 px-5 hover:bg-teal-700">Dodaj do magazynu</Button>
-          <Button variant="secondary" className="rounded-2xl bg-teal-100 text-teal-800 hover:bg-teal-200">
-            Edytuj
-          </Button>
-        </div>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">{product.name}</h1>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2 border-white/60 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55">
-          <CardHeader>
-            <CardTitle>Szczegóły produktu</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-5 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Nazwa</Label>
-              <Input defaultValue="Juvederm Voluma" className="rounded-2xl" />
-            </div>
-            <div className="space-y-2">
-              <Label>Kod</Label>
-              <Input defaultValue={id} className="rounded-2xl" />
-            </div>
-            <div className="space-y-2">
-              <Label>Dostawca</Label>
-              <Input defaultValue="Allergan" className="rounded-2xl" />
-            </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <div>
-                <Badge variant="secondary" className="rounded-xl bg-emerald-100 px-3 py-1 text-emerald-800">
-                  Aktywny
-                </Badge>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Cena zakupu (PLN)</Label>
-              <Input defaultValue="458 800" className="rounded-2xl" />
-            </div>
-            <div className="space-y-2">
-              <Label>Cena detaliczna (PLN)</Label>
-              <Input defaultValue="30 500" className="rounded-2xl" />
-            </div>
-            <div className="md:col-span-2 space-y-2">
-              <Label>Opis</Label>
-              <textarea
-                className="min-h-[120px] w-full rounded-2xl border border-slate-200/70 bg-white/60 p-3 text-sm text-slate-800 outline-none dark:border-white/10 dark:bg-white/5 dark:text-slate-100"
-                defaultValue="Placeholder opisu produktu (skład, wskazania, przeciwwskazania, itp.)."
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-white/60 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55">
-          <CardHeader>
-            <CardTitle>Dostępność</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {[
-              { w: "Magazyn Główny", qty: 30, s: "Dostępny" },
-              { w: "Gabinet 1", qty: 8, s: "Mało" },
-              { w: "Gabinet 2", qty: 0, s: "Brak" },
-            ].map((r) => (
-              <div
-                key={r.w}
-                className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white/60 px-4 py-3 text-sm dark:border-white/10 dark:bg-white/5"
-              >
-                <div>
-                  <div className="font-medium text-slate-900 dark:text-white">{r.w}</div>
-                  <div className="text-slate-500 dark:text-slate-400">Ilość: {r.qty}</div>
-                </div>
-                <Badge
-                  variant="secondary"
-                  className={
-                    "rounded-xl px-3 py-1 " +
-                    (r.s === "Dostępny"
-                      ? "bg-emerald-100 text-emerald-800"
-                      : r.s === "Mało"
-                      ? "bg-amber-100 text-amber-800"
-                      : "bg-rose-100 text-rose-800")
-                  }
-                >
-                  {r.s}
-                </Badge>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 lg:grid-cols-4">
+        <Card><CardContent className="p-5"><div className="text-sm text-slate-500">Firma</div><div className="mt-1 text-xl font-semibold">{product.manufacturer ?? "—"}</div></CardContent></Card>
+        <Card><CardContent className="p-5"><div className="text-sm text-slate-500">Kategoria</div><div className="mt-1 text-xl font-semibold">{product.catalogCategory ?? "—"}</div></CardContent></Card>
+        <Card><CardContent className="p-5"><div className="text-sm text-slate-500">Łączny stan</div><div className="mt-1 text-xl font-semibold">{totalQty}</div></CardContent></Card>
+        <Card><CardContent className="p-5"><div className="text-sm text-slate-500">SKU</div><div className="mt-1 text-xl font-semibold">{product.sku ?? "—"}</div></CardContent></Card>
       </div>
 
-      <Card className="border-white/60 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55">
-        <CardHeader>
-          <CardTitle>Historia ruchów magazynowych</CardTitle>
-        </CardHeader>
+      <Card>
+        <CardHeader><CardTitle>Parametry produktu</CardTitle></CardHeader>
         <CardContent>
-          <div className="overflow-hidden rounded-2xl border border-slate-200/70 dark:border-white/10">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Operacja</TableHead>
-                  <TableHead>Magazyn</TableHead>
-                  <TableHead className="text-right">Ilość</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {[
-                  { d: "Dziś", op: "Przyjęcie", w: "Magazyn Główny", q: "+10" },
-                  { d: "Wczoraj", op: "Przesunięcie", w: "Gabinet 1", q: "-2" },
-                  { d: "3 dni temu", op: "Zużycie", w: "Gabinet 2", q: "-1" },
-                ].map((r) => (
-                  <TableRow key={r.d + r.op}>
-                    <TableCell className="text-slate-700 dark:text-slate-200">{r.d}</TableCell>
-                    <TableCell className="font-medium text-slate-900 dark:text-white">{r.op}</TableCell>
-                    <TableCell className="text-slate-700 dark:text-slate-200">{r.w}</TableCell>
-                    <TableCell className="text-right font-semibold text-slate-900 dark:text-white">{r.q}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 text-sm">
+            <div><span className="text-slate-500">Jednostka:</span> {product.unit}</div>
+            <div><span className="text-slate-500">Cena zakupu:</span> {money(product.purchasePrice)}</div>
+            <div><span className="text-slate-500">Cena sprzedaży:</span> {money(product.salePrice)}</div>
+            <div><span className="text-slate-500">Aktywny:</span> {product.isActive ? "Tak" : "Nie"}</div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Stany magazynowe</CardTitle></CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader><TableRow><TableHead>Magazyn</TableHead><TableHead>Ilość</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {product.stocks.map((stock: any) => (
+                <TableRow key={stock.id}><TableCell>{stock.warehouse.name}</TableCell><TableCell>{Number(stock.quantity)}</TableCell></TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Serie / partie</CardTitle></CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Partia</TableHead>
+                <TableHead>Termin ważności</TableHead>
+                <TableHead>Stan</TableHead>
+                <TableHead>Wartość zakupu</TableHead>
+                <TableHead>Lokalizacja</TableHead>
+                <TableHead>Magazyn</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {product.lots.map((lot: any) => (
+                <TableRow key={lot.id}>
+                  <TableCell className="font-medium">{lot.batchNumber}</TableCell>
+                  <TableCell>{new Date(lot.expiryDate).toLocaleDateString("pl-PL")}</TableCell>
+                  <TableCell>{Number(lot.quantity)}</TableCell>
+                  <TableCell>{money(lot.purchasePrice)}</TableCell>
+                  <TableCell>{lot.location ?? "—"}</TableCell>
+                  <TableCell>{lot.warehouse.name}</TableCell>
+                  <TableCell>{lot.status ?? "—"}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>
