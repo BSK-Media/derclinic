@@ -3,8 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
+import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth-provider";
+
+function useThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+  const isDark = mounted && resolvedTheme === "dark";
+  const toggle = () => setTheme(isDark ? "light" : "dark");
+  return { isDark, toggle };
+}
 
 type NavItem = {
   label: string;
@@ -49,6 +59,7 @@ function UserAvatar({ name, avatarUrl, className = "h-8 w-8" }: { name?: string 
 
 function LogoBlock() {
   const { user } = useAuth();
+  const { isDark, toggle } = useThemeToggle();
 
   return (
     <div className="flex items-center gap-3 px-3 py-2">
@@ -61,9 +72,14 @@ function LogoBlock() {
           {user?.name ?? "Użytkownik"} • {user?.role ?? "—"}
         </div>
       </div>
-      <div className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-white/60 bg-white/70 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55">
-        <span className="text-slate-700 dark:text-slate-200">☾</span>
-      </div>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label={isDark ? "Przełącz na jasny motyw" : "Przełącz na ciemny motyw"}
+        className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-white/60 bg-white/70 shadow-sm backdrop-blur transition hover:bg-white dark:border-white/10 dark:bg-[#0b1220]/55 dark:hover:bg-white/10"
+      >
+        <span className="text-slate-700 dark:text-slate-200">{isDark ? "☀" : "☾"}</span>
+      </button>
     </div>
   );
 }
@@ -118,6 +134,7 @@ export function AppSidebar() {
 
 export function AppHeader() {
   const { user } = useAuth();
+  const { isDark, toggle } = useThemeToggle();
   const profileHref = user?.role === "SPECIALIST" ? "/specialist" : "/admin/profile";
 
   return (
@@ -162,10 +179,12 @@ export function AppHeader() {
           </button>
 
           <button
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/60 bg-white/70 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55"
-            aria-label="Toggle theme"
+            type="button"
+            onClick={toggle}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/60 bg-white/70 shadow-sm backdrop-blur transition hover:bg-white dark:border-white/10 dark:bg-[#0b1220]/55 dark:hover:bg-white/10"
+            aria-label={isDark ? "Przełącz na jasny motyw" : "Przełącz na ciemny motyw"}
           >
-            <span className="text-slate-700 dark:text-slate-200">◐</span>
+            <span className="text-slate-700 dark:text-slate-200">{isDark ? "☀" : "◐"}</span>
           </button>
         </div>
       </div>
