@@ -16,6 +16,8 @@ const PatchSchema = z.object({
   isAvailable: z.boolean().optional(),
   avatarUrl: z.string().url().optional().or(z.literal("")).optional(),
   jobTitle: z.string().optional().or(z.literal("")).optional(),
+  location: z.string().optional().or(z.literal("")).optional(),
+  specialization: z.string().optional().or(z.literal("")).optional(),
   sourceProfileUrl: z.string().url().optional().or(z.literal("")).optional(),
   password: z.string().min(4).optional(),
 });
@@ -41,13 +43,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (parsed.data.isAvailable !== undefined) data.isAvailable = parsed.data.isAvailable;
   if (parsed.data.avatarUrl !== undefined) data.avatarUrl = parsed.data.avatarUrl || null;
   if (parsed.data.jobTitle !== undefined) data.jobTitle = parsed.data.jobTitle || null;
+  if (parsed.data.location !== undefined) data.location = parsed.data.location || null;
+  if (parsed.data.specialization !== undefined) data.specialization = parsed.data.specialization || null;
   if (parsed.data.sourceProfileUrl !== undefined) data.sourceProfileUrl = parsed.data.sourceProfileUrl || null;
   if (parsed.data.password) data.passwordHash = await bcrypt.hash(parsed.data.password, 10);
 
   const updated = await prisma.user.update({
     where: { id: params.id },
     data,
-    select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true },
+    select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true, location: true, specialization: true },
   });
 
   await logAudit({ actorId: user!.id, action: "UPDATE", entity: "User", entityId: updated.id, data });
