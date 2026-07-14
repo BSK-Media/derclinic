@@ -103,7 +103,7 @@ export default function AdminVisitsPage() {
           <span className="text-zinc-400">–</span>
           <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" />
         </div>
-        <Button onClick={() => setDialogOpen(true)}>+ Book appointment</Button>
+        <Button onClick={() => setDialogOpen(true)}>Dodaj rezerwację</Button>
       </div>
 
       <div className="overflow-hidden rounded-2xl border bg-white shadow-sm dark:bg-zinc-950">

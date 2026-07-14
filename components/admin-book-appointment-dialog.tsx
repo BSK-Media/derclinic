@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { parsePLNToGrosze } from "@/lib/money";
 
 type Patient = { id: string; name: string };
-type Specialist = { id: string; name: string };
+type Specialist = { id: string; name: string; serviceIds?: string[] };
 type Service = { id: string; name: string; durationMin: number; priceSuggested?: number | null };
 
 function toLocalDateTimeInput(d: Date) {
@@ -61,6 +61,22 @@ export function AdminBookAppointmentDialog({
     setPriceEstimate("");
     setNote("");
   }, [open, defaultDate, defaultSpecialistId]);
+
+  const selectedSpecialist = React.useMemo(
+    () => specialists.find((s) => s.id === specialistId),
+    [specialists, specialistId],
+  );
+  const availableServices = React.useMemo(() => {
+    if (!selectedSpecialist) return [];
+    if (!selectedSpecialist.serviceIds || selectedSpecialist.serviceIds.length === 0) return [];
+    const allowed = new Set(selectedSpecialist.serviceIds);
+    return services.filter((s) => allowed.has(s.id));
+  }, [services, selectedSpecialist]);
+
+  function selectSpecialist(value: string) {
+    setSpecialistId(value);
+    setServiceId("");
+  }
 
   const selectedService = React.useMemo(() => services.find((s) => s.id === serviceId), [services, serviceId]);
   const durationMin = selectedService?.durationMin ?? 30;
@@ -120,7 +136,7 @@ export function AdminBookAppointmentDialog({
           </div>
           <div className="space-y-2">
             <Label>Specjalista</Label>
-            <Select value={specialistId} onValueChange={setSpecialistId}>
+            <Select value={specialistId} onValueChange={selectSpecialist}>
               <SelectTrigger>
                 <SelectValue placeholder="Wybierz" />
               </SelectTrigger>
@@ -135,18 +151,21 @@ export function AdminBookAppointmentDialog({
           </div>
           <div className="space-y-2 md:col-span-2">
             <Label>Usługa</Label>
-            <Select value={serviceId} onValueChange={setServiceId}>
+            <Select value={serviceId} onValueChange={setServiceId} disabled={!specialistId}>
               <SelectTrigger>
-                <SelectValue placeholder="Wybierz" />
+                <SelectValue placeholder={specialistId ? "Wybierz" : "Najpierw wybierz specjalistę"} />
               </SelectTrigger>
               <SelectContent disablePortal>
-                {services.map((s) => (
+                {availableServices.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
                     {s.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {specialistId && availableServices.length === 0 ? (
+              <div className="text-xs text-amber-700">Ten specjalista nie ma jeszcze przypisanych usług.</div>
+            ) : null}
             <div className="text-xs text-zinc-500">Czas trwania: {durationMin} min</div>
           </div>
           <div className="space-y-2">

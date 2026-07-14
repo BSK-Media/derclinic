@@ -31,11 +31,22 @@ export async function GET(req: Request) {
       take: 500,
     }),
     prisma.patient.findMany({ orderBy: { name: "asc" }, take: 500 }),
-    prisma.user.findMany({ where: { role: "SPECIALIST" }, orderBy: { name: "asc" } }),
+    prisma.user.findMany({
+      where: { role: "SPECIALIST" },
+      orderBy: { name: "asc" },
+      include: { assignedServices: { select: { serviceId: true } } },
+    }),
     prisma.service.findMany({ orderBy: { name: "asc" } }),
   ]);
 
-  return NextResponse.json({ ok: true, appointments, patients, specialists, services });
+  const shapedSpecialists = specialists.map((s) => ({
+    id: s.id,
+    name: s.name,
+    login: s.login,
+    serviceIds: s.assignedServices.map((a) => a.serviceId),
+  }));
+
+  return NextResponse.json({ ok: true, appointments, patients, specialists: shapedSpecialists, services });
 }
 
 const CreateSchema = z.object({
