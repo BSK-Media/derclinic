@@ -83,6 +83,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       status: a.status,
       patient: a.patient,
       service: a.service,
+      customServiceName: a.customServiceName,
       revenue,
       materialCost,
       materials: a.consumptions.map((c) => ({
