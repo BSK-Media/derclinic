@@ -14,7 +14,12 @@ const PatchSchema = z.object({
   specialistCode: z.number().int().optional(),
   isVisible: z.boolean().optional(),
   isAvailable: z.boolean().optional(),
-  avatarUrl: z.string().url().optional().or(z.literal("")).optional(),
+  avatarUrl: z
+    .string()
+    .refine((v) => v === "" || v.startsWith("data:image/") || /^https?:\/\//.test(v), "Niepoprawne zdjęcie")
+    .optional()
+    .or(z.literal(""))
+    .optional(),
   jobTitle: z.string().optional().or(z.literal("")).optional(),
   location: z.string().optional().or(z.literal("")).optional(),
   specialization: z.string().optional().or(z.literal("")).optional(),
@@ -54,7 +59,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true, location: true, specialization: true },
   });
 
-  await logAudit({ actorId: user!.id, action: "UPDATE", entity: "User", entityId: updated.id, data });
+  await logAudit({ actorId: user!.id, action: "UPDATE", entity: "User", entityId: updated.id, data: { ...data, ...(data.avatarUrl ? { avatarUrl: "[image]" } : {}), ...(data.passwordHash ? { passwordHash: "[hidden]" } : {}) } });
 
   return NextResponse.json({ ok: true, user: updated });
 }
