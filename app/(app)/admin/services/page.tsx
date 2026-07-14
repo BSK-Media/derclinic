@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
+import { useAuth } from "@/components/auth-provider";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -26,19 +27,30 @@ const SERVICE_CATEGORIES = [
   "Leczenie otyłości",
 ] as const;
 
-type Service = { id: string; name: string; category?: string | null; description?: string | null; durationMin: number; priceFrom?: number | null; priceSuggested?: number | null; suggestedProducts: Suggestion[] };
+type Specialist = { id: string; name: string };
+type Service = { id: string; name: string; category?: string | null; description?: string | null; durationMin: number; priceFrom?: number | null; priceSuggested?: number | null; suggestedProducts: Suggestion[]; specialistAssignments: Array<{ specialistId: string }> };
 
 export default function ServicesPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
   const { data, mutate, isLoading } = useSWR("/api/admin/services", fetcher);
   const services: Service[] = data?.services ?? [];
   const products: Product[] = data?.products ?? [];
+  const specialists: Specialist[] = data?.specialists ?? [];
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState<string>(SERVICE_CATEGORIES[0]);
   const [durationMin, setDurationMin] = useState("30");
   const [priceFrom, setPriceFrom] = useState("");
   const [priceSuggested, setPriceSuggested] = useState("");
+  const [newServiceSpecialists, setNewServiceSpecialists] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+
+  function toggleNewServiceSpecialist(id: string) {
+    setNewServiceSpecialists((current) =>
+      current.includes(id) ? current.filter((x) => x !== id) : [...current, id],
+    );
+  }
 
   async function create() {
     setSaving(true);
@@ -52,12 +64,14 @@ export default function ServicesPage() {
           durationMin: Number(durationMin),
           priceFrom: priceFrom ? parsePLNToGrosze(priceFrom) : null,
           priceSuggested: priceSuggested ? parsePLNToGrosze(priceSuggested) : null,
+          specialistIds: newServiceSpecialists,
         }),
       });
       const out = await res.json().catch(() => ({}));
       if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
       toast.success("Usługa dodana");
       setName(""); setCategory(SERVICE_CATEGORIES[0]); setDurationMin("30"); setPriceFrom(""); setPriceSuggested("");
+      setNewServiceSpecialists([]);
       mutate();
     } finally {
       setSaving(false);
@@ -78,6 +92,18 @@ export default function ServicesPage() {
     const out = await res.json().catch(() => ({}));
     if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
     toast.success("Dodano sugerowany preparat");
+    mutate();
+  }
+
+  async function toggleAssignment(serviceId: string, specialistId: string, assigned: boolean) {
+    const res = await fetch(`/api/admin/services/${serviceId}/specialists`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ specialistId, assigned }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się zapisać przypisania");
+    toast.success(assigned ? "Przypisano specjaliście" : "Odpisano od specjalisty");
     mutate();
   }
 
@@ -125,6 +151,33 @@ export default function ServicesPage() {
             <Input value={priceSuggested} onChange={(e) => setPriceSuggested(e.target.value)} placeholder="np. 800" />
           </div>
         </div>
+        {isAdmin ? (
+          <div className="space-y-2">
+            <Label>Przypisz specjalistom (opcjonalnie)</Label>
+            <div className="flex flex-wrap gap-2">
+              {specialists.map((sp) => {
+                const selected = newServiceSpecialists.includes(sp.id);
+                return (
+                  <button
+                    key={sp.id}
+                    type="button"
+                    onClick={() => toggleNewServiceSpecialist(sp.id)}
+                    className={
+                      "rounded-full border px-3 py-1 text-xs transition " +
+                      (selected
+                        ? "border-emerald-300 bg-emerald-100 font-medium text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-200"
+                        : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800")
+                    }
+                  >
+                    {selected ? "✓ " : ""}{sp.name}
+                  </button>
+                );
+              })}
+              {specialists.length === 0 ? <span className="text-xs text-zinc-500">Brak specjalistów.</span> : null}
+            </div>
+            <div className="text-xs text-zinc-500">Usługa będzie widoczna na liście zabiegów tylko u przypisanych specjalistów.</div>
+          </div>
+        ) : null}
         <Button onClick={create} disabled={!name || saving}>{saving ? "Zapisywanie..." : "Dodaj"}</Button>
       </Card>
 
@@ -157,9 +210,31 @@ export default function ServicesPage() {
                   </div>
                 ))}
               </div>
-              <div className="text-xs text-zinc-500">
-                Produkty dostępne: {products.length}. (UI do wyboru z listy możesz rozbudować w kolejnym kroku.)
-              </div>
+              {isAdmin ? (
+                <div className="space-y-1 border-t pt-2">
+                  <div className="text-sm text-zinc-600 dark:text-zinc-300">Przypisani specjaliści (kliknij, aby przypisać/odpisać):</div>
+                  <div className="flex flex-wrap gap-2">
+                    {specialists.map((sp) => {
+                      const assigned = s.specialistAssignments?.some((a) => a.specialistId === sp.id) ?? false;
+                      return (
+                        <button
+                          key={sp.id}
+                          type="button"
+                          onClick={() => toggleAssignment(s.id, sp.id, !assigned)}
+                          className={
+                            "rounded-full border px-3 py-1 text-xs transition " +
+                            (assigned
+                              ? "border-emerald-300 bg-emerald-100 font-medium text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-200"
+                              : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800")
+                          }
+                        >
+                          {assigned ? "✓ " : ""}{sp.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
