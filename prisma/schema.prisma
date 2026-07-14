@@ -60,6 +60,8 @@ model User {
   isAvailable  Boolean  @default(false)
   avatarUrl    String?
   jobTitle     String?
+  location     String?
+  specialization String?
   sourceProfileUrl String?
 
   // For specialist settlements (percentage share of appointment final price)
