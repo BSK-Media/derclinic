@@ -42,7 +42,7 @@ export default function SpecialistAppointmentDetail() {
   if (!appt) return <div className="p-6 text-sm text-zinc-500">Nie znaleziono.</div>;
 
   async function save() {
-    const res = await fetch(`/api/admin/appointments/${id}`, {
+    const res = await fetch(`/api/specialist/appointments/${id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -62,7 +62,7 @@ export default function SpecialistAppointmentDetail() {
   async function addConsumption() {
     const q = Number(qty.replace(",", "."));
     if (!Number.isFinite(q) || q <= 0) return toast.error("Niepoprawna ilość");
-    const res = await fetch(`/api/admin/appointments/${id}/consume`, {
+    const res = await fetch(`/api/specialist/appointments/${id}/consume`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ productId, warehouseId, quantity: q, kind: "APPOINTMENT" }),
