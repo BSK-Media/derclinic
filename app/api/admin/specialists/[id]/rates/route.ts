@@ -17,7 +17,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (!specialist) return NextResponse.json({ ok: false, message: "Nie znaleziono pracownika" }, { status: 404 });
 
   const [services, rates] = await Promise.all([
-    prisma.service.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, category: true } }),
+    prisma.service.findMany({
+      where: { specialistAssignments: { some: { specialistId: params.id } } },
+      orderBy: [{ category: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, category: true },
+    }),
     prisma.specialistServiceRate.findMany({ where: { specialistId: params.id } }),
   ]);
 
