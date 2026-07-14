@@ -63,7 +63,7 @@ function LogoBlock() {
 
   return (
     <div className="flex items-center gap-3 px-3 py-2">
-      <div className="relative h-11 w-11 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 dark:bg-[#0b1220]/55 dark:ring-white/10">
+      <div className="relative h-11 w-11 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 dark:ring-white/10">
         <img src="/derclinic-logo.webp" alt="DerClinic" className="h-full w-full object-contain p-1.5" />
       </div>
       <div className="min-w-0">
