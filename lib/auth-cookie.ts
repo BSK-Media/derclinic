@@ -1,5 +1,9 @@
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
+import {
+  normalizeSidebarPermissions,
+  type SidebarPermission,
+} from "@/lib/sidebar-permissions";
 
 export type Role = "ADMIN" | "RECEPTION" | "SPECIALIST";
 
@@ -8,6 +12,7 @@ export type AuthUser = {
   email: string;
   name: string;
   role: Role;
+  sidebarPermissions: SidebarPermission[];
 };
 
 const COOKIE_NAME = "bsk_auth";
@@ -37,6 +42,7 @@ export async function verifyAuthToken(token: string): Promise<AuthUser | null> {
       email: String(u.email),
       name: String(u.name ?? ""),
       role: u.role as Role,
+      sidebarPermissions: normalizeSidebarPermissions(String(u.role), u.sidebarPermissions),
     };
   } catch {
     return null;
