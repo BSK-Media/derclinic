@@ -122,7 +122,7 @@ export function sidebarPermissionForPath(pathname: string): SidebarPermission | 
 export function sidebarHref(permission: SidebarPermission, role: string) {
   if (permission === "dashboard") return role === "SPECIALIST" ? "/specialist" : "/admin";
   if (permission === "appointments") {
-    return role === "SPECIALIST" ? "/specialist/appointments" : "/admin/visits";
+    return role === "ADMIN" ? "/admin/visits" : "/specialist/appointments";
   }
 
   const hrefs: Record<Exclude<SidebarPermission, "dashboard" | "appointments">, string> = {
