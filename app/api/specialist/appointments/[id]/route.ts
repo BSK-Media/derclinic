@@ -5,7 +5,7 @@ import { requireAuth, requireRole } from "@/lib/api-helpers";
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["SPECIALIST", "ADMIN"]);
+  const deny = requireRole(user!.role, ["SPECIALIST", "RECEPTION", "ADMIN"]);
   if (deny) return deny;
 
   const appt = await prisma.appointment.findUnique({
@@ -19,7 +19,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   });
   if (!appt) return NextResponse.json({ ok: false, message: "Nie znaleziono" }, { status: 404 });
 
-  if (user!.role === "SPECIALIST" && appt.specialistId !== user!.id) {
+  if (user!.role !== "ADMIN" && appt.specialistId !== user!.id) {
     return NextResponse.json({ ok: false, message: "Brak uprawnień" }, { status: 403 });
   }
 
