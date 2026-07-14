@@ -64,6 +64,9 @@ model User {
   specialization String?
   sourceProfileUrl String?
 
+  // Indywidualny dostęp do sekcji lewego menu. Null = domyślny zakres pracownika.
+  sidebarPermissions Json?
+
   // For specialist settlements (percentage share of appointment final price)
   payoutPercent Int @default(50)
 
