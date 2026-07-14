@@ -17,7 +17,7 @@ type Patient = { id: string; name: string };
 type Specialist = { id: string; name: string };
 type Service = { id: string; name: string; durationMin: number; priceSuggested?: number | null };
 type Appointment = { id: string; startsAt: string; endsAt: string; status: string; priceEstimate?: number | null; priceFinal?: number | null;
-  patient: Patient; specialist: Specialist; service: Service };
+  customServiceName?: string | null; patient: Patient; specialist: Specialist; service: Service };
 
 export default function AdminAppointmentsPage() {
   const today = new Date();
@@ -169,7 +169,7 @@ export default function AdminAppointmentsPage() {
                   <td className="p-3">{new Date(a.startsAt).toLocaleString("pl-PL",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</td>
                   <td className="p-3 font-medium">{a.patient.name}</td>
                   <td className="p-3">{a.specialist.name}</td>
-                  <td className="p-3">{a.service.name}</td>
+                  <td className="p-3">{a.customServiceName || a.service.name}</td>
                   <td className="p-3">{a.status}</td>
                   <td className="p-3">{formatPLNFromGrosze(a.priceFinal ?? a.priceEstimate)}</td>
                   <td className="p-3 text-right">
