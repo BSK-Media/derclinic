@@ -85,7 +85,9 @@ export async function middleware(req: NextRequest) {
     (pathname === "/admin" ||
       pathname.startsWith("/admin/appointments") ||
       pathname.startsWith("/admin/visits") ||
-      pathname.startsWith("/api/admin/appointments"));
+      pathname.startsWith("/admin/calendar") ||
+      pathname.startsWith("/api/admin/appointments") ||
+      pathname.startsWith("/api/admin/consumption-adjustments"));
   if (specialistAdminAppointments) return rejectAccess(req, user);
 
   if (permission && !hasSidebarPermission(role, user.sidebarPermissions, permission)) {
