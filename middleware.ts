@@ -99,7 +99,13 @@ export async function middleware(req: NextRequest) {
   }
 
   if (pathname.startsWith("/specialist") || pathname.startsWith("/api/specialist")) {
-    if (role !== "SPECIALIST" && role !== "ADMIN") return rejectAccess(req, user);
+    const receptionAppointments =
+      role === "RECEPTION" &&
+      (pathname.startsWith("/specialist/appointments") ||
+        pathname.startsWith("/api/specialist/appointments"));
+    if (role !== "SPECIALIST" && role !== "ADMIN" && !receptionAppointments) {
+      return rejectAccess(req, user);
+    }
   }
 
   const requestHeaders = new Headers(req.headers);
