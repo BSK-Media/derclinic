@@ -724,17 +724,52 @@ async function main() {
     }
   }
 
-  const mainWh = await prisma.warehouse.upsert({
-    where: { id: "main-warehouse" },
-    update: { name: "Magazyn główny - Grodzisk Mazowiecki", parentId: null },
-    create: { id: "main-warehouse", name: "Magazyn główny - Grodzisk Mazowiecki" },
-  });
+  // Magazyny i ich stany mogą być zarządzane z panelu administratora.
+  // Seeder uruchamia się przy każdym deployu, dlatego pełny zestaw startowy
+  // tworzymy tylko dla pustej bazy. Jednorazowo migrujemy też stare nazwy.
+  const existingWarehouses = await prisma.warehouse.findMany();
+  const seedInitialInventory = existingWarehouses.length === 0;
+  const existingMain = existingWarehouses.find((warehouse) => warehouse.id === "main-warehouse") ?? null;
+  const existingTreatment = existingWarehouses.find((warehouse) => warehouse.id === "treatment-warehouse") ?? null;
+  const existingWarsaw = existingWarehouses.find(
+    (warehouse) => warehouse.id === "warsaw-warehouse" || warehouse.name === "Magazyn Warszawa",
+  ) ?? null;
+  const hasLegacyWarehouseNames =
+    existingMain?.name === "Magazyn główny - Grodzisk Mazowiecki" ||
+    existingTreatment?.name === "Gabinet zabiegowy - Grodzisk Mazowiecki";
 
-  const treatmentWh = await prisma.warehouse.upsert({
-    where: { id: "treatment-warehouse" },
-    update: { name: "Gabinet zabiegowy - Grodzisk Mazowiecki", parentId: mainWh.id },
-    create: { id: "treatment-warehouse", name: "Gabinet zabiegowy - Grodzisk Mazowiecki", parentId: mainWh.id },
-  });
+  let mainWh = existingMain;
+  let treatmentWh = existingTreatment;
+
+  if (seedInitialInventory) {
+    mainWh = await prisma.warehouse.create({
+      data: { id: "main-warehouse", name: "Magazyn Grodzisk Mazowiecki" },
+    });
+    treatmentWh = await prisma.warehouse.create({
+      data: { id: "treatment-warehouse", name: "Recepcja Grodzisk Mazowiecki", parentId: mainWh.id },
+    });
+    await prisma.warehouse.create({
+      data: { id: "warsaw-warehouse", name: "Magazyn Warszawa" },
+    });
+  } else if (hasLegacyWarehouseNames) {
+    if (mainWh) {
+      mainWh = await prisma.warehouse.update({
+        where: { id: mainWh.id },
+        data: { name: "Magazyn Grodzisk Mazowiecki", parentId: null },
+      });
+    }
+    if (treatmentWh) {
+      treatmentWh = await prisma.warehouse.update({
+        where: { id: treatmentWh.id },
+        data: { name: "Recepcja Grodzisk Mazowiecki", parentId: mainWh?.id ?? null },
+      });
+    }
+    if (!existingWarsaw) {
+      await prisma.warehouse.create({
+        data: { id: "warsaw-warehouse", name: "Magazyn Warszawa" },
+      });
+    }
+  }
 
   let globalIndex = 0;
 
@@ -779,74 +814,50 @@ async function main() {
         },
       });
 
-      await prisma.stock.upsert({
-        where: { productId_warehouseId: { productId: product.id, warehouseId: mainWh.id } },
-        update: { quantity: quantityMain },
-        create: { productId: product.id, warehouseId: mainWh.id, quantity: quantityMain },
-      });
+      if (seedInitialInventory && mainWh && treatmentWh) {
+        await prisma.stock.create({
+          data: { productId: product.id, warehouseId: mainWh.id, quantity: quantityMain },
+        });
 
-      await prisma.stock.upsert({
-        where: { productId_warehouseId: { productId: product.id, warehouseId: treatmentWh.id } },
-        update: { quantity: quantityTreatment },
-        create: { productId: product.id, warehouseId: treatmentWh.id, quantity: quantityTreatment },
-      });
+        if (quantityTreatment > 0) {
+          await prisma.stock.create({
+            data: { productId: product.id, warehouseId: treatmentWh.id, quantity: quantityTreatment },
+          });
+        }
 
-      await prisma.productLot.upsert({
-        where: { id: `lot-main-${slugify(manufacturer)}-${slugify(name)}` },
-        update: {
-          warehouseId: mainWh.id,
-          batchNumber: batch,
-          expiryDate,
-          quantity: quantityMain,
-          purchasePrice: purchase,
-          salePrice: sale,
-          status,
-          location: "Grodzisk Mazowiecki",
-          note: `Robocza seria dla produktu ${name}`,
-        },
-        create: {
-          id: `lot-main-${slugify(manufacturer)}-${slugify(name)}`,
-          productId: product.id,
-          warehouseId: mainWh.id,
-          batchNumber: batch,
-          expiryDate,
-          quantity: quantityMain,
-          purchasePrice: purchase,
-          salePrice: sale,
-          status,
-          location: "Grodzisk Mazowiecki",
-          note: `Robocza seria dla produktu ${name}`,
-        },
-      });
-
-      if (quantityTreatment > 0) {
-        await prisma.productLot.upsert({
-          where: { id: `lot-treatment-${slugify(manufacturer)}-${slugify(name)}` },
-          update: {
-            warehouseId: treatmentWh.id,
-            batchNumber: `${batch}-A`,
-            expiryDate,
-            quantity: quantityTreatment,
-            purchasePrice: purchase,
-            salePrice: sale,
-            status: quantityTreatment <= 1 ? "Niski stan" : "Dostępny",
-            location: "Grodzisk Mazowiecki",
-            note: `Robocza seria gabinetowa dla produktu ${name}`,
-          },
-          create: {
-            id: `lot-treatment-${slugify(manufacturer)}-${slugify(name)}`,
+        await prisma.productLot.create({
+          data: {
+            id: `lot-main-${slugify(manufacturer)}-${slugify(name)}`,
             productId: product.id,
-            warehouseId: treatmentWh.id,
-            batchNumber: `${batch}-A`,
+            warehouseId: mainWh.id,
+            batchNumber: batch,
             expiryDate,
-            quantity: quantityTreatment,
+            quantity: quantityMain,
             purchasePrice: purchase,
             salePrice: sale,
-            status: quantityTreatment <= 1 ? "Niski stan" : "Dostępny",
+            status,
             location: "Grodzisk Mazowiecki",
-            note: `Robocza seria gabinetowa dla produktu ${name}`,
+            note: `Robocza seria dla produktu ${name}`,
           },
         });
+
+        if (quantityTreatment > 0) {
+          await prisma.productLot.create({
+            data: {
+              id: `lot-treatment-${slugify(manufacturer)}-${slugify(name)}`,
+              productId: product.id,
+              warehouseId: treatmentWh.id,
+              batchNumber: `${batch}-A`,
+              expiryDate,
+              quantity: quantityTreatment,
+              purchasePrice: purchase,
+              salePrice: sale,
+              status: quantityTreatment <= 1 ? "Niski stan" : "Dostępny",
+              location: "Grodzisk Mazowiecki",
+              note: `Robocza seria gabinetowa dla produktu ${name}`,
+            },
+          });
+        }
       }
     }
   }
