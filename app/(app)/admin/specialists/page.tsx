@@ -1,11 +1,15 @@
 
 "use client";
 
+import * as React from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -21,6 +25,8 @@ type Specialist = {
   isAvailable: boolean;
   avatarUrl?: string | null;
   jobTitle?: string | null;
+  location?: string | null;
+  specialization?: string | null;
   sourceProfileUrl?: string | null;
 };
 
@@ -46,6 +52,8 @@ function Avatar({ name, avatarUrl }: { name: string; avatarUrl?: string | null }
 export default function SpecialistsPage() {
   const { data, mutate, isLoading } = useSWR("/api/admin/specialists", fetcher);
   const specialists: Specialist[] = data?.specialists ?? [];
+
+  const [editing, setEditing] = React.useState<Specialist | null>(null);
 
   async function toggleField(id: string, patch: Partial<Pick<Specialist, "isVisible" | "isAvailable">>) {
     const res = await fetch(`/api/admin/specialists/${id}`, {
@@ -147,6 +155,9 @@ export default function SpecialistsPage() {
                   <td className="p-3">{s.email || "-"}</td>
                   <td className="p-3">
                     <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={() => setEditing(s)}>
+                        Edytuj
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => toggleField(s.id, { isVisible: !s.isVisible })}>
                         {s.isVisible ? "Ukryj" : "Pokaż"}
                       </Button>
@@ -161,6 +172,142 @@ export default function SpecialistsPage() {
           </table>
         </div>
       </Card>
+
+      <EditSpecialistDialog
+        specialist={editing}
+        onClose={() => setEditing(null)}
+        onSaved={() => {
+          setEditing(null);
+          mutate();
+        }}
+      />
     </div>
+  );
+}
+
+function EditSpecialistDialog({
+  specialist,
+  onClose,
+  onSaved,
+}: {
+  specialist: Specialist | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = React.useState("");
+  const [phone, setPhone] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [jobTitle, setJobTitle] = React.useState("");
+  const [location, setLocation] = React.useState("");
+  const [specialization, setSpecialization] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+
+  // Uzupełnij formularz przy każdym otwarciu okna
+  React.useEffect(() => {
+    if (!specialist) return;
+    setName(specialist.name ?? "");
+    setPhone(specialist.phone ?? "");
+    setEmail(specialist.email ?? "");
+    setJobTitle(specialist.jobTitle ?? "");
+    setLocation(specialist.location ?? "");
+    setSpecialization(specialist.specialization ?? "");
+    setPassword("");
+  }, [specialist]);
+
+  async function onSave() {
+    if (!specialist) return;
+    if (name.trim().length < 2) return toast.error("Podaj imię i nazwisko.");
+    if (password && password.length < 4) return toast.error("Nowe hasło musi mieć min. 4 znaki.");
+
+    setSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        name: name.trim(),
+        phone,
+        email,
+        jobTitle,
+        location,
+        specialization,
+      };
+      if (password) body.password = password;
+
+      const res = await fetch(`/api/admin/users/${specialist.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) {
+        toast.error(out?.message || "Nie udało się zapisać zmian");
+        return;
+      }
+      toast.success("Zapisano zmiany");
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={!!specialist} onOpenChange={(open) => (!open ? onClose() : null)}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Edytuj: {specialist?.name}</DialogTitle>
+        </DialogHeader>
+
+        <div className="grid gap-4">
+          <div className="grid gap-1.5">
+            <Label>Imię i nazwisko</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <Label>Telefon</Label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+48..." />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>E-mail</Label>
+              <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="adres@email.pl" />
+            </div>
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label>Stanowisko (opis)</Label>
+            <Input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} />
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label>Lokalizacja</Label>
+            <Input value={location} onChange={(e) => setLocation(e.target.value)} />
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label>Specjalizacja</Label>
+            <Input value={specialization} onChange={(e) => setSpecialization(e.target.value)} />
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label>Nowe hasło (opcjonalne)</Label>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="zostaw puste, aby nie zmieniać"
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="mt-2">
+          <Button variant="outline" onClick={onClose} disabled={saving}>
+            Anuluj
+          </Button>
+          <Button onClick={onSave} disabled={saving}>
+            {saving ? "Zapisywanie..." : "Zapisz zmiany"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
