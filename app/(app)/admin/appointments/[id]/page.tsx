@@ -93,7 +93,7 @@ export default function AdminAppointmentDetail() {
 
       <Card className="p-4 space-y-2">
         <div className="text-sm text-zinc-500">{new Date(appt.startsAt).toLocaleString("pl-PL")} – {new Date(appt.endsAt).toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"})}</div>
-        <div className="font-medium">{appt.patient.name} • {appt.service.name}</div>
+        <div className="font-medium">{appt.patient.name} • {appt.customServiceName || appt.service.name}</div>
         <div className="text-sm text-zinc-600 dark:text-zinc-300">Specjalista: {appt.specialist.name} • Status: {appt.status}</div>
       </Card>
 
