@@ -1,11 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import React from "react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth-provider";
+import {
+  firstAllowedSidebarHref,
+  hasSidebarPermission,
+  sidebarHref,
+  sidebarPermissionForPath,
+  type SidebarPermission,
+} from "@/lib/sidebar-permissions";
 
 function useThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
@@ -18,20 +25,20 @@ function useThemeToggle() {
 
 type NavItem = {
   label: string;
-  href: string;
+  permission: SidebarPermission;
   icon: React.ReactNode;
 };
 
 const NAV: NavItem[] = [
-  { label: "Dashboard", href: "/admin", icon: <span className="text-lg">⌂</span> },
-  { label: "Wizyty", href: "/admin/visits", icon: <span className="text-lg">📅</span> },
-  { label: "Specjaliści", href: "/admin/specialists", icon: <span className="text-lg">👩‍⚕️</span> },
-  { label: "Pacjenci", href: "/admin/patients", icon: <span className="text-lg">👥</span> },
-  { label: "Magazyn", href: "/admin/inventory", icon: <span className="text-lg">📦</span> },
-  { label: "Produkty", href: "/admin/products", icon: <span className="text-lg">🧴</span> },
-  { label: "Zabiegi i Procedury", href: "/admin/services", icon: <span className="text-lg">🩺</span> },
-  { label: "Analityka", href: "/admin/analytics", icon: <span className="text-lg">📈</span> },
-  { label: "Ustawienia", href: "/admin/settings", icon: <span className="text-lg">⚙️</span> },
+  { label: "Dashboard", permission: "dashboard", icon: <span className="text-lg">⌂</span> },
+  { label: "Wizyty", permission: "appointments", icon: <span className="text-lg">📅</span> },
+  { label: "Specjaliści", permission: "specialists", icon: <span className="text-lg">👩‍⚕️</span> },
+  { label: "Pacjenci", permission: "patients", icon: <span className="text-lg">👥</span> },
+  { label: "Magazyn", permission: "inventory", icon: <span className="text-lg">📦</span> },
+  { label: "Produkty", permission: "products", icon: <span className="text-lg">🧴</span> },
+  { label: "Zabiegi i Procedury", permission: "services", icon: <span className="text-lg">🩺</span> },
+  { label: "Analityka", permission: "analytics", icon: <span className="text-lg">📈</span> },
+  { label: "Ustawienia", permission: "settings", icon: <span className="text-lg">⚙️</span> },
 ];
 
 function UserAvatar({ name, avatarUrl, className = "h-8 w-8" }: { name?: string | null; avatarUrl?: string | null; className?: string }) {
@@ -86,7 +93,10 @@ function LogoBlock() {
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
+  const visibleNav = user
+    ? NAV.filter((item) => hasSidebarPermission(user.role, user.sidebarPermissions, item.permission))
+    : [];
 
   return (
     <aside className="fixed left-0 top-0 z-50 hidden h-screen w-[280px] shrink-0 border-r border-white/70 bg-white/65 p-3 backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/45 lg:block">
@@ -94,15 +104,16 @@ export function AppSidebar() {
         <LogoBlock />
 
         <nav className="mt-3 flex-1 space-y-1 px-1">
-          {NAV.map((item) => {
+          {visibleNav.map((item) => {
+            const href = sidebarHref(item.permission, user!.role);
             const active =
-              pathname === item.href ||
-              (item.href !== "/admin" && pathname.startsWith(item.href));
+              pathname === href ||
+              (href !== "/admin" && href !== "/specialist" && pathname.startsWith(href));
 
             return (
               <Link
-                key={item.href}
-                href={item.href}
+                key={item.permission}
+                href={href}
                 className={cn(
                   "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition",
                   active
@@ -193,12 +204,32 @@ export function AppHeader() {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { user, loading } = useAuth();
+  const requiredPermission = sidebarPermissionForPath(pathname);
+  const hasAccess =
+    !requiredPermission ||
+    (!!user && hasSidebarPermission(user.role, user.sidebarPermissions, requiredPermission));
+
+  React.useEffect(() => {
+    if (loading || !user || hasAccess) return;
+    router.replace(firstAllowedSidebarHref(user.role, user.sidebarPermissions));
+  }, [hasAccess, loading, router, user]);
+
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-[#eef3f7] via-[#eef3f7] to-[#f7fbff] text-slate-900 dark:from-[#070b13] dark:via-[#070b13] dark:to-[#0b1220] dark:text-white">
       <AppSidebar />
       <div className="flex min-h-screen w-full flex-col lg:pl-[280px]">
         <AppHeader />
-        <main className="flex-1 px-4 py-6 lg:px-6">{children}</main>
+        <main className="flex-1 px-4 py-6 lg:px-6">
+          {!loading && hasAccess ? children : null}
+          {!loading && user && !hasAccess ? (
+            <div className="rounded-3xl border border-white/60 bg-white/80 p-6 text-sm text-slate-600 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 dark:text-slate-300">
+              Przekierowanie do dostępnej sekcji…
+            </div>
+          ) : null}
+        </main>
       </div>
     </div>
   );
