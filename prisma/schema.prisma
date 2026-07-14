@@ -46,6 +46,12 @@ enum PaymentMethod {
   VOUCHER
 }
 
+enum ConsumptionStatus {
+  APPLIED
+  PENDING
+  REJECTED
+}
+
 model User {
   id           String   @id @default(cuid())
   createdAt    DateTime @default(now())
@@ -78,6 +84,7 @@ model User {
   appointments        Appointment[] @relation("AppointmentSpecialist")
   createdConsumptions Consumption[] @relation("ConsumptionCreator")
   specialistConsumptions Consumption[] @relation("ConsumptionSpecialist")
+  reviewedConsumptions Consumption[] @relation("ConsumptionReviewer")
   retailSales         RetailSale[] @relation("RetailSaleSeller")
   auditLogs           AuditLog[]
   serviceRates        SpecialistServiceRate[]
@@ -331,9 +338,18 @@ model Consumption {
 
   note        String?
 
+  // Workflow akceptacji: gdy specjalista zmieni sugerowaną ilość preparatu,
+  // wpis trafia jako PENDING i nie jest odejmowany z magazynu do czasu akceptacji admina.
+  status        ConsumptionStatus @default(APPLIED)
+  suggestedQuantity Decimal? @db.Decimal(14,2)
+  reviewedById  String?
+  reviewedBy    User?    @relation("ConsumptionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt    DateTime?
+
   @@index([appointmentId])
   @@index([productId])
   @@index([createdById])
+  @@index([status])
 }
 
 model RetailSale {

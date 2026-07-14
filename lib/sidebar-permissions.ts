@@ -1,5 +1,6 @@
 export const SIDEBAR_PERMISSION_KEYS = [
   "dashboard",
+  "calendar",
   "appointments",
   "specialists",
   "patients",
@@ -17,6 +18,7 @@ export const SIDEBAR_PERMISSION_OPTIONS: ReadonlyArray<{
   label: string;
 }> = [
   { key: "dashboard", label: "Dashboard" },
+  { key: "calendar", label: "Kalendarz" },
   { key: "appointments", label: "Wizyty" },
   { key: "specialists", label: "Specjaliści" },
   { key: "patients", label: "Pacjenci" },
@@ -56,6 +58,7 @@ export function sidebarPermissionForPath(pathname: string): SidebarPermission | 
   const path = pathname.split("?")[0];
 
   if (path === "/specialist") return "dashboard";
+  if (path.startsWith("/specialist/calendar")) return "calendar";
   if (path.startsWith("/specialist/appointments") || path.startsWith("/specialist/schedule")) {
     return "appointments";
   }
@@ -66,6 +69,8 @@ export function sidebarPermissionForPath(pathname: string): SidebarPermission | 
   if (path.startsWith("/admin/specialists") || path.startsWith("/api/admin/specialists")) {
     return "specialists";
   }
+  if (path.startsWith("/admin/calendar")) return "calendar";
+  if (path.startsWith("/api/admin/consumption-adjustments")) return "appointments";
   if (
     path.startsWith("/admin/appointments") ||
     path.startsWith("/admin/visits") ||
@@ -121,11 +126,14 @@ export function sidebarPermissionForPath(pathname: string): SidebarPermission | 
 
 export function sidebarHref(permission: SidebarPermission, role: string) {
   if (permission === "dashboard") return role === "SPECIALIST" ? "/specialist" : "/admin";
+  if (permission === "calendar") {
+    return role === "ADMIN" ? "/admin/calendar" : "/specialist/calendar";
+  }
   if (permission === "appointments") {
     return role === "ADMIN" ? "/admin/visits" : "/specialist/appointments";
   }
 
-  const hrefs: Record<Exclude<SidebarPermission, "dashboard" | "appointments">, string> = {
+  const hrefs: Record<Exclude<SidebarPermission, "dashboard" | "appointments" | "calendar">, string> = {
     specialists: "/admin/specialists",
     patients: "/admin/patients",
     inventory: "/admin/inventory",
