@@ -12,6 +12,6 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
-    user: { id: dbu.id, login: dbu.login, name: dbu.name, role: dbu.role, payoutPercent: dbu.payoutPercent, avatarUrl: dbu.avatarUrl, jobTitle: dbu.jobTitle },
+    user: { id: dbu.id, login: dbu.login, name: dbu.name, role: dbu.role, payoutPercent: dbu.payoutPercent, avatarUrl: dbu.avatarUrl, jobTitle: dbu.jobTitle, location: dbu.location, specialization: dbu.specialization },
   });
 }
