@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
-import { Check, ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const Select = SelectPrimitive.Root;
@@ -81,17 +81,12 @@ export const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-lg px-2 py-2 text-sm outline-none data-[highlighted]:bg-zinc-100 dark:data-[highlighted]:bg-zinc-900",
+      "relative flex cursor-default select-none items-center rounded-lg px-2 py-2 text-sm outline-none data-[highlighted]:bg-zinc-100 data-[state=checked]:bg-emerald-50 data-[state=checked]:font-medium dark:data-[highlighted]:bg-zinc-900 dark:data-[state=checked]:bg-emerald-500/10",
       className,
     )}
     {...props}
   >
-    <span className="absolute left-2 inline-flex h-4 w-4 items-center justify-center">
-      <SelectPrimitive.ItemIndicator>
-        <Check className="h-4 w-4" />
-      </SelectPrimitive.ItemIndicator>
-    </span>
-    <SelectPrimitive.ItemText className="pl-5">{children}</SelectPrimitive.ItemText>
+    <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
   </SelectPrimitive.Item>
 ));
 SelectItem.displayName = "SelectItem";
