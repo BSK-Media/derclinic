@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useTheme } from "next-themes";
 import { Plus, TrendingUp, UserPlus, AlertTriangle, Users, ChevronDown } from "lucide-react";
 import {
   Bar,
@@ -91,6 +92,30 @@ function StatCard({
 export default function AdminDashboard() {
   const [period, setPeriod] = React.useState<Period>("30d");
 
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+  const isDark = mounted && resolvedTheme === "dark";
+
+  const chartColors = {
+    bar: isDark ? "#e2e8f0" : "#0f172a", // jasne słupki w dark, ciemne w light
+    line: isDark ? "#34d399" : "#059669",
+    grid: isDark ? "rgba(255,255,255,0.12)" : "rgba(15,23,42,0.12)",
+    tick: isDark ? "#94a3b8" : "#64748b",
+    cursor: isDark ? "rgba(255,255,255,0.08)" : "rgba(15,23,42,0.06)",
+  };
+
+  const tooltipProps = {
+    contentStyle: {
+      backgroundColor: isDark ? "#0b1220" : "#ffffff",
+      border: isDark ? "1px solid rgba(255,255,255,0.15)" : "1px solid rgba(15,23,42,0.1)",
+      borderRadius: 12,
+      color: isDark ? "#e2e8f0" : "#0f172a",
+    },
+    labelStyle: { color: isDark ? "#e2e8f0" : "#0f172a", fontWeight: 600 },
+    itemStyle: { color: isDark ? "#e2e8f0" : "#0f172a" },
+  };
+
   const data = React.useMemo(() => {
     if (period === "30d") return chart30d;
     if (period === "7d") return chart30d.slice(-7);
@@ -168,13 +193,13 @@ export default function AdminDashboard() {
           <div className="mt-4 h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data} margin={{ top: 8, left: 0, right: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="4 4" vertical={false} />
-                <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
-                <YAxis yAxisId="left" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
-                <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
-                <Tooltip />
-                <Bar yAxisId="left" dataKey="revenue" radius={[10, 10, 0, 0]} />
-                <Line yAxisId="right" type="monotone" dataKey="visits" strokeWidth={2} dot={false} />
+                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke={chartColors.grid} />
+                <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: chartColors.tick }} />
+                <YAxis yAxisId="left" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: chartColors.tick }} />
+                <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: chartColors.tick }} />
+                <Tooltip {...tooltipProps} cursor={{ fill: chartColors.cursor }} />
+                <Bar yAxisId="left" dataKey="revenue" fill={chartColors.bar} radius={[10, 10, 0, 0]} />
+                <Line yAxisId="right" type="monotone" dataKey="visits" stroke={chartColors.line} strokeWidth={2} dot={false} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -190,7 +215,7 @@ export default function AdminDashboard() {
                     <Cell key={i} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip {...tooltipProps} />
               </PieChart>
             </ResponsiveContainer>
           </div>
