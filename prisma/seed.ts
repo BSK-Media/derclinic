@@ -1,5 +1,9 @@
 import { PrismaClient, Role, ProductCategory, UnitType } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import {
+  AMELIA_SERVICE_CATEGORIES,
+  SPECIALIST_SERVICE_ASSIGNMENTS,
+} from "./specialist-service-assignments";
 
 const prisma = new PrismaClient();
 
@@ -851,11 +855,12 @@ async function main() {
 
   for (let index = 0; index < SERVICES.length; index += 1) {
     const service = SERVICES[index];
+    const category = AMELIA_SERVICE_CATEGORIES[service.name] ?? inferServiceCategory(service.name);
     await prisma.service.upsert({
       where: { id: `service-seed-${String(index + 1).padStart(3, "0")}` },
       update: {
         name: service.name,
-        category: inferServiceCategory(service.name),
+        category,
         description: inferServiceDescription(service.name, service.price),
         durationMin: inferServiceDuration(service.name),
         priceFrom: service.price * 100,
@@ -864,7 +869,7 @@ async function main() {
       create: {
         id: `service-seed-${String(index + 1).padStart(3, "0")}`,
         name: service.name,
-        category: inferServiceCategory(service.name),
+        category,
         description: inferServiceDescription(service.name, service.price),
         durationMin: inferServiceDuration(service.name),
         priceFrom: service.price * 100,
@@ -874,7 +879,65 @@ async function main() {
     seededServices += 1;
   }
 
-  console.log(`✅ Seed completed: ${globalIndex} produktów, ${seededServices} usług`);
+  await prisma.service.upsert({
+    where: { id: "service-custom" },
+    update: {
+      name: "Niestandardowe",
+      category: "Niestandardowe",
+      description: "Techniczna usługa dla wizyt z nazwą wpisaną ręcznie przez pracownika.",
+      durationMin: 30,
+      priceFrom: null,
+      priceSuggested: null,
+    },
+    create: {
+      id: "service-custom",
+      name: "Niestandardowe",
+      category: "Niestandardowe",
+      description: "Techniczna usługa dla wizyt z nazwą wpisaną ręcznie przez pracownika.",
+      durationMin: 30,
+    },
+  });
+
+  const assignmentLogins = Object.keys(SPECIALIST_SERVICE_ASSIGNMENTS);
+  const assignedServiceNames = Array.from(
+    new Set(Object.values(SPECIALIST_SERVICE_ASSIGNMENTS).flat()),
+  );
+  const [assignmentUsers, assignmentServices] = await Promise.all([
+    prisma.user.findMany({
+      where: { login: { in: assignmentLogins } },
+      select: { id: true, login: true },
+    }),
+    prisma.service.findMany({
+      where: { name: { in: assignedServiceNames } },
+      select: { id: true, name: true },
+    }),
+  ]);
+
+  const userByLogin = new Map(assignmentUsers.map((user) => [user.login, user.id]));
+  const serviceByName = new Map(assignmentServices.map((service) => [service.name, service.id]));
+  const missingUsers = assignmentLogins.filter((login) => !userByLogin.has(login));
+  const missingServices = assignedServiceNames.filter((name) => !serviceByName.has(name));
+
+  if (missingUsers.length || missingServices.length) {
+    throw new Error(
+      `Nie można przypisać usług z Amelii. Brak pracowników: ${missingUsers.join(", ") || "—"}; brak usług: ${missingServices.join(", ") || "—"}`,
+    );
+  }
+
+  const specialistServices = Object.entries(SPECIALIST_SERVICE_ASSIGNMENTS).flatMap(
+    ([login, serviceNames]) =>
+      serviceNames.map((serviceName) => ({
+        specialistId: userByLogin.get(login)!,
+        serviceId: serviceByName.get(serviceName)!,
+      })),
+  );
+
+  await prisma.specialistService.deleteMany();
+  await prisma.specialistService.createMany({ data: specialistServices, skipDuplicates: true });
+
+  console.log(
+    `✅ Seed completed: ${globalIndex} produktów, ${seededServices} usług, ${specialistServices.length} przypisań pracownik–usługa`,
+  );
 }
 
 main()
