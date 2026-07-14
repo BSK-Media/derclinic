@@ -36,6 +36,8 @@ const PatchSchema = z.object({
   priceFinal: z.number().int().optional().nullable(),
   priceEstimate: z.number().int().optional().nullable(),
   note: z.string().optional().or(z.literal("")),
+  startsAt: z.string().datetime({ offset: true }).optional(),
+  endsAt: z.string().datetime({ offset: true }).optional(),
 });
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -55,6 +57,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ ok: false, message: "Brak uprawnień" }, { status: 403 });
   }
 
+  const newStarts = parsed.data.startsAt ? new Date(parsed.data.startsAt) : undefined;
+  const newEnds = parsed.data.endsAt ? new Date(parsed.data.endsAt) : undefined;
+  if (newStarts && newEnds && newEnds <= newStarts) {
+    return NextResponse.json({ ok: false, message: "Koniec wizyty musi być po jej rozpoczęciu." }, { status: 400 });
+  }
+
   const appt = await prisma.appointment.update({
     where: { id: params.id },
     data: {
@@ -62,6 +70,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       priceFinal: parsed.data.priceFinal === undefined ? undefined : parsed.data.priceFinal,
       priceEstimate: parsed.data.priceEstimate === undefined ? undefined : parsed.data.priceEstimate,
       note: parsed.data.note === undefined ? undefined : (parsed.data.note ? parsed.data.note : null),
+      startsAt: newStarts,
+      endsAt: newEnds,
     },
   });
 
