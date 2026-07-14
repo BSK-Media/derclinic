@@ -74,6 +74,14 @@ export async function GET(req: Request) {
         name: true,
         category: true,
         durationMin: true,
+        suggestedProducts: {
+          select: {
+            productId: true,
+            quantity: true,
+            unit: true,
+            product: { select: { name: true } },
+          },
+        },
       },
     }),
     prisma.product.findMany({
@@ -83,7 +91,20 @@ export async function GET(req: Request) {
     }),
   ]);
 
-  return NextResponse.json({ ok: true, appointments, services, products });
+  const shapedServices = services.map((s) => ({
+    id: s.id,
+    name: s.name,
+    category: s.category,
+    durationMin: s.durationMin,
+    suggestedProducts: s.suggestedProducts.map((sp) => ({
+      productId: sp.productId,
+      productName: sp.product.name,
+      quantity: Number(sp.quantity),
+      unit: sp.unit,
+    })),
+  }));
+
+  return NextResponse.json({ ok: true, appointments, services: shapedServices, products });
 }
 
 export async function POST(req: Request) {
@@ -113,9 +134,18 @@ export async function POST(req: Request) {
           id: parsed.data.serviceId,
           specialistAssignments: { some: { specialistId: user!.id } },
         },
-        select: { id: true, durationMin: true, priceSuggested: true },
+        select: {
+          id: true,
+          durationMin: true,
+          priceSuggested: true,
+          suggestedProducts: { select: { productId: true, quantity: true } },
+        },
       })
     : null;
+
+  const suggestedByProduct = new Map<string, number>(
+    (requestedService?.suggestedProducts ?? []).map((sp) => [sp.productId, Number(sp.quantity)]),
+  );
 
   if (!isCustom && !requestedService) {
     return NextResponse.json(
@@ -188,6 +218,9 @@ export async function POST(req: Request) {
 
     for (const preparation of parsed.data.preparations) {
       const quantity = new Prisma.Decimal(preparation.quantity);
+      const suggested = suggestedByProduct.get(preparation.productId);
+      const deviatesFromSuggested = suggested !== undefined && suggested !== preparation.quantity;
+
       await tx.consumption.create({
         data: {
           appointmentId: created.id,
@@ -198,10 +231,17 @@ export async function POST(req: Request) {
           unit: preparation.unit as UnitType,
           kind: "APPOINTMENT",
           createdById: user!.id,
+          status: deviatesFromSuggested ? "PENDING" : "APPLIED",
+          suggestedQuantity: suggested !== undefined ? new Prisma.Decimal(suggested) : null,
+          note: deviatesFromSuggested
+            ? "Ilość zmieniona przez specjalistę względem sugerowanej — oczekuje na akceptację administratora."
+            : null,
         },
       });
 
-      if (treatmentWarehouse) {
+      // Stan magazynowy jest odejmowany od razu tylko dla zużyć zgodnych z sugestią.
+      // Zmienione ilości czekają na akceptację administratora (patrz: /api/admin/consumption-adjustments).
+      if (treatmentWarehouse && !deviatesFromSuggested) {
         await tx.stock.upsert({
           where: {
             productId_warehouseId: {

@@ -67,6 +67,18 @@ export default function AdminAppointmentDetail() {
     mutate();
   }
 
+  async function reviewAdjustment(consumptionId: string, action: "approve" | "reject") {
+    const res = await fetch(`/api/admin/consumption-adjustments/${consumptionId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
+    toast.success(action === "approve" ? "Zaakceptowano zmianę ilości" : "Odrzucono zmianę ilości");
+    mutate();
+  }
+
   async function addPayment() {
     const amount = parsePLNToGrosze(payAmount);
     if (!amount || amount <= 0) return toast.error("Niepoprawna kwota");
@@ -183,17 +195,53 @@ export default function AdminAppointmentDetail() {
                 <th className="p-3">Ilość</th>
                 <th className="p-3">Autor</th>
                 <th className="p-3">Data</th>
+                <th className="p-3">Status</th>
+                <th className="p-3"></th>
               </tr>
             </thead>
             <tbody>
-              {(appt.consumptions ?? []).length === 0 && <tr><td className="p-3 text-zinc-500" colSpan={5}>Brak zużyć.</td></tr>}
+              {(appt.consumptions ?? []).length === 0 && <tr><td className="p-3 text-zinc-500" colSpan={7}>Brak zużyć.</td></tr>}
               {(appt.consumptions ?? []).map((c: any) => (
                 <tr key={c.id} className="border-t">
                   <td className="p-3">{c.product.name}</td>
                   <td className="p-3">{c.warehouse?.name ?? "—"}</td>
-                  <td className="p-3 tabular-nums">{c.quantity}</td>
+                  <td className="p-3 tabular-nums">
+                    {c.quantity}
+                    {c.suggestedQuantity ? (
+                      <span className="ml-1 text-xs text-zinc-500">(sugerowano: {c.suggestedQuantity})</span>
+                    ) : null}
+                  </td>
                   <td className="p-3">{c.createdBy?.name ?? "—"}</td>
                   <td className="p-3">{new Date(c.createdAt).toLocaleString("pl-PL")}</td>
+                  <td className="p-3">
+                    {c.status === "PENDING" && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                        Do akceptacji
+                      </span>
+                    )}
+                    {c.status === "APPLIED" && (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
+                        Zaakceptowano
+                      </span>
+                    )}
+                    {c.status === "REJECTED" && (
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-500/10 dark:text-red-300">
+                        Odrzucono
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-3 text-right">
+                    {c.status === "PENDING" && (
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="outline" onClick={() => reviewAdjustment(c.id, "approve")}>
+                          Zaakceptuj
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => reviewAdjustment(c.id, "reject")}>
+                          Odrzuć
+                        </Button>
+                      </div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

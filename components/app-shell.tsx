@@ -31,6 +31,7 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   { label: "Dashboard", permission: "dashboard", icon: <span className="text-lg">⌂</span> },
+  { label: "Kalendarz", permission: "calendar", icon: <span className="text-lg">🗓️</span> },
   { label: "Wizyty", permission: "appointments", icon: <span className="text-lg">📅</span> },
   { label: "Specjaliści", permission: "specialists", icon: <span className="text-lg">👩‍⚕️</span> },
   { label: "Pacjenci", permission: "patients", icon: <span className="text-lg">👥</span> },

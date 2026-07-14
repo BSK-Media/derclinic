@@ -182,16 +182,39 @@ export default function SpecialistAppointmentDetail() {
                 <th className="p-3">Magazyn</th>
                 <th className="p-3">Ilość</th>
                 <th className="p-3">Data</th>
+                <th className="p-3">Status</th>
               </tr>
             </thead>
             <tbody>
-              {(appt.consumptions ?? []).length === 0 && <tr><td className="p-3 text-zinc-500" colSpan={4}>Brak zużyć.</td></tr>}
+              {(appt.consumptions ?? []).length === 0 && <tr><td className="p-3 text-zinc-500" colSpan={5}>Brak zużyć.</td></tr>}
               {(appt.consumptions ?? []).map((c: any) => (
                 <tr key={c.id} className="border-t">
                   <td className="p-3">{c.product.name}</td>
                   <td className="p-3">{c.warehouse?.name ?? "—"}</td>
-                  <td className="p-3 tabular-nums">{c.quantity} {c.unit ?? c.product.unit}</td>
+                  <td className="p-3 tabular-nums">
+                    {c.quantity} {c.unit ?? c.product.unit}
+                    {c.suggestedQuantity ? (
+                      <span className="ml-1 text-xs text-zinc-500">(sugerowano: {c.suggestedQuantity})</span>
+                    ) : null}
+                  </td>
                   <td className="p-3">{new Date(c.createdAt).toLocaleString("pl-PL")}</td>
+                  <td className="p-3">
+                    {c.status === "PENDING" && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                        Czeka na akceptację admina
+                      </span>
+                    )}
+                    {c.status === "APPLIED" && (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
+                        Zaakceptowano
+                      </span>
+                    )}
+                    {c.status === "REJECTED" && (
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-500/10 dark:text-red-300">
+                        Odrzucono
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
