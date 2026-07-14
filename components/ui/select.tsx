@@ -31,6 +31,7 @@ SelectTrigger.displayName = "SelectTrigger";
 export function SelectContent(
   {
     className,
+    children,
     disablePortal,
     ...props
   }: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & { disablePortal?: boolean }
@@ -40,12 +41,12 @@ export function SelectContent(
       position="popper"
       sideOffset={6}
       className={cn(
-        "z-[1000] max-h-[var(--radix-select-content-available-height)] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950",
+        "z-[1000] max-h-[var(--radix-select-content-available-height)] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950",
         className,
       )}
       {...props}
     >
-      <SelectPrimitive.Viewport className="p-1" />
+      <SelectPrimitive.Viewport className="p-1">{children}</SelectPrimitive.Viewport>
     </SelectPrimitive.Content>
   );
 
