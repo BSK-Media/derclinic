@@ -28,6 +28,8 @@ enum ProductCategory {
 enum UnitType {
   UNIT
   ML
+  MG
+  G
   AMPULE
   BOTOX_UNIT
 }
@@ -79,6 +81,7 @@ model User {
   retailSales         RetailSale[] @relation("RetailSaleSeller")
   auditLogs           AuditLog[]
   serviceRates        SpecialistServiceRate[]
+  assignedServices    SpecialistService[]
 
   @@index([role])
   @@index([specialistCode])
@@ -119,6 +122,7 @@ model Service {
   suggestedProducts ServiceSuggestedProduct[]
   appointments      Appointment[]
   specialistRates   SpecialistServiceRate[]
+  specialistAssignments SpecialistService[]
 
   @@index([name])
   @@index([category])
@@ -153,6 +157,23 @@ model SpecialistServiceRate {
 
   // Stawka kwotowa pracownika za ten zabieg (grosze)
   amount       Int
+
+  @@unique([specialistId, serviceId])
+  @@index([specialistId])
+  @@index([serviceId])
+}
+
+// Usługi rzeczywiście wykonywane przez danego pracownika.
+// To osobna relacja od stawki, ponieważ pusta stawka nie oznacza braku przypisania.
+model SpecialistService {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+
+  specialistId String
+  specialist   User     @relation(fields: [specialistId], references: [id], onDelete: Cascade)
+
+  serviceId    String
+  service      Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   @@unique([specialistId, serviceId])
   @@index([specialistId])
@@ -263,6 +284,7 @@ model Appointment {
 
   serviceId   String
   service     Service  @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  customServiceName String?
 
   startsAt    DateTime
   endsAt      DateTime
@@ -302,6 +324,7 @@ model Consumption {
   warehouse   Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
 
   quantity    Decimal  @db.Decimal(14,2)
+  unit        UnitType @default(UNIT)
 
   createdById String
   createdBy   User     @relation("ConsumptionCreator", fields: [createdById], references: [id], onDelete: Restrict)
