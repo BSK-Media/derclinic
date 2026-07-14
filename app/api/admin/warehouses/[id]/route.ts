@@ -35,6 +35,11 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   const deny = requireRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
+  const warehouse = await prisma.warehouse.findUnique({ where: { id: params.id } });
+  if (!warehouse) {
+    return NextResponse.json({ ok: false, message: "Nie znaleziono magazynu" }, { status: 404 });
+  }
+
   await prisma.warehouse.delete({ where: { id: params.id } });
   await logAudit({ actorId: user!.id, action: "DELETE", entity: "Warehouse", entityId: params.id });
 
