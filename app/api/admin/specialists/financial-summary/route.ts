@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole } from "@/lib/api-helpers";
 
-type RangeKey = "today" | "7d" | "month" | "custom";
+type RangeKey = "today" | "7d" | "30d" | "custom";
 type DateParts = { year: number; month: number; day: number };
 
 const WARSAW_FORMATTER = new Intl.DateTimeFormat("en-CA", {
@@ -79,7 +79,7 @@ function resolveRange(url: URL) {
   const range: RangeKey =
     rawRange === "today" || rawRange === "7d" || rawRange === "custom"
       ? rawRange
-      : "month";
+      : "30d";
   const now = warsawParts();
   const today = { year: now.year, month: now.month, day: now.day };
 
@@ -99,6 +99,14 @@ function resolveRange(url: URL) {
     };
   }
 
+  if (range === "30d") {
+    return {
+      range,
+      start: warsawMidnightToUtc(addDays(today, -29)),
+      end: warsawMidnightToUtc(addDays(today, 1)),
+    };
+  }
+
   if (range === "custom") {
     const from = parseDate(url.searchParams.get("from"));
     const to = parseDate(url.searchParams.get("to"));
@@ -110,17 +118,7 @@ function resolveRange(url: URL) {
     return { range, start, end };
   }
 
-  const monthStart = { year: today.year, month: today.month, day: 1 };
-  const nextMonth = new Date(Date.UTC(today.year, today.month, 1));
-  return {
-    range: "month" as const,
-    start: warsawMidnightToUtc(monthStart),
-    end: warsawMidnightToUtc({
-      year: nextMonth.getUTCFullYear(),
-      month: nextMonth.getUTCMonth() + 1,
-      day: 1,
-    }),
-  };
+  return null;
 }
 
 export async function GET(req: Request) {
