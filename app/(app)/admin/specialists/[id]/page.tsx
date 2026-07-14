@@ -184,7 +184,7 @@ export default function SpecialistDetailPage() {
                   </td>
                   <td className="p-3">{a.patient?.name ?? "—"}</td>
                   <td className="p-3">
-                    <div>{a.service?.name ?? "—"}</div>
+                    <div>{a.customServiceName || a.service?.name || "—"}</div>
                     {a.materials?.length ? (
                       <div className="mt-1 text-xs text-slate-500">
                         {a.materials.map((m: any) => `${m.productName} × ${m.quantity}`).join(", ")}
