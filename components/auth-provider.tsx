@@ -1,9 +1,10 @@
 "use client";
 
 import React from "react";
+import type { SidebarPermission } from "@/lib/sidebar-permissions";
 
 export type Role = "ADMIN" | "RECEPTION" | "SPECIALIST";
-export type MeUser = { id: string; login: string; name: string; role: Role; payoutPercent?: number; avatarUrl?: string | null; jobTitle?: string | null; location?: string | null; specialization?: string | null } | null;
+export type MeUser = { id: string; login: string; name: string; role: Role; payoutPercent?: number; avatarUrl?: string | null; jobTitle?: string | null; location?: string | null; specialization?: string | null; sidebarPermissions: SidebarPermission[] } | null;
 
 type Ctx = {
   user: MeUser;
