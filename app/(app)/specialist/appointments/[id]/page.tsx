@@ -13,6 +13,14 @@ import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+// Date -> wartość dla <input type="datetime-local"> w strefie lokalnej
+function toLocalInput(d: string | Date | null | undefined) {
+  if (!d) return "";
+  const date = new Date(d);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 export default function SpecialistAppointmentDetail() {
   const params = useParams<{ id: string }>();
   const id = params.id;
@@ -23,6 +31,8 @@ export default function SpecialistAppointmentDetail() {
   const [status, setStatus] = useState<string>("SCHEDULED");
   const [priceFinal, setPriceFinal] = useState<string>("");
   const [note, setNote] = useState<string>("");
+  const [startsAt, setStartsAt] = useState<string>("");
+  const [endsAt, setEndsAt] = useState<string>("");
 
   const [productId, setProductId] = useState<string>("");
   const [warehouseId, setWarehouseId] = useState<string>("");
@@ -39,6 +49,8 @@ export default function SpecialistAppointmentDetail() {
         status,
         priceFinal: priceFinal ? parsePLNToGrosze(priceFinal) : null,
         note,
+        ...(startsAt ? { startsAt: new Date(startsAt).toISOString() } : {}),
+        ...(endsAt ? { endsAt: new Date(endsAt).toISOString() } : {}),
       }),
     });
     const out = await res.json().catch(() => ({}));
@@ -79,6 +91,22 @@ export default function SpecialistAppointmentDetail() {
       <Card className="p-4 space-y-4">
         <div className="font-medium">Wykonanie i opis</div>
         <div className="grid gap-3 md:grid-cols-3">
+          <div className="space-y-2">
+            <Label>Rozpoczęcie zabiegu</Label>
+            <Input
+              type="datetime-local"
+              defaultValue={toLocalInput(appt.startsAt)}
+              onChange={(e) => setStartsAt(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Zakończenie zabiegu</Label>
+            <Input
+              type="datetime-local"
+              defaultValue={toLocalInput(appt.endsAt)}
+              onChange={(e) => setEndsAt(e.target.value)}
+            />
+          </div>
           <div className="space-y-2">
             <Label>Status</Label>
             <Select value={status} onValueChange={setStatus}>
