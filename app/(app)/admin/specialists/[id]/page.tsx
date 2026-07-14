@@ -9,7 +9,12 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/components/auth-provider";
 import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
+import {
+  SIDEBAR_PERMISSION_OPTIONS,
+  type SidebarPermission,
+} from "@/lib/sidebar-permissions";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -38,8 +43,9 @@ export default function SpecialistDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
   const [range, setRange] = React.useState<RangeKey>("30d");
+  const { user } = useAuth();
 
-  const { data, isLoading } = useSWR(`/api/admin/specialists/${id}/overview?range=${range}`, fetcher);
+  const { data, isLoading, mutate } = useSWR(`/api/admin/specialists/${id}/overview?range=${range}`, fetcher);
   const specialist = data?.specialist;
   const stats = data?.stats;
   const appointments: any[] = data?.appointments ?? [];
@@ -66,6 +72,15 @@ export default function SpecialistDetailPage() {
           ← Wróć do listy
         </Link>
       </div>
+
+      {user?.role === "ADMIN" ? (
+        <SidebarPermissionsSection
+          specialistId={id}
+          permissions={specialist?.sidebarPermissions}
+          loading={isLoading}
+          onSaved={() => mutate()}
+        />
+      ) : null}
 
       {/* Filtr zakresu */}
       <div className="inline-flex rounded-2xl border border-white/60 bg-white/70 p-1 text-sm shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55">
@@ -196,6 +211,112 @@ export default function SpecialistDetailPage() {
 
       <RatesSection specialistId={id} />
     </div>
+  );
+}
+
+function SidebarPermissionsSection({
+  specialistId,
+  permissions,
+  loading,
+  onSaved,
+}: {
+  specialistId: string;
+  permissions?: SidebarPermission[];
+  loading: boolean;
+  onSaved: () => void;
+}) {
+  const [selected, setSelected] = React.useState<SidebarPermission[]>([]);
+  const [saving, setSaving] = React.useState(false);
+  const ready = permissions !== undefined;
+
+  React.useEffect(() => {
+    if (permissions) setSelected(permissions);
+  }, [permissions]);
+
+  function toggle(permission: SidebarPermission) {
+    setSelected((current) =>
+      current.includes(permission)
+        ? current.filter((item) => item !== permission)
+        : SIDEBAR_PERMISSION_OPTIONS.map((item) => item.key).filter(
+            (item) => item === permission || current.includes(item),
+          ),
+    );
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/specialists/${specialistId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sidebarPermissions: selected }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) {
+        toast.error(out?.message || "Nie udało się zapisać uprawnień");
+        return;
+      }
+
+      toast.success("Zapisano uprawnienia do panelu");
+      onSaved();
+    } catch {
+      toast.error("Nie udało się zapisać uprawnień");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b p-4">
+        <div className="font-medium">Dostęp do lewego panelu</div>
+        <div className="mt-1 text-xs text-slate-500">
+          Zaznacz sekcje, które ten pracownik może widzieć i otwierać. Administrator zawsze ma dostęp do wszystkich sekcji.
+        </div>
+      </div>
+
+      <div className="space-y-4 p-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {SIDEBAR_PERMISSION_OPTIONS.map((item) => {
+            const checked = selected.includes(item.key);
+            return (
+              <button
+                key={item.key}
+                type="button"
+                role="checkbox"
+                aria-checked={checked}
+                disabled={loading || saving || !ready}
+                onClick={() => toggle(item.key)}
+                className={
+                  "flex items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-medium transition " +
+                  (checked
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-100"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10")
+                }
+              >
+                <span
+                  className={
+                    "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs " +
+                    (checked
+                      ? "border-emerald-600 bg-emerald-600 text-white"
+                      : "border-slate-300 bg-white text-transparent dark:border-white/20 dark:bg-transparent")
+                  }
+                >
+                  ✓
+                </span>
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex justify-end">
+          <Button onClick={save} disabled={loading || saving || !ready}>
+            {saving ? "Zapisywanie..." : "Zapisz uprawnienia"}
+          </Button>
+        </div>
+      </div>
+    </Card>
   );
 }
 
