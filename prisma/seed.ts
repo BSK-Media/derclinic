@@ -676,41 +676,48 @@ async function main() {
 
   const specialistHash = await bcrypt.hash(TEMP_SPECIALIST_PASSWORD, 10);
   for (const specialist of SPECIALISTS) {
-    await prisma.user.upsert({
-      where: { login: specialist.login },
-      update: {
-        name: specialist.name,
-        email: specialist.email,
-        role: specialist.role,
-        phone: specialist.phone,
-        specialistCode: specialist.specialistCode,
-        isVisible: specialist.isVisible,
-        isAvailable: specialist.isAvailable,
-        avatarUrl: specialist.avatarUrl ?? null,
-        jobTitle: specialist.jobTitle ?? null,
-        location: specialist.location ?? null,
-        specialization: specialist.specialization ?? null,
-        sourceProfileUrl: specialist.sourceProfileUrl ?? null,
-        payoutPercent: specialist.role === Role.SPECIALIST ? 50 : 0,
-      },
-      create: {
-        login: specialist.login,
-        name: specialist.name,
-        email: specialist.email,
-        role: specialist.role,
-        passwordHash: specialistHash,
-        phone: specialist.phone,
-        specialistCode: specialist.specialistCode,
-        isVisible: specialist.isVisible,
-        isAvailable: specialist.isAvailable,
-        avatarUrl: specialist.avatarUrl ?? null,
-        jobTitle: specialist.jobTitle ?? null,
-        location: specialist.location ?? null,
-        specialization: specialist.specialization ?? null,
-        sourceProfileUrl: specialist.sourceProfileUrl ?? null,
-        payoutPercent: specialist.role === Role.SPECIALIST ? 50 : 0,
-      },
-    });
+    const existing = await prisma.user.findUnique({ where: { login: specialist.login } });
+
+    if (!existing) {
+      await prisma.user.create({
+        data: {
+          login: specialist.login,
+          name: specialist.name,
+          email: specialist.email,
+          role: specialist.role,
+          passwordHash: specialistHash,
+          phone: specialist.phone,
+          specialistCode: specialist.specialistCode,
+          isVisible: specialist.isVisible,
+          isAvailable: specialist.isAvailable,
+          avatarUrl: specialist.avatarUrl ?? null,
+          jobTitle: specialist.jobTitle ?? null,
+          location: specialist.location ?? null,
+          specialization: specialist.specialization ?? null,
+          sourceProfileUrl: specialist.sourceProfileUrl ?? null,
+          payoutPercent: specialist.role === Role.SPECIALIST ? 50 : 0,
+        },
+      });
+    } else {
+      // Seed uruchamia się przy każdym deployu (vercel-build -> db:setup),
+      // dlatego pola edytowane przez administratora (name, location, specialization,
+      // avatarUrl, jobTitle) uzupełniamy WYŁĄCZNIE gdy są jeszcze puste,
+      // żeby deploy nie nadpisywał trwałych zmian z panelu.
+      await prisma.user.update({
+        where: { login: specialist.login },
+        data: {
+          role: specialist.role,
+          specialistCode: specialist.specialistCode,
+          sourceProfileUrl: specialist.sourceProfileUrl ?? null,
+          ...(existing.email == null ? { email: specialist.email } : {}),
+          ...(existing.phone == null ? { phone: specialist.phone } : {}),
+          ...(existing.avatarUrl == null ? { avatarUrl: specialist.avatarUrl ?? null } : {}),
+          ...(existing.jobTitle == null ? { jobTitle: specialist.jobTitle ?? null } : {}),
+          ...(existing.location == null ? { location: specialist.location ?? null } : {}),
+          ...(existing.specialization == null ? { specialization: specialist.specialization ?? null } : {}),
+        },
+      });
+    }
   }
 
   const mainWh = await prisma.warehouse.upsert({
