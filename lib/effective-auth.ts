@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import { getAuthUser, type AuthUser } from "@/lib/auth-cookie";
+import { normalizeSidebarPermissions } from "@/lib/sidebar-permissions";
 
 export const IMPERSONATE_COOKIE_NAME = "bsk_impersonate";
 
@@ -26,7 +27,7 @@ export async function getEffectiveAuth(): Promise<EffectiveAuth> {
 
   const target = await prisma.user.findUnique({
     where: { id: targetId },
-    select: { id: true, email: true, name: true, role: true },
+    select: { id: true, email: true, name: true, role: true, sidebarPermissions: true },
   });
 
   if (!target) {
@@ -35,7 +36,13 @@ export async function getEffectiveAuth(): Promise<EffectiveAuth> {
   }
 
   return {
-    user: { id: target.id, email: target.email ?? "", name: target.name ?? "", role: target.role },
+    user: {
+      id: target.id,
+      email: target.email ?? "",
+      name: target.name ?? "",
+      role: target.role,
+      sidebarPermissions: normalizeSidebarPermissions(target.role, target.sidebarPermissions),
+    },
     adminUser,
     impersonating: true,
   };
