@@ -18,7 +18,7 @@ export async function GET() {
 }
 
 const CreateSchema = z.object({
-  name: z.string().min(2),
+  name: z.string().trim().min(2),
   parentId: z.string().optional().nullable(),
 });
 
@@ -31,6 +31,13 @@ export async function POST(req: Request) {
   const json = await req.json().catch(() => null);
   const parsed = CreateSchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
+
+  const duplicate = await prisma.warehouse.findFirst({
+    where: { name: { equals: parsed.data.name, mode: "insensitive" } },
+  });
+  if (duplicate) {
+    return NextResponse.json({ ok: false, message: "Magazyn o tej nazwie już istnieje" }, { status: 409 });
+  }
 
   const wh = await prisma.warehouse.create({
     data: { name: parsed.data.name, parentId: parsed.data.parentId ?? null },
