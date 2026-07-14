@@ -32,7 +32,7 @@ type Specialist = {
   sourceProfileUrl?: string | null;
 };
 
-type FinancialRange = "today" | "7d" | "month" | "custom";
+type FinancialRange = "today" | "7d" | "30d" | "custom";
 
 type FinancialRow = {
   specialistId: string;
@@ -250,7 +250,7 @@ function toDateInput(date: Date) {
 
 function SpecialistFinancialSettlements() {
   const now = React.useMemo(() => new Date(), []);
-  const [range, setRange] = React.useState<FinancialRange>("month");
+  const [range, setRange] = React.useState<FinancialRange>("30d");
   const [from, setFrom] = React.useState(() =>
     toDateInput(new Date(now.getFullYear(), now.getMonth(), 1)),
   );
@@ -288,7 +288,7 @@ function SpecialistFinancialSettlements() {
   const ranges: Array<{ key: FinancialRange; label: string }> = [
     { key: "today", label: "Dziś" },
     { key: "7d", label: "7 dni" },
-    { key: "month", label: "Miesiąc" },
+    { key: "30d", label: "30 dni" },
     { key: "custom", label: "Niestandardowe" },
   ];
 
