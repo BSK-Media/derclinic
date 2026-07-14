@@ -14,7 +14,7 @@ const BodySchema = z.object({
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["SPECIALIST", "ADMIN"]);
+  const deny = requireRole(user!.role, ["SPECIALIST", "RECEPTION", "ADMIN"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);
@@ -23,7 +23,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const appt = await prisma.appointment.findUnique({ where: { id: params.id } });
   if (!appt) return NextResponse.json({ ok: false, message: "Nie znaleziono wizyty" }, { status: 404 });
-  if (appt.specialistId !== user!.id) return NextResponse.json({ ok: false, message: "Brak uprawnień" }, { status: 403 });
+  if (user!.role !== "ADMIN" && appt.specialistId !== user!.id) {
+    return NextResponse.json({ ok: false, message: "Brak uprawnień" }, { status: 403 });
+  }
 
   const warehouseId = parsed.data.warehouseId ? parsed.data.warehouseId : null;
 
