@@ -24,6 +24,8 @@ export async function GET() {
       isAvailable: true,
       avatarUrl: true,
       jobTitle: true,
+      location: true,
+      specialization: true,
       sourceProfileUrl: true,
       createdAt: true,
     },
