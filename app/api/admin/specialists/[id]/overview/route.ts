@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { normalizeSidebarPermissions } from "@/lib/sidebar-permissions";
 
 type RangeKey = "today" | "7d" | "30d";
 
@@ -44,6 +45,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       location: true,
       baseRate: true,
       payoutPercent: true,
+      sidebarPermissions: true,
     },
   });
   if (!specialist) return NextResponse.json({ ok: false, message: "Nie znaleziono pracownika" }, { status: 404 });
@@ -106,7 +108,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     ok: true,
     range,
     start,
-    specialist,
+    specialist: {
+      ...specialist,
+      sidebarPermissions: normalizeSidebarPermissions(specialist.role, specialist.sidebarPermissions),
+    },
     stats: {
       appointmentsTotal: rows.length,
       appointmentsCompleted: completed.length,
