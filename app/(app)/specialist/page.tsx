@@ -53,7 +53,7 @@ export default async function SpecialistHome() {
             <div key={a.id} className="py-3 flex items-center justify-between gap-3">
               <div>
                 <div className="text-sm font-medium">{new Date(a.startsAt).toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"})} • {a.patient.name}</div>
-                <div className="text-xs text-zinc-500">{a.service.name} • status: {a.status}</div>
+                <div className="text-xs text-zinc-500">{a.customServiceName || a.service.name} • status: {a.status}</div>
               </div>
               <Link className="text-sm underline" href={`/specialist/appointments/${a.id}`}>Otwórz</Link>
             </div>
