@@ -84,7 +84,7 @@ export default function SpecialistAppointmentDetail() {
 
       <Card className="p-4 space-y-2">
         <div className="text-sm text-zinc-500">{new Date(appt.startsAt).toLocaleString("pl-PL")} – {new Date(appt.endsAt).toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"})}</div>
-        <div className="font-medium">{appt.patient.name} • {appt.service.name}</div>
+        <div className="font-medium">{appt.patient.name} • {appt.customServiceName || appt.service.name}</div>
         <div className="text-sm text-zinc-600 dark:text-zinc-300">Status: {appt.status}</div>
       </Card>
 
@@ -190,7 +190,7 @@ export default function SpecialistAppointmentDetail() {
                 <tr key={c.id} className="border-t">
                   <td className="p-3">{c.product.name}</td>
                   <td className="p-3">{c.warehouse?.name ?? "—"}</td>
-                  <td className="p-3 tabular-nums">{c.quantity}</td>
+                  <td className="p-3 tabular-nums">{c.quantity} {c.unit ?? c.product.unit}</td>
                   <td className="p-3">{new Date(c.createdAt).toLocaleString("pl-PL")}</td>
                 </tr>
               ))}
