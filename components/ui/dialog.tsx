@@ -10,10 +10,10 @@ export const DialogTrigger = DialogPrimitive.Trigger;
 export function DialogContent({ className, ...props }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 bg-black/40" />
+      <DialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-black/40" />
       <DialogPrimitive.Content
         className={cn(
-          "fixed left-1/2 top-1/2 w-[95vw] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-zinc-200 bg-white p-5 shadow-lg dark:border-zinc-800 dark:bg-zinc-950",
+          "fixed left-1/2 top-1/2 z-[101] max-h-[90vh] w-[95vw] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-5 shadow-lg dark:border-zinc-800 dark:bg-zinc-950",
           className,
         )}
         {...props}
