@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const Select = SelectPrimitive.Root;
@@ -28,6 +28,22 @@ export const SelectTrigger = React.forwardRef<
 ));
 SelectTrigger.displayName = "SelectTrigger";
 
+function SelectScrollUpButton() {
+  return (
+    <SelectPrimitive.ScrollUpButton className="flex h-6 cursor-default items-center justify-center bg-white dark:bg-zinc-950">
+      <ChevronUp className="h-4 w-4 opacity-60" />
+    </SelectPrimitive.ScrollUpButton>
+  );
+}
+
+function SelectScrollDownButton() {
+  return (
+    <SelectPrimitive.ScrollDownButton className="flex h-6 cursor-default items-center justify-center bg-white dark:bg-zinc-950">
+      <ChevronDown className="h-4 w-4 opacity-60" />
+    </SelectPrimitive.ScrollDownButton>
+  );
+}
+
 export function SelectContent(
   {
     className,
@@ -41,12 +57,14 @@ export function SelectContent(
       position="popper"
       sideOffset={6}
       className={cn(
-        "z-[1000] max-h-[var(--radix-select-content-available-height)] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950",
+        "z-[1000] max-h-[min(24rem,var(--radix-select-content-available-height))] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950",
         className,
       )}
       {...props}
     >
-      <SelectPrimitive.Viewport className="p-1">{children}</SelectPrimitive.Viewport>
+      <SelectScrollUpButton />
+      <SelectPrimitive.Viewport className="w-full p-1">{children}</SelectPrimitive.Viewport>
+      <SelectScrollDownButton />
     </SelectPrimitive.Content>
   );
 
