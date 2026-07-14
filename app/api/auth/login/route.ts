@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { setAuthCookie, signAuthToken } from "@/lib/auth-cookie";
 import { logAudit } from "@/lib/audit";
+import { normalizeSidebarPermissions } from "@/lib/sidebar-permissions";
 
 const BodySchema = z.object({
   login: z.string().min(1),
@@ -28,11 +29,21 @@ export async function POST(req: Request) {
     email: user.email ?? `${user.login}@local`,
     name: user.name,
     role: user.role as any,
+    sidebarPermissions: normalizeSidebarPermissions(user.role, user.sidebarPermissions),
   });
 
   setAuthCookie(token);
 
   await logAudit({ actorId: user.id, action: "LOGIN", entity: "User", entityId: user.id });
 
-  return NextResponse.json({ ok: true, user: { id: user.id, login: user.login, name: user.name, role: user.role } });
+  return NextResponse.json({
+    ok: true,
+    user: {
+      id: user.id,
+      login: user.login,
+      name: user.name,
+      role: user.role,
+      sidebarPermissions: normalizeSidebarPermissions(user.role, user.sidebarPermissions),
+    },
+  });
 }
