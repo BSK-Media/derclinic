@@ -2,6 +2,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import useSWR from "swr";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
@@ -127,7 +128,9 @@ export default function SpecialistsPage() {
                     <div className="flex items-start gap-3">
                       <Avatar name={s.name} avatarUrl={s.avatarUrl} />
                       <div>
-                        <div className="font-medium text-slate-900 dark:text-white">{s.name}</div>
+                        <Link href={`/admin/specialists/${s.id}`} className="font-medium text-slate-900 hover:underline dark:text-white">
+                          {s.name}
+                        </Link>
                         <div className="mt-1 text-xs text-slate-500">login: {s.login}</div>
                         {s.jobTitle ? <div className="mt-1 text-xs text-slate-500">{s.jobTitle}</div> : null}
                         <div className="mt-2 flex flex-wrap gap-2">
@@ -155,6 +158,9 @@ export default function SpecialistsPage() {
                   <td className="p-3">{s.email || "-"}</td>
                   <td className="p-3">
                     <div className="flex flex-wrap gap-2">
+                      <Link href={`/admin/specialists/${s.id}`}>
+                        <Button size="sm" variant="outline">Szczegóły</Button>
+                      </Link>
                       <Button size="sm" onClick={() => setEditing(s)}>
                         Edytuj
                       </Button>
