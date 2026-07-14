@@ -67,11 +67,15 @@ model User {
   // For specialist settlements (percentage share of appointment final price)
   payoutPercent Int @default(50)
 
+  // Domyślna stawka kwotowa za pojedynczy zabieg (grosze); nadpisywana stawkami per zabieg
+  baseRate Int?
+
   appointments        Appointment[] @relation("AppointmentSpecialist")
   createdConsumptions Consumption[] @relation("ConsumptionCreator")
   specialistConsumptions Consumption[] @relation("ConsumptionSpecialist")
   retailSales         RetailSale[] @relation("RetailSaleSeller")
   auditLogs           AuditLog[]
+  serviceRates        SpecialistServiceRate[]
 
   @@index([role])
   @@index([specialistCode])
@@ -111,6 +115,7 @@ model Service {
 
   suggestedProducts ServiceSuggestedProduct[]
   appointments      Appointment[]
+  specialistRates   SpecialistServiceRate[]
 
   @@index([name])
   @@index([category])
@@ -129,6 +134,25 @@ model ServiceSuggestedProduct {
   unit      UnitType @default(UNIT)
 
   @@unique([serviceId, productId])
+  @@index([serviceId])
+}
+
+model SpecialistServiceRate {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  specialistId String
+  specialist   User     @relation(fields: [specialistId], references: [id], onDelete: Cascade)
+
+  serviceId    String
+  service      Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  // Stawka kwotowa pracownika za ten zabieg (grosze)
+  amount       Int
+
+  @@unique([specialistId, serviceId])
+  @@index([specialistId])
   @@index([serviceId])
 }
 
