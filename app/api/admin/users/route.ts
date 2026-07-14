@@ -25,6 +25,13 @@ const CreateSchema = z.object({
   email: z.string().email().optional().or(z.literal("")),
   password: z.string().min(4),
   payoutPercent: z.number().int().min(0).max(100).optional(),
+  location: z.string().optional().or(z.literal("")),
+  specialization: z.string().optional().or(z.literal("")),
+  avatarUrl: z
+    .string()
+    .refine((v) => v === "" || v.startsWith("data:image/") || /^https?:\/\//.test(v), "Niepoprawne zdjęcie")
+    .optional()
+    .or(z.literal("")),
 });
 
 export async function POST(req: Request) {
@@ -37,7 +44,7 @@ export async function POST(req: Request) {
   const parsed = CreateSchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
-  const { login, name, role, email, password, payoutPercent } = parsed.data;
+  const { login, name, role, email, password, payoutPercent, location, specialization, avatarUrl } = parsed.data;
 
   const passwordHash = await bcrypt.hash(password, 10);
 
@@ -49,8 +56,11 @@ export async function POST(req: Request) {
       email: email ? email : null,
       passwordHash,
       payoutPercent: role === "SPECIALIST" ? (payoutPercent ?? 50) : 0,
+      location: location || null,
+      specialization: specialization || null,
+      avatarUrl: avatarUrl || null,
     },
-    select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true },
+    select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true, location: true, specialization: true },
   });
 
   await logAudit({ actorId: user!.id, action: "CREATE", entity: "User", entityId: created.id, data: { login, role } });
