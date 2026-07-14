@@ -55,7 +55,7 @@ export default async function AdminPatientDetailPage({ params }: { params: { id:
                 return (
                   <tr key={a.id} className="border-t">
                     <td className="p-3">{new Date(a.startsAt).toLocaleString("pl-PL", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
-                    <td className="p-3">{a.service.name}</td>
+                    <td className="p-3">{a.customServiceName || a.service.name}</td>
                     <td className="p-3">{a.specialist.name}</td>
                     <td className="p-3">{a.status}</td>
                     <td className="p-3">{formatPLNFromGrosze(a.priceFinal ?? a.priceEstimate)}</td>
