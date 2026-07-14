@@ -1,97 +1,199 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import useSWR from "swr";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowRight, Boxes, Package, Plus, Trash2, Warehouse as WarehouseIcon } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Label } from "@/components/ui/label";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+async function fetcher(url: string) {
+  const response = await fetch(url);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.message || "Nie udało się pobrać magazynów");
+  return data;
+}
 
-function money(value: number | null | undefined) {
-  if (value == null) return "—";
+type WarehouseSummary = {
+  id: string;
+  name: string;
+  parentId: string | null;
+  totalQuantity: number;
+  totalValue: number;
+  productsCount: number;
+  lowStockCount: number;
+  shortExpiryCount: number;
+};
+
+function money(value: number) {
   return new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN" }).format(value / 100);
 }
 
-function StatCard({ title, value }: { title: string; value: React.ReactNode }) {
-  return (
-    <Card className="border-white/60 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55">
-      <CardContent className="p-5">
-        <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</div>
-        <div className="mt-1 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">{value}</div>
-      </CardContent>
-    </Card>
-  );
+function quantity(value: number) {
+  return new Intl.NumberFormat("pl-PL", { maximumFractionDigits: 2 }).format(value);
 }
 
 export default function InventoryPage() {
-  const { data } = useSWR("/api/admin/inventory", fetcher);
-  const lots = data?.lots ?? [];
-  const kpis = data?.kpis;
-  const [q, setQ] = React.useState("");
+  const { data, error, isLoading, mutate } = useSWR("/api/admin/inventory", fetcher);
+  const warehouses: WarehouseSummary[] = data?.warehouses ?? [];
+  const [createOpen, setCreateOpen] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
-  const filtered = React.useMemo(() => lots.filter((lot: any) => (`${lot.product.name} ${lot.product.manufacturer ?? ""} ${lot.batchNumber} ${lot.location ?? ""} ${lot.warehouse.name}`).toLowerCase().includes(q.toLowerCase())), [lots, q]);
+  async function createWarehouse() {
+    if (name.trim().length < 2) return toast.error("Podaj nazwę magazynu");
+    setSaving(true);
+    try {
+      const response = await fetch("/api/admin/warehouses", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), parentId: null }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.ok) throw new Error(result?.message || "Nie udało się dodać magazynu");
+
+      toast.success("Magazyn został dodany");
+      setName("");
+      setCreateOpen(false);
+      await mutate();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Nie udało się dodać magazynu");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteWarehouse(warehouse: WarehouseSummary) {
+    const confirmed = window.confirm(
+      `Czy na pewno usunąć magazyn „${warehouse.name}”? Zostaną również usunięte jego stany i partie produktów.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingId(warehouse.id);
+    try {
+      const response = await fetch(`/api/admin/warehouses/${warehouse.id}`, { method: "DELETE" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.ok) throw new Error(result?.message || "Nie udało się usunąć magazynu");
+
+      toast.success("Magazyn został usunięty");
+      await mutate();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Nie udało się usunąć magazynu");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Magazyn kliniki</h1>
-          <div className="text-sm text-slate-500 dark:text-slate-400">Lokalizacja robocza wszystkich partii: Grodzisk Mazowiecki</div>
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">Magazyny</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Wybierz magazyn, aby sprawdzić jego stan i zarządzać produktami.
+          </p>
         </div>
+        <Button onClick={() => setCreateOpen(true)} className="gap-2 bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:text-white">
+          <Plus className="h-4 w-4" />
+          Dodaj magazyn
+        </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Łączna wartość zakupu" value={money(kpis?.totalValue)} />
-        <StatCard title="Liczba produktów" value={data?.productsCount ?? 0} />
-        <StatCard title="Niski stan" value={kpis?.lowStockCount ?? 0} />
-        <StatCard title="Krótki termin" value={kpis?.shortExpiryCount ?? 0} />
-      </div>
+      {error ? (
+        <Card className="border-red-200 bg-red-50 dark:border-red-500/20 dark:bg-red-500/10">
+          <CardContent className="p-5 text-sm text-red-700 dark:text-red-200">{error.message}</CardContent>
+        </Card>
+      ) : null}
 
-      <Card className="border-white/60 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55">
-        <CardHeader>
-          <CardTitle>Partie magazynowe</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4 max-w-md">
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Szukaj po nazwie, firmie, partii, magazynie..." className="rounded-2xl" />
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {[0, 1, 2].map((item) => <div key={item} className="h-52 animate-pulse rounded-3xl bg-white/70 dark:bg-white/5" />)}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {warehouses.map((warehouse) => (
+            <Card key={warehouse.id} className="group overflow-hidden border-white/60 bg-white/80 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-[#0b1220]/55">
+              <CardContent className="p-0">
+                <Link href={`/admin/inventory/${warehouse.id}`} className="block p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                      <WarehouseIcon className="h-6 w-6" />
+                    </div>
+                    <ArrowRight className="mt-2 h-5 w-5 text-slate-300 transition group-hover:translate-x-1 group-hover:text-emerald-600" />
+                  </div>
+                  <h2 className="mt-4 text-lg font-semibold text-slate-900 dark:text-white">{warehouse.name}</h2>
+                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-2xl bg-slate-50 p-3 dark:bg-white/5">
+                      <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400"><Package className="h-4 w-4" /> Sztuki</div>
+                      <div className="mt-1 font-semibold text-slate-900 dark:text-white">{quantity(warehouse.totalQuantity)}</div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-3 dark:bg-white/5">
+                      <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400"><Boxes className="h-4 w-4" /> Produkty</div>
+                      <div className="mt-1 font-semibold text-slate-900 dark:text-white">{warehouse.productsCount}</div>
+                    </div>
+                  </div>
+                  <div className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+                    Wartość zakupu: <span className="font-semibold text-slate-700 dark:text-slate-200">{money(warehouse.totalValue)}</span>
+                  </div>
+                </Link>
+                <div className="border-t border-slate-100 px-5 py-3 dark:border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => deleteWarehouse(warehouse)}
+                    disabled={deletingId === warehouse.id}
+                    className="inline-flex items-center gap-2 text-xs font-medium text-red-600 transition hover:text-red-700 disabled:opacity-50 dark:text-red-300"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {deletingId === warehouse.id ? "Usuwanie..." : "Usuń magazyn"}
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+
+          {!isLoading && warehouses.length === 0 ? (
+            <Card className="border-dashed border-slate-300 bg-white/50 md:col-span-2 xl:col-span-3 dark:border-white/15 dark:bg-white/5">
+              <CardContent className="flex flex-col items-center p-10 text-center">
+                <WarehouseIcon className="h-10 w-10 text-slate-300" />
+                <div className="mt-3 font-medium text-slate-700 dark:text-slate-200">Brak magazynów</div>
+                <div className="mt-1 text-sm text-slate-500">Dodaj pierwszy magazyn, aby rozpocząć zarządzanie stanami.</div>
+              </CardContent>
+            </Card>
+          ) : null}
+        </div>
+      )}
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Dodaj magazyn</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="warehouse-name">Nazwa magazynu</Label>
+            <Input
+              id="warehouse-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") createWarehouse();
+              }}
+              placeholder="np. Magazyn Kraków"
+              autoFocus
+            />
           </div>
-          <div className="overflow-hidden rounded-2xl border border-slate-200/70 dark:border-white/10">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Produkt</TableHead>
-                  <TableHead>Firma</TableHead>
-                  <TableHead>Kategoria</TableHead>
-                  <TableHead>Partia</TableHead>
-                  <TableHead>Termin ważności</TableHead>
-                  <TableHead>Stan</TableHead>
-                  <TableHead>Wartość / szt.</TableHead>
-                  <TableHead>Lokalizacja</TableHead>
-                  <TableHead>Magazyn</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((lot: any) => (
-                  <TableRow key={lot.id}>
-                    <TableCell className="font-medium">{lot.product.name}</TableCell>
-                    <TableCell>{lot.product.manufacturer ?? "—"}</TableCell>
-                    <TableCell>{lot.product.catalogCategory ?? "—"}</TableCell>
-                    <TableCell>{lot.batchNumber}</TableCell>
-                    <TableCell>{new Date(lot.expiryDate).toLocaleDateString("pl-PL")}</TableCell>
-                    <TableCell>{Number(lot.quantity)}</TableCell>
-                    <TableCell>{money(lot.purchasePrice)}</TableCell>
-                    <TableCell>{lot.location ?? "—"}</TableCell>
-                    <TableCell>{lot.warehouse.name}</TableCell>
-                    <TableCell>{lot.status ?? "—"}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>Anuluj</Button>
+            <Button onClick={createWarehouse} disabled={saving || name.trim().length < 2} className="bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:text-white">
+              {saving ? "Dodawanie..." : "Dodaj magazyn"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
