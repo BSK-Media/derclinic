@@ -49,13 +49,17 @@ export default function AdminAppointmentsPage() {
   const [saving, setSaving] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
-  async function approve(id: string) {
+  async function decide(id: string, action: "APPROVE" | "REJECT") {
     setApprovingId(id);
     try {
-      const res = await fetch(`/api/admin/appointments/${id}/approve`, { method: "POST" });
+      const res = await fetch(`/api/admin/appointments/${id}/approve`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
       const out = await res.json().catch(() => ({}));
-      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się zaakceptować wizyty");
-      toast.success("Wizyta zaakceptowana — liczy się do rozliczeń");
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się zapisać decyzji");
+      toast.success(action === "APPROVE" ? "Wizyta zaakceptowana — liczy się do rozliczeń" : "Wizyta odrzucona");
       mutate();
     } finally {
       setApprovingId(null);
@@ -192,14 +196,24 @@ export default function AdminAppointmentsPage() {
                         Do akceptacji
                       </span>
                     ) : null}
+                    {a.approvalStatus === "REJECTED" ? (
+                      <span className="mt-1 inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-500/10 dark:text-red-300">
+                        Odrzucona
+                      </span>
+                    ) : null}
                   </td>
                   <td className="p-3">{formatPLNFromGrosze(a.priceFinal ?? a.priceEstimate)}</td>
                   <td className="p-3 text-right">
                     <div className="flex items-center justify-end gap-3">
                       {a.approvalStatus === "PENDING" ? (
-                        <Button size="sm" onClick={() => approve(a.id)} disabled={approvingId === a.id}>
-                          {approvingId === a.id ? "..." : "Akceptuj"}
-                        </Button>
+                        <>
+                          <Button size="sm" onClick={() => decide(a.id, "APPROVE")} disabled={approvingId === a.id}>
+                            {approvingId === a.id ? "..." : "✓ Akceptuj"}
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-red-600" onClick={() => decide(a.id, "REJECT")} disabled={approvingId === a.id}>
+                            ✕ Odrzuć
+                          </Button>
+                        </>
                       ) : null}
                       <Link className="underline" href={`/admin/appointments/${a.id}`}>Szczegóły</Link>
                     </div>
