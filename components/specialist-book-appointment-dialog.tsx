@@ -72,8 +72,6 @@ export function SpecialistBookAppointmentDialog({
   defaultDate?: Date | null;
   onCreated: () => void;
 }) {
-  const targetDate = defaultDate ?? new Date();
-  const dateValue = toDateInput(targetDate);
 
   const timeOptions = React.useMemo(
     () =>
@@ -91,6 +89,7 @@ export function SpecialistBookAppointmentDialog({
   const [serviceId, setServiceId] = React.useState("");
   const [customServiceName, setCustomServiceName] = React.useState("");
   const [startTime, setStartTime] = React.useState("09:00");
+  const [dateValue, setDateValue] = React.useState(() => toDateInput(defaultDate ?? new Date()));
   const [preparations, setPreparations] = React.useState<PreparationRow[]>([newPreparation(1)]);
   const [nextPreparationId, setNextPreparationId] = React.useState(2);
   const [saving, setSaving] = React.useState(false);
@@ -103,9 +102,10 @@ export function SpecialistBookAppointmentDialog({
     setServiceId("");
     setCustomServiceName("");
     setStartTime("09:00");
+    setDateValue(toDateInput(defaultDate ?? new Date()));
     setPreparations([newPreparation(1)]);
     setNextPreparationId(2);
-  }, [open]);
+  }, [open, defaultDate]);
 
   function selectService(value: string) {
     setServiceId(value);
@@ -172,8 +172,9 @@ export function SpecialistBookAppointmentDialog({
       preparedItems.push({ productId: row.productId, quantity, unit: row.unit });
     }
 
+    if (!dateValue) return toast.error("Wybierz datę wizyty");
     const startsAt = new Date(`${dateValue}T${startTime}:00`);
-    if (Number.isNaN(startsAt.getTime())) return toast.error("Wybierz godzinę rozpoczęcia");
+    if (Number.isNaN(startsAt.getTime())) return toast.error("Wybierz datę i godzinę rozpoczęcia");
 
     setSaving(true);
     try {
@@ -212,8 +213,14 @@ export function SpecialistBookAppointmentDialog({
       <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nowa wizyta</DialogTitle>
-          <div className="mt-1 text-sm text-zinc-500">
-            Termin: {targetDate.toLocaleDateString("pl-PL", { day: "2-digit", month: "long", year: "numeric" })}
+          <div className="mt-1 flex items-center gap-2 text-sm text-zinc-500">
+            <span>Termin:</span>
+            <Input
+              type="date"
+              value={dateValue}
+              onChange={(e) => setDateValue(e.target.value)}
+              className="h-9 w-44"
+            />
           </div>
         </DialogHeader>
 
