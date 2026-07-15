@@ -415,7 +415,11 @@ export default function WarehouseDetailsPage({ params }: { params: { id: string 
                 {visibleProducts.map((product) => (
                   <TableRow key={product.productId}>
                     <TableCell className="whitespace-nowrap font-semibold">{product.sku}</TableCell>
-                    <TableCell className="min-w-52 font-medium text-slate-900 dark:text-white">{product.name}</TableCell>
+                    <TableCell className="min-w-52 font-medium text-slate-900 dark:text-white">
+                      <Link href={`/admin/products/${product.productId}`} className="hover:underline">
+                        {product.name}
+                      </Link>
+                    </TableCell>
                     <TableCell className="whitespace-nowrap">{product.manufacturer ?? "—"}</TableCell>
                     <TableCell className="min-w-44">{product.catalogCategory ?? "—"}</TableCell>
                     <TableCell className="whitespace-nowrap">
