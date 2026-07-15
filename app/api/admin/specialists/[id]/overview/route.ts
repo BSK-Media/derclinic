@@ -50,21 +50,18 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   });
   if (!specialist) return NextResponse.json({ ok: false, message: "Nie znaleziono pracownika" }, { status: 404 });
 
-  const [appointments, rates] = await Promise.all([
-    prisma.appointment.findMany({
-      where: { specialistId: params.id, startsAt: { gte: start } },
-      orderBy: { startsAt: "desc" },
-      take: 1000,
-      include: {
-        patient: { select: { id: true, name: true } },
-        service: { select: { id: true, name: true } },
-        consumptions: { include: { product: { select: { id: true, name: true, purchasePrice: true } } } },
-      },
-    }),
-    prisma.specialistServiceRate.findMany({ where: { specialistId: params.id } }),
-  ]);
+  const appointments = await prisma.appointment.findMany({
+    where: { specialistId: params.id, startsAt: { gte: start } },
+    orderBy: { startsAt: "desc" },
+    take: 1000,
+    include: {
+      patient: { select: { id: true, name: true } },
+      service: { select: { id: true, name: true } },
+      consumptions: { include: { product: { select: { id: true, name: true, purchasePrice: true } } } },
+    },
+  });
 
-  const rateByService = new Map(rates.map((r) => [r.serviceId, r.amount]));
+  const percent = specialist.payoutPercent ?? 0;
 
   const rows = appointments.map((a) => {
     const materialCost = a.consumptions.reduce((sum, c) => {
@@ -73,8 +70,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       return sum + Math.round(purchase * q);
     }, 0);
     const revenue = a.priceFinal ?? a.priceEstimate ?? 0;
-    const rate = rateByService.get(a.serviceId) ?? specialist.baseRate ?? null; // grosze lub brak
-    const payout = rate === null ? null : rate - materialCost; // stawka minus zużyte materiały
+    // Nowy model rozliczeń: baza = przychód − materiały, wypłata = baza × % pracownika
+    const base = revenue - materialCost;
+    const payout = Math.round((base * percent) / 100);
 
     return {
       id: a.id,
@@ -92,7 +90,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         quantity: String(c.quantity),
         cost: Math.round((c.product.purchasePrice ?? 0) * Math.abs(parseFloat(String(c.quantity)))),
       })),
-      rate,
+      base,
       payout,
     };
   });
@@ -101,8 +99,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const completed = rows.filter((r) => r.status === "COMPLETED");
   const revenue = completed.reduce((s, r) => s + r.revenue, 0);
   const materialCost = completed.reduce((s, r) => s + r.materialCost, 0);
-  const payout = completed.reduce((s, r) => s + (r.payout ?? 0), 0);
-  const missingRateCount = completed.filter((r) => r.rate === null).length;
+  const payout = completed.reduce((s, r) => s + r.payout, 0);
   const profit = revenue - materialCost - payout;
 
   return NextResponse.json({
@@ -120,7 +117,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       materialCost,
       payout,
       profit,
-      missingRateCount,
+      percent,
     },
     appointments: rows,
   });
