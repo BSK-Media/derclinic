@@ -170,7 +170,14 @@ export default function SpecialistAppointmentsPage() {
                   <td className="p-3 font-medium">{appointment.patient.name}</td>
                   <td className="p-3">{appointment.customServiceName || appointment.service.name}</td>
                   <td className="p-3 text-zinc-500">Pojedyncza rezerwacja</td>
-                  <td className="p-3">{appointmentStatusLabel(appointment.status)}</td>
+                  <td className="p-3">
+                    <div>{appointmentStatusLabel(appointment.status)}</div>
+                    {(appointment as any).approvalStatus === "PENDING" ? (
+                      <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                        Oczekuje na akceptację recepcji
+                      </span>
+                    ) : null}
+                  </td>
                   <td className="p-3 text-right">
                     <Link className="underline" href={`/specialist/appointments/${appointment.id}`}>Otwórz</Link>
                   </td>
