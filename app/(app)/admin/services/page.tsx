@@ -1,13 +1,14 @@
 "use client";
 
 import useSWR from "swr";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
 import { useAuth } from "@/components/auth-provider";
 
@@ -78,22 +79,8 @@ export default function ServicesPage() {
     }
   }
 
-  async function addSuggestion(serviceId: string) {
-    const productId = prompt("Wklej ID produktu (z listy) – szybka opcja. W UI możesz podmienić na dropdown.");
-    if (!productId) return;
-    const qtyStr = prompt("Ilość sugerowana (np. 1, 0.5, 20)", "1") ?? "1";
-    const qty = Number(qtyStr.replace(",", "."));
-    if (!Number.isFinite(qty)) return toast.error("Niepoprawna liczba");
-    const res = await fetch(`/api/admin/services/${serviceId}/suggestions`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ productId, quantity: qty, unit: "UNIT" }),
-    });
-    const out = await res.json().catch(() => ({}));
-    if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
-    toast.success("Dodano sugerowany preparat");
-    mutate();
-  }
+  const [managingId, setManagingId] = useState<string | null>(null);
+  const managingService = services.find((sv) => sv.id === managingId) ?? null;
 
   async function toggleAssignment(serviceId: string, specialistId: string, assigned: boolean) {
     const res = await fetch(`/api/admin/services/${serviceId}/specialists`, {
@@ -363,7 +350,7 @@ export default function ServicesPage() {
                     {s.durationMin} min • {s.priceFrom ? `od ${formatPLNFromGrosze(s.priceFrom)}` : "—"} • sugerowana: {formatPLNFromGrosze(s.priceSuggested)}
                   </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => addSuggestion(s.id)}>+ Preparat</Button>
+                <Button variant="outline" size="sm" onClick={() => setManagingId(s.id)}>Preparaty</Button>
               </div>
               <div className="text-sm text-zinc-600 dark:text-zinc-300">
                 Sugerowane preparaty (warianty A/B/C):{" "}
@@ -411,6 +398,190 @@ export default function ServicesPage() {
           })}
         </div>
       </div>
+
+      <SuggestionsDialog
+        service={managingService}
+        products={products}
+        onClose={() => setManagingId(null)}
+        onChanged={() => mutate()}
+        onRemove={(productId) => managingService && removeSuggestion(managingService.id, productId)}
+      />
     </div>
+  );
+}
+
+const UNIT_OPTIONS = [
+  { value: "UNIT", label: "szt." },
+  { value: "ML", label: "ml" },
+  { value: "AMPULE", label: "ampułka" },
+  { value: "BOTOX_UNIT", label: "jedn. botox" },
+] as const;
+
+function SuggestionsDialog({
+  service,
+  products,
+  onClose,
+  onChanged,
+  onRemove,
+}: {
+  service: Service | null;
+  products: Product[];
+  onClose: () => void;
+  onChanged: () => void;
+  onRemove: (productId: string) => void;
+}) {
+  const [productQuery, setProductQuery] = useState("");
+  const [productOpen, setProductOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [qty, setQty] = useState("1");
+  const [unit, setUnit] = useState<string>("UNIT");
+  const [saving, setSaving] = useState(false);
+
+  // Reset formularza przy każdym otwarciu okna dla innego zabiegu
+  const serviceId = service?.id ?? null;
+  useEffect(() => {
+    setProductQuery("");
+    setSelectedProduct(null);
+    setQty("1");
+    setUnit("UNIT");
+  }, [serviceId]);
+
+  // Podpowiedzi produktów na żywo
+  const productSuggestions = useMemo(() => {
+    const q = productQuery.trim().toLowerCase();
+    if (q.length < 1) return products.slice(0, 8);
+    const startsWith = products.filter((pr) => pr.name.toLowerCase().startsWith(q));
+    const contains = products.filter(
+      (pr) => !pr.name.toLowerCase().startsWith(q) && pr.name.toLowerCase().includes(q),
+    );
+    return [...startsWith, ...contains].slice(0, 8);
+  }, [products, productQuery]);
+
+  async function add() {
+    if (!service || !selectedProduct) return toast.error("Wybierz preparat z listy.");
+    const q = Number(qty.replace(",", "."));
+    if (!Number.isFinite(q) || q <= 0) return toast.error("Niepoprawna ilość");
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/services/${service.id}/suggestions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ productId: selectedProduct.id, quantity: q, unit }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się dodać preparatu");
+      toast.success("Dodano preparat do zabiegu");
+      setSelectedProduct(null);
+      setProductQuery("");
+      setQty("1");
+      onChanged();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={!!service} onOpenChange={(open) => (!open ? onClose() : null)}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Preparaty: {service?.name}</DialogTitle>
+        </DialogHeader>
+
+        {/* Aktualnie przypisane preparaty */}
+        <div className="space-y-2">
+          <div className="text-sm font-medium">Przypisane preparaty</div>
+          {service && service.suggestedProducts.length === 0 ? (
+            <div className="text-sm text-zinc-500">Brak przypisanych preparatów.</div>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            {service?.suggestedProducts.map((sp) => (
+              <div
+                key={sp.id}
+                className="flex items-center gap-2 rounded-full border bg-zinc-50 px-3 py-1 text-xs dark:bg-zinc-900"
+              >
+                <span>
+                  {sp.product.name} • {sp.quantity}{" "}
+                  {UNIT_OPTIONS.find((u) => u.value === sp.unit)?.label ?? sp.unit}
+                </span>
+                <button className="text-red-600" onClick={() => onRemove(sp.productId)} title="Usuń">
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Dodawanie preparatu */}
+        <div className="space-y-3 border-t pt-4">
+          <div className="text-sm font-medium">Dodaj preparat</div>
+
+          <div className="space-y-2">
+            <Label>Preparat (z magazynu)</Label>
+            <div className="relative">
+              <Input
+                value={selectedProduct ? selectedProduct.name : productQuery}
+                onChange={(e) => {
+                  setSelectedProduct(null);
+                  setProductQuery(e.target.value);
+                  setProductOpen(true);
+                }}
+                onFocus={() => setProductOpen(true)}
+                onBlur={() => setTimeout(() => setProductOpen(false), 150)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setProductOpen(false);
+                }}
+                placeholder="Zacznij pisać, aby wyszukać..."
+              />
+              {productOpen && !selectedProduct && productSuggestions.length > 0 ? (
+                <div className="absolute left-0 right-0 top-full z-[1100] mt-1 max-h-64 overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
+                  {productSuggestions.map((pr) => (
+                    <button
+                      key={pr.id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setSelectedProduct(pr);
+                        setProductOpen(false);
+                      }}
+                      className="block w-full px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                    >
+                      {pr.name}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Ilość</Label>
+              <Input value={qty} onChange={(e) => setQty(e.target.value)} placeholder="np. 1, 0.5, 20" />
+            </div>
+            <div className="space-y-2">
+              <Label>Jednostka</Label>
+              <Select value={unit} onValueChange={setUnit}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent disablePortal>
+                  {UNIT_OPTIONS.map((u) => (
+                    <SelectItem key={u.value} value={u.value}>
+                      {u.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={add} disabled={saving || !selectedProduct}>
+              {saving ? "Dodawanie..." : "Dodaj preparat"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
