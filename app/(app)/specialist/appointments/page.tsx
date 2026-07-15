@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { SpecialistBookAppointmentDialog } from "@/components/specialist-book-appointment-dialog";
 import { AppointmentCalendar, startOfGrid } from "@/components/appointment-calendar";
 import { useRouter } from "next/navigation";
+import { appointmentStatusLabel } from "@/lib/appointment-status";
 
 const fetcher = (url: string) => fetch(url).then((response) => response.json());
 
@@ -17,13 +18,6 @@ function toDateInput(date: Date) {
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
-
-const STATUS_LABEL: Record<string, string> = {
-  SCHEDULED: "Zaplanowana",
-  COMPLETED: "Zakończona",
-  CANCELED: "Anulowana",
-  NO_SHOW: "Nieobecność",
-};
 
 export default function SpecialistAppointmentsPage() {
   const router = useRouter();
@@ -176,7 +170,7 @@ export default function SpecialistAppointmentsPage() {
                   <td className="p-3 font-medium">{appointment.patient.name}</td>
                   <td className="p-3">{appointment.customServiceName || appointment.service.name}</td>
                   <td className="p-3 text-zinc-500">Pojedyncza rezerwacja</td>
-                  <td className="p-3">{STATUS_LABEL[appointment.status] ?? appointment.status}</td>
+                  <td className="p-3">{appointmentStatusLabel(appointment.status)}</td>
                   <td className="p-3 text-right">
                     <Link className="underline" href={`/specialist/appointments/${appointment.id}`}>Otwórz</Link>
                   </td>
