@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/components/auth-provider";
-import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
+import { formatPLNFromGrosze } from "@/lib/money";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
 import {
   SIDEBAR_PERMISSION_OPTIONS,
@@ -118,7 +118,7 @@ export default function SpecialistDetailPage() {
         <Card className="p-4">
           <div className="text-sm text-slate-500">Wynagrodzenie pracownika</div>
           <div className="mt-2 text-3xl font-semibold">{stats ? formatPLNFromGrosze(stats.payout) : "—"}</div>
-          <div className="mt-1 text-xs text-slate-500">stawka za zabieg − materiały</div>
+          <div className="mt-1 text-xs text-slate-500">{stats ? `${stats.percent}% × (przychód − materiały)` : "% × (przychód − materiały)"}</div>
         </Card>
         <Card className="p-4">
           <div className="text-sm text-slate-500">Zysk kliniki</div>
@@ -127,19 +127,12 @@ export default function SpecialistDetailPage() {
         </Card>
       </div>
 
-      {stats?.missingRateCount > 0 ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-          Uwaga: {stats.missingRateCount} zakończonych wizyt nie ma przypisanej stawki (ani dla zabiegu, ani domyślnej) —
-          nie są wliczone do wynagrodzenia. Ustaw stawki poniżej.
-        </div>
-      ) : null}
-
       {/* Historia wizyt */}
       <Card className="overflow-hidden">
         <div className="border-b p-4">
           <div className="font-medium">Historia wizyt</div>
           <div className="mt-1 text-xs text-slate-500">
-            Kwoty: przychód (cena wizyty), materiały (koszt zakupu zużytych produktów), wypłata = stawka − materiały.
+            Kwoty: przychód (cena wizyty), materiały (koszt zakupu zużytych produktów), wypłata = (przychód − materiały) × procent pracownika.
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -152,7 +145,7 @@ export default function SpecialistDetailPage() {
                 <th className="p-3">Status</th>
                 <th className="p-3 text-right">Przychód</th>
                 <th className="p-3 text-right">Materiały</th>
-                <th className="p-3 text-right">Stawka</th>
+                <th className="p-3 text-right">Baza (przychód − materiały)</th>
                 <th className="p-3 text-right">Wypłata</th>
               </tr>
             </thead>
@@ -190,12 +183,8 @@ export default function SpecialistDetailPage() {
                   </td>
                   <td className="p-3 text-right tabular-nums">{formatPLNFromGrosze(a.revenue)}</td>
                   <td className="p-3 text-right tabular-nums">{formatPLNFromGrosze(a.materialCost)}</td>
-                  <td className="p-3 text-right tabular-nums">
-                    {a.rate === null ? <span className="text-amber-600">brak</span> : formatPLNFromGrosze(a.rate)}
-                  </td>
-                  <td className="p-3 text-right tabular-nums font-medium">
-                    {a.payout === null ? "—" : formatPLNFromGrosze(a.payout)}
-                  </td>
+                  <td className="p-3 text-right tabular-nums">{formatPLNFromGrosze(a.base)}</td>
+                  <td className="p-3 text-right tabular-nums font-medium">{formatPLNFromGrosze(a.payout)}</td>
                 </tr>
               ))}
             </tbody>
@@ -205,7 +194,7 @@ export default function SpecialistDetailPage() {
 
       <WarehousesSection specialistId={id} />
 
-      <RatesSection specialistId={id} />
+      <PayoutPercentSection specialistId={id} percent={stats?.percent} onSaved={() => mutate()} />
     </div>
   );
 }
@@ -379,173 +368,70 @@ function SidebarPermissionsSection({
   );
 }
 
-function RatesSection({ specialistId }: { specialistId: string }) {
-  const { data, mutate, isLoading } = useSWR(`/api/admin/specialists/${specialistId}/rates`, fetcher);
-  const services: Array<{ id: string; name: string; category: string | null; amount: number | null }> =
-    data?.services ?? [];
-  const baseRate: number | null = data?.specialist?.baseRate ?? null;
-
-  const [filter, setFilter] = React.useState("");
-  const [baseInput, setBaseInput] = React.useState<string>("");
-  const [savingBase, setSavingBase] = React.useState(false);
-  const [edits, setEdits] = React.useState<Record<string, string>>({});
-  const [savingId, setSavingId] = React.useState<string | null>(null);
+function PayoutPercentSection({
+  specialistId,
+  percent,
+  onSaved,
+}: {
+  specialistId: string;
+  percent: number | undefined;
+  onSaved: () => void;
+}) {
+  const [value, setValue] = React.useState<string>("");
+  const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
-    setBaseInput(baseRate !== null ? (baseRate / 100).toString() : "");
-  }, [baseRate]);
+    if (percent !== undefined) setValue(String(percent));
+  }, [percent]);
 
-  async function put(body: unknown) {
-    const res = await fetch(`/api/admin/specialists/${specialistId}/rates`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const out = await res.json().catch(() => ({}));
-    if (!res.ok || !out?.ok) {
-      toast.error(out?.message || "Nie udało się zapisać stawki");
-      return false;
+  async function save() {
+    const n = Number(value.replace(",", "."));
+    if (!Number.isInteger(n) || n < 0 || n > 100) {
+      return toast.error("Podaj procent jako liczbę całkowitą od 0 do 100.");
     }
-    return true;
-  }
-
-  async function saveBase() {
-    const trimmed = baseInput.trim();
-    const grosze = trimmed === "" ? null : parsePLNToGrosze(trimmed);
-    if (trimmed !== "" && (grosze === null || grosze < 0)) return toast.error("Niepoprawna kwota");
-    setSavingBase(true);
+    setSaving(true);
     try {
-      if (await put({ baseRate: grosze })) {
-        toast.success("Zapisano stawkę domyślną");
-        mutate();
-      }
+      const res = await fetch(`/api/admin/users/${specialistId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ payoutPercent: n }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się zapisać procentu");
+      toast.success("Zapisano procent pracownika");
+      onSaved();
     } finally {
-      setSavingBase(false);
+      setSaving(false);
     }
   }
-
-  async function saveService(serviceId: string, rawOverride?: string) {
-    const raw = (rawOverride ?? edits[serviceId] ?? "").trim();
-    const grosze = raw === "" ? null : parsePLNToGrosze(raw);
-    if (raw !== "" && (grosze === null || grosze < 0)) return toast.error("Niepoprawna kwota");
-    setSavingId(serviceId);
-    try {
-      if (await put({ serviceId, amount: grosze })) {
-        toast.success(grosze === null ? "Usunięto stawkę — obowiązuje domyślna" : "Zapisano stawkę");
-        setEdits((e) => {
-          const n = { ...e };
-          delete n[serviceId];
-          return n;
-        });
-        mutate();
-      }
-    } finally {
-      setSavingId(null);
-    }
-  }
-
-  const visible = services.filter((s) => s.name.toLowerCase().includes(filter.toLowerCase()));
 
   return (
-    <Card className="overflow-hidden">
-      <div className="border-b p-4">
-        <div className="font-medium">Stawki za zabiegi</div>
+    <Card className="p-4 space-y-3">
+      <div>
+        <div className="font-medium">Procent od zabiegów</div>
         <div className="mt-1 text-xs text-slate-500">
-          Kwota, jaką pracownik otrzymuje za wykonanie zabiegu (przed odjęciem materiałów). Puste pole przy zabiegu =
-          obowiązuje stawka domyślna.
+          Rozliczenie: (przychód z zabiegu − koszt zużytych materiałów) × procent pracownika. Ten sam procent
+          obowiązuje dla wszystkich zabiegów tego pracownika.
         </div>
       </div>
-
-      <div className="space-y-4 p-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <div className="text-sm font-medium">Stawka domyślna (PLN)</div>
-            <Input
-              className="mt-1 w-40"
-              value={baseInput}
-              onChange={(e) => setBaseInput(e.target.value)}
-              placeholder="np. 200"
-            />
-          </div>
-          <Button onClick={saveBase} disabled={savingBase}>
-            {savingBase ? "Zapisywanie..." : "Zapisz domyślną"}
-          </Button>
-          <div className="ml-auto">
-            <Input
-              className="w-64"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              placeholder="Szukaj zabiegu..."
-            />
-          </div>
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <div className="text-sm font-medium">Procent (%)</div>
+          <Input
+            className="mt-1 w-32"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="np. 40"
+          />
         </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-slate-500 dark:bg-white/5">
-              <tr>
-                <th className="p-3">Zabieg</th>
-                <th className="p-3 w-44">Stawka (PLN)</th>
-                <th className="p-3 w-56">Działania</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && (
-                <tr>
-                  <td className="p-4 text-slate-500" colSpan={3}>
-                    Ładowanie...
-                  </td>
-                </tr>
-              )}
-              {!isLoading && visible.length === 0 && (
-                <tr>
-                  <td className="p-4 text-slate-500" colSpan={3}>
-                    Brak zabiegów.
-                  </td>
-                </tr>
-              )}
-              {visible.map((s) => {
-                const current = s.amount !== null ? (s.amount / 100).toString() : "";
-                const value = edits[s.id] ?? current;
-                const dirty = edits[s.id] !== undefined && edits[s.id] !== current;
-                return (
-                  <tr key={s.id} className="border-t">
-                    <td className="p-3">
-                      <div>{s.name}</div>
-                      {s.amount === null ? (
-                        <div className="text-xs text-slate-400">domyślna{baseRate !== null ? `: ${formatPLNFromGrosze(baseRate)}` : " (nie ustawiona)"}</div>
-                      ) : null}
-                    </td>
-                    <td className="p-3">
-                      <Input
-                        value={value}
-                        onChange={(e) => setEdits((m) => ({ ...m, [s.id]: e.target.value }))}
-                        placeholder={baseRate !== null ? (baseRate / 100).toString() : "—"}
-                      />
-                    </td>
-                    <td className="p-3">
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={() => saveService(s.id)} disabled={savingId === s.id || !dirty}>
-                          {savingId === s.id ? "..." : "Zapisz"}
-                        </Button>
-                        {s.amount !== null ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => saveService(s.id, "")}
-                            disabled={savingId === s.id}
-                          >
-                            Usuń stawkę
-                          </Button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <Button onClick={save} disabled={saving || percent === undefined}>
+          {saving ? "Zapisywanie..." : "Zapisz procent"}
+        </Button>
+        {percent !== undefined ? (
+          <div className="text-sm text-slate-500">
+            Aktualnie: <span className="font-medium text-slate-800 dark:text-slate-200">{percent}%</span>
+          </div>
+        ) : null}
       </div>
     </Card>
   );
