@@ -6,6 +6,8 @@ import useSWR from "swr";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SpecialistBookAppointmentDialog } from "@/components/specialist-book-appointment-dialog";
+import { AppointmentCalendar, startOfGrid } from "@/components/appointment-calendar";
+import { useRouter } from "next/navigation";
 
 const fetcher = (url: string) => fetch(url).then((response) => response.json());
 
@@ -24,6 +26,18 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function SpecialistAppointmentsPage() {
+  const router = useRouter();
+  const [view, setView] = React.useState<"list" | "calendar">("list");
+  const [anchor, setAnchor] = React.useState(() => new Date());
+
+  // Zakres danych dla widoku kalendarza (siatka 6 tygodni)
+  const calendarRange = React.useMemo(() => {
+    const from = startOfGrid(anchor);
+    const to = new Date(from);
+    to.setDate(to.getDate() + 42);
+    return { from, to };
+  }, [anchor]);
+
   const today = React.useMemo(() => new Date(), []);
   const fromDefault = React.useMemo(() => {
     const date = new Date(today);
@@ -40,7 +54,9 @@ export default function SpecialistAppointmentsPage() {
   const [to, setTo] = React.useState(toDefault);
   const [search, setSearch] = React.useState("");
   const { data, mutate, isLoading } = useSWR(
-    `/api/specialist/appointments?from=${from}&to=${to}`,
+    view === "calendar"
+      ? `/api/specialist/appointments?from=${calendarRange.from.toISOString()}&to=${calendarRange.to.toISOString()}`
+      : `/api/specialist/appointments?from=${from}&to=${to}`,
     fetcher,
   );
 
@@ -58,12 +74,46 @@ export default function SpecialistAppointmentsPage() {
   }, [appointments, search]);
 
   const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [dialogDate, setDialogDate] = React.useState<Date>(new Date());
+
+  function openAdd(date?: Date) {
+    setDialogDate(date ?? new Date());
+    setDialogOpen(true);
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Wizyty</h1>
-        <Button onClick={() => setDialogOpen(true)}>+ Nowa wizyta</Button>
+        <div className="flex items-center gap-3">
+          <div className="inline-flex rounded-xl border bg-white p-1 text-sm shadow-sm dark:bg-zinc-950">
+            <button
+              type="button"
+              onClick={() => setView("list")}
+              className={
+                "rounded-lg px-4 py-1.5 font-medium transition " +
+                (view === "list"
+                  ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
+                  : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white")
+              }
+            >
+              Lista
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("calendar")}
+              className={
+                "rounded-lg px-4 py-1.5 font-medium transition " +
+                (view === "calendar"
+                  ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
+                  : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white")
+              }
+            >
+              Kalendarz
+            </button>
+          </div>
+          <Button onClick={() => openAdd()}>+ Nowa wizyta</Button>
+        </div>
       </div>
 
       <SpecialistBookAppointmentDialog
@@ -71,10 +121,21 @@ export default function SpecialistAppointmentsPage() {
         onOpenChange={setDialogOpen}
         services={services}
         products={products}
-        defaultDate={new Date()}
+        defaultDate={dialogDate}
         onCreated={() => mutate()}
       />
 
+      {view === "calendar" ? (
+        <AppointmentCalendar
+          anchor={anchor}
+          onAnchorChange={setAnchor}
+          appointments={appointments}
+          isLoading={isLoading}
+          onAdd={openAdd}
+          onOpenAppointment={(id: string) => router.push(`/specialist/appointments/${id}`)}
+        />
+      ) : (
+      <>
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-[220px] flex-1">
           <Input placeholder="Wyszukaj rezerwacje" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -124,6 +185,8 @@ export default function SpecialistAppointmentsPage() {
           </table>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
