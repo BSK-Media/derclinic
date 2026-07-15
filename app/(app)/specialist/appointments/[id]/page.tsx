@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR from "swr";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
@@ -37,6 +37,16 @@ export default function SpecialistAppointmentDetail() {
   const [productId, setProductId] = useState<string>("");
   const [warehouseId, setWarehouseId] = useState<string>("");
   const [qty, setQty] = useState<string>("1");
+  const [consumptionEdits, setConsumptionEdits] = useState<Record<string, string>>({});
+  const [consumptionSavingId, setConsumptionSavingId] = useState<string | null>(null);
+
+  // Jedyny przypisany magazyn wybiera się automatycznie (hook musi być przed wczesnymi returnami)
+  const warehousesForEffect = data?.warehouses ?? [];
+  useEffect(() => {
+    if (warehousesForEffect.length === 1 && warehouseId !== warehousesForEffect[0].id) {
+      setWarehouseId(warehousesForEffect[0].id);
+    }
+  }, [warehousesForEffect, warehouseId]);
 
   if (isLoading) return <div className="p-6 text-sm text-zinc-500">Ładowanie…</div>;
   if (!appt) return <div className="p-6 text-sm text-zinc-500">Nie znaleziono.</div>;
@@ -72,6 +82,48 @@ export default function SpecialistAppointmentDetail() {
     toast.success("Dodano zużycie");
     setQty("1");
     mutate();
+  }
+
+  async function updateConsumption(consumptionId: string) {
+    const raw = (consumptionEdits[consumptionId] ?? "").replace(",", ".");
+    const q = Number(raw);
+    if (!Number.isFinite(q) || q <= 0) return toast.error("Niepoprawna ilość");
+    setConsumptionSavingId(consumptionId);
+    try {
+      const res = await fetch(`/api/specialist/appointments/${id}/consume`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ consumptionId, quantity: q }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
+      toast.success("Zapisano ilość — stan magazynu skorygowany");
+      setConsumptionEdits((m) => {
+        const n = { ...m };
+        delete n[consumptionId];
+        return n;
+      });
+      mutate();
+    } finally {
+      setConsumptionSavingId(null);
+    }
+  }
+
+  async function deleteConsumption(consumptionId: string) {
+    if (!window.confirm("Usunąć to zużycie? Ilość wróci na stan magazynu.")) return;
+    setConsumptionSavingId(consumptionId);
+    try {
+      const res = await fetch(
+        `/api/specialist/appointments/${id}/consume?consumptionId=${encodeURIComponent(consumptionId)}`,
+        { method: "DELETE" },
+      );
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
+      toast.success("Usunięto zużycie — ilość wróciła na stan");
+      mutate();
+    } finally {
+      setConsumptionSavingId(null);
+    }
   }
 
   const products = data?.products ?? [];
@@ -158,12 +210,22 @@ export default function SpecialistAppointmentDetail() {
           </div>
           <div className="space-y-2">
             <Label>Magazyn</Label>
-            <Select value={warehouseId} onValueChange={setWarehouseId}>
-              <SelectTrigger><SelectValue placeholder="Wybierz" /></SelectTrigger>
-              <SelectContent>
-                {warehouses.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            {warehouses.length === 0 ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                Brak przypisanego magazynu — poproś administratora o przypisanie.
+              </div>
+            ) : warehouses.length === 1 ? (
+              <div className="flex h-10 items-center rounded-xl border bg-zinc-50 px-3 text-sm text-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+                {warehouses[0].name}
+              </div>
+            ) : (
+              <Select value={warehouseId} onValueChange={setWarehouseId}>
+                <SelectTrigger><SelectValue placeholder="Wybierz" /></SelectTrigger>
+                <SelectContent>
+                  {warehouses.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Ilość</Label>
