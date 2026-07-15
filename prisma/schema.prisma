@@ -195,6 +195,7 @@ model Product {
   category  ProductCategory
   name      String
   sku       String?
+  ean       String?
   unit      UnitType @default(UNIT)
   manufacturer String?
   catalogCategory String?
@@ -212,6 +213,7 @@ model Product {
   @@index([category])
   @@index([name])
   @@index([sku])
+  @@index([ean])
   @@index([manufacturer])
   @@index([catalogCategory])
 }
