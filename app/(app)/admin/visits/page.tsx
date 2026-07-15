@@ -13,19 +13,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { AdminBookAppointmentDialog } from "@/components/admin-book-appointment-dialog";
+import { appointmentStatusLabel } from "@/lib/appointment-status";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 function toDateInput(d: Date) {
   return d.toISOString().slice(0, 10);
 }
-
-const STATUS_LABEL: Record<string, string> = {
-  SCHEDULED: "Zaplanowana",
-  COMPLETED: "Zakończona",
-  CANCELED: "Anulowana",
-  NO_SHOW: "Nieobecność",
-};
 
 export default function AdminVisitsPage() {
   const today = new Date();
@@ -152,7 +146,7 @@ export default function AdminVisitsPage() {
                   <td className="p-3">{a.specialist?.name}</td>
                   <td className="p-3">{a.customServiceName || a.service?.name}</td>
                   <td className="p-3 text-zinc-500">Pojedyncza rezerwacja</td>
-                  <td className="p-3">{STATUS_LABEL[a.status] ?? a.status}</td>
+                  <td className="p-3">{appointmentStatusLabel(a.status)}</td>
                   <td className="p-3">{formatPLNFromGrosze(a.priceFinal ?? a.priceEstimate)}</td>
                   <td className="p-3 text-right">
                     <DropdownMenu>
