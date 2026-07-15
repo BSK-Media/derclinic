@@ -209,8 +209,73 @@ export default function SpecialistDetailPage() {
         </div>
       </Card>
 
+      <WarehousesSection specialistId={id} />
+
       <RatesSection specialistId={id} />
     </div>
+  );
+}
+
+function WarehousesSection({ specialistId }: { specialistId: string }) {
+  const { data, mutate, isLoading } = useSWR(`/api/admin/specialists/${specialistId}/warehouses`, fetcher);
+  const warehouses: Array<{ id: string; name: string }> = data?.warehouses ?? [];
+  const assignedIds: string[] = data?.assignedIds ?? [];
+  const [savingId, setSavingId] = React.useState<string | null>(null);
+
+  async function toggle(warehouseId: string, assigned: boolean) {
+    setSavingId(warehouseId);
+    try {
+      const res = await fetch(`/api/admin/specialists/${specialistId}/warehouses`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ warehouseId, assigned }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się zapisać");
+      toast.success(assigned ? "Przypisano magazyn" : "Odpisano magazyn");
+      mutate();
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  return (
+    <Card className="p-4 space-y-3">
+      <div>
+        <div className="font-medium">Przypisane magazyny</div>
+        <div className="mt-1 text-xs text-slate-500">
+          Pracownik może rejestrować zużycie preparatów wyłącznie z przypisanych tu magazynów. Kliknij, aby
+          przypisać/odpisać.
+        </div>
+      </div>
+      {isLoading ? <div className="text-sm text-slate-500">Ładowanie...</div> : null}
+      <div className="flex flex-wrap gap-2">
+        {warehouses.map((w) => {
+          const assigned = assignedIds.includes(w.id);
+          return (
+            <button
+              key={w.id}
+              type="button"
+              disabled={savingId === w.id}
+              onClick={() => toggle(w.id, !assigned)}
+              className={
+                "rounded-full border px-3 py-1.5 text-sm transition disabled:opacity-60 " +
+                (assigned
+                  ? "border-emerald-300 bg-emerald-100 font-medium text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-200"
+                  : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10")
+              }
+            >
+              {assigned ? "✓ " : ""}{w.name}
+            </button>
+          );
+        })}
+      </div>
+      {!isLoading && assignedIds.length === 0 ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          Brak przypisanych magazynów — pracownik nie będzie mógł rejestrować zużycia preparatów.
+        </div>
+      ) : null}
+    </Card>
   );
 }
 
