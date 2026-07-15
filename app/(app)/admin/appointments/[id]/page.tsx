@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR from "swr";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
+import { appointmentStatusLabel } from "@/lib/appointment-status";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -31,6 +32,10 @@ export default function AdminAppointmentDetail() {
 
   const [payMethod, setPayMethod] = useState<string>("CARD");
   const [payAmount, setPayAmount] = useState<string>("");
+
+  useEffect(() => {
+    if (appt?.status) setStatus(appt.status);
+  }, [appt?.status]);
 
   if (isLoading) return <div className="p-6 text-sm text-zinc-500">Ładowanie…</div>;
   if (!appt) return <div className="p-6 text-sm text-zinc-500">Nie znaleziono.</div>;
@@ -106,7 +111,7 @@ export default function AdminAppointmentDetail() {
       <Card className="p-4 space-y-2">
         <div className="text-sm text-zinc-500">{new Date(appt.startsAt).toLocaleString("pl-PL")} – {new Date(appt.endsAt).toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"})}</div>
         <div className="font-medium">{appt.patient.name} • {appt.customServiceName || appt.service.name}</div>
-        <div className="text-sm text-zinc-600 dark:text-zinc-300">Specjalista: {appt.specialist.name} • Status: {appt.status}</div>
+        <div className="text-sm text-zinc-600 dark:text-zinc-300">Specjalista: {appt.specialist.name} • Status: {appointmentStatusLabel(appt.status)}</div>
       </Card>
 
       <Card className="p-4 space-y-4">
@@ -115,12 +120,12 @@ export default function AdminAppointmentDetail() {
           <div className="space-y-2">
             <Label>Status</Label>
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger><SelectValue placeholder={appt.status} /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={appointmentStatusLabel(appt.status)} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="SCHEDULED">SCHEDULED</SelectItem>
-                <SelectItem value="COMPLETED">COMPLETED</SelectItem>
-                <SelectItem value="CANCELED">CANCELED</SelectItem>
-                <SelectItem value="NO_SHOW">NO_SHOW</SelectItem>
+                <SelectItem value="SCHEDULED">Zaplanowana</SelectItem>
+                <SelectItem value="COMPLETED">Zakończona</SelectItem>
+                <SelectItem value="CANCELED">Odwołana</SelectItem>
+                <SelectItem value="NO_SHOW">Nieobecność pacjenta</SelectItem>
               </SelectContent>
             </Select>
           </div>
