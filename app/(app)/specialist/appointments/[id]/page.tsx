@@ -13,6 +13,15 @@ import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+// Etykiety jednostek — jednostkę produktu ustala administrator w karcie produktu
+const UNIT_LABELS: Record<string, string> = {
+  UNIT: "szt.",
+  ML: "ml",
+  AMPULE: "ampułka",
+  BOTOX_UNIT: "jedn. botox",
+};
+const unitLabel = (u?: string | null) => (u ? UNIT_LABELS[u] ?? u : "—");
+
 // Date -> wartość dla <input type="datetime-local"> w strefie lokalnej
 function toLocalInput(d: string | Date | null | undefined) {
   if (!d) return "";
@@ -229,7 +238,15 @@ export default function SpecialistAppointmentDetail() {
           </div>
           <div className="space-y-2">
             <Label>Ilość</Label>
-            <Input value={qty} onChange={(e) => setQty(e.target.value)} />
+            <div className="flex items-center gap-2">
+              <Input value={qty} onChange={(e) => setQty(e.target.value)} />
+              <div
+                className="flex h-10 min-w-[72px] items-center justify-center rounded-xl border bg-zinc-50 px-3 text-sm text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300"
+                title="Jednostka ustalana przez administratora w karcie produktu"
+              >
+                {unitLabel(products.find((p: any) => p.id === productId)?.unit)}
+              </div>
+            </div>
           </div>
           <div className="space-y-2 flex items-end">
             <Button onClick={addConsumption} disabled={!productId || !warehouseId}>Dodaj</Button>
@@ -242,43 +259,67 @@ export default function SpecialistAppointmentDetail() {
               <tr>
                 <th className="p-3">Produkt</th>
                 <th className="p-3">Magazyn</th>
-                <th className="p-3">Ilość</th>
+                <th className="p-3 w-40">Ilość</th>
                 <th className="p-3">Data</th>
                 <th className="p-3">Status</th>
+                <th className="p-3 w-48">Działania</th>
               </tr>
             </thead>
             <tbody>
-              {(appt.consumptions ?? []).length === 0 && <tr><td className="p-3 text-zinc-500" colSpan={5}>Brak zużyć.</td></tr>}
-              {(appt.consumptions ?? []).map((c: any) => (
-                <tr key={c.id} className="border-t">
-                  <td className="p-3">{c.product.name}</td>
-                  <td className="p-3">{c.warehouse?.name ?? "—"}</td>
-                  <td className="p-3 tabular-nums">
-                    {c.quantity} {c.unit ?? c.product.unit}
-                    {c.suggestedQuantity ? (
-                      <span className="ml-1 text-xs text-zinc-500">(sugerowano: {c.suggestedQuantity})</span>
-                    ) : null}
-                  </td>
-                  <td className="p-3">{new Date(c.createdAt).toLocaleString("pl-PL")}</td>
-                  <td className="p-3">
-                    {c.status === "PENDING" && (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
-                        Czeka na akceptację admina
-                      </span>
-                    )}
-                    {c.status === "APPLIED" && (
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
-                        Zaakceptowano
-                      </span>
-                    )}
-                    {c.status === "REJECTED" && (
-                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-500/10 dark:text-red-300">
-                        Odrzucono
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {(appt.consumptions ?? []).length === 0 && <tr><td className="p-3 text-zinc-500" colSpan={6}>Brak zużyć.</td></tr>}
+              {(appt.consumptions ?? []).map((c: any) => {
+                const current = String(c.quantity);
+                const value = consumptionEdits[c.id] ?? current;
+                const dirty = consumptionEdits[c.id] !== undefined && consumptionEdits[c.id] !== current;
+                const busy = consumptionSavingId === c.id;
+                return (
+                  <tr key={c.id} className="border-t">
+                    <td className="p-3">{c.product.name}</td>
+                    <td className="p-3">{c.warehouse?.name ?? "—"}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          className="w-20"
+                          value={value}
+                          onChange={(e) => setConsumptionEdits((m) => ({ ...m, [c.id]: e.target.value }))}
+                        />
+                        <span className="text-xs text-zinc-500">{unitLabel(c.product.unit)}</span>
+                      </div>
+                      {c.suggestedQuantity ? (
+                        <div className="mt-1 text-xs text-zinc-500">sugerowano: {c.suggestedQuantity}</div>
+                      ) : null}
+                    </td>
+                    <td className="p-3">{new Date(c.createdAt).toLocaleString("pl-PL")}</td>
+                    <td className="p-3">
+                      {c.status === "PENDING" && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                          Czeka na akceptację admina
+                        </span>
+                      )}
+                      {c.status === "APPLIED" && (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
+                          Zaakceptowano
+                        </span>
+                      )}
+                      {c.status === "REJECTED" && (
+                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-500/10 dark:text-red-300">
+                          Odrzucono
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => updateConsumption(c.id)} disabled={busy || !dirty}>
+                          {busy ? "..." : "Zapisz"}
+                        </Button>
+                        <Button size="sm" variant="outline" className="text-red-600" onClick={() => deleteConsumption(c.id)} disabled={busy}>
+                          Usuń
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
