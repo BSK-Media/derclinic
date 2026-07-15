@@ -943,11 +943,34 @@ async function main() {
       })),
   );
 
-  await prisma.specialistService.deleteMany();
-  await prisma.specialistService.createMany({ data: specialistServices, skipDuplicates: true });
+  // Przypisania pracownik–usługa wypełniamy tylko na pustej bazie,
+  // żeby deploy nie nadpisywał zmian wprowadzonych przez administratora w panelu.
+  const existingAssignments = await prisma.specialistService.count();
+  if (existingAssignments === 0) {
+    await prisma.specialistService.createMany({ data: specialistServices, skipDuplicates: true });
+  }
+
+  // Domyślne magazyny: specjalista -> Magazyn Grodzisk Mazowiecki, recepcja -> Recepcja Grodzisk Mazowiecki.
+  // Przypisujemy WYŁĄCZNIE pracownikom bez żadnego magazynu, żeby nie nadpisywać zmian admina.
+  const [mainWarehouse, receptionWarehouse, staff] = await Promise.all([
+    prisma.warehouse.findFirst({ where: { name: "Magazyn Grodzisk Mazowiecki" } }),
+    prisma.warehouse.findFirst({ where: { name: "Recepcja Grodzisk Mazowiecki" } }),
+    prisma.user.findMany({
+      where: { role: { in: [Role.SPECIALIST, Role.RECEPTION] } },
+      select: { id: true, role: true, warehouseAssignments: { select: { id: true } } },
+    }),
+  ]);
+  let assignedWarehouses = 0;
+  for (const member of staff) {
+    if (member.warehouseAssignments.length > 0) continue;
+    const target = member.role === Role.RECEPTION ? receptionWarehouse : mainWarehouse;
+    if (!target) continue;
+    await prisma.specialistWarehouse.create({ data: { specialistId: member.id, warehouseId: target.id } });
+    assignedWarehouses += 1;
+  }
 
   console.log(
-    `✅ Seed completed: ${globalIndex} produktów, ${seededServices} usług, ${specialistServices.length} przypisań pracownik–usługa`,
+    `✅ Seed completed: ${globalIndex} produktów, ${seededServices} usług, ${specialistServices.length} przypisań pracownik–usługa, ${assignedWarehouses} przypisań magazynów`,
   );
 }
 
