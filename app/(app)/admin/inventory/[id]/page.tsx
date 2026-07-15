@@ -15,6 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AdminAddProductDialog } from "@/components/admin-add-product-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -155,6 +156,7 @@ export default function WarehouseDetailsPage({ params }: { params: { id: string 
   const [query, setQuery] = React.useState("");
   const [sortKey, setSortKey] = React.useState<SortKey>("name");
   const [sortDirection, setSortDirection] = React.useState<SortDirection>("asc");
+  const [addProductOpen, setAddProductOpen] = React.useState(false);
 
   const [adjustOpen, setAdjustOpen] = React.useState(false);
   const [adjustMode, setAdjustMode] = React.useState<AdjustmentMode>("add");
@@ -369,7 +371,7 @@ export default function WarehouseDetailsPage({ params }: { params: { id: string 
             Niski stan oznacza zapas na mniej niż {data.settings.lowStockDays} dni, liczony według WOS z ostatnich {data.settings.wosWeeks} tygodni.
           </p>
         </div>
-        <Button onClick={() => openAdd()} className="gap-2 bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:text-white">
+        <Button onClick={() => setAddProductOpen(true)} className="gap-2 bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:text-white">
           <PackagePlus className="h-4 w-4" />
           Dodaj produkt
         </Button>
@@ -466,6 +468,16 @@ export default function WarehouseDetailsPage({ params }: { params: { id: string 
           </div>
         </CardContent>
       </Card>
+
+      <AdminAddProductDialog
+        open={addProductOpen}
+        onOpenChange={setAddProductOpen}
+        products={catalogProducts}
+        warehouses={warehouses}
+        fixedWarehouseId={params.id}
+        fixedWarehouseName={warehouse.name}
+        onSaved={() => mutate()}
+      />
 
       <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
         <DialogContent className="max-w-xl">
