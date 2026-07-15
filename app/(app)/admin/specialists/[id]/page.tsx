@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/components/auth-provider";
 import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
+import { appointmentStatusLabel } from "@/lib/appointment-status";
 import {
   SIDEBAR_PERMISSION_OPTIONS,
   type SidebarPermission,
@@ -19,13 +20,6 @@ import {
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 type RangeKey = "today" | "7d" | "30d";
-
-const STATUS_LABEL: Record<string, string> = {
-  SCHEDULED: "Zaplanowana",
-  COMPLETED: "Zakończona",
-  CANCELED: "Anulowana",
-  NO_SHOW: "Nieobecność",
-};
 
 function StatusBadge({ status }: { status: string }) {
   const cls =
@@ -36,7 +30,7 @@ function StatusBadge({ status }: { status: string }) {
         : status === "CANCELED"
           ? "bg-slate-200 text-slate-700 hover:bg-slate-200"
           : "bg-amber-100 text-amber-800 hover:bg-amber-100";
-  return <Badge className={cls}>{STATUS_LABEL[status] ?? status}</Badge>;
+  return <Badge className={cls}>{appointmentStatusLabel(status)}</Badge>;
 }
 
 export default function SpecialistDetailPage() {
