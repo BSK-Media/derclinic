@@ -161,6 +161,11 @@ export default function SpecialistAppointmentDetail() {
               Oczekuje na akceptację recepcji — nie liczy się jeszcze do rozliczeń
             </span>
           ) : null}
+          {appt.approvalStatus === "REJECTED" ? (
+            <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-500/10 dark:text-red-300">
+              Odrzucona przez recepcję — nie liczy się do rozliczeń
+            </span>
+          ) : null}
         </div>
       </Card>
 
