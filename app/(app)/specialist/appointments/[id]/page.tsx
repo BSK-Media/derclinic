@@ -22,6 +22,14 @@ const UNIT_LABELS: Record<string, string> = {
 };
 const unitLabel = (u?: string | null) => (u ? UNIT_LABELS[u] ?? u : "—");
 
+const STATUS_LABELS: Record<string, string> = {
+  SCHEDULED: "Zaplanowana",
+  COMPLETED: "Zakończona",
+  CANCELED: "Odwołana",
+  NO_SHOW: "Nieobecność pacjenta",
+};
+const statusLabel = (s?: string | null) => (s ? STATUS_LABELS[s] ?? s : "—");
+
 // Date -> wartość dla <input type="datetime-local"> w strefie lokalnej
 function toLocalInput(d: string | Date | null | undefined) {
   if (!d) return "";
@@ -146,7 +154,7 @@ export default function SpecialistAppointmentDetail() {
       <Card className="p-4 space-y-2">
         <div className="text-sm text-zinc-500">{new Date(appt.startsAt).toLocaleString("pl-PL")} – {new Date(appt.endsAt).toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"})}</div>
         <div className="font-medium">{appt.patient.name} • {appt.customServiceName || appt.service.name}</div>
-        <div className="text-sm text-zinc-600 dark:text-zinc-300">Status: {appt.status}</div>
+        <div className="text-sm text-zinc-600 dark:text-zinc-300">Status: {statusLabel(appt.status)}</div>
       </Card>
 
       <Card className="p-4 space-y-4">
@@ -171,12 +179,12 @@ export default function SpecialistAppointmentDetail() {
           <div className="space-y-2">
             <Label>Status</Label>
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger><SelectValue placeholder={appt.status} /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={statusLabel(appt.status)} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="SCHEDULED">SCHEDULED</SelectItem>
-                <SelectItem value="COMPLETED">COMPLETED</SelectItem>
-                <SelectItem value="CANCELED">CANCELED</SelectItem>
-                <SelectItem value="NO_SHOW">NO_SHOW</SelectItem>
+                <SelectItem value="SCHEDULED">Zaplanowana</SelectItem>
+                <SelectItem value="COMPLETED">Zakończona</SelectItem>
+                <SelectItem value="CANCELED">Odwołana</SelectItem>
+                <SelectItem value="NO_SHOW">Nieobecność pacjenta</SelectItem>
               </SelectContent>
             </Select>
           </div>
