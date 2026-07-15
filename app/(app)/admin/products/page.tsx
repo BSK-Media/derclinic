@@ -9,10 +9,12 @@ import {
   ArrowUp,
   ChevronsUpDown,
   Minus,
+  PackagePlus,
   Plus,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AdminAddProductDialog } from "@/components/admin-add-product-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -220,6 +222,7 @@ export default function ProductsPage() {
   const [manufacturer, setManufacturer] = React.useState("Wszystkie");
   const [sortKey, setSortKey] = React.useState<SortKey>("name");
   const [sortDirection, setSortDirection] = React.useState<SortDirection>("asc");
+  const [addProductOpen, setAddProductOpen] = React.useState(false);
 
   const [adjustOpen, setAdjustOpen] = React.useState(false);
   const [adjustMode, setAdjustMode] = React.useState<AdjustmentMode>("add");
@@ -458,7 +461,13 @@ export default function ProductsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">Katalog produktów</h1>
-        <div className="text-sm text-slate-500 dark:text-slate-400">Łączne dane ze wszystkich magazynów</div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="text-sm text-slate-500 dark:text-slate-400">Łączne dane ze wszystkich magazynów</div>
+          <Button onClick={() => setAddProductOpen(true)} className="gap-2 bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:text-white">
+            <PackagePlus className="h-4 w-4" />
+            Dodaj produkt
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -604,6 +613,14 @@ export default function ProductsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <AdminAddProductDialog
+        open={addProductOpen}
+        onOpenChange={setAddProductOpen}
+        products={products}
+        warehouses={warehouses}
+        onSaved={() => mutate()}
+      />
 
       <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
         <DialogContent className="max-w-xl">
