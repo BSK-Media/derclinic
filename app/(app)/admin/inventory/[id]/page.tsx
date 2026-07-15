@@ -45,6 +45,7 @@ type InventoryProduct = {
   sku: string;
   name: string;
   manufacturer: string | null;
+  ean: string | null;
   catalogCategory: string | null;
   quantity: number;
   purchasePrice: number | null;
@@ -55,10 +56,10 @@ type InventoryProduct = {
   coverageDays: number | null;
   isLowStock: boolean;
   isShortExpiry: boolean;
-  status: "Aktywny" | "Niski stan" | "Krótki termin" | "Po terminie";
+  status: "Aktywny" | "Niski stan" | "Brak";
 };
 
-type SortKey = "sku" | "name" | "manufacturer" | "catalogCategory" | "quantity" | "purchasePrice" | "salePrice" | "expiryDate" | "status";
+type SortKey = "sku" | "name" | "manufacturer" | "ean" | "catalogCategory" | "quantity" | "purchasePrice" | "salePrice" | "expiryDate" | "status";
 type SortDirection = "asc" | "desc";
 type AdjustmentMode = "add" | "remove";
 
@@ -81,6 +82,7 @@ function sortValue(product: InventoryProduct, key: SortKey): string | number | n
     case "sku": return product.sku;
     case "name": return product.name;
     case "manufacturer": return product.manufacturer;
+    case "ean": return product.ean;
     case "catalogCategory": return product.catalogCategory;
     case "quantity": return product.quantity;
     case "purchasePrice": return product.purchasePrice;
@@ -133,13 +135,11 @@ function StatCard({ title, value, hint }: { title: string; value: React.ReactNod
 }
 
 function StatusBadge({ status }: { status: InventoryProduct["status"] }) {
-  const styles = status === "Po terminie"
+  const styles = status === "Brak"
     ? "bg-red-100 text-red-900 dark:bg-red-500/15 dark:text-red-200"
     : status === "Niski stan"
       ? "bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-200"
-      : status === "Krótki termin"
-        ? "bg-orange-100 text-orange-900 dark:bg-orange-500/15 dark:text-orange-200"
-        : "bg-emerald-100 text-emerald-900 dark:bg-emerald-500/15 dark:text-emerald-200";
+      : "bg-emerald-100 text-emerald-900 dark:bg-emerald-500/15 dark:text-emerald-200";
 
   return <Badge className={styles}>{status}</Badge>;
 }
@@ -178,7 +178,7 @@ export default function WarehouseDetailsPage({ params }: { params: { id: string 
     const normalizedQuery = query.trim().toLocaleLowerCase("pl");
     const filtered = products.filter((product) => {
       if (!normalizedQuery) return true;
-      return `${product.sku} ${product.name} ${product.manufacturer ?? ""} ${product.catalogCategory ?? ""} ${product.status}`
+      return `${product.sku} ${product.name} ${product.manufacturer ?? ""} ${product.ean ?? ""} ${product.catalogCategory ?? ""} ${product.status}`
         .toLocaleLowerCase("pl")
         .includes(normalizedQuery);
     });
@@ -402,6 +402,7 @@ export default function WarehouseDetailsPage({ params }: { params: { id: string 
                   <SortableHead label="SKU" column="sku" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
                   <SortableHead label="Produkt" column="name" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
                   <SortableHead label="Firma" column="manufacturer" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
+                  <SortableHead label="EAN" column="ean" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
                   <SortableHead label="Kategoria" column="catalogCategory" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
                   <SortableHead label="Stan" column="quantity" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
                   <SortableHead label="Cena zakupu" column="purchasePrice" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
@@ -421,6 +422,7 @@ export default function WarehouseDetailsPage({ params }: { params: { id: string 
                       </Link>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">{product.manufacturer ?? "—"}</TableCell>
+                    <TableCell className="whitespace-nowrap">{product.ean ?? "—"}</TableCell>
                     <TableCell className="min-w-44">{product.catalogCategory ?? "—"}</TableCell>
                     <TableCell className="whitespace-nowrap">
                       <div className="font-medium">{quantity(product.quantity)}</div>
@@ -454,7 +456,7 @@ export default function WarehouseDetailsPage({ params }: { params: { id: string 
 
                 {visibleProducts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="h-28 text-center text-slate-500">
+                    <TableCell colSpan={11} className="h-28 text-center text-slate-500">
                       {query ? "Brak produktów pasujących do wyszukiwania." : "Ten magazyn nie ma jeszcze produktów."}
                     </TableCell>
                   </TableRow>
