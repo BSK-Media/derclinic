@@ -81,22 +81,16 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     const weeklyUsage = used / WOS_WEEKS;
     const coverageDays = weeklyUsage > 0 ? (quantity / weeklyUsage) * 7 : null;
     const isLowStock = coverageDays != null && coverageDays < LOW_STOCK_DAYS;
-    const isExpired = nearestExpiry != null && nearestExpiry.getTime() < Date.now();
     const isShortExpiry = nearestExpiry != null && nearestExpiry.getTime() <= sixMonthsFromNow.getTime();
 
-    const status = isExpired
-      ? "Po terminie"
-      : isLowStock
-        ? "Niski stan"
-        : isShortExpiry
-          ? "Krótki termin"
-          : "Aktywny";
+    const status = quantity <= 0 ? "Brak" : isLowStock ? "Niski stan" : "Aktywny";
 
     return {
       productId: stock.productId,
       sku: stock.product.sku ?? stock.product.id.slice(0, 8),
       name: stock.product.name,
       manufacturer: stock.product.manufacturer,
+      ean: stock.product.ean,
       catalogCategory: stock.product.catalogCategory,
       quantity,
       purchasePrice: stock.product.purchasePrice,
