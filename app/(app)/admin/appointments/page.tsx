@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
+import { appointmentStatusLabel } from "@/lib/appointment-status";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -170,7 +171,7 @@ export default function AdminAppointmentsPage() {
                   <td className="p-3 font-medium">{a.patient.name}</td>
                   <td className="p-3">{a.specialist.name}</td>
                   <td className="p-3">{a.customServiceName || a.service.name}</td>
-                  <td className="p-3">{a.status}</td>
+                  <td className="p-3">{appointmentStatusLabel(a.status)}</td>
                   <td className="p-3">{formatPLNFromGrosze(a.priceFinal ?? a.priceEstimate)}</td>
                   <td className="p-3 text-right">
                     <Link className="underline" href={`/admin/appointments/${a.id}`}>Szczegóły</Link>
@@ -183,7 +184,7 @@ export default function AdminAppointmentsPage() {
       </div>
 
       <div className="text-xs text-zinc-500">
-        Po wizycie: ustaw status „COMPLETED”, wpisz cenę końcową, dodaj zużyte preparaty (z magazynu) i zarejestruj płatność.
+        Po wizycie: ustaw status „Zakończona”, wpisz cenę końcową, dodaj zużyte preparaty (z magazynu) i zarejestruj płatność.
       </div>
     </div>
   );
