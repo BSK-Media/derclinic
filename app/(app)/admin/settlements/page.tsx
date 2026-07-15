@@ -54,7 +54,7 @@ export default function AdminSettlementsPage() {
           {isLoading && <div className="text-sm text-zinc-500">Ładowanie…</div>}
         </div>
         <div className="text-xs text-zinc-500">
-          Rozliczenia liczą **wizyty COMPLETED** w wybranym miesiącu. Koszt materiałów = suma zużyć × cena zakupu produktu.
+          Rozliczenia obejmują zakończone wizyty w wybranym miesiącu. Koszt materiałów = suma zużyć × cena zakupu produktu.
           Wypłata jest pokazana w dwóch wariantach: od przychodu oraz od zysku (przychód − materiały).
         </div>
       </Card>
