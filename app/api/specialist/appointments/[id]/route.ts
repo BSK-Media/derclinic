@@ -27,7 +27,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
   const [products, warehouses] = await Promise.all([
     prisma.product.findMany({ orderBy: { name: "asc" } }),
-    prisma.warehouse.findMany({ orderBy: { name: "asc" } }),
+    user!.role === "ADMIN"
+      ? prisma.warehouse.findMany({ orderBy: { name: "asc" } })
+      : prisma.warehouse.findMany({
+          where: { specialistAccess: { some: { specialistId: user!.id } } },
+          orderBy: { name: "asc" },
+        }),
   ]);
 
   return NextResponse.json({ ok: true, appointment: appt, products, warehouses });
