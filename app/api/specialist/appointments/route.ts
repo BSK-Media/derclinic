@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
-import { Prisma, UnitType } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, requireStrictRole } from "@/lib/api-helpers";
-
-const UnitSchema = z.enum(["UNIT", "ML", "MG", "G", "AMPULE", "BOTOX_UNIT"]);
 
 const CreateAppointmentSchema = z
   .object({
@@ -19,7 +17,6 @@ const CreateAppointmentSchema = z
         z.object({
           productId: z.string().min(1),
           quantity: z.number().positive().max(100000),
-          unit: UnitSchema,
         }),
       )
       .max(10)
@@ -79,7 +76,7 @@ export async function GET(req: Request) {
             productId: true,
             quantity: true,
             unit: true,
-            product: { select: { name: true } },
+            product: { select: { name: true, unit: true } },
           },
         },
       },
@@ -100,7 +97,7 @@ export async function GET(req: Request) {
       productId: sp.productId,
       productName: sp.product.name,
       quantity: Number(sp.quantity),
-      unit: sp.unit,
+      unit: sp.product.unit,
     })),
   }));
 
@@ -158,12 +155,13 @@ export async function POST(req: Request) {
   const products = productIds.length
     ? await prisma.product.findMany({
         where: { id: { in: productIds }, isActive: true },
-        select: { id: true },
+        select: { id: true, unit: true },
       })
     : [];
   if (products.length !== productIds.length) {
     return NextResponse.json({ ok: false, message: "Nie znaleziono jednego z preparatów" }, { status: 400 });
   }
+  const productUnitById = new Map(products.map((product) => [product.id, product.unit]));
 
   const patientName = `${parsed.data.firstName} ${parsed.data.lastName}`.replace(/\s+/g, " ").trim();
   const phone = normalizePhone(parsed.data.phone);
@@ -228,7 +226,7 @@ export async function POST(req: Request) {
           productId: preparation.productId,
           warehouseId: treatmentWarehouse?.id ?? null,
           quantity,
-          unit: preparation.unit as UnitType,
+          unit: productUnitById.get(preparation.productId)!,
           kind: "APPOINTMENT",
           createdById: user!.id,
           status: deviatesFromSuggested ? "PENDING" : "APPLIED",
