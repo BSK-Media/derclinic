@@ -177,6 +177,11 @@ export default function SpecialistAppointmentsPage() {
                         Oczekuje na akceptację recepcji
                       </span>
                     ) : null}
+                    {(appointment as any).approvalStatus === "REJECTED" ? (
+                      <span className="mt-1 inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-500/10 dark:text-red-300">
+                        Odrzucona przez recepcję
+                      </span>
+                    ) : null}
                   </td>
                   <td className="p-3 text-right">
                     <Link className="underline" href={`/specialist/appointments/${appointment.id}`}>Otwórz</Link>
