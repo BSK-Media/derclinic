@@ -5,13 +5,33 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
+const NewProductSchema = z.object({
+  name: z.string().trim().min(2).max(200),
+  sku: z.string().trim().max(100).optional(),
+  ean: z.string().trim().max(100).optional(),
+  manufacturer: z.string().trim().max(200).optional(),
+  catalogCategory: z.string().trim().max(200).optional(),
+  unit: z.enum(["UNIT", "ML", "MG", "G", "AMPULE", "BOTOX_UNIT"]).default("UNIT"),
+  purchasePrice: z.number().int().nonnegative(),
+  salePrice: z.number().int().nonnegative(),
+});
+
 const BodySchema = z.object({
-  productId: z.string().min(1),
+  productId: z.string().min(1).optional(),
+  newProduct: NewProductSchema.optional(),
   warehouseId: z.string().min(1),
   delta: z.number().finite().refine((value) => value !== 0),
   expiryDate: z.string().optional(),
   batchNumber: z.string().optional(),
   note: z.string().optional(),
+}).superRefine((value, ctx) => {
+  if (Boolean(value.productId) === Boolean(value.newProduct)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["productId"],
+      message: "Wybierz istniejący produkt albo podaj dane nowego produktu",
+    });
+  }
 });
 
 function bad(message: string, status = 400) {
@@ -28,23 +48,43 @@ export async function POST(req: Request) {
   const parsed = BodySchema.safeParse(json);
   if (!parsed.success) return bad("Niepoprawne dane");
 
-  const { productId, warehouseId, delta, expiryDate, batchNumber, note } = parsed.data;
+  const { productId, newProduct, warehouseId, delta, expiryDate, batchNumber, note } = parsed.data;
   const parsedExpiry = expiryDate ? new Date(`${expiryDate}T12:00:00.000Z`) : null;
+
+  if (newProduct && delta < 0) {
+    return bad("Nowy produkt można wyłącznie dodać do magazynu");
+  }
 
   if (delta > 0 && (!parsedExpiry || Number.isNaN(parsedExpiry.getTime()))) {
     return bad("Podaj prawidłowy termin ważności dodawanej partii");
   }
 
   try {
-    const stock = await prisma.$transaction(async (tx) => {
-      const [product, warehouse, existingStock] = await Promise.all([
-        tx.product.findUnique({ where: { id: productId } }),
-        tx.warehouse.findUnique({ where: { id: warehouseId } }),
-        tx.stock.findUnique({ where: { productId_warehouseId: { productId, warehouseId } } }),
-      ]);
+    const result = await prisma.$transaction(async (tx) => {
+      const warehouse = await tx.warehouse.findUnique({ where: { id: warehouseId } });
+      if (!warehouse) throw new Error("Nie znaleziono magazynu");
+
+      const product = newProduct
+        ? await tx.product.create({
+            data: {
+              category: "PREPARATION",
+              name: newProduct.name,
+              sku: newProduct.sku || null,
+              ean: newProduct.ean || null,
+              unit: newProduct.unit,
+              manufacturer: newProduct.manufacturer || null,
+              catalogCategory: newProduct.catalogCategory || null,
+              purchasePrice: newProduct.purchasePrice,
+              salePrice: newProduct.salePrice,
+            },
+          })
+        : await tx.product.findUnique({ where: { id: productId! } });
 
       if (!product) throw new Error("Nie znaleziono produktu");
-      if (!warehouse) throw new Error("Nie znaleziono magazynu");
+      const resolvedProductId = product.id;
+      const existingStock = await tx.stock.findUnique({
+        where: { productId_warehouseId: { productId: resolvedProductId, warehouseId } },
+      });
 
       const currentQuantity = Number(existingStock?.quantity ?? 0);
       const nextQuantity = currentQuantity + delta;
@@ -62,14 +102,14 @@ export async function POST(req: Request) {
         });
       } else {
         updatedStock = await tx.stock.create({
-          data: { productId, warehouseId, quantity: new Prisma.Decimal(nextQuantity) },
+          data: { productId: resolvedProductId, warehouseId, quantity: new Prisma.Decimal(nextQuantity) },
         });
       }
 
       if (delta > 0 && parsedExpiry) {
         const normalizedBatch = batchNumber?.trim() || `DOSTAWA-${Date.now()}`;
         const existingLot = await tx.productLot.findFirst({
-          where: { productId, warehouseId, batchNumber: normalizedBatch },
+          where: { productId: resolvedProductId, warehouseId, batchNumber: normalizedBatch },
         });
 
         if (existingLot) {
@@ -85,7 +125,7 @@ export async function POST(req: Request) {
         } else {
           await tx.productLot.create({
             data: {
-              productId,
+              productId: resolvedProductId,
               warehouseId,
               batchNumber: normalizedBatch,
               expiryDate: parsedExpiry,
@@ -102,7 +142,7 @@ export async function POST(req: Request) {
       if (delta < 0) {
         let remaining = Math.abs(delta);
         const productLots = await tx.productLot.findMany({
-          where: { productId, warehouseId, quantity: { gt: 0 } },
+          where: { productId: resolvedProductId, warehouseId, quantity: { gt: 0 } },
           orderBy: [{ expiryDate: "asc" }, { createdAt: "asc" }],
         });
 
@@ -123,14 +163,14 @@ export async function POST(req: Request) {
         }
 
         if (nextQuantity === 0) {
-          await tx.productLot.deleteMany({ where: { productId, warehouseId } });
+          await tx.productLot.deleteMany({ where: { productId: resolvedProductId, warehouseId } });
         }
       }
 
       await tx.consumption.create({
         data: {
           kind: "INTERNAL",
-          productId,
+          productId: resolvedProductId,
           warehouseId,
           quantity: new Prisma.Decimal(Math.abs(delta)),
           createdById: user!.id,
@@ -138,18 +178,22 @@ export async function POST(req: Request) {
         },
       });
 
-      return updatedStock;
+      return { stock: updatedStock, product };
     });
+
+    if (newProduct) {
+      await logAudit({ actorId: user!.id, action: "CREATE", entity: "Product", entityId: result.product.id });
+    }
 
     await logAudit({
       actorId: user!.id,
       action: "STOCK_ADJUST",
       entity: "Stock",
-      entityId: stock?.id ?? `${warehouseId}:${productId}`,
-      data: { productId, warehouseId, delta, expiryDate: expiryDate ?? null, batchNumber: batchNumber ?? null },
+      entityId: result.stock?.id ?? `${warehouseId}:${result.product.id}`,
+      data: { productId: result.product.id, warehouseId, delta, expiryDate: expiryDate ?? null, batchNumber: batchNumber ?? null },
     });
 
-    return NextResponse.json({ ok: true, stock });
+    return NextResponse.json({ ok: true, stock: result.stock, product: result.product });
   } catch (error) {
     return bad(error instanceof Error ? error.message : "Nie udało się zmienić stanu magazynowego");
   }
