@@ -148,6 +148,32 @@ export default function ServicesPage() {
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+
+  // Podpowiedzi na żywo podczas wpisywania (maks. 8 trafień)
+  const suggestions = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (q.length < 2) return [];
+    const startsWith = services.filter((sv) => sv.name.toLowerCase().startsWith(q));
+    const contains = services.filter(
+      (sv) => !sv.name.toLowerCase().startsWith(q) && sv.name.toLowerCase().includes(q),
+    );
+    return [...startsWith, ...contains].slice(0, 8);
+  }, [services, query]);
+
+  function goToService(sv: Service) {
+    const cat = sv.category?.trim() || "Bez kategorii";
+    setQuery("");
+    setSuggestionsOpen(false);
+    setExpanded((prev) => new Set(prev).add(cat));
+    setHighlightId(sv.id);
+    // Poczekaj aż sekcja się wyrenderuje, potem przewiń do zabiegu
+    setTimeout(() => {
+      document.getElementById(`service-row-${sv.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
+    setTimeout(() => setHighlightId(null), 2500);
+  }
 
   const grouped = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -254,12 +280,41 @@ export default function ServicesPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
           <div className="font-medium">Lista zabiegów</div>
           <div className="flex flex-wrap items-center gap-2">
-            <Input
-              className="w-64"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Szukaj zabiegu lub kategorii..."
-            />
+            <div className="relative">
+              <Input
+                className="w-72"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setSuggestionsOpen(true);
+                }}
+                onFocus={() => setSuggestionsOpen(true)}
+                onBlur={() => setTimeout(() => setSuggestionsOpen(false), 150)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setSuggestionsOpen(false);
+                  if (e.key === "Enter" && suggestions.length > 0) goToService(suggestions[0]);
+                }}
+                placeholder="Szukaj zabiegu lub kategorii..."
+              />
+              {suggestionsOpen && suggestions.length > 0 ? (
+                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
+                  {suggestions.map((sv) => (
+                    <button
+                      key={sv.id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        goToService(sv);
+                      }}
+                      className="block w-full px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                    >
+                      <div className="truncate">{sv.name}</div>
+                      <div className="truncate text-xs text-zinc-500">{sv.category || "Bez kategorii"}</div>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
             <Button variant="outline" size="sm" onClick={() => setExpanded(new Set(grouped.map(([c]) => c)))}>
               Rozwiń wszystkie
             </Button>
@@ -292,7 +347,14 @@ export default function ServicesPage() {
                 {open ? (
                   <div className="divide-y border-t">
                     {items.map((s) => (
-                      <div key={s.id} className="space-y-2 p-4 pl-6">
+                      <div
+                        key={s.id}
+                        id={`service-row-${s.id}`}
+                        className={
+                          "space-y-2 p-4 pl-6 transition-colors " +
+                          (highlightId === s.id ? "bg-emerald-50 ring-1 ring-inset ring-emerald-300 dark:bg-emerald-500/10 dark:ring-emerald-500/40" : "")
+                        }
+                      >
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="font-medium">{s.name}</div>
