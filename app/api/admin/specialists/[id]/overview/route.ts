@@ -79,6 +79,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       startsAt: a.startsAt,
       endsAt: a.endsAt,
       status: a.status,
+      approvalStatus: a.approvalStatus,
       patient: a.patient,
       service: a.service,
       customServiceName: a.customServiceName,
@@ -95,8 +96,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     };
   });
 
-  // Statystyki liczone wyłącznie z wizyt zakończonych (COMPLETED)
-  const completed = rows.filter((r) => r.status === "COMPLETED");
+  // Statystyki i wypłata liczone wyłącznie z wizyt zakończonych ORAZ zaakceptowanych przez recepcję/admina
+  const completed = rows.filter((r) => r.status === "COMPLETED" && r.approvalStatus === "APPROVED");
   const revenue = completed.reduce((s, r) => s + r.revenue, 0);
   const materialCost = completed.reduce((s, r) => s + r.materialCost, 0);
   const payout = completed.reduce((s, r) => s + r.payout, 0);
