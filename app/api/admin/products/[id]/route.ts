@@ -7,6 +7,8 @@ import { logAudit } from "@/lib/audit";
 const PatchSchema = z.object({
   name: z.string().min(2).optional(),
   sku: z.string().optional().or(z.literal("")).optional(),
+  ean: z.string().optional().or(z.literal("")).optional(),
+  unit: z.enum(["UNIT", "ML", "AMPULE", "BOTOX_UNIT"]).optional(),
   manufacturer: z.string().optional().nullable(),
   catalogCategory: z.string().optional().nullable(),
   purchasePrice: z.number().int().optional().nullable(),
@@ -25,11 +27,22 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     include: {
       stocks: { include: { warehouse: true }, orderBy: { warehouse: { name: "asc" } } },
       lots: { include: { warehouse: true }, orderBy: [{ expiryDate: "asc" }, { warehouse: { name: "asc" } }] },
+      serviceSuggestions: {
+        include: { service: { select: { id: true, name: true, category: true } } },
+        orderBy: { service: { name: "asc" } },
+      },
     },
   });
 
   if (!product) return NextResponse.json({ ok: false, message: "Nie znaleziono produktu" }, { status: 404 });
-  return NextResponse.json({ ok: true, product });
+
+  // Katalog zabiegów do wyszukiwarki "dodaj zabieg do preparatu"
+  const services = await prisma.service.findMany({
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, category: true },
+  });
+
+  return NextResponse.json({ ok: true, product, services });
 }
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -47,6 +60,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     data: {
       name: parsed.data.name,
       sku: parsed.data.sku === undefined ? undefined : (parsed.data.sku ? parsed.data.sku : null),
+      ean: parsed.data.ean === undefined ? undefined : (parsed.data.ean ? parsed.data.ean : null),
+      unit: parsed.data.unit as any,
       manufacturer: parsed.data.manufacturer === undefined ? undefined : parsed.data.manufacturer,
       catalogCategory: parsed.data.catalogCategory === undefined ? undefined : parsed.data.catalogCategory,
       purchasePrice: parsed.data.purchasePrice === undefined ? undefined : parsed.data.purchasePrice,
