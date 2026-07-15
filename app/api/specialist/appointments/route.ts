@@ -200,6 +200,8 @@ export async function POST(req: Request) {
       data: {
         patientId: patient.id,
         specialistId: user!.id,
+        // Wizyty wpisywane przez lekarza wymagają akceptacji recepcji/admina
+        approvalStatus: user!.role === "SPECIALIST" ? "PENDING" : "APPROVED",
         serviceId: service.id,
         customServiceName: isCustom ? parsed.data.customServiceName!.trim() : null,
         startsAt,
