@@ -115,6 +115,75 @@ export default function ServicesPage() {
     mutate();
   }
 
+  // Kolejność kategorii jak w cenniku na stronie www
+  const CATEGORY_ORDER = [
+    "Autorskie terapie Dr Marty",
+    "Laser tulowy",
+    "Kosmetologia",
+    "PRO XN - Twarz",
+    "Toksyna botulinowa BOTOX - likwidacja zmarszczek",
+    "Dermatologia",
+    "Chirurgia plastyczna",
+    "Ginekologia",
+    "Chirurgia naczyniowa",
+    "Chirurgia ogólna",
+    "Leczenie otyłości",
+    "Hydrafacial nr 1 w USA ( oczyszczanie wodorowe)",
+    "MEDIDERMA - zabiegi na twarz",
+    "MedEstelle - zabiegi bankietowe na twarz",
+    "Mezoterapia igłowa / Stymulatory tkankowe",
+    "Icoone - zabiegi na ciało",
+    "Radiofrekwencja mikroigłowa RF",
+    "Kwas Hialuronowy - wypełnienie / modelowanie",
+    "Konsultacje Specjalistyczne",
+    "Nici - liftingujące, stymulujące",
+    "DERMAPEN 4.0",
+    "Tropokolagen GUNA",
+    "Zabiegi ANTI-AGING odmłodzenie/ujędrnienie",
+    "Bandaże AROSHA",
+    "Nebula",
+    "ScarINK – Kompleksowa Terapia",
+    "Makijaż permanentny",
+  ];
+
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState("");
+
+  const grouped = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? services.filter((sv) => sv.name.toLowerCase().includes(q) || (sv.category ?? "").toLowerCase().includes(q))
+      : services;
+
+    const byCategory = new Map<string, Service[]>();
+    for (const sv of filtered) {
+      const key = sv.category?.trim() || "Bez kategorii";
+      if (!byCategory.has(key)) byCategory.set(key, []);
+      byCategory.get(key)!.push(sv);
+    }
+    for (const list of byCategory.values()) list.sort((a, b) => a.name.localeCompare(b.name, "pl"));
+
+    const orderIndex = (cat: string) => {
+      const i = CATEGORY_ORDER.indexOf(cat);
+      return i === -1 ? CATEGORY_ORDER.length : i;
+    };
+    return [...byCategory.entries()].sort((a, b) => {
+      const d = orderIndex(a[0]) - orderIndex(b[0]);
+      return d !== 0 ? d : a[0].localeCompare(b[0], "pl");
+    });
+  }, [services, query]);
+
+  const searching = query.trim().length > 0;
+
+  function toggleCategory(cat: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Usługi i zabiegi</h1>
@@ -182,12 +251,48 @@ export default function ServicesPage() {
       </Card>
 
       <div className="rounded-xl border bg-white shadow-sm dark:bg-zinc-950">
-        <div className="p-4 border-b font-medium">Lista</div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
+          <div className="font-medium">Lista zabiegów</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              className="w-64"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Szukaj zabiegu lub kategorii..."
+            />
+            <Button variant="outline" size="sm" onClick={() => setExpanded(new Set(grouped.map(([c]) => c)))}>
+              Rozwiń wszystkie
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setExpanded(new Set())}>
+              Zwiń wszystkie
+            </Button>
+          </div>
+        </div>
         <div className="divide-y">
           {isLoading && <div className="p-4 text-sm text-zinc-500">Ładowanie...</div>}
-          {!isLoading && services.length === 0 && <div className="p-4 text-sm text-zinc-500">Brak usług.</div>}
-          {services.map((s) => (
-            <div key={s.id} className="p-4 space-y-2">
+          {!isLoading && grouped.length === 0 && <div className="p-4 text-sm text-zinc-500">Brak usług.</div>}
+          {grouped.map(([cat, items]) => {
+            const open = searching || expanded.has(cat);
+            return (
+              <div key={cat}>
+                <button
+                  type="button"
+                  onClick={() => toggleCategory(cat)}
+                  className="flex w-full items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3 text-left hover:bg-zinc-100 dark:bg-zinc-900/60 dark:hover:bg-zinc-900"
+                >
+                  <span className="text-sm font-semibold uppercase tracking-wide text-zinc-800 dark:text-zinc-100">
+                    {cat}
+                  </span>
+                  <span className="flex items-center gap-3 text-xs text-zinc-500">
+                    <span>{items.length} {items.length === 1 ? "zabieg" : items.length < 5 ? "zabiegi" : "zabiegów"}</span>
+                    <span className="text-base leading-none">{open ? "−" : "+"}</span>
+                  </span>
+                </button>
+
+                {open ? (
+                  <div className="divide-y border-t">
+                    {items.map((s) => (
+                      <div key={s.id} className="space-y-2 p-4 pl-6">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="font-medium">{s.name}</div>
@@ -235,8 +340,13 @@ export default function ServicesPage() {
                   </div>
                 </div>
               ) : null}
-            </div>
-          ))}
+                    </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
