@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth-cookie";
 import { formatPLNFromGrosze } from "@/lib/money";
+import { appointmentStatusLabel } from "@/lib/appointment-status";
 import Link from "next/link";
 
 export default async function SpecialistHome() {
@@ -53,7 +54,7 @@ export default async function SpecialistHome() {
             <div key={a.id} className="py-3 flex items-center justify-between gap-3">
               <div>
                 <div className="text-sm font-medium">{new Date(a.startsAt).toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"})} • {a.patient.name}</div>
-                <div className="text-xs text-zinc-500">{a.customServiceName || a.service.name} • status: {a.status}</div>
+                <div className="text-xs text-zinc-500">{a.customServiceName || a.service.name} • status: {appointmentStatusLabel(a.status)}</div>
               </div>
               <Link className="text-sm underline" href={`/specialist/appointments/${a.id}`}>Otwórz</Link>
             </div>
