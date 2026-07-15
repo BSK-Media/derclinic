@@ -13,9 +13,22 @@ export async function GET() {
   const [products, warehouses] = await Promise.all([
     prisma.product.findMany({
       orderBy: [{ manufacturer: "asc" }, { name: "asc" }],
-      include: { stocks: true, lots: true },
+      include: {
+        stocks: {
+          include: { warehouse: { select: { id: true, name: true } } },
+          orderBy: { warehouse: { name: "asc" } },
+        },
+        lots: {
+          where: { quantity: { gt: 0 } },
+          include: { warehouse: { select: { id: true, name: true } } },
+          orderBy: [{ expiryDate: "asc" }, { createdAt: "asc" }],
+        },
+      },
     }),
-    prisma.warehouse.findMany({ orderBy: { name: "asc" } }),
+    prisma.warehouse.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
   ]);
 
   return NextResponse.json({ ok: true, products, warehouses });
