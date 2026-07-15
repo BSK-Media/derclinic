@@ -24,7 +24,7 @@ export async function GET(req: Request) {
   const specialistIds = specialists.map((s) => s.id);
 
   const appointments = await prisma.appointment.findMany({
-    where: { specialistId: { in: specialistIds }, status: "COMPLETED", startsAt: { gte: start, lt: end } },
+    where: { specialistId: { in: specialistIds }, status: "COMPLETED", approvalStatus: "APPROVED", startsAt: { gte: start, lt: end } },
     include: { consumptions: { include: { product: true } } },
     take: 5000,
   });
