@@ -16,6 +16,7 @@ enum Role {
 enum ApprovalStatus {
   PENDING
   APPROVED
+  REJECTED
 }
 
 enum AppointmentStatus {
