@@ -33,18 +33,22 @@ type PreparationRow = {
   id: number;
   productId: string;
   quantity: string;
-  unit: UnitKey;
+  unit: UnitKey | null;
   suggestedQuantity?: number;
 };
 
-const UNITS: Array<{ value: UnitKey; label: string }> = [
-  { value: "ML", label: "ml" },
-  { value: "MG", label: "mg" },
-  { value: "G", label: "g" },
-  { value: "UNIT", label: "szt." },
-  { value: "AMPULE", label: "ampułka" },
-  { value: "BOTOX_UNIT", label: "jednostka botoksu" },
-];
+const UNIT_LABELS: Record<UnitKey, string> = {
+  ML: "ml",
+  MG: "mg",
+  G: "g",
+  UNIT: "szt.",
+  AMPULE: "ampułka",
+  BOTOX_UNIT: "jednostka botoksu",
+};
+
+function unitLabel(unit?: UnitKey | null) {
+  return unit ? UNIT_LABELS[unit] : "—";
+}
 
 function toDateInput(date: Date) {
   const year = date.getFullYear();
@@ -54,7 +58,7 @@ function toDateInput(date: Date) {
 }
 
 function newPreparation(id: number): PreparationRow {
-  return { id, productId: "", quantity: "", unit: "ML" };
+  return { id, productId: "", quantity: "", unit: null };
 }
 
 export function SpecialistBookAppointmentDialog({
@@ -124,7 +128,7 @@ export function SpecialistBookAppointmentDialog({
         id: id++,
         productId: sp.productId,
         quantity: String(sp.quantity),
-        unit: sp.unit,
+        unit: products.find((product) => product.id === sp.productId)?.unit ?? sp.unit,
         suggestedQuantity: sp.quantity,
       }));
       setPreparations(rows);
@@ -150,6 +154,10 @@ export function SpecialistBookAppointmentDialog({
     setNextPreparationId((current) => current + 1);
   }
 
+  function removePreparation(id: number) {
+    setPreparations((current) => current.filter((item) => item.id !== id));
+  }
+
   async function createAppointment() {
     if (!firstName.trim() || !lastName.trim()) return toast.error("Podaj imię i nazwisko");
     if (!phone.trim()) return toast.error("Podaj numer telefonu");
@@ -158,7 +166,7 @@ export function SpecialistBookAppointmentDialog({
       return toast.error("Wpisz nazwę niestandardowego zabiegu");
     }
 
-    const preparedItems: Array<{ productId: string; quantity: number; unit: UnitKey }> = [];
+    const preparedItems: Array<{ productId: string; quantity: number }> = [];
     let hasDeviation = false;
     for (const row of preparations) {
       const hasAnyValue = Boolean(row.productId || row.quantity.trim());
@@ -169,7 +177,7 @@ export function SpecialistBookAppointmentDialog({
       const quantity = Number(row.quantity.replace(",", "."));
       if (!Number.isFinite(quantity) || quantity <= 0) return toast.error("Podaj poprawną ilość preparatu");
       if (row.suggestedQuantity !== undefined && quantity !== row.suggestedQuantity) hasDeviation = true;
-      preparedItems.push({ productId: row.productId, quantity, unit: row.unit });
+      preparedItems.push({ productId: row.productId, quantity });
     }
 
     if (!dateValue) return toast.error("Wybierz datę wizyty");
@@ -306,7 +314,7 @@ export function SpecialistBookAppointmentDialog({
               </div>
             </div>
 
-            {preparations.map((row, index) => {
+            {preparations.map((row) => {
               const modified = row.suggestedQuantity !== undefined && row.quantity.trim() !== "" &&
                 Number(row.quantity.replace(",", ".")) !== row.suggestedQuantity;
               return (
@@ -333,7 +341,7 @@ export function SpecialistBookAppointmentDialog({
                     </Select>
                     {row.suggestedQuantity !== undefined ? (
                       <div className="text-[11px] text-zinc-500">
-                        Sugerowana ilość: {row.suggestedQuantity} {row.unit}
+                        Sugerowana ilość: {row.suggestedQuantity} {unitLabel(row.unit)}
                       </div>
                     ) : null}
                   </div>
@@ -348,29 +356,17 @@ export function SpecialistBookAppointmentDialog({
                   </div>
                   <div className="space-y-2">
                     <Label>Jednostka</Label>
-                    <Select value={row.unit} onValueChange={(value) => updatePreparation(row.id, { unit: value as UnitKey })}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent disablePortal>
-                        {UNITS.map((unit) => (
-                          <SelectItem key={unit.value} value={unit.value}>
-                            {unit.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      value={unitLabel(row.unit)}
+                      disabled
+                      aria-label="Jednostka przypisana do preparatu"
+                      className="disabled:cursor-not-allowed disabled:opacity-70"
+                    />
                   </div>
                   <div className="flex items-end">
-                    {index > 0 ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => setPreparations((current) => current.filter((item) => item.id !== row.id))}
-                      >
-                        Usuń
-                      </Button>
-                    ) : null}
+                    <Button type="button" variant="ghost" onClick={() => removePreparation(row.id)}>
+                      Usuń
+                    </Button>
                   </div>
                   {modified ? (
                     <div className="md:col-span-4 text-[11px] font-medium text-amber-700">
