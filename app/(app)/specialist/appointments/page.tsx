@@ -132,6 +132,7 @@ export default function SpecialistAppointmentsPage() {
           appointments={appointments}
           isLoading={isLoading}
           onAdd={openAdd}
+          showAddButton={false}
           onOpenAppointment={(id: string) => router.push(`/specialist/appointments/${id}`)}
         />
       ) : (
