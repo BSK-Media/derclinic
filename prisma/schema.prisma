@@ -13,6 +13,11 @@ enum Role {
   SPECIALIST
 }
 
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+}
+
 enum AppointmentStatus {
   SCHEDULED
   COMPLETED
@@ -89,6 +94,7 @@ model User {
   auditLogs           AuditLog[]
   serviceRates        SpecialistServiceRate[]
   warehouseAssignments SpecialistWarehouse[]
+  approvedAppointments Appointment[] @relation("AppointmentApprover")
   assignedServices    SpecialistService[]
 
   @@index([role])
@@ -316,6 +322,13 @@ model Appointment {
   endsAt      DateTime
 
   status      AppointmentStatus @default(SCHEDULED)
+
+  // Akceptacja wizyty wpisanej przez lekarza (recepcja/admin); domyślnie APPROVED,
+  // więc wizyty tworzone przez recepcję/admina i istniejące rekordy nie wymagają akceptacji
+  approvalStatus ApprovalStatus @default(APPROVED)
+  approvedAt     DateTime?
+  approvedById   String?
+  approvedBy     User? @relation("AppointmentApprover", fields: [approvedById], references: [id], onDelete: SetNull)
 
   // pricing (grosze)
   priceEstimate Int?
