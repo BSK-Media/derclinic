@@ -52,6 +52,7 @@ export function AppointmentCalendar({
   onAdd,
   onOpenAppointment,
   showSpecialist = false,
+  showAddButton = true,
 }: {
   anchor: Date;
   onAnchorChange: (d: Date) => void;
@@ -60,6 +61,7 @@ export function AppointmentCalendar({
   onAdd: (date?: Date) => void;
   onOpenAppointment: (id: string) => void;
   showSpecialist?: boolean;
+  showAddButton?: boolean;
 }) {
   const gridStart = React.useMemo(() => startOfGrid(anchor), [anchor]);
   const weeks = React.useMemo(() => {
@@ -116,7 +118,7 @@ export function AppointmentCalendar({
           <div className="text-lg font-semibold capitalize">{monthLabel}</div>
           {isLoading ? <div className="text-xs text-zinc-500">Ładowanie…</div> : null}
         </div>
-        <Button onClick={() => onAdd()}>+ Dodaj</Button>
+        {showAddButton ? <Button onClick={() => onAdd()}>+ Dodaj</Button> : null}
       </div>
 
       <div className="grid grid-cols-7 border-b text-xs font-medium text-zinc-500">
