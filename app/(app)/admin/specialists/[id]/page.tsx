@@ -40,6 +40,24 @@ export default function SpecialistDetailPage() {
   const { user } = useAuth();
 
   const { data, isLoading, mutate } = useSWR(`/api/admin/specialists/${id}/overview?range=${range}`, fetcher);
+  const [decidingId, setDecidingId] = React.useState<string | null>(null);
+
+  async function decide(appointmentId: string, action: "APPROVE" | "REJECT") {
+    setDecidingId(appointmentId);
+    try {
+      const res = await fetch(`/api/admin/appointments/${appointmentId}/approve`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się zapisać decyzji");
+      toast.success(action === "APPROVE" ? "Wizyta zaakceptowana" : "Wizyta odrzucona");
+      mutate();
+    } finally {
+      setDecidingId(null);
+    }
+  }
   const specialist = data?.specialist;
   const stats = data?.stats;
   const appointments: any[] = data?.appointments ?? [];
@@ -147,19 +165,20 @@ export default function SpecialistDetailPage() {
                 <th className="p-3 text-right">Materiały</th>
                 <th className="p-3 text-right">Baza (przychód − materiały)</th>
                 <th className="p-3 text-right">Wypłata</th>
+                <th className="p-3 w-32 text-right">Akcje</th>
               </tr>
             </thead>
             <tbody>
               {isLoading && (
                 <tr>
-                  <td className="p-4 text-slate-500" colSpan={8}>
+                  <td className="p-4 text-slate-500" colSpan={9}>
                     Ładowanie...
                   </td>
                 </tr>
               )}
               {!isLoading && appointments.length === 0 && (
                 <tr>
-                  <td className="p-4 text-slate-500" colSpan={8}>
+                  <td className="p-4 text-slate-500" colSpan={9}>
                     Brak wizyt w wybranym okresie.
                   </td>
                 </tr>
@@ -183,11 +202,47 @@ export default function SpecialistDetailPage() {
                     {a.approvalStatus === "PENDING" ? (
                       <div className="mt-1 text-xs text-amber-600">do akceptacji</div>
                     ) : null}
+                    {a.approvalStatus === "REJECTED" ? (
+                      <div className="mt-1 text-xs text-red-600">odrzucona</div>
+                    ) : null}
                   </td>
                   <td className="p-3 text-right tabular-nums">{formatPLNFromGrosze(a.revenue)}</td>
                   <td className="p-3 text-right tabular-nums">{formatPLNFromGrosze(a.materialCost)}</td>
                   <td className="p-3 text-right tabular-nums">{formatPLNFromGrosze(a.base)}</td>
                   <td className="p-3 text-right tabular-nums font-medium">{formatPLNFromGrosze(a.payout)}</td>
+                  <td className="p-3">
+                    <div className="flex items-center justify-end gap-1">
+                      {a.approvalStatus === "PENDING" ? (
+                        <>
+                          <button
+                            type="button"
+                            title="Zaakceptuj wizytę"
+                            onClick={() => decide(a.id, "APPROVE")}
+                            disabled={decidingId === a.id}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            type="button"
+                            title="Odrzuć wizytę"
+                            onClick={() => decide(a.id, "REJECT")}
+                            disabled={decidingId === a.id}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
+                          >
+                            ✕
+                          </button>
+                        </>
+                      ) : null}
+                      <Link
+                        href={`/admin/appointments/${a.id}`}
+                        title="Szczegóły wizyty"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+                      >
+                        👁
+                      </Link>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
