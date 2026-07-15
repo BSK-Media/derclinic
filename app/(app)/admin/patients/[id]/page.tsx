@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { formatPLNFromGrosze } from "@/lib/money";
+import { appointmentStatusLabel } from "@/lib/appointment-status";
 
 export default async function AdminPatientDetailPage({ params }: { params: { id: string } }) {
   const patient = await prisma.patient.findUnique({ where: { id: params.id } });
@@ -57,7 +58,7 @@ export default async function AdminPatientDetailPage({ params }: { params: { id:
                     <td className="p-3">{new Date(a.startsAt).toLocaleString("pl-PL", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
                     <td className="p-3">{a.customServiceName || a.service.name}</td>
                     <td className="p-3">{a.specialist.name}</td>
-                    <td className="p-3">{a.status}</td>
+                    <td className="p-3">{appointmentStatusLabel(a.status)}</td>
                     <td className="p-3">{formatPLNFromGrosze(a.priceFinal ?? a.priceEstimate)}</td>
                     <td className="p-3">{paid ? formatPLNFromGrosze(paid) : "—"}</td>
                   </tr>
