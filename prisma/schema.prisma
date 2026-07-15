@@ -88,6 +88,7 @@ model User {
   retailSales         RetailSale[] @relation("RetailSaleSeller")
   auditLogs           AuditLog[]
   serviceRates        SpecialistServiceRate[]
+  warehouseAssignments SpecialistWarehouse[]
   assignedServices    SpecialistService[]
 
   @@index([role])
@@ -187,6 +188,21 @@ model SpecialistService {
   @@index([serviceId])
 }
 
+model SpecialistWarehouse {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+
+  specialistId String
+  specialist   User      @relation(fields: [specialistId], references: [id], onDelete: Cascade)
+
+  warehouseId  String
+  warehouse    Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@unique([specialistId, warehouseId])
+  @@index([specialistId])
+  @@index([warehouseId])
+}
+
 model Product {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -231,6 +247,7 @@ model Warehouse {
   stocks    Stock[]
   lots      ProductLot[]
   consumptions Consumption[]
+  specialistAccess SpecialistWarehouse[]
 
   @@index([parentId])
   @@index([name])
