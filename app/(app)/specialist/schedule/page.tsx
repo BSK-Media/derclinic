@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { appointmentStatusLabel } from "@/lib/appointment-status";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -92,7 +93,7 @@ export default function SpecialistSchedulePage() {
                   <Link key={a.id} href={`/specialist/appointments/${a.id}`} className="block rounded-lg border p-2 hover:bg-zinc-50 dark:hover:bg-zinc-900">
                     <div className="text-xs text-zinc-500">{new Date(a.startsAt).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })} – {new Date(a.endsAt).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}</div>
                     <div className="text-sm font-medium truncate">{a.patient.name}</div>
-                    <div className="text-xs text-zinc-500 truncate">{a.customServiceName || a.service.name} • {a.status}</div>
+                    <div className="text-xs text-zinc-500 truncate">{a.customServiceName || a.service.name} • {appointmentStatusLabel(a.status)}</div>
                   </Link>
                 ))}
               </div>
