@@ -132,7 +132,7 @@ export default function SpecialistDetailPage() {
         <div className="border-b p-4">
           <div className="font-medium">Historia wizyt</div>
           <div className="mt-1 text-xs text-slate-500">
-            Kwoty: przychód (cena wizyty), materiały (koszt zakupu zużytych produktów), wypłata = (przychód − materiały) × procent pracownika.
+            Kwoty: przychód (cena wizyty), materiały (koszt zakupu zużytych produktów), wypłata = (przychód − materiały) × procent pracownika. Do statystyk i wypłaty liczą się tylko wizyty zakończone i zaakceptowane.
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -180,6 +180,9 @@ export default function SpecialistDetailPage() {
                   </td>
                   <td className="p-3">
                     <StatusBadge status={a.status} />
+                    {a.approvalStatus === "PENDING" ? (
+                      <div className="mt-1 text-xs text-amber-600">do akceptacji</div>
+                    ) : null}
                   </td>
                   <td className="p-3 text-right tabular-nums">{formatPLNFromGrosze(a.revenue)}</td>
                   <td className="p-3 text-right tabular-nums">{formatPLNFromGrosze(a.materialCost)}</td>
