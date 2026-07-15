@@ -17,7 +17,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 type Patient = { id: string; name: string };
 type Specialist = { id: string; name: string };
 type Service = { id: string; name: string; durationMin: number; priceSuggested?: number | null };
-type Appointment = { id: string; startsAt: string; endsAt: string; status: string; priceEstimate?: number | null; priceFinal?: number | null;
+type Appointment = { id: string; startsAt: string; endsAt: string; status: string; approvalStatus?: string; priceEstimate?: number | null; priceFinal?: number | null;
   customServiceName?: string | null; patient: Patient; specialist: Specialist; service: Service };
 
 export default function AdminAppointmentsPage() {
@@ -47,6 +47,20 @@ export default function AdminAppointmentsPage() {
   const [priceEstimate, setPriceEstimate] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+
+  async function approve(id: string) {
+    setApprovingId(id);
+    try {
+      const res = await fetch(`/api/admin/appointments/${id}/approve`, { method: "POST" });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się zaakceptować wizyty");
+      toast.success("Wizyta zaakceptowana — liczy się do rozliczeń");
+      mutate();
+    } finally {
+      setApprovingId(null);
+    }
+  }
 
   const selectedService = useMemo(() => services.find((s) => s.id === serviceId), [services, serviceId]);
   const durationMin = selectedService?.durationMin ?? 30;
@@ -171,10 +185,24 @@ export default function AdminAppointmentsPage() {
                   <td className="p-3 font-medium">{a.patient.name}</td>
                   <td className="p-3">{a.specialist.name}</td>
                   <td className="p-3">{a.customServiceName || a.service.name}</td>
-                  <td className="p-3">{appointmentStatusLabel(a.status)}</td>
+                  <td className="p-3">
+                    <div>{appointmentStatusLabel(a.status)}</div>
+                    {a.approvalStatus === "PENDING" ? (
+                      <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                        Do akceptacji
+                      </span>
+                    ) : null}
+                  </td>
                   <td className="p-3">{formatPLNFromGrosze(a.priceFinal ?? a.priceEstimate)}</td>
                   <td className="p-3 text-right">
-                    <Link className="underline" href={`/admin/appointments/${a.id}`}>Szczegóły</Link>
+                    <div className="flex items-center justify-end gap-3">
+                      {a.approvalStatus === "PENDING" ? (
+                        <Button size="sm" onClick={() => approve(a.id)} disabled={approvingId === a.id}>
+                          {approvingId === a.id ? "..." : "Akceptuj"}
+                        </Button>
+                      ) : null}
+                      <Link className="underline" href={`/admin/appointments/${a.id}`}>Szczegóły</Link>
+                    </div>
                   </td>
                 </tr>
               ))}
