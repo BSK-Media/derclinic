@@ -114,7 +114,7 @@ export default function ProductDetailsPage() {
               {product.lots.map((lot: any) => (
                 <TableRow key={lot.id}>
                   <TableCell className="font-medium">{lot.batchNumber}</TableCell>
-                  <TableCell>{new Date(lot.expiryDate).toLocaleDateString("pl-PL")}</TableCell>
+                  <TableCell>{lot.expiryDate ? new Date(lot.expiryDate).toLocaleDateString("pl-PL") : "—"}</TableCell>
                   <TableCell>{Number(lot.quantity)}</TableCell>
                   <TableCell>{money(lot.purchasePrice)}</TableCell>
                   <TableCell>{lot.location ?? "—"}</TableCell>
