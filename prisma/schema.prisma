@@ -290,7 +290,7 @@ model ProductLot {
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
 
   batchNumber String
-  expiryDate  DateTime
+  expiryDate  DateTime?
   quantity    Decimal   @db.Decimal(14,2) @default(0)
   purchasePrice Int?
   salePrice     Int?
