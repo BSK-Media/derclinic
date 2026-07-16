@@ -65,6 +65,12 @@ export default function SpecialistAppointmentDetail() {
     }
   }, [warehousesForEffect, warehouseId]);
 
+  // Po wczytaniu wizyty ustaw w formularzu jej aktualny status
+  const loadedStatus = data?.appointment?.status as string | undefined;
+  useEffect(() => {
+    if (loadedStatus) setStatus(loadedStatus);
+  }, [loadedStatus]);
+
   if (isLoading) return <div className="p-6 text-sm text-zinc-500">Ładowanie…</div>;
   if (!appt) return <div className="p-6 text-sm text-zinc-500">Nie znaleziono.</div>;
 
