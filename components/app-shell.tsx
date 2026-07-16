@@ -29,6 +29,16 @@ type NavItem = {
   icon: React.ReactNode;
 };
 
+type HeaderNotification = {
+  id: string;
+  kind: "new" | "changed" | "canceled" | "approved" | "rejected" | "message";
+  title: string;
+  description: string;
+  createdAt: string;
+  appointmentId?: string;
+  read: boolean;
+};
+
 const NAV: NavItem[] = [
   { label: "Dashboard", permission: "dashboard", icon: <span className="text-lg">⌂</span> },
   { label: "Kalendarz", permission: "calendar", icon: <span className="text-lg">🗓️</span> },
@@ -115,6 +125,40 @@ function LogoBlock() {
   );
 }
 
+function NotificationGlyph({ kind }: { kind: HeaderNotification["kind"] }) {
+  const tone =
+    kind === "canceled" || kind === "rejected"
+      ? "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-300"
+      : kind === "approved"
+        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+        : kind === "changed"
+          ? "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"
+          : kind === "message"
+            ? "bg-violet-100 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300"
+            : "bg-sky-100 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300";
+  const glyph =
+    kind === "canceled" || kind === "rejected"
+      ? "×"
+      : kind === "approved"
+        ? "✓"
+        : kind === "changed"
+          ? "↻"
+          : kind === "message"
+            ? "✉"
+            : "＋";
+
+  return (
+    <span
+      className={cn(
+        "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm font-semibold",
+        tone,
+      )}
+    >
+      {glyph}
+    </span>
+  );
+}
+
 export function AppSidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
@@ -172,7 +216,58 @@ export function AppSidebar() {
 export function AppHeader() {
   const { user } = useAuth();
   const { isDark, toggle } = useThemeToggle();
+  const [notificationsOpen, setNotificationsOpen] = React.useState(false);
+  const [notificationsLoading, setNotificationsLoading] = React.useState(false);
+  const [notifications, setNotifications] = React.useState<HeaderNotification[]>([]);
+  const notificationsRef = React.useRef<HTMLDivElement>(null);
   const profileHref = user?.role === "SPECIALIST" ? "/specialist" : "/admin/profile";
+  const unreadCount = notifications.filter((notification) => !notification.read).length;
+
+  const loadNotifications = React.useCallback(async () => {
+    if (!user?.id) {
+      setNotifications([]);
+      return;
+    }
+    setNotificationsLoading(true);
+    try {
+      const response = await fetch("/api/notifications", { cache: "no-store" });
+      const result = await response.json().catch(() => ({}));
+      if (response.ok && result?.ok) setNotifications(result.notifications ?? []);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, [user?.id]);
+
+  React.useEffect(() => {
+    loadNotifications();
+    const timer = window.setInterval(loadNotifications, 30_000);
+    return () => window.clearInterval(timer);
+  }, [loadNotifications]);
+
+  React.useEffect(() => {
+    function closeOnOutsideClick(event: MouseEvent) {
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+        setNotificationsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+  }, []);
+
+  async function markNotificationRead(notificationId: string) {
+    const previous = notifications;
+    setNotifications((current) =>
+      current.map((notification) =>
+        notification.id === notificationId ? { ...notification, read: true } : notification,
+      ),
+    );
+    const response = await fetch("/api/notifications", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ notificationId }),
+    });
+    if (!response.ok) setNotifications(previous);
+  }
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-white/60 bg-white/70 px-4 py-3 backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 lg:px-6">
@@ -189,14 +284,126 @@ export function AppHeader() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/60 bg-white/70 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55"
-            aria-label="Notifications"
-          >
-            <span className="text-slate-700 dark:text-slate-200">🔔</span>
-            <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-red-500" />
-          </button>
+          <div ref={notificationsRef} className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setNotificationsOpen((current) => !current);
+                loadNotifications();
+              }}
+              className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/60 bg-white/70 shadow-sm backdrop-blur transition hover:bg-white dark:border-white/10 dark:bg-[#0b1220]/55 dark:hover:bg-white/10"
+              aria-label="Powiadomienia"
+              aria-expanded={notificationsOpen}
+            >
+              <span className="text-slate-700 dark:text-slate-200">🔔</span>
+              {unreadCount > 0 ? (
+                <span className="absolute right-2.5 top-2.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-[#0b1220]" />
+              ) : null}
+            </button>
+
+            {notificationsOpen ? (
+              <div className="absolute right-0 top-[calc(100%+10px)] z-50 w-[min(390px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-white/10 dark:bg-[#0b1220]">
+                <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-white/10">
+                  <div>
+                    <div className="font-semibold text-slate-900 dark:text-white">
+                      Powiadomienia
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                      {unreadCount > 0
+                        ? `${unreadCount} nieprzeczytane`
+                        : "Wszystkie powiadomienia przeczytane"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="max-h-[420px] overflow-y-auto">
+                  {notificationsLoading && notifications.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-sm text-slate-500">Ładowanie…</div>
+                  ) : null}
+                  {!notificationsLoading && notifications.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-sm text-slate-500">
+                      Brak powiadomień.
+                    </div>
+                  ) : null}
+                  {notifications.map((notification) => {
+                    const content = (
+                      <>
+                        <NotificationGlyph kind={notification.kind} />
+                        <div className="min-w-0 flex-1">
+                          <div
+                            className={cn(
+                              "truncate text-sm text-slate-900 dark:text-white",
+                              notification.read ? "font-medium" : "font-semibold",
+                            )}
+                          >
+                            {notification.title}
+                          </div>
+                          <div className="mt-0.5 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">
+                            {notification.description}
+                          </div>
+                          <div className="mt-1 text-[11px] text-slate-400">
+                            {new Date(notification.createdAt).toLocaleString("pl-PL", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </div>
+                        </div>
+                      </>
+                    );
+
+                    return (
+                      <div
+                        key={notification.id}
+                        className={cn(
+                          "flex items-start gap-2 border-b border-slate-100 p-3 last:border-b-0 dark:border-white/10",
+                          notification.read
+                            ? "bg-white dark:bg-[#0b1220]"
+                            : "bg-emerald-50/60 dark:bg-emerald-500/5",
+                        )}
+                      >
+                        {notification.appointmentId ? (
+                          <Link
+                            href={`/specialist/appointments/${notification.appointmentId}`}
+                            onClick={() => setNotificationsOpen(false)}
+                            className="flex min-w-0 flex-1 items-start gap-3 rounded-xl p-1 transition hover:bg-slate-50 dark:hover:bg-white/5"
+                          >
+                            {content}
+                          </Link>
+                        ) : (
+                          <div className="flex min-w-0 flex-1 items-start gap-3 p-1">{content}</div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => markNotificationRead(notification.id)}
+                          disabled={notification.read}
+                          className={cn(
+                            "mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border text-sm font-bold transition",
+                            notification.read
+                              ? "cursor-default border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-500/20 dark:bg-emerald-500/10"
+                              : "border-slate-200 bg-white text-slate-500 hover:border-emerald-300 hover:text-emerald-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300",
+                          )}
+                          aria-label={
+                            notification.read
+                              ? "Powiadomienie przeczytane"
+                              : "Oznacz jako przeczytane"
+                          }
+                          title={
+                            notification.read
+                              ? "Powiadomienie przeczytane"
+                              : "Oznacz jako przeczytane"
+                          }
+                        >
+                          ✓
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </div>
 
           <Link
             href={profileHref}
