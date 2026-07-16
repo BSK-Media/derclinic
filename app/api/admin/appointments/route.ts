@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
 export async function GET(req: Request) {
@@ -46,7 +46,13 @@ export async function GET(req: Request) {
     serviceIds: s.assignedServices.map((a) => a.serviceId),
   }));
 
-  return NextResponse.json({ ok: true, appointments, patients, specialists: shapedSpecialists, services });
+  return NextResponse.json({
+    ok: true,
+    appointments,
+    patients,
+    specialists: shapedSpecialists,
+    services,
+  });
 }
 
 const CreateSchema = z.object({
@@ -55,6 +61,8 @@ const CreateSchema = z.object({
   serviceId: z.string().min(1),
   startsAt: z.string().min(1),
   durationMin: z.number().int().min(5).max(480),
+  priceFinal: z.number().int().optional().nullable(),
+  // Zgodność ze starszym formularzem — ta wartość również jest traktowana jako cena końcowa.
   priceEstimate: z.number().int().optional().nullable(),
   note: z.string().optional().or(z.literal("")),
 });
@@ -62,16 +70,27 @@ const CreateSchema = z.object({
 export async function POST(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);
   const parsed = CreateSchema.safeParse(json);
-  if (!parsed.success) return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
+  if (!parsed.success)
+    return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
   const startsAt = new Date(parsed.data.startsAt);
   const endsAt = new Date(startsAt);
   endsAt.setMinutes(endsAt.getMinutes() + parsed.data.durationMin);
+
+  const service = await prisma.service.findUnique({
+    where: { id: parsed.data.serviceId },
+    select: { priceSuggested: true, priceFrom: true },
+  });
+  if (!service) {
+    return NextResponse.json({ ok: false, message: "Nie znaleziono usługi" }, { status: 404 });
+  }
+  const standardPrice = service.priceSuggested ?? service.priceFrom ?? null;
+  const finalPrice = parsed.data.priceFinal ?? parsed.data.priceEstimate ?? standardPrice;
 
   const appt = await prisma.appointment.create({
     data: {
@@ -80,7 +99,9 @@ export async function POST(req: Request) {
       serviceId: parsed.data.serviceId,
       startsAt,
       endsAt,
-      priceEstimate: parsed.data.priceEstimate ?? null,
+      // priceEstimate przechowuje cenę standardową z chwili rezerwacji, priceFinal jej ewentualną zmianę.
+      priceEstimate: standardPrice,
+      priceFinal: finalPrice,
       note: parsed.data.note ? parsed.data.note : null,
     },
   });
