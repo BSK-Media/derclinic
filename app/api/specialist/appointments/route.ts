@@ -61,7 +61,14 @@ export async function GET(req: Request) {
     prisma.appointment.findMany({
       where: { specialistId, startsAt: { gte: fromDt, lt: toDt } },
       orderBy: { startsAt: "asc" },
-      include: { patient: true, service: true },
+      include: {
+        patient: true,
+        service: true,
+        consumptions: {
+          where: { kind: "APPOINTMENT" },
+          select: { id: true, quantity: true, unit: true, product: { select: { name: true } } },
+        },
+      },
       take: 500,
     }),
     prisma.service.findMany({
