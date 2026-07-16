@@ -91,7 +91,6 @@ export function AdminAddProductDialog({
 
     const parsedQuantity = Number(stockQuantity.replace(",", "."));
     if (!Number.isFinite(parsedQuantity) || parsedQuantity <= 0) return toast.error("Podaj prawidłową ilość");
-    if (!expiryDate) return toast.error("Podaj termin ważności");
 
     let newProduct: {
       name: string;
@@ -136,7 +135,7 @@ export function AdminAddProductDialog({
           newProduct,
           warehouseId,
           delta: parsedQuantity,
-          expiryDate,
+          expiryDate: expiryDate || undefined,
           batchNumber: batchNumber.trim() || undefined,
           note: note.trim() || undefined,
         }),
@@ -245,7 +244,7 @@ export function AdminAddProductDialog({
             <Input id="new-stock-quantity" type="number" min="0.01" step="0.01" value={stockQuantity} onChange={(event) => setStockQuantity(event.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="new-stock-expiry">Termin ważności *</Label>
+            <Label htmlFor="new-stock-expiry">Termin ważności (opcjonalnie)</Label>
             <Input id="new-stock-expiry" type="date" value={expiryDate} onChange={(event) => setExpiryDate(event.target.value)} />
           </div>
           <div className="space-y-2 sm:col-span-2">
@@ -262,7 +261,7 @@ export function AdminAddProductDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Anuluj</Button>
           <Button
             onClick={save}
-            disabled={saving || !productChoice || !warehouseId || !expiryDate}
+            disabled={saving || !productChoice || !warehouseId}
             className="bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:text-white"
           >
             {saving ? "Dodawanie..." : "Dodaj"}
