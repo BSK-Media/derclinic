@@ -1,4 +1,47 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-html,body{height:100%;}
+
+html,
+body {
+  height: 100%;
+}
+
+/*
+ * Spójne powierzchnie w motywie ciemnym.
+ * Dashboard korzysta z granatowego #0b1220, dlatego zastępujemy nim
+ * neutralne czernie używane przez starsze karty, tabele, pola i modale.
+ * Reguły dotyczą wyłącznie motywu ciemnego — jasny pozostaje bez zmian.
+ */
+.dark {
+  --app-dark-surface: 11 18 32;
+  --app-dark-surface-raised: 14 24 42;
+  --app-dark-border: 148 163 184;
+}
+
+.dark [class~="dark:bg-zinc-950"],
+.dark [class~="dark:bg-slate-950"] {
+  border-color: rgb(var(--app-dark-border) / 0.16) !important;
+  background-color: rgb(var(--app-dark-surface) / 0.72) !important;
+}
+
+.dark [class~="dark:bg-zinc-900"],
+.dark [class~="dark:bg-zinc-900/60"],
+.dark [class~="dark:bg-zinc-900/40"] {
+  background-color: rgb(var(--app-dark-surface-raised) / 0.72) !important;
+}
+
+.dark [class~="dark:border-zinc-800"] {
+  border-color: rgb(var(--app-dark-border) / 0.16) !important;
+}
+
+.dark [class~="border-t"],
+.dark [class~="border-b"] {
+  border-color: rgb(var(--app-dark-border) / 0.14) !important;
+}
+
+.dark [class~="dark:hover:bg-zinc-900/40"]:hover,
+.dark [class~="dark:hover:bg-zinc-900/30"]:hover,
+.dark [class~="dark:hover:bg-zinc-900"]:hover {
+  background-color: rgb(var(--app-dark-surface-raised) / 0.9) !important;
+}
