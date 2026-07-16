@@ -18,6 +18,7 @@ import {
 import { prisma } from "@/lib/db";
 import { getEffectiveAuth } from "@/lib/effective-auth";
 import { formatPLNFromGrosze } from "@/lib/money";
+import { SpecialistDashboardRefresh } from "@/components/specialist-dashboard-refresh";
 
 const TIME_ZONE = "Europe/Warsaw";
 const WOS_WEEKS = 10;
@@ -26,10 +27,11 @@ const SHORT_EXPIRY_MONTHS = 6;
 const UPCOMING_VISITS_LIMIT = 7;
 
 type DateParts = { year: number; month: number; day: number };
+type NotificationKind = "new" | "changed" | "canceled" | "approved" | "rejected" | "message";
 
 type NotificationItem = {
   id: string;
-  kind: "new" | "changed" | "canceled" | "approved" | "rejected" | "message";
+  kind: NotificationKind;
   title: string;
   description: string;
   createdAt: Date;
@@ -84,7 +86,6 @@ function warsawParts(date = new Date()) {
   const parts = Object.fromEntries(
     WARSAW_PARTS_FORMATTER.formatToParts(date).map((part) => [part.type, part.value]),
   );
-
   return {
     year: Number(parts.year),
     month: Number(parts.month),
@@ -98,7 +99,6 @@ function warsawParts(date = new Date()) {
 function warsawMidnightToUtc({ year, month, day }: DateParts) {
   const targetAsUtc = Date.UTC(year, month - 1, day, 0, 0, 0);
   let guess = targetAsUtc;
-
   for (let index = 0; index < 2; index += 1) {
     const current = warsawParts(new Date(guess));
     const currentAsUtc = Date.UTC(
@@ -111,39 +111,30 @@ function warsawMidnightToUtc({ year, month, day }: DateParts) {
     );
     guess += targetAsUtc - currentAsUtc;
   }
-
   return new Date(guess);
 }
 
 function addDays(parts: DateParts, days: number): DateParts {
   const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days));
-  return {
-    year: date.getUTCFullYear(),
-    month: date.getUTCMonth() + 1,
-    day: date.getUTCDate(),
-  };
+  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate() };
 }
 
 function addMonths(parts: DateParts, months: number): DateParts {
   const date = new Date(Date.UTC(parts.year, parts.month - 1 + months, parts.day));
-  return {
-    year: date.getUTCFullYear(),
-    month: date.getUTCMonth() + 1,
-    day: date.getUTCDate(),
-  };
+  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate() };
 }
 
 function serviceName(appointment: { customServiceName: string | null; service: { name: string } }) {
   return appointment.customServiceName || appointment.service.name;
 }
 
-function formatQuantity(value: number) {
-  return value.toLocaleString("pl-PL", { maximumFractionDigits: 2 });
-}
-
 function formatNotificationDate(date: Date, todayStart: Date, tomorrowStart: Date) {
   if (date >= todayStart && date < tomorrowStart) return `Dzisiaj, ${TIME_FORMATTER.format(date)}`;
   return `${DATE_FORMATTER.format(date)}, ${TIME_FORMATTER.format(date)}`;
+}
+
+function formatQuantity(value: number) {
+  return value.toLocaleString("pl-PL", { maximumFractionDigits: 2 });
 }
 
 function initials(name: string) {
@@ -177,15 +168,15 @@ function MetricCard({
   value: ReactNode;
   description?: string;
   icon: ReactNode;
-  tone?: "emerald" | "blue" | "violet";
+  tone?: "emerald" | "blue" | "violet" | "amber";
   children?: ReactNode;
 }) {
-  const iconClass =
-    tone === "blue"
-      ? "bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300"
-      : tone === "violet"
-        ? "bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300"
-        : "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300";
+  const iconClass = {
+    emerald: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300",
+    blue: "bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300",
+    violet: "bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300",
+    amber: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300",
+  }[tone];
 
   return (
     <DashboardCard className="p-5">
@@ -210,7 +201,7 @@ function MetricCard({
   );
 }
 
-function StatusPill({ status, approvalStatus }: { status: string; approvalStatus: string }) {
+function VisitStatusPill({ approvalStatus }: { approvalStatus: string }) {
   if (approvalStatus === "PENDING") {
     return (
       <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
@@ -218,36 +209,20 @@ function StatusPill({ status, approvalStatus }: { status: string; approvalStatus
       </span>
     );
   }
-
-  if (status === "COMPLETED") {
-    return (
-      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
-        Zakończona
-      </span>
-    );
-  }
-
   return (
     <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
-      Zaplanowana
+      Nadchodząca
     </span>
   );
 }
 
-function NotificationIcon({ kind }: { kind: NotificationItem["kind"] }) {
-  if (kind === "canceled" || kind === "rejected") {
-    return <XCircle className="h-4 w-4 text-red-600 dark:text-red-300" />;
-  }
-  if (kind === "approved") {
-    return <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />;
-  }
-  if (kind === "changed") {
-    return <RefreshCcw className="h-4 w-4 text-amber-600 dark:text-amber-300" />;
-  }
-  if (kind === "message") {
-    return <Bell className="h-4 w-4 text-violet-600 dark:text-violet-300" />;
-  }
-  return <CalendarDays className="h-4 w-4 text-sky-600 dark:text-sky-300" />;
+function NotificationIcon({ kind }: { kind: NotificationKind }) {
+  if (kind === "canceled" || kind === "rejected")
+    return <XCircle className="h-4 w-4 text-red-600" />;
+  if (kind === "approved") return <CheckCircle2 className="h-4 w-4 text-emerald-600" />;
+  if (kind === "changed") return <RefreshCcw className="h-4 w-4 text-amber-600" />;
+  if (kind === "message") return <Bell className="h-4 w-4 text-violet-600" />;
+  return <CalendarDays className="h-4 w-4 text-sky-600" />;
 }
 
 export default async function SpecialistHome() {
@@ -274,6 +249,7 @@ export default async function SpecialistHome() {
     todaysAppointments,
     monthlyCompleted,
     monthlyProceduresCount,
+    overdueCount,
     upcomingAppointments,
     recentAppointments,
   ] = await Promise.all([
@@ -314,12 +290,20 @@ export default async function SpecialistHome() {
         startsAt: { gte: monthStart, lt: nextMonthStart },
       },
     }),
+    prisma.appointment.count({
+      where: {
+        specialistId: auth.id,
+        status: "SCHEDULED",
+        approvalStatus: { not: "REJECTED" },
+        startsAt: { lte: now },
+      },
+    }),
     prisma.appointment.findMany({
       where: {
         specialistId: auth.id,
         status: "SCHEDULED",
         approvalStatus: { not: "REJECTED" },
-        startsAt: { gte: now, lt: warningWindowEnd },
+        startsAt: { gt: now, lt: warningWindowEnd },
       },
       orderBy: { startsAt: "asc" },
       take: 50,
@@ -327,9 +311,7 @@ export default async function SpecialistHome() {
         patient: true,
         service: {
           include: {
-            suggestedProducts: {
-              include: { product: { select: { id: true, name: true } } },
-            },
+            suggestedProducts: { include: { product: { select: { id: true, name: true } } } },
           },
         },
       },
@@ -362,7 +344,13 @@ export default async function SpecialistHome() {
     (appointment) =>
       appointment.status === "SCHEDULED" &&
       appointment.approvalStatus !== "REJECTED" &&
-      appointment.startsAt >= now,
+      appointment.startsAt > now,
+  ).length;
+  const awaitingToday = todaysAppointments.filter(
+    (appointment) =>
+      appointment.status === "SCHEDULED" &&
+      appointment.approvalStatus !== "REJECTED" &&
+      appointment.startsAt <= now,
   ).length;
   const canceledToday = todaysAppointments.filter(
     (appointment) => appointment.status === "CANCELED" || appointment.approvalStatus === "REJECTED",
@@ -374,8 +362,7 @@ export default async function SpecialistHome() {
       const purchasePrice = consumption.product.purchasePrice ?? 0;
       return materialSum + Math.round(purchasePrice * Math.abs(Number(consumption.quantity)));
     }, 0);
-    const settlementBase = revenue - materials;
-    return sum + Math.round((settlementBase * specialist.payoutPercent) / 100);
+    return sum + Math.round(((revenue - materials) * specialist.payoutPercent) / 100);
   }, 0);
 
   const nearestAppointment = upcomingAppointments[0] ?? null;
@@ -384,14 +371,13 @@ export default async function SpecialistHome() {
   const recentAppointmentById = new Map(
     recentAppointments.map((appointment) => [appointment.id, appointment]),
   );
-  const recentAppointmentIds = recentAppointments.map((appointment) => appointment.id);
   const auditConditions: Prisma.AuditLogWhereInput[] = [
     { entity: "SpecialistMessage", entityId: auth.id },
   ];
-  if (recentAppointmentIds.length > 0) {
+  if (recentAppointments.length > 0) {
     auditConditions.push({
       entity: { in: ["Appointment", "AppointmentApproval"] },
-      entityId: { in: recentAppointmentIds },
+      entityId: { in: recentAppointments.map((appointment) => appointment.id) },
     });
   }
 
@@ -401,7 +387,7 @@ export default async function SpecialistHome() {
       actorId: { not: auth.id },
       OR: auditConditions,
     },
-    include: { actor: { select: { name: true, role: true } } },
+    include: { actor: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
     take: 30,
   });
@@ -415,20 +401,18 @@ export default async function SpecialistHome() {
         : {};
 
     if (log.entity === "SpecialistMessage") {
-      const message =
-        typeof data.message === "string" ? data.message : "Nowa wiadomość od administratora.";
       notifications.push({
         id: log.id,
         kind: "message",
         title: `Wiadomość od ${log.actor.name}`,
-        description: message,
+        description:
+          typeof data.message === "string" ? data.message : "Nowa wiadomość od administratora.",
         createdAt: log.createdAt,
       });
       continue;
     }
 
-    if (!log.entityId) continue;
-    const appointment = recentAppointmentById.get(log.entityId);
+    const appointment = log.entityId ? recentAppointmentById.get(log.entityId) : null;
     if (!appointment) continue;
     const patientAndService = `${appointment.patient.name} • ${serviceName(appointment)}`;
 
@@ -442,10 +426,7 @@ export default async function SpecialistHome() {
         createdAt: log.createdAt,
         appointmentId: appointment.id,
       });
-      continue;
-    }
-
-    if (log.action === "CREATE") {
+    } else if (log.action === "CREATE") {
       notifications.push({
         id: log.id,
         kind: "new",
@@ -454,10 +435,7 @@ export default async function SpecialistHome() {
         createdAt: log.createdAt,
         appointmentId: appointment.id,
       });
-      continue;
-    }
-
-    if (data.status === "CANCELED") {
+    } else if (data.status === "CANCELED") {
       notifications.push({
         id: log.id,
         kind: "canceled",
@@ -466,10 +444,7 @@ export default async function SpecialistHome() {
         createdAt: log.createdAt,
         appointmentId: appointment.id,
       });
-      continue;
-    }
-
-    if (typeof data.startsAt === "string" || typeof data.endsAt === "string") {
+    } else if (typeof data.startsAt === "string" || typeof data.endsAt === "string") {
       notifications.push({
         id: log.id,
         kind: "changed",
@@ -478,10 +453,7 @@ export default async function SpecialistHome() {
         createdAt: log.createdAt,
         appointmentId: appointment.id,
       });
-      continue;
-    }
-
-    if (typeof data.note === "string" && data.note.trim()) {
+    } else if (typeof data.note === "string" && data.note.trim()) {
       notifications.push({
         id: log.id,
         kind: "message",
@@ -494,16 +466,15 @@ export default async function SpecialistHome() {
   }
 
   if (notifications.length === 0) {
-    const fallback = [...recentAppointments]
+    for (const appointment of [...recentAppointments]
       .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
-      .slice(0, 4);
-    for (const appointment of fallback) {
-      const isCanceled =
+      .slice(0, 4)) {
+      const canceled =
         appointment.status === "CANCELED" || appointment.approvalStatus === "REJECTED";
       notifications.push({
         id: `appointment-${appointment.id}`,
-        kind: isCanceled ? "canceled" : "new",
-        title: isCanceled ? "Wizyta została odwołana" : "Dodano wizytę do grafiku",
+        kind: canceled ? "canceled" : "new",
+        title: canceled ? "Wizyta została odwołana" : "Dodano wizytę do grafiku",
         description: `${DATE_FORMATTER.format(appointment.startsAt)}, ${TIME_FORMATTER.format(appointment.startsAt)} • ${appointment.patient.name}`,
         createdAt: appointment.updatedAt,
         appointmentId: appointment.id,
@@ -570,7 +541,6 @@ export default async function SpecialistHome() {
         (quantityByProduct.get(stock.productId) ?? 0) + Number(stock.quantity),
       );
     }
-
     const usedByProduct = new Map<string, number>();
     for (const consumption of consumptions) {
       usedByProduct.set(
@@ -578,7 +548,6 @@ export default async function SpecialistHome() {
         (usedByProduct.get(consumption.productId) ?? 0) + Math.abs(Number(consumption.quantity)),
       );
     }
-
     const nearestExpiryByProduct = new Map<string, Date>();
     for (const lot of lots) {
       if (lot.expiryDate && !nearestExpiryByProduct.has(lot.productId)) {
@@ -590,21 +559,17 @@ export default async function SpecialistHome() {
       .map((productId) => {
         const needed = neededProductById.get(productId)!;
         const quantity = quantityByProduct.get(productId) ?? 0;
-        const used = usedByProduct.get(productId) ?? 0;
-        const weeklyUsage = used / WOS_WEEKS;
+        const weeklyUsage = (usedByProduct.get(productId) ?? 0) / WOS_WEEKS;
         const coverageDays = weeklyUsage > 0 ? (quantity / weeklyUsage) * 7 : null;
         const nearestExpiry = nearestExpiryByProduct.get(productId) ?? null;
-        const lowStock = quantity <= 0 || (coverageDays !== null && coverageDays < LOW_STOCK_DAYS);
-        const shortExpiry = nearestExpiry !== null && nearestExpiry <= shortExpiryLimit;
-
         return {
           productId,
           ...needed,
           quantity,
           coverageDays,
           nearestExpiry,
-          lowStock,
-          shortExpiry,
+          lowStock: quantity <= 0 || (coverageDays !== null && coverageDays < LOW_STOCK_DAYS),
+          shortExpiry: nearestExpiry !== null && nearestExpiry <= shortExpiryLimit,
         };
       })
       .filter((alert) => alert.lowStock || alert.shortExpiry)
@@ -615,6 +580,8 @@ export default async function SpecialistHome() {
 
   return (
     <div className="space-y-6">
+      <SpecialistDashboardRefresh />
+
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="text-sm font-medium capitalize text-emerald-700 dark:text-emerald-300">
@@ -635,32 +602,52 @@ export default async function SpecialistHome() {
         </Link>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           title="Dzisiejsze wizyty"
           value={todaysAppointments.length}
           description="Wszystkie wizyty zaplanowane na dzisiaj"
           icon={<CalendarDays className="h-5 w-5" />}
         >
-          <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-4 text-center dark:border-white/10">
+          <div className="mt-4 grid grid-cols-4 gap-1 border-t border-slate-100 pt-4 text-center dark:border-white/10">
             <div>
-              <div className="text-lg font-semibold text-emerald-700 dark:text-emerald-300">
-                {completedToday}
-              </div>
-              <div className="text-[11px] text-slate-500">Zakończone</div>
+              <div className="text-lg font-semibold text-emerald-700">{completedToday}</div>
+              <div className="text-[10px] text-slate-500">Zakończone</div>
             </div>
             <div>
-              <div className="text-lg font-semibold text-sky-700 dark:text-sky-300">
-                {upcomingToday}
-              </div>
-              <div className="text-[11px] text-slate-500">Nadchodzące</div>
+              <div className="text-lg font-semibold text-sky-700">{upcomingToday}</div>
+              <div className="text-[10px] text-slate-500">Nadchodzące</div>
             </div>
             <div>
-              <div className="text-lg font-semibold text-red-600 dark:text-red-300">
-                {canceledToday}
-              </div>
-              <div className="text-[11px] text-slate-500">Odwołane</div>
+              <div className="text-lg font-semibold text-amber-600">{awaitingToday}</div>
+              <div className="text-[10px] text-slate-500">Oczekujące</div>
             </div>
+            <div>
+              <div className="text-lg font-semibold text-red-600">{canceledToday}</div>
+              <div className="text-[10px] text-slate-500">Odwołane</div>
+            </div>
+          </div>
+        </MetricCard>
+
+        <MetricCard
+          title="Oczekujące"
+          value={overdueCount}
+          description="Wizyty wymagające ustawienia statusu"
+          icon={<Clock3 className="h-5 w-5" />}
+          tone="amber"
+        >
+          <div className="mt-4 border-t border-slate-100 pt-4 dark:border-white/10">
+            <Link
+              href="/specialist/appointments"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 hover:underline dark:text-amber-300"
+            >
+              {overdueCount > 0 ? "Uzupełnij status wizyt" : "Brak wizyt do uzupełnienia"}
+              {overdueCount > 0 ? (
+                <ArrowRight className="h-3.5 w-3.5" />
+              ) : (
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              )}
+            </Link>
           </div>
         </MetricCard>
 
@@ -671,9 +658,9 @@ export default async function SpecialistHome() {
           icon={<WalletCards className="h-5 w-5" />}
           tone="violet"
         >
-          <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-4 text-xs text-slate-500 dark:border-white/10 dark:text-slate-400">
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            Tylko zakończone wizyty zaakceptowane przez admina lub recepcję
+          <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-4 text-xs text-slate-500 dark:border-white/10">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Tylko zakończone i zaakceptowane
+            wizyty
           </div>
         </MetricCard>
 
@@ -685,7 +672,7 @@ export default async function SpecialistHome() {
           tone="blue"
         >
           <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 dark:border-white/10">
-            <span className="text-xs text-slate-500 dark:text-slate-400">Dzisiaj</span>
+            <span className="text-xs text-slate-500">Dzisiaj</span>
             <span className="text-sm font-semibold text-slate-900 dark:text-white">
               {completedToday}
             </span>
@@ -733,15 +720,12 @@ export default async function SpecialistHome() {
                     {serviceName(nearestAppointment)}
                   </div>
                   <div className="mt-2">
-                    <StatusPill
-                      status={nearestAppointment.status}
-                      approvalStatus={nearestAppointment.approvalStatus}
-                    />
+                    <VisitStatusPill approvalStatus={nearestAppointment.approvalStatus} />
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="mt-5 rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500 dark:bg-white/5 dark:text-slate-400">
+              <div className="mt-5 rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500 dark:bg-white/5">
                 Brak kolejnych zaplanowanych wizyt w najbliższych 30 dniach.
               </div>
             )}
@@ -749,7 +733,7 @@ export default async function SpecialistHome() {
           {nearestAppointment ? (
             <Link
               href={`/specialist/appointments/${nearestAppointment.id}`}
-              className="flex min-h-20 items-center justify-center gap-2 border-t border-slate-100 bg-emerald-50 px-7 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-white/10 dark:bg-emerald-500/10 dark:text-emerald-200 dark:hover:bg-emerald-500/15 lg:border-l lg:border-t-0"
+              className="flex min-h-20 items-center justify-center gap-2 border-t border-slate-100 bg-emerald-50 px-7 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-white/10 dark:bg-emerald-500/10 dark:text-emerald-200 lg:border-l lg:border-t-0"
             >
               Otwórz wizytę <ArrowRight className="h-4 w-4" />
             </Link>
@@ -759,7 +743,7 @@ export default async function SpecialistHome() {
 
       <div className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
         <DashboardCard className="overflow-hidden">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-white/10">
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10">
             <div>
               <h2 className="font-semibold text-slate-950 dark:text-white">Najbliższy grafik</h2>
               <p className="mt-0.5 text-xs text-slate-500">
@@ -768,7 +752,7 @@ export default async function SpecialistHome() {
             </div>
             <Link
               href="/specialist/calendar"
-              className="text-xs font-semibold text-emerald-700 hover:underline dark:text-emerald-300"
+              className="text-xs font-semibold text-emerald-700 hover:underline"
             >
               Pełny kalendarz
             </Link>
@@ -801,10 +785,7 @@ export default async function SpecialistHome() {
                     {serviceName(appointment)}
                   </div>
                 </div>
-                <StatusPill
-                  status={appointment.status}
-                  approvalStatus={appointment.approvalStatus}
-                />
+                <VisitStatusPill approvalStatus={appointment.approvalStatus} />
               </Link>
             ))}
           </div>
@@ -812,7 +793,7 @@ export default async function SpecialistHome() {
 
         <DashboardCard className="overflow-hidden">
           <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4 dark:border-white/10">
-            <div className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300">
+            <div className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
               <Bell className="h-4 w-4" />
             </div>
             <div>
@@ -822,11 +803,8 @@ export default async function SpecialistHome() {
           </div>
           <div className="divide-y divide-slate-100 dark:divide-white/10">
             {notifications.length === 0 ? (
-              <div className="px-5 py-10 text-center">
-                <PackageCheck className="mx-auto h-8 w-8 text-emerald-500" />
-                <div className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-200">
-                  Brak nowych powiadomień
-                </div>
+              <div className="px-5 py-10 text-center text-sm text-slate-500">
+                Brak nowych powiadomień.
               </div>
             ) : null}
             {notifications.map((notification) => {
@@ -848,7 +826,6 @@ export default async function SpecialistHome() {
                   </div>
                 </div>
               );
-
               return notification.appointmentId ? (
                 <Link
                   key={notification.id}
@@ -868,11 +845,7 @@ export default async function SpecialistHome() {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-white/10">
           <div className="flex items-center gap-3">
             <div
-              className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl ${
-                productAlerts.length > 0
-                  ? "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"
-                  : "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
-              }`}
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl ${productAlerts.length > 0 ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}
             >
               {productAlerts.length > 0 ? (
                 <AlertTriangle className="h-5 w-5" />
@@ -890,7 +863,7 @@ export default async function SpecialistHome() {
             </div>
           </div>
           {productAlerts.length > 0 ? (
-            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
               {productAlerts.length} {productAlerts.length === 1 ? "ostrzeżenie" : "ostrzeżenia"}
             </span>
           ) : null}
@@ -903,8 +876,8 @@ export default async function SpecialistHome() {
               Wszystkie potrzebne preparaty są dostępne
             </div>
             <div className="mt-1 max-w-xl text-sm text-slate-500">
-              Brak niskich stanów i krótkich terminów dla preparatów przypisanych do Twoich
-              nadchodzących zabiegów.
+              Brak niskich stanów i krótkich terminów dla preparatów przypisanych do nadchodzących
+              zabiegów.
             </div>
           </div>
         ) : (
@@ -927,22 +900,22 @@ export default async function SpecialistHome() {
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {alert.lowStock ? (
-                    <span className="rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-300">
+                    <span className="rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-semibold text-red-700">
                       {alert.quantity <= 0
                         ? "Brak w magazynie"
                         : `Niski stan: ${formatQuantity(alert.quantity)} • ${Math.max(0, Math.floor(alert.coverageDays ?? 0))} dni`}
                     </span>
                   ) : null}
                   {alert.shortExpiry && alert.nearestExpiry ? (
-                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
                       Termin:{" "}
                       {alert.nearestExpiry.toLocaleDateString("pl-PL", { timeZone: TIME_ZONE })}
                     </span>
                   ) : null}
                 </div>
                 <div className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-500">
-                  <Clock3 className="h-3.5 w-3.5" />
-                  Najbliższy zabieg: {DATE_FORMATTER.format(alert.appointmentDate)},{" "}
+                  <Clock3 className="h-3.5 w-3.5" /> Najbliższy zabieg:{" "}
+                  {DATE_FORMATTER.format(alert.appointmentDate)},{" "}
                   {TIME_FORMATTER.format(alert.appointmentDate)}
                 </div>
               </div>
