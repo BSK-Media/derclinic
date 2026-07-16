@@ -55,7 +55,7 @@ export async function POST(req: Request) {
     return bad("Nowy produkt można wyłącznie dodać do magazynu");
   }
 
-  if (delta > 0 && (!parsedExpiry || Number.isNaN(parsedExpiry.getTime()))) {
+  if (parsedExpiry && Number.isNaN(parsedExpiry.getTime())) {
     return bad("Podaj prawidłowy termin ważności dodawanej partii");
   }
 
@@ -106,7 +106,7 @@ export async function POST(req: Request) {
         });
       }
 
-      if (delta > 0 && parsedExpiry) {
+      if (delta > 0) {
         const normalizedBatch = batchNumber?.trim() || `DOSTAWA-${Date.now()}`;
         const existingLot = await tx.productLot.findFirst({
           where: { productId: resolvedProductId, warehouseId, batchNumber: normalizedBatch },
@@ -117,7 +117,7 @@ export async function POST(req: Request) {
             where: { id: existingLot.id },
             data: {
               quantity: { increment: new Prisma.Decimal(delta) },
-              expiryDate: parsedExpiry,
+              expiryDate: parsedExpiry ?? undefined,
               purchasePrice: product.purchasePrice,
               salePrice: product.salePrice,
             },
