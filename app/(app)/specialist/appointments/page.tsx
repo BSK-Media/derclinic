@@ -3,9 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SpecialistBookAppointmentDialog } from "@/components/specialist-book-appointment-dialog";
 import { AppointmentCalendar, startOfGrid } from "@/components/appointment-calendar";
 import { useRouter } from "next/navigation";
 import { appointmentStatusLabel, effectiveAppointmentStatus } from "@/lib/appointment-status";
@@ -66,7 +64,7 @@ export default function SpecialistAppointmentsPage() {
   const [from, setFrom] = React.useState(fromDefault);
   const [to, setTo] = React.useState(toDefault);
   const [search, setSearch] = React.useState("");
-  const { data, mutate, isLoading } = useSWR(
+  const { data, isLoading } = useSWR(
     view === "calendar"
       ? `/api/specialist/appointments?from=${calendarRange.from.toISOString()}&to=${calendarRange.to.toISOString()}`
       : `/api/specialist/appointments?from=${from}&to=${to}`,
@@ -74,8 +72,6 @@ export default function SpecialistAppointmentsPage() {
   );
 
   const appointments = data?.appointments ?? [];
-  const services = data?.services ?? [];
-  const products = data?.products ?? [];
 
   const filtered = React.useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -86,18 +82,10 @@ export default function SpecialistAppointmentsPage() {
     });
   }, [appointments, search]);
 
-  const [dialogOpen, setDialogOpen] = React.useState(false);
-  const [dialogDate, setDialogDate] = React.useState<Date>(new Date());
-
   React.useEffect(() => {
     const timer = window.setInterval(() => setClock(new Date()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
-
-  function openAdd(date?: Date) {
-    setDialogDate(date ?? new Date());
-    setDialogOpen(true);
-  }
 
   return (
     <div className="space-y-6">
@@ -130,18 +118,8 @@ export default function SpecialistAppointmentsPage() {
               Kalendarz
             </button>
           </div>
-          <Button onClick={() => openAdd()}>+ Nowa wizyta</Button>
         </div>
       </div>
-
-      <SpecialistBookAppointmentDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        services={services}
-        products={products}
-        defaultDate={dialogDate}
-        onCreated={() => mutate()}
-      />
 
       {view === "calendar" ? (
         <AppointmentCalendar
@@ -149,7 +127,6 @@ export default function SpecialistAppointmentsPage() {
           onAnchorChange={setAnchor}
           appointments={appointments}
           isLoading={isLoading}
-          onAdd={openAdd}
           showAddButton={false}
           onOpenAppointment={(id: string) => router.push(`/specialist/appointments/${id}`)}
         />
