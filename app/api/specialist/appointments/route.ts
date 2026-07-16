@@ -9,6 +9,7 @@ const CreateAppointmentSchema = z
     firstName: z.string().trim().min(1).max(100),
     lastName: z.string().trim().min(1).max(100),
     phone: z.string().trim().min(3).max(40),
+    email: z.string().trim().email().max(200).optional(),
     serviceId: z.string().trim().min(1).nullable(),
     customServiceName: z.string().trim().max(200).nullable().optional(),
     startsAt: z.string().min(1),
@@ -165,6 +166,7 @@ export async function POST(req: Request) {
 
   const patientName = `${parsed.data.firstName} ${parsed.data.lastName}`.replace(/\s+/g, " ").trim();
   const phone = normalizePhone(parsed.data.phone);
+  const email = parsed.data.email?.trim() || null;
   const durationMin = requestedService?.durationMin ?? 30;
   const endsAt = new Date(startsAt.getTime() + durationMin * 60 * 1000);
 
@@ -184,14 +186,20 @@ export async function POST(req: Request) {
         })
       : requestedService!;
 
-    let patient = await tx.patient.findFirst({
+    const existingPatient = await tx.patient.findFirst({
       where: { phone },
       orderBy: { updatedAt: "desc" },
-      select: { id: true },
+      select: { id: true, email: true },
     });
-    if (!patient) {
+    let patient: { id: string };
+    if (existingPatient) {
+      patient = existingPatient;
+      if (email && !existingPatient.email) {
+        await tx.patient.update({ where: { id: existingPatient.id }, data: { email } });
+      }
+    } else {
       patient = await tx.patient.create({
-        data: { name: patientName, phone },
+        data: { name: patientName, phone, email },
         select: { id: true },
       });
     }
