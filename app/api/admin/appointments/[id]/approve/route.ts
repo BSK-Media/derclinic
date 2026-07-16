@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
 const BodySchema = z.object({
@@ -14,12 +14,13 @@ const BodySchema = z.object({
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => ({}));
   const parsed = BodySchema.safeParse(json ?? {});
-  if (!parsed.success) return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
+  if (!parsed.success)
+    return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
   const target = parsed.data.action === "REJECT" ? "REJECTED" : "APPROVED";
 
@@ -27,10 +28,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     where: { id: params.id },
     select: { id: true, approvalStatus: true },
   });
-  if (!appt) return NextResponse.json({ ok: false, message: "Nie znaleziono wizyty" }, { status: 404 });
+  if (!appt)
+    return NextResponse.json({ ok: false, message: "Nie znaleziono wizyty" }, { status: 404 });
   if (appt.approvalStatus === target) {
     return NextResponse.json(
-      { ok: false, message: target === "APPROVED" ? "Ta wizyta jest już zaakceptowana." : "Ta wizyta jest już odrzucona." },
+      {
+        ok: false,
+        message:
+          target === "APPROVED"
+            ? "Ta wizyta jest już zaakceptowana."
+            : "Ta wizyta jest już odrzucona.",
+      },
       { status: 400 },
     );
   }
