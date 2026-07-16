@@ -12,6 +12,22 @@ import { appointmentStatusLabel } from "@/lib/appointment-status";
 
 const fetcher = (url: string) => fetch(url).then((response) => response.json());
 
+const UNIT_LABELS: Record<string, string> = {
+  ML: "ml",
+  MG: "mg",
+  G: "g",
+  UNIT: "szt.",
+  AMPULE: "amp.",
+  BOTOX_UNIT: "j. botoksu",
+};
+
+function formatPreparations(consumptions: any[] | undefined) {
+  if (!consumptions || consumptions.length === 0) return null;
+  return consumptions
+    .map((c) => `${c.product?.name ?? "?"} × ${Number(c.quantity)} ${UNIT_LABELS[c.unit] ?? ""}`.trim())
+    .join(", ");
+}
+
 function toDateInput(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -152,14 +168,15 @@ export default function SpecialistAppointmentsPage() {
                 <th className="p-3">Czas</th>
                 <th className="p-3">Pacjent</th>
                 <th className="p-3">Usługa</th>
-                <th className="p-3">Typ</th>
+                <th className="p-3">Notatka</th>
+                <th className="p-3">Zużyte preparaty</th>
                 <th className="p-3">Status</th>
                 <th className="p-3"></th>
               </tr>
             </thead>
             <tbody>
               {!isLoading && filtered.length === 0 ? (
-                <tr><td className="p-6 text-center text-zinc-500" colSpan={7}>Brak wizyt.</td></tr>
+                <tr><td className="p-6 text-center text-zinc-500" colSpan={8}>Brak wizyt.</td></tr>
               ) : null}
               {filtered.map((appointment: any) => (
                 <tr key={appointment.id} className="border-t hover:bg-zinc-50 dark:hover:bg-zinc-900/40">
@@ -169,7 +186,12 @@ export default function SpecialistAppointmentsPage() {
                   </td>
                   <td className="p-3 font-medium">{appointment.patient.name}</td>
                   <td className="p-3">{appointment.customServiceName || appointment.service.name}</td>
-                  <td className="p-3 text-zinc-500">Pojedyncza rezerwacja</td>
+                  <td className="p-3 max-w-56 text-zinc-500">
+                    <span className="line-clamp-2">{appointment.note?.trim() || "—"}</span>
+                  </td>
+                  <td className="p-3 max-w-64 text-zinc-500">
+                    <span className="line-clamp-2">{formatPreparations(appointment.consumptions) ?? "—"}</span>
+                  </td>
                   <td className="p-3">
                     <div>{appointmentStatusLabel(appointment.status)}</div>
                     {(appointment as any).approvalStatus === "PENDING" ? (
