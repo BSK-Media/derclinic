@@ -60,7 +60,7 @@ export async function GET() {
     const stockedProductIds = new Set(warehouseStocks.map((stock) => stock.productId));
     const shortExpiryProductIds = new Set(
       warehouseLots
-        .filter((lot) => stockedProductIds.has(lot.productId) && lot.expiryDate.getTime() <= sixMonthsFromNow.getTime())
+        .filter((lot) => stockedProductIds.has(lot.productId) && lot.expiryDate != null && lot.expiryDate.getTime() <= sixMonthsFromNow.getTime())
         .map((lot) => lot.productId),
     );
 
