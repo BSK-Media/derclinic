@@ -100,7 +100,10 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["SPECIALIST", "RECEPTION"]);
+  // Tworzenie wizyt odbywa się wyłącznie przez endpoint panelu admina/recepcji.
+  // Ten endpoint pozostaje zablokowany dla każdej roli, aby pracownik nie mógł
+  // ominąć ukrytego przycisku ręcznym wywołaniem API.
+  const deny = requireStrictRole(user!.role, []);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);
