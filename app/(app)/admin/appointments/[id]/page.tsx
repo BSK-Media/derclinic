@@ -36,6 +36,8 @@ export default function AdminAppointmentDetail() {
   const [productId, setProductId] = useState<string>("");
   const [warehouseId, setWarehouseId] = useState<string>("");
   const [qty, setQty] = useState<string>("1");
+  const [consumptionEdits, setConsumptionEdits] = useState<Record<string, string>>({});
+  const [consumptionSavingId, setConsumptionSavingId] = useState<string | null>(null);
 
   const [payMethod, setPayMethod] = useState<string>("CARD");
   const [payAmount, setPayAmount] = useState<string>("");
@@ -49,6 +51,23 @@ export default function AdminAppointmentDetail() {
       );
     }
   }, [appt?.approvalStatus, appt?.startsAt, appt?.status]);
+
+  useEffect(() => {
+    if (!appt?.id) return;
+    const standardPrice =
+      appt.priceEstimate ?? appt.service?.priceSuggested ?? appt.service?.priceFrom ?? null;
+    const finalPrice = appt.priceFinal ?? standardPrice;
+    setPriceEstimate(standardPrice === null ? "" : String(standardPrice / 100));
+    setPriceFinal(finalPrice === null ? "" : String(finalPrice / 100));
+    setNote(appt.note ?? "");
+  }, [
+    appt?.id,
+    appt?.note,
+    appt?.priceEstimate,
+    appt?.priceFinal,
+    appt?.service?.priceFrom,
+    appt?.service?.priceSuggested,
+  ]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -103,6 +122,47 @@ export default function AdminAppointmentDetail() {
     mutate();
   }
 
+  async function updateConsumption(consumptionId: string) {
+    const quantity = Number((consumptionEdits[consumptionId] ?? "").replace(",", "."));
+    if (!Number.isFinite(quantity) || quantity <= 0) return toast.error("Niepoprawna ilość");
+    setConsumptionSavingId(consumptionId);
+    try {
+      const res = await fetch(`/api/admin/appointments/${id}/consume`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ consumptionId, quantity }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
+      toast.success("Zapisano ilość i skorygowano stan magazynu");
+      setConsumptionEdits((current) => {
+        const next = { ...current };
+        delete next[consumptionId];
+        return next;
+      });
+      mutate();
+    } finally {
+      setConsumptionSavingId(null);
+    }
+  }
+
+  async function deleteConsumption(consumptionId: string) {
+    if (!window.confirm("Usunąć to zużycie? Ilość wróci na stan magazynu.")) return;
+    setConsumptionSavingId(consumptionId);
+    try {
+      const res = await fetch(
+        `/api/admin/appointments/${id}/consume?consumptionId=${encodeURIComponent(consumptionId)}`,
+        { method: "DELETE" },
+      );
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
+      toast.success("Usunięto zużycie i zwrócono ilość na magazyn");
+      mutate();
+    } finally {
+      setConsumptionSavingId(null);
+    }
+  }
+
   async function reviewAdjustment(consumptionId: string, action: "approve" | "reject") {
     const res = await fetch(`/api/admin/consumption-adjustments/${consumptionId}`, {
       method: "PATCH",
@@ -132,12 +192,19 @@ export default function AdminAppointmentDetail() {
 
   const products = data?.products ?? [];
   const warehouses = data?.warehouses ?? [];
+  const canEditStandardPrice = data?.viewerRole === "ADMIN";
 
   const paymentsSum = (appt.payments ?? []).reduce((a: number, p: any) => a + (p.amount ?? 0), 0);
   const appointmentIsAwaiting =
     appt.approvalStatus !== "REJECTED" &&
     effectiveAppointmentStatus(appt.status, appt.startsAt, clock) === "AWAITING";
   const startHasPassed = new Date(appt.startsAt).getTime() <= clock.getTime();
+  const enteredStandardPrice = priceEstimate ? parsePLNToGrosze(priceEstimate) : null;
+  const enteredFinalPrice = priceFinal ? parsePLNToGrosze(priceFinal) : null;
+  const isStandardPrice =
+    enteredStandardPrice !== null &&
+    enteredFinalPrice !== null &&
+    enteredStandardPrice === enteredFinalPrice;
 
   return (
     <div className="space-y-6">
@@ -188,20 +255,35 @@ export default function AdminAppointmentDetail() {
           <div className="space-y-2">
             <Label>Cena orientacyjna (PLN)</Label>
             <Input
-              defaultValue={appt.priceEstimate ? (appt.priceEstimate / 100).toString() : ""}
+              value={priceEstimate}
               onChange={(e) => setPriceEstimate(e.target.value)}
+              disabled={!canEditStandardPrice}
             />
+            {!canEditStandardPrice ? (
+              <p className="text-xs text-zinc-500">Cena standardowa ustawiona w karcie zabiegu.</p>
+            ) : null}
           </div>
           <div className="space-y-2">
-            <Label>Cena końcowa (PLN)</Label>
-            <Input
-              defaultValue={appt.priceFinal ? (appt.priceFinal / 100).toString() : ""}
-              onChange={(e) => setPriceFinal(e.target.value)}
-            />
+            <div className="flex items-center gap-2">
+              <Label>Cena końcowa (PLN)</Label>
+              {enteredFinalPrice !== null && enteredStandardPrice !== null ? (
+                <span
+                  className={
+                    "rounded-full px-2 py-0.5 text-xs font-medium " +
+                    (isStandardPrice
+                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300"
+                      : "bg-amber-100 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300")
+                  }
+                >
+                  {isStandardPrice ? "Standardowa cena" : "Niestandardowa cena"}
+                </span>
+              ) : null}
+            </div>
+            <Input value={priceFinal} onChange={(e) => setPriceFinal(e.target.value)} />
           </div>
           <div className="space-y-2 md:col-span-4">
             <Label>Notatka</Label>
-            <Input defaultValue={appt.note ?? ""} onChange={(e) => setNote(e.target.value)} />
+            <Input value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
         </div>
         <Button onClick={save} disabled={status === "AWAITING"}>
@@ -282,6 +364,8 @@ export default function AdminAppointmentDetail() {
                 <th className="p-3">Produkt</th>
                 <th className="p-3">Magazyn</th>
                 <th className="p-3">Ilość</th>
+                <th className="p-3">Cena sprzedaży</th>
+                <th className="p-3">Wartość</th>
                 <th className="p-3">Autor</th>
                 <th className="p-3">Data</th>
                 <th className="p-3">Status</th>
@@ -291,64 +375,100 @@ export default function AdminAppointmentDetail() {
             <tbody>
               {(appt.consumptions ?? []).length === 0 && (
                 <tr>
-                  <td className="p-3 text-zinc-500" colSpan={7}>
+                  <td className="p-3 text-zinc-500" colSpan={9}>
                     Brak zużyć.
                   </td>
                 </tr>
               )}
-              {(appt.consumptions ?? []).map((c: any) => (
-                <tr key={c.id} className="border-t">
-                  <td className="p-3">{c.product.name}</td>
-                  <td className="p-3">{c.warehouse?.name ?? "—"}</td>
-                  <td className="p-3 tabular-nums">
-                    {c.quantity}
-                    {c.suggestedQuantity ? (
-                      <span className="ml-1 text-xs text-zinc-500">
-                        (sugerowano: {c.suggestedQuantity})
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="p-3">{c.createdBy?.name ?? "—"}</td>
-                  <td className="p-3">{new Date(c.createdAt).toLocaleString("pl-PL")}</td>
-                  <td className="p-3">
-                    {c.status === "PENDING" && (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
-                        Do akceptacji
-                      </span>
-                    )}
-                    {c.status === "APPLIED" && (
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
-                        Zaakceptowano
-                      </span>
-                    )}
-                    {c.status === "REJECTED" && (
-                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-500/10 dark:text-red-300">
-                        Odrzucono
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-3 text-right">
-                    {c.status === "PENDING" && (
+              {(appt.consumptions ?? []).map((c: any) => {
+                const currentQuantity = String(c.quantity);
+                const editedQuantity = consumptionEdits[c.id] ?? currentQuantity;
+                const rowValue =
+                  c.product.salePrice == null ? null : Number(c.quantity) * c.product.salePrice;
+                const busy = consumptionSavingId === c.id;
+                return (
+                  <tr key={c.id} className="border-t">
+                    <td className="p-3">{c.product.name}</td>
+                    <td className="p-3">{c.warehouse?.name ?? "—"}</td>
+                    <td className="p-3">
+                      <Input
+                        className="w-24"
+                        value={editedQuantity}
+                        onChange={(event) =>
+                          setConsumptionEdits((current) => ({
+                            ...current,
+                            [c.id]: event.target.value,
+                          }))
+                        }
+                      />
+                      {c.suggestedQuantity ? (
+                        <span className="mt-1 block text-xs text-zinc-500">
+                          (sugerowano: {c.suggestedQuantity})
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="p-3">{formatPLNFromGrosze(c.product.salePrice)}</td>
+                    <td className="p-3 font-medium">{formatPLNFromGrosze(rowValue)}</td>
+                    <td className="p-3">{c.createdBy?.name ?? "—"}</td>
+                    <td className="p-3">{new Date(c.createdAt).toLocaleString("pl-PL")}</td>
+                    <td className="p-3">
+                      {c.status === "PENDING" && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                          Do akceptacji
+                        </span>
+                      )}
+                      {c.status === "APPLIED" && (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
+                          Zaakceptowano
+                        </span>
+                      )}
+                      {c.status === "REJECTED" && (
+                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-500/10 dark:text-red-300">
+                          Odrzucono
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-3 text-right">
                       <div className="flex justify-end gap-2">
+                        {c.status === "PENDING" ? (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => reviewAdjustment(c.id, "approve")}
+                            >
+                              Zaakceptuj
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => reviewAdjustment(c.id, "reject")}
+                            >
+                              Odrzuć
+                            </Button>
+                          </>
+                        ) : null}
+                        <Button
+                          size="sm"
+                          onClick={() => updateConsumption(c.id)}
+                          disabled={busy || editedQuantity === currentQuantity}
+                        >
+                          {busy ? "..." : "Zapisz"}
+                        </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => reviewAdjustment(c.id, "approve")}
+                          className="text-red-600"
+                          onClick={() => deleteConsumption(c.id)}
+                          disabled={busy}
                         >
-                          Zaakceptuj
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => reviewAdjustment(c.id, "reject")}
-                        >
-                          Odrzuć
+                          Usuń
                         </Button>
                       </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
