@@ -61,7 +61,7 @@ export function AppointmentCalendar({
   onAnchorChange: (d: Date) => void;
   appointments: CalendarAppointment[];
   isLoading?: boolean;
-  onAdd: (date?: Date) => void;
+  onAdd?: (date?: Date) => void;
   onOpenAppointment: (id: string) => void;
   showSpecialist?: boolean;
   showAddButton?: boolean;
@@ -132,7 +132,7 @@ export function AppointmentCalendar({
           <div className="text-lg font-semibold capitalize">{monthLabel}</div>
           {isLoading ? <div className="text-xs text-zinc-500">Ładowanie…</div> : null}
         </div>
-        {showAddButton ? <Button onClick={() => onAdd()}>+ Dodaj</Button> : null}
+        {showAddButton && onAdd ? <Button onClick={() => onAdd()}>+ Dodaj</Button> : null}
       </div>
 
       <div className="grid grid-cols-7 border-b text-xs font-medium text-zinc-500">
@@ -153,8 +153,11 @@ export function AppointmentCalendar({
               return (
                 <div
                   key={dateKey(d)}
-                  className="min-h-[110px] cursor-pointer border-r p-2 align-top last:border-r-0 hover:bg-zinc-50 dark:hover:bg-zinc-900/40"
-                  onClick={() => onAdd(d)}
+                  className={
+                    "min-h-[110px] border-r p-2 align-top last:border-r-0 " +
+                    (onAdd ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/40" : "")
+                  }
+                  onClick={onAdd ? () => onAdd(d) : undefined}
                 >
                   <div
                     className={
