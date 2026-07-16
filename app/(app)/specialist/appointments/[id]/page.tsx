@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
+import { formatPLNFromGrosze } from "@/lib/money";
 import { appointmentStatusLabel, effectiveAppointmentStatus } from "@/lib/appointment-status";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -46,24 +46,9 @@ export default function SpecialistAppointmentDetail() {
 
   const [clock, setClock] = useState(() => new Date());
   const [status, setStatus] = useState<string>("SCHEDULED");
-  const [priceFinal, setPriceFinal] = useState<string>("");
   const [note, setNote] = useState<string>("");
   const [startsAt, setStartsAt] = useState<string>("");
   const [endsAt, setEndsAt] = useState<string>("");
-
-  const [productId, setProductId] = useState<string>("");
-  const [warehouseId, setWarehouseId] = useState<string>("");
-  const [qty, setQty] = useState<string>("1");
-  const [consumptionEdits, setConsumptionEdits] = useState<Record<string, string>>({});
-  const [consumptionSavingId, setConsumptionSavingId] = useState<string | null>(null);
-
-  // Jedyny przypisany magazyn wybiera się automatycznie (hook musi być przed wczesnymi returnami)
-  const warehousesForEffect = data?.warehouses ?? [];
-  useEffect(() => {
-    if (warehousesForEffect.length === 1 && warehouseId !== warehousesForEffect[0].id) {
-      setWarehouseId(warehousesForEffect[0].id);
-    }
-  }, [warehousesForEffect, warehouseId]);
 
   // Po wczytaniu wizyty ustaw w formularzu jej aktualny status
   const loadedStatus = data?.appointment?.status as string | undefined;
@@ -78,6 +63,14 @@ export default function SpecialistAppointmentDetail() {
       );
     }
   }, [loadedApprovalStatus, loadedStartsAt, loadedStatus]);
+
+  const loadedAppointmentId = data?.appointment?.id as string | undefined;
+  useEffect(() => {
+    if (!loadedAppointmentId) return;
+    setStartsAt(toLocalInput(data.appointment.startsAt));
+    setEndsAt(toLocalInput(data.appointment.endsAt));
+    setNote(data.appointment.note ?? "");
+  }, [data, loadedAppointmentId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -106,10 +99,9 @@ export default function SpecialistAppointmentDetail() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         status,
-        priceFinal: priceFinal ? parsePLNToGrosze(priceFinal) : null,
         note,
-        ...(startsAt ? { startsAt: new Date(startsAt).toISOString() } : {}),
-        ...(endsAt ? { endsAt: new Date(endsAt).toISOString() } : {}),
+        startsAt: new Date(startsAt).toISOString(),
+        endsAt: new Date(endsAt).toISOString(),
       }),
     });
     const out = await res.json().catch(() => ({}));
@@ -118,66 +110,16 @@ export default function SpecialistAppointmentDetail() {
     mutate();
   }
 
-  async function addConsumption() {
-    const q = Number(qty.replace(",", "."));
-    if (!Number.isFinite(q) || q <= 0) return toast.error("Niepoprawna ilość");
-    const res = await fetch(`/api/specialist/appointments/${id}/consume`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ productId, warehouseId, quantity: q, kind: "APPOINTMENT" }),
-    });
-    const out = await res.json().catch(() => ({}));
-    if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
-    toast.success("Dodano zużycie");
-    setQty("1");
-    mutate();
-  }
-
-  async function updateConsumption(consumptionId: string) {
-    const raw = (consumptionEdits[consumptionId] ?? "").replace(",", ".");
-    const q = Number(raw);
-    if (!Number.isFinite(q) || q <= 0) return toast.error("Niepoprawna ilość");
-    setConsumptionSavingId(consumptionId);
-    try {
-      const res = await fetch(`/api/specialist/appointments/${id}/consume`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ consumptionId, quantity: q }),
-      });
-      const out = await res.json().catch(() => ({}));
-      if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
-      toast.success("Zapisano ilość — stan magazynu skorygowany");
-      setConsumptionEdits((m) => {
-        const n = { ...m };
-        delete n[consumptionId];
-        return n;
-      });
-      mutate();
-    } finally {
-      setConsumptionSavingId(null);
-    }
-  }
-
-  async function deleteConsumption(consumptionId: string) {
-    if (!window.confirm("Usunąć to zużycie? Ilość wróci na stan magazynu.")) return;
-    setConsumptionSavingId(consumptionId);
-    try {
-      const res = await fetch(
-        `/api/specialist/appointments/${id}/consume?consumptionId=${encodeURIComponent(consumptionId)}`,
-        { method: "DELETE" },
-      );
-      const out = await res.json().catch(() => ({}));
-      if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
-      toast.success("Usunięto zużycie — ilość wróciła na stan");
-      mutate();
-    } finally {
-      setConsumptionSavingId(null);
-    }
-  }
-
-  const products = data?.products ?? [];
-  const warehouses = data?.warehouses ?? [];
   const paymentsSum = (appt.payments ?? []).reduce((a: number, p: any) => a + (p.amount ?? 0), 0);
+  const standardPrice =
+    appt.priceEstimate ?? appt.service?.priceSuggested ?? appt.service?.priceFrom ?? null;
+  const displayedFinalPrice = appt.priceFinal ?? standardPrice;
+  const isStandardPrice =
+    displayedFinalPrice !== null && standardPrice !== null && displayedFinalPrice === standardPrice;
+  const materialsValue = (appt.consumptions ?? []).reduce((sum: number, consumption: any) => {
+    if (consumption.status === "REJECTED" || consumption.product?.salePrice == null) return sum;
+    return sum + Number(consumption.quantity) * consumption.product.salePrice;
+  }, 0);
   const appointmentIsAwaiting =
     appt.approvalStatus !== "REJECTED" &&
     effectiveAppointmentStatus(appt.status, appt.startsAt, clock) === "AWAITING";
@@ -222,7 +164,7 @@ export default function SpecialistAppointmentDetail() {
             <Label>Rozpoczęcie zabiegu</Label>
             <Input
               type="datetime-local"
-              defaultValue={toLocalInput(appt.startsAt)}
+              value={startsAt}
               onChange={(e) => setStartsAt(e.target.value)}
             />
           </div>
@@ -230,7 +172,7 @@ export default function SpecialistAppointmentDetail() {
             <Label>Zakończenie zabiegu</Label>
             <Input
               type="datetime-local"
-              defaultValue={toLocalInput(appt.endsAt)}
+              value={endsAt}
               onChange={(e) => setEndsAt(e.target.value)}
             />
           </div>
@@ -262,15 +204,29 @@ export default function SpecialistAppointmentDetail() {
             ) : null}
           </div>
           <div className="space-y-2">
-            <Label>Cena końcowa (PLN)</Label>
-            <Input
-              defaultValue={appt.priceFinal ? (appt.priceFinal / 100).toString() : ""}
-              onChange={(e) => setPriceFinal(e.target.value)}
-            />
+            <Label>Cena końcowa</Label>
+            <div className="flex h-10 items-center gap-2 rounded-xl border bg-zinc-50 px-3 dark:bg-zinc-900">
+              <span className="font-medium">{formatPLNFromGrosze(displayedFinalPrice)}</span>
+              {displayedFinalPrice !== null ? (
+                <span
+                  className={
+                    "rounded-full px-2 py-0.5 text-xs font-medium " +
+                    (isStandardPrice
+                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300"
+                      : "bg-amber-100 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300")
+                  }
+                >
+                  {isStandardPrice ? "Standardowa cena" : "Niestandardowa cena"}
+                </span>
+              ) : null}
+            </div>
+            <p className="text-xs text-zinc-500">
+              Cena ustawiana przez recepcję lub administratora.
+            </p>
           </div>
           <div className="space-y-2 md:col-span-3">
             <Label>Notatka (opis zabiegu)</Label>
-            <Input defaultValue={appt.note ?? ""} onChange={(e) => setNote(e.target.value)} />
+            <Input value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
         </div>
         <Button onClick={save} disabled={status === "AWAITING"}>
@@ -282,7 +238,18 @@ export default function SpecialistAppointmentDetail() {
       </Card>
 
       <Card className="space-y-4 p-4">
-        <div className="font-medium">Zużycie preparatów</div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="font-medium">Zużycie preparatów</div>
+            <div className="text-xs text-zinc-500">
+              Podgląd danych wpisanych przez recepcję lub administratora.
+            </div>
+          </div>
+          <div className="rounded-xl bg-zinc-100 px-3 py-2 text-sm dark:bg-zinc-900">
+            Wartość materiałów:{" "}
+            <span className="font-semibold">{formatPLNFromGrosze(materialsValue)}</span>
+          </div>
+        </div>
         <div className="text-sm text-zinc-600 dark:text-zinc-300">
           Sugerowane preparaty:
           <div className="mt-2 flex flex-wrap gap-2">
@@ -300,113 +267,45 @@ export default function SpecialistAppointmentDetail() {
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-4">
-          <div className="space-y-2">
-            <Label>Produkt</Label>
-            <Select value={productId} onValueChange={setProductId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Wybierz" />
-              </SelectTrigger>
-              <SelectContent>
-                {products.map((p: any) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Magazyn</Label>
-            {warehouses.length === 0 ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-                Brak przypisanego magazynu — poproś administratora o przypisanie.
-              </div>
-            ) : warehouses.length === 1 ? (
-              <div className="flex h-10 items-center rounded-xl border bg-zinc-50 px-3 text-sm text-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
-                {warehouses[0].name}
-              </div>
-            ) : (
-              <Select value={warehouseId} onValueChange={setWarehouseId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Wybierz" />
-                </SelectTrigger>
-                <SelectContent>
-                  {warehouses.map((w: any) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      {w.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label>Ilość</Label>
-            <div className="flex items-center gap-2">
-              <Input value={qty} onChange={(e) => setQty(e.target.value)} />
-              <div
-                className="flex h-10 min-w-[72px] items-center justify-center rounded-xl border bg-zinc-50 px-3 text-sm text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300"
-                title="Jednostka ustalana przez administratora w karcie produktu"
-              >
-                {unitLabel(products.find((p: any) => p.id === productId)?.unit)}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-end space-y-2">
-            <Button onClick={addConsumption} disabled={!productId || !warehouseId}>
-              Dodaj
-            </Button>
-          </div>
-        </div>
-
         <div className="overflow-auto">
           <table className="w-full text-sm">
             <thead className="text-left text-zinc-500">
               <tr>
                 <th className="p-3">Produkt</th>
                 <th className="p-3">Magazyn</th>
-                <th className="w-40 p-3">Ilość</th>
+                <th className="p-3">Ilość</th>
+                <th className="p-3">Cena sprzedaży</th>
+                <th className="p-3">Wartość</th>
                 <th className="p-3">Data</th>
                 <th className="p-3">Status</th>
-                <th className="w-48 p-3">Działania</th>
               </tr>
             </thead>
             <tbody>
               {(appt.consumptions ?? []).length === 0 && (
                 <tr>
-                  <td className="p-3 text-zinc-500" colSpan={6}>
+                  <td className="p-3 text-zinc-500" colSpan={7}>
                     Brak zużyć.
                   </td>
                 </tr>
               )}
               {(appt.consumptions ?? []).map((c: any) => {
-                const current = String(c.quantity);
-                const value = consumptionEdits[c.id] ?? current;
-                const dirty =
-                  consumptionEdits[c.id] !== undefined && consumptionEdits[c.id] !== current;
-                const busy = consumptionSavingId === c.id;
+                const rowValue =
+                  c.product.salePrice == null ? null : Number(c.quantity) * c.product.salePrice;
                 return (
                   <tr key={c.id} className="border-t">
                     <td className="p-3">{c.product.name}</td>
                     <td className="p-3">{c.warehouse?.name ?? "—"}</td>
                     <td className="p-3">
-                      <div className="flex items-center gap-2">
-                        <Input
-                          className="w-20"
-                          value={value}
-                          onChange={(e) =>
-                            setConsumptionEdits((m) => ({ ...m, [c.id]: e.target.value }))
-                          }
-                        />
-                        <span className="text-xs text-zinc-500">{unitLabel(c.product.unit)}</span>
-                      </div>
+                      {c.quantity}{" "}
+                      <span className="text-xs text-zinc-500">{unitLabel(c.product.unit)}</span>
                       {c.suggestedQuantity ? (
                         <div className="mt-1 text-xs text-zinc-500">
                           sugerowano: {c.suggestedQuantity}
                         </div>
                       ) : null}
                     </td>
+                    <td className="p-3">{formatPLNFromGrosze(c.product.salePrice)}</td>
+                    <td className="p-3 font-medium">{formatPLNFromGrosze(rowValue)}</td>
                     <td className="p-3">{new Date(c.createdAt).toLocaleString("pl-PL")}</td>
                     <td className="p-3">
                       {c.status === "PENDING" && (
@@ -424,26 +323,6 @@ export default function SpecialistAppointmentDetail() {
                           Odrzucono
                         </span>
                       )}
-                    </td>
-                    <td className="p-3">
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => updateConsumption(c.id)}
-                          disabled={busy || !dirty}
-                        >
-                          {busy ? "..." : "Zapisz"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-red-600"
-                          onClick={() => deleteConsumption(c.id)}
-                          disabled={busy}
-                        >
-                          Usuń
-                        </Button>
-                      </div>
                     </td>
                   </tr>
                 );
