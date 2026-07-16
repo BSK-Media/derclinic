@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
 const BodySchema = z.object({
@@ -13,17 +13,22 @@ const BodySchema = z.object({
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);
   const parsed = BodySchema.safeParse(json);
-  if (!parsed.success) return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
+  if (!parsed.success)
+    return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
   const consumption = await prisma.consumption.findUnique({ where: { id: params.id } });
-  if (!consumption) return NextResponse.json({ ok: false, message: "Nie znaleziono zgłoszenia" }, { status: 404 });
+  if (!consumption)
+    return NextResponse.json({ ok: false, message: "Nie znaleziono zgłoszenia" }, { status: 404 });
   if (consumption.status !== "PENDING") {
-    return NextResponse.json({ ok: false, message: "Ta zmiana została już rozpatrzona" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, message: "Ta zmiana została już rozpatrzona" },
+      { status: 400 },
+    );
   }
 
   if (parsed.data.action === "reject") {
@@ -36,7 +41,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         note: parsed.data.note ? parsed.data.note : consumption.note,
       },
     });
-    await logAudit({ actorId: user!.id, action: "REJECT", entity: "Consumption", entityId: updated.id });
+    await logAudit({
+      actorId: user!.id,
+      action: "REJECT",
+      entity: "Consumption",
+      entityId: updated.id,
+    });
     return NextResponse.json({ ok: true, consumption: updated });
   }
 
@@ -69,7 +79,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     });
   });
 
-  await logAudit({ actorId: user!.id, action: "APPROVE", entity: "Consumption", entityId: updated.id });
+  await logAudit({
+    actorId: user!.id,
+    action: "APPROVE",
+    entity: "Consumption",
+    entityId: updated.id,
+  });
 
   return NextResponse.json({ ok: true, consumption: updated });
 }
