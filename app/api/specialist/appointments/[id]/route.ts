@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
@@ -25,31 +25,22 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ ok: false, message: "Brak uprawnień" }, { status: 403 });
   }
 
-  const [products, warehouses] = await Promise.all([
-    prisma.product.findMany({ orderBy: { name: "asc" } }),
-    user!.role === "ADMIN"
-      ? prisma.warehouse.findMany({ orderBy: { name: "asc" } })
-      : prisma.warehouse.findMany({
-          where: { specialistAccess: { some: { specialistId: user!.id } } },
-          orderBy: { name: "asc" },
-        }),
-  ]);
-
-  return NextResponse.json({ ok: true, appointment: appt, products, warehouses });
+  return NextResponse.json({ ok: true, appointment: appt });
 }
 
-const PatchSchema = z.object({
-  status: z.enum(["SCHEDULED", "COMPLETED", "CANCELED", "NO_SHOW"]).optional(),
-  priceFinal: z.number().int().optional().nullable(),
-  note: z.string().optional().or(z.literal("")),
-  startsAt: z.string().datetime({ offset: true }).optional(),
-  endsAt: z.string().datetime({ offset: true }).optional(),
-});
+const PatchSchema = z
+  .object({
+    status: z.enum(["SCHEDULED", "COMPLETED", "CANCELED", "NO_SHOW"]).optional(),
+    note: z.string().optional().or(z.literal("")),
+    startsAt: z.string().datetime({ offset: true }).optional(),
+    endsAt: z.string().datetime({ offset: true }).optional(),
+  })
+  .strict();
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["SPECIALIST", "ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["SPECIALIST", "ADMIN"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);
@@ -96,7 +87,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     where: { id: params.id },
     data: {
       status: parsed.data.status as any,
-      priceFinal: parsed.data.priceFinal === undefined ? undefined : parsed.data.priceFinal,
       note: parsed.data.note === undefined ? undefined : parsed.data.note ? parsed.data.note : null,
       startsAt: newStarts,
       endsAt: newEnds,
