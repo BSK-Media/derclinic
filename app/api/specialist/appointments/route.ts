@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, requireStrictRole } from "@/lib/api-helpers";
@@ -13,15 +12,6 @@ const CreateAppointmentSchema = z
     serviceId: z.string().trim().min(1).nullable(),
     customServiceName: z.string().trim().max(200).nullable().optional(),
     startsAt: z.string().min(1),
-    preparations: z
-      .array(
-        z.object({
-          productId: z.string().min(1),
-          quantity: z.number().positive().max(100000),
-        }),
-      )
-      .max(10)
-      .default([]),
   })
   .superRefine((value, ctx) => {
     if (!value.serviceId && (!value.customServiceName || value.customServiceName.length < 2)) {
@@ -57,7 +47,7 @@ export async function GET(req: Request) {
   const toDt = to ? new Date(to) : new Date(Date.now() + 1000 * 60 * 60 * 24 * 14);
   const specialistId = user!.role === "ADMIN" && specialistIdParam ? specialistIdParam : user!.id;
 
-  const [appointments, services, products] = await Promise.all([
+  const [appointments, services] = await Promise.all([
     prisma.appointment.findMany({
       where: { specialistId, startsAt: { gte: fromDt, lt: toDt } },
       orderBy: { startsAt: "asc" },
@@ -89,11 +79,6 @@ export async function GET(req: Request) {
         },
       },
     }),
-    prisma.product.findMany({
-      where: { isActive: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, unit: true },
-    }),
   ]);
 
   const shapedServices = services.map((s) => ({
@@ -109,7 +94,7 @@ export async function GET(req: Request) {
     })),
   }));
 
-  return NextResponse.json({ ok: true, appointments, services: shapedServices, products });
+  return NextResponse.json({ ok: true, appointments, services: shapedServices });
 }
 
 export async function POST(req: Request) {
@@ -129,7 +114,10 @@ export async function POST(req: Request) {
 
   const startsAt = new Date(parsed.data.startsAt);
   if (Number.isNaN(startsAt.getTime())) {
-    return NextResponse.json({ ok: false, message: "Niepoprawna godzina rozpoczęcia" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, message: "Niepoprawna godzina rozpoczęcia" },
+      { status: 400 },
+    );
   }
 
   const isCustom = !parsed.data.serviceId;
@@ -142,15 +130,11 @@ export async function POST(req: Request) {
         select: {
           id: true,
           durationMin: true,
+          priceFrom: true,
           priceSuggested: true,
-          suggestedProducts: { select: { productId: true, quantity: true } },
         },
       })
     : null;
-
-  const suggestedByProduct = new Map<string, number>(
-    (requestedService?.suggestedProducts ?? []).map((sp) => [sp.productId, Number(sp.quantity)]),
-  );
 
   if (!isCustom && !requestedService) {
     return NextResponse.json(
@@ -159,23 +143,14 @@ export async function POST(req: Request) {
     );
   }
 
-  const productIds = Array.from(new Set(parsed.data.preparations.map((item) => item.productId)));
-  const products = productIds.length
-    ? await prisma.product.findMany({
-        where: { id: { in: productIds }, isActive: true },
-        select: { id: true, unit: true },
-      })
-    : [];
-  if (products.length !== productIds.length) {
-    return NextResponse.json({ ok: false, message: "Nie znaleziono jednego z preparatów" }, { status: 400 });
-  }
-  const productUnitById = new Map(products.map((product) => [product.id, product.unit]));
-
-  const patientName = `${parsed.data.firstName} ${parsed.data.lastName}`.replace(/\s+/g, " ").trim();
+  const patientName = `${parsed.data.firstName} ${parsed.data.lastName}`
+    .replace(/\s+/g, " ")
+    .trim();
   const phone = normalizePhone(parsed.data.phone);
   const email = parsed.data.email?.trim() || null;
   const durationMin = requestedService?.durationMin ?? 30;
   const endsAt = new Date(startsAt.getTime() + durationMin * 60 * 1000);
+  const standardPrice = requestedService?.priceSuggested ?? requestedService?.priceFrom ?? null;
 
   const appointment = await prisma.$transaction(async (tx) => {
     const service = isCustom
@@ -221,58 +196,11 @@ export async function POST(req: Request) {
         customServiceName: isCustom ? parsed.data.customServiceName!.trim() : null,
         startsAt,
         endsAt,
-        priceEstimate: requestedService?.priceSuggested ?? null,
+        priceEstimate: standardPrice,
+        priceFinal: standardPrice,
       },
       select: { id: true },
     });
-
-    const treatmentWarehouse = await tx.warehouse.findUnique({
-      where: { id: "treatment-warehouse" },
-      select: { id: true },
-    });
-
-    for (const preparation of parsed.data.preparations) {
-      const quantity = new Prisma.Decimal(preparation.quantity);
-      const suggested = suggestedByProduct.get(preparation.productId);
-      const deviatesFromSuggested = suggested !== undefined && suggested !== preparation.quantity;
-
-      await tx.consumption.create({
-        data: {
-          appointmentId: created.id,
-          specialistId: user!.id,
-          productId: preparation.productId,
-          warehouseId: treatmentWarehouse?.id ?? null,
-          quantity,
-          unit: productUnitById.get(preparation.productId)!,
-          kind: "APPOINTMENT",
-          createdById: user!.id,
-          status: deviatesFromSuggested ? "PENDING" : "APPLIED",
-          suggestedQuantity: suggested !== undefined ? new Prisma.Decimal(suggested) : null,
-          note: deviatesFromSuggested
-            ? "Ilość zmieniona przez specjalistę względem sugerowanej — oczekuje na akceptację administratora."
-            : null,
-        },
-      });
-
-      // Stan magazynowy jest odejmowany od razu tylko dla zużyć zgodnych z sugestią.
-      // Zmienione ilości czekają na akceptację administratora (patrz: /api/admin/consumption-adjustments).
-      if (treatmentWarehouse && !deviatesFromSuggested) {
-        await tx.stock.upsert({
-          where: {
-            productId_warehouseId: {
-              productId: preparation.productId,
-              warehouseId: treatmentWarehouse.id,
-            },
-          },
-          update: { quantity: { decrement: quantity } },
-          create: {
-            productId: preparation.productId,
-            warehouseId: treatmentWarehouse.id,
-            quantity: new Prisma.Decimal(0).minus(quantity),
-          },
-        });
-      }
-    }
 
     return created;
   });
