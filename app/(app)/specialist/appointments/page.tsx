@@ -35,11 +35,36 @@ function toDateInput(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-export default function SpecialistAppointmentsPage() {
+type SpecialistAppointmentsPageProps = {
+  searchParams?: {
+    view?: string | string[];
+  };
+};
+
+export default function SpecialistAppointmentsPage({
+  searchParams,
+}: SpecialistAppointmentsPageProps) {
   const router = useRouter();
   const [clock, setClock] = React.useState(() => new Date());
-  const [view, setView] = React.useState<"list" | "calendar">("list");
+  const requestedView = Array.isArray(searchParams?.view)
+    ? searchParams?.view[0]
+    : searchParams?.view;
+  const [view, setView] = React.useState<"list" | "calendar">(
+    requestedView === "calendar" ? "calendar" : "list",
+  );
   const [anchor, setAnchor] = React.useState(() => new Date());
+
+  React.useEffect(() => {
+    setView(requestedView === "calendar" ? "calendar" : "list");
+  }, [requestedView]);
+
+  const changeView = React.useCallback(
+    (nextView: "list" | "calendar") => {
+      setView(nextView);
+      router.replace(`/specialist/appointments?view=${nextView}`, { scroll: false });
+    },
+    [router],
+  );
 
   // Zakres danych dla widoku kalendarza (siatka 6 tygodni)
   const calendarRange = React.useMemo(() => {
@@ -95,7 +120,7 @@ export default function SpecialistAppointmentsPage() {
           <div className="inline-flex rounded-xl border bg-white p-1 text-sm shadow-sm dark:bg-zinc-950">
             <button
               type="button"
-              onClick={() => setView("list")}
+              onClick={() => changeView("list")}
               className={
                 "rounded-lg px-4 py-1.5 font-medium transition " +
                 (view === "list"
@@ -107,7 +132,7 @@ export default function SpecialistAppointmentsPage() {
             </button>
             <button
               type="button"
-              onClick={() => setView("calendar")}
+              onClick={() => changeView("calendar")}
               className={
                 "rounded-lg px-4 py-1.5 font-medium transition " +
                 (view === "calendar"
