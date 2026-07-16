@@ -90,6 +90,7 @@ export function SpecialistBookAppointmentDialog({
   const [firstName, setFirstName] = React.useState("");
   const [lastName, setLastName] = React.useState("");
   const [phone, setPhone] = React.useState("");
+  const [email, setEmail] = React.useState("");
   const [serviceId, setServiceId] = React.useState("");
   const [customServiceName, setCustomServiceName] = React.useState("");
   const [startTime, setStartTime] = React.useState("09:00");
@@ -103,6 +104,7 @@ export function SpecialistBookAppointmentDialog({
     setFirstName("");
     setLastName("");
     setPhone("");
+    setEmail("");
     setServiceId("");
     setCustomServiceName("");
     setStartTime("09:00");
@@ -161,6 +163,7 @@ export function SpecialistBookAppointmentDialog({
   async function createAppointment() {
     if (!firstName.trim() || !lastName.trim()) return toast.error("Podaj imię i nazwisko");
     if (!phone.trim()) return toast.error("Podaj numer telefonu");
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return toast.error("Podaj prawidłowy adres email");
     if (!serviceId) return toast.error("Wybierz zabieg");
     if (serviceId === CUSTOM_SERVICE && customServiceName.trim().length < 2) {
       return toast.error("Wpisz nazwę niestandardowego zabiegu");
@@ -193,6 +196,7 @@ export function SpecialistBookAppointmentDialog({
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           phone: phone.trim(),
+          email: email.trim() || undefined,
           serviceId: serviceId === CUSTOM_SERVICE ? null : serviceId,
           customServiceName: serviceId === CUSTOM_SERVICE ? customServiceName.trim() : null,
           startsAt: startsAt.toISOString(),
@@ -251,6 +255,17 @@ export function SpecialistBookAppointmentDialog({
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
               placeholder="np. +48 500 000 000"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Adres email (opcjonalnie)</Label>
+            <Input
+              inputMode="email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="np. pacjent@example.com"
             />
           </div>
 
