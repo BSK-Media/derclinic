@@ -751,7 +751,7 @@ export default async function SpecialistHome() {
               </p>
             </div>
             <Link
-              href="/specialist/calendar"
+              href="/specialist/appointments?view=calendar"
               className="text-xs font-semibold text-emerald-700 hover:underline"
             >
               Pełny kalendarz
