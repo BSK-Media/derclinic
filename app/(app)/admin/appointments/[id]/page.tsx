@@ -8,9 +8,15 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
-import { appointmentStatusLabel } from "@/lib/appointment-status";
+import { appointmentStatusLabel, effectiveAppointmentStatus } from "@/lib/appointment-status";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -21,6 +27,7 @@ export default function AdminAppointmentDetail() {
   const { data, mutate, isLoading } = useSWR(`/api/admin/appointments/${id}`, fetcher);
   const appt = data?.appointment;
 
+  const [clock, setClock] = useState(() => new Date());
   const [status, setStatus] = useState<string>("SCHEDULED");
   const [priceFinal, setPriceFinal] = useState<string>("");
   const [priceEstimate, setPriceEstimate] = useState<string>("");
@@ -34,13 +41,37 @@ export default function AdminAppointmentDetail() {
   const [payAmount, setPayAmount] = useState<string>("");
 
   useEffect(() => {
-    if (appt?.status) setStatus(appt.status);
-  }, [appt?.status]);
+    if (appt?.status) {
+      setStatus(
+        appt.approvalStatus === "REJECTED"
+          ? appt.status
+          : (effectiveAppointmentStatus(appt.status, appt.startsAt) ?? appt.status),
+      );
+    }
+  }, [appt?.approvalStatus, appt?.startsAt, appt?.status]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const nextClock = new Date();
+      setClock(nextClock);
+      setStatus((current) =>
+        current === "SCHEDULED" &&
+        appt?.approvalStatus !== "REJECTED" &&
+        effectiveAppointmentStatus(current, appt?.startsAt, nextClock) === "AWAITING"
+          ? "AWAITING"
+          : current,
+      );
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [appt?.approvalStatus, appt?.startsAt]);
 
   if (isLoading) return <div className="p-6 text-sm text-zinc-500">Ładowanie…</div>;
   if (!appt) return <div className="p-6 text-sm text-zinc-500">Nie znaleziono.</div>;
 
   async function save() {
+    if (status === "AWAITING") {
+      return toast.error("Wybierz status: Zakończona, Odwołana albo Nieobecność pacjenta.");
+    }
     const res = await fetch(`/api/admin/appointments/${id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -103,26 +134,51 @@ export default function AdminAppointmentDetail() {
   const warehouses = data?.warehouses ?? [];
 
   const paymentsSum = (appt.payments ?? []).reduce((a: number, p: any) => a + (p.amount ?? 0), 0);
+  const appointmentIsAwaiting =
+    appt.approvalStatus !== "REJECTED" &&
+    effectiveAppointmentStatus(appt.status, appt.startsAt, clock) === "AWAITING";
+  const startHasPassed = new Date(appt.startsAt).getTime() <= clock.getTime();
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Wizyta — szczegóły</h1>
 
-      <Card className="p-4 space-y-2">
-        <div className="text-sm text-zinc-500">{new Date(appt.startsAt).toLocaleString("pl-PL")} – {new Date(appt.endsAt).toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"})}</div>
-        <div className="font-medium">{appt.patient.name} • {appt.customServiceName || appt.service.name}</div>
-        <div className="text-sm text-zinc-600 dark:text-zinc-300">Specjalista: {appt.specialist.name} • Status: {appointmentStatusLabel(appt.status)}</div>
+      <Card className="space-y-2 p-4">
+        <div className="text-sm text-zinc-500">
+          {new Date(appt.startsAt).toLocaleString("pl-PL")} –{" "}
+          {new Date(appt.endsAt).toLocaleTimeString("pl-PL", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </div>
+        <div className="font-medium">
+          {appt.patient.name} • {appt.customServiceName || appt.service.name}
+        </div>
+        <div className="text-sm text-zinc-600 dark:text-zinc-300">
+          Specjalista: {appt.specialist.name} • Status:{" "}
+          {appointmentStatusLabel(appointmentIsAwaiting ? "AWAITING" : appt.status)}
+        </div>
       </Card>
 
-      <Card className="p-4 space-y-4">
+      <Card className="space-y-4 p-4">
         <div className="font-medium">Status i rozliczenie wizyty</div>
         <div className="grid gap-3 md:grid-cols-4">
           <div className="space-y-2">
             <Label>Status</Label>
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger><SelectValue placeholder={appointmentStatusLabel(appt.status)} /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={appointmentStatusLabel(appt.status, appt.startsAt, clock)}
+                />
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="SCHEDULED">Zaplanowana</SelectItem>
+                {appointmentIsAwaiting ? (
+                  <SelectItem value="AWAITING" disabled>
+                    Oczekujące — wybierz status końcowy
+                  </SelectItem>
+                ) : !startHasPassed ? (
+                  <SelectItem value="SCHEDULED">Zaplanowana</SelectItem>
+                ) : null}
                 <SelectItem value="COMPLETED">Zakończona</SelectItem>
                 <SelectItem value="CANCELED">Odwołana</SelectItem>
                 <SelectItem value="NO_SHOW">Nieobecność pacjenta</SelectItem>
@@ -131,35 +187,49 @@ export default function AdminAppointmentDetail() {
           </div>
           <div className="space-y-2">
             <Label>Cena orientacyjna (PLN)</Label>
-            <Input defaultValue={appt.priceEstimate ? (appt.priceEstimate/100).toString() : ""} onChange={(e)=>setPriceEstimate(e.target.value)} />
+            <Input
+              defaultValue={appt.priceEstimate ? (appt.priceEstimate / 100).toString() : ""}
+              onChange={(e) => setPriceEstimate(e.target.value)}
+            />
           </div>
           <div className="space-y-2">
             <Label>Cena końcowa (PLN)</Label>
-            <Input defaultValue={appt.priceFinal ? (appt.priceFinal/100).toString() : ""} onChange={(e)=>setPriceFinal(e.target.value)} />
+            <Input
+              defaultValue={appt.priceFinal ? (appt.priceFinal / 100).toString() : ""}
+              onChange={(e) => setPriceFinal(e.target.value)}
+            />
           </div>
           <div className="space-y-2 md:col-span-4">
             <Label>Notatka</Label>
-            <Input defaultValue={appt.note ?? ""} onChange={(e)=>setNote(e.target.value)} />
+            <Input defaultValue={appt.note ?? ""} onChange={(e) => setNote(e.target.value)} />
           </div>
         </div>
-        <Button onClick={save}>Zapisz</Button>
+        <Button onClick={save} disabled={status === "AWAITING"}>
+          Zapisz
+        </Button>
         <div className="text-xs text-zinc-500">
-          Płatności: {formatPLNFromGrosze(paymentsSum)} • Do zapłaty (wg ceny końcowej): {formatPLNFromGrosze((appt.priceFinal ?? 0) - paymentsSum)}
+          Płatności: {formatPLNFromGrosze(paymentsSum)} • Do zapłaty (wg ceny końcowej):{" "}
+          {formatPLNFromGrosze((appt.priceFinal ?? 0) - paymentsSum)}
         </div>
       </Card>
 
-      <Card className="p-4 space-y-4">
+      <Card className="space-y-4 p-4">
         <div className="font-medium">Zużycie preparatów (magazyn)</div>
 
         <div className="text-sm text-zinc-600 dark:text-zinc-300">
           Sugerowane preparaty dla tej usługi:
           <div className="mt-2 flex flex-wrap gap-2">
             {(appt.service?.suggestedProducts ?? []).map((sp: any) => (
-              <span key={sp.id} className="text-xs rounded-full border px-3 py-1 bg-zinc-50 dark:bg-zinc-900">
+              <span
+                key={sp.id}
+                className="rounded-full border bg-zinc-50 px-3 py-1 text-xs dark:bg-zinc-900"
+              >
                 {sp.product.name} • {sp.quantity} {sp.unit}
               </span>
             ))}
-            {(appt.service?.suggestedProducts ?? []).length === 0 && <span className="text-xs text-zinc-500">—</span>}
+            {(appt.service?.suggestedProducts ?? []).length === 0 && (
+              <span className="text-xs text-zinc-500">—</span>
+            )}
           </div>
         </div>
 
@@ -167,18 +237,30 @@ export default function AdminAppointmentDetail() {
           <div className="space-y-2">
             <Label>Produkt</Label>
             <Select value={productId} onValueChange={setProductId}>
-              <SelectTrigger><SelectValue placeholder="Wybierz" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Wybierz" />
+              </SelectTrigger>
               <SelectContent>
-                {products.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                {products.map((p: any) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
             <Label>Magazyn</Label>
             <Select value={warehouseId} onValueChange={setWarehouseId}>
-              <SelectTrigger><SelectValue placeholder="Wybierz" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Wybierz" />
+              </SelectTrigger>
               <SelectContent>
-                {warehouses.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                {warehouses.map((w: any) => (
+                  <SelectItem key={w.id} value={w.id}>
+                    {w.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -186,8 +268,10 @@ export default function AdminAppointmentDetail() {
             <Label>Ilość</Label>
             <Input value={qty} onChange={(e) => setQty(e.target.value)} />
           </div>
-          <div className="space-y-2 flex items-end">
-            <Button onClick={addConsumption} disabled={!productId || !warehouseId}>Dodaj zużycie</Button>
+          <div className="flex items-end space-y-2">
+            <Button onClick={addConsumption} disabled={!productId || !warehouseId}>
+              Dodaj zużycie
+            </Button>
           </div>
         </div>
 
@@ -205,7 +289,13 @@ export default function AdminAppointmentDetail() {
               </tr>
             </thead>
             <tbody>
-              {(appt.consumptions ?? []).length === 0 && <tr><td className="p-3 text-zinc-500" colSpan={7}>Brak zużyć.</td></tr>}
+              {(appt.consumptions ?? []).length === 0 && (
+                <tr>
+                  <td className="p-3 text-zinc-500" colSpan={7}>
+                    Brak zużyć.
+                  </td>
+                </tr>
+              )}
               {(appt.consumptions ?? []).map((c: any) => (
                 <tr key={c.id} className="border-t">
                   <td className="p-3">{c.product.name}</td>
@@ -213,7 +303,9 @@ export default function AdminAppointmentDetail() {
                   <td className="p-3 tabular-nums">
                     {c.quantity}
                     {c.suggestedQuantity ? (
-                      <span className="ml-1 text-xs text-zinc-500">(sugerowano: {c.suggestedQuantity})</span>
+                      <span className="ml-1 text-xs text-zinc-500">
+                        (sugerowano: {c.suggestedQuantity})
+                      </span>
                     ) : null}
                   </td>
                   <td className="p-3">{c.createdBy?.name ?? "—"}</td>
@@ -238,10 +330,18 @@ export default function AdminAppointmentDetail() {
                   <td className="p-3 text-right">
                     {c.status === "PENDING" && (
                       <div className="flex justify-end gap-2">
-                        <Button size="sm" variant="outline" onClick={() => reviewAdjustment(c.id, "approve")}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => reviewAdjustment(c.id, "approve")}
+                        >
                           Zaakceptuj
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => reviewAdjustment(c.id, "reject")}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => reviewAdjustment(c.id, "reject")}
+                        >
                           Odrzuć
                         </Button>
                       </div>
@@ -254,13 +354,15 @@ export default function AdminAppointmentDetail() {
         </div>
       </Card>
 
-      <Card className="p-4 space-y-4">
+      <Card className="space-y-4 p-4">
         <div className="font-medium">Płatności</div>
         <div className="grid gap-3 md:grid-cols-3">
           <div className="space-y-2">
             <Label>Metoda</Label>
             <Select value={payMethod} onValueChange={setPayMethod}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="CASH">Gotówka</SelectItem>
                 <SelectItem value="CARD">Karta</SelectItem>
@@ -270,9 +372,9 @@ export default function AdminAppointmentDetail() {
           </div>
           <div className="space-y-2">
             <Label>Kwota (PLN)</Label>
-            <Input value={payAmount} onChange={(e)=>setPayAmount(e.target.value)} />
+            <Input value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
           </div>
-          <div className="space-y-2 flex items-end">
+          <div className="flex items-end space-y-2">
             <Button onClick={addPayment}>Dodaj płatność</Button>
           </div>
         </div>
@@ -287,7 +389,13 @@ export default function AdminAppointmentDetail() {
               </tr>
             </thead>
             <tbody>
-              {(appt.payments ?? []).length === 0 && <tr><td className="p-3 text-zinc-500" colSpan={3}>Brak płatności.</td></tr>}
+              {(appt.payments ?? []).length === 0 && (
+                <tr>
+                  <td className="p-3 text-zinc-500" colSpan={3}>
+                    Brak płatności.
+                  </td>
+                </tr>
+              )}
               {(appt.payments ?? []).map((p: any) => (
                 <tr key={p.id} className="border-t">
                   <td className="p-3">{new Date(p.createdAt).toLocaleString("pl-PL")}</td>
