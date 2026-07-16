@@ -47,7 +47,7 @@ type ProductLot = {
   id: string;
   warehouseId: string;
   quantity: string;
-  expiryDate: string;
+  expiryDate: string | null;
   warehouse: Warehouse;
 };
 
@@ -103,10 +103,10 @@ function totalQuantity(product: Product) {
 }
 
 function nearestExpiry(product: Product) {
-  const activeLots = product.lots.filter((lot) => Number(lot.quantity) > 0);
+  const activeLots = product.lots.filter((lot) => Number(lot.quantity) > 0 && lot.expiryDate);
   if (activeLots.length === 0) return null;
   return activeLots.reduce((nearest, lot) =>
-    new Date(lot.expiryDate).getTime() < new Date(nearest.expiryDate).getTime() ? lot : nearest
+    new Date(lot.expiryDate as string).getTime() < new Date(nearest.expiryDate as string).getTime() ? lot : nearest
   ).expiryDate;
 }
 
