@@ -3,15 +3,33 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { parsePLNToGrosze } from "@/lib/money";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
 
 type Patient = { id: string; name: string };
 type Specialist = { id: string; name: string; serviceIds?: string[] };
-type Service = { id: string; name: string; durationMin: number; priceSuggested?: number | null };
+type Service = {
+  id: string;
+  name: string;
+  durationMin: number;
+  priceSuggested?: number | null;
+  priceFrom?: number | null;
+};
 
 function toLocalDateTimeInput(d: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -41,7 +59,7 @@ export function AdminBookAppointmentDialog({
   const [specialistId, setSpecialistId] = React.useState(defaultSpecialistId ?? "");
   const [serviceId, setServiceId] = React.useState("");
   const [startsAt, setStartsAt] = React.useState("");
-  const [priceEstimate, setPriceEstimate] = React.useState("");
+  const [priceFinal, setPriceFinal] = React.useState("");
   const [note, setNote] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
@@ -58,7 +76,7 @@ export function AdminBookAppointmentDialog({
     setSpecialistId(defaultSpecialistId ?? "");
     setPatientId("");
     setServiceId("");
-    setPriceEstimate("");
+    setPriceFinal("");
     setNote("");
   }, [open, defaultDate, defaultSpecialistId]);
 
@@ -76,10 +94,24 @@ export function AdminBookAppointmentDialog({
   function selectSpecialist(value: string) {
     setSpecialistId(value);
     setServiceId("");
+    setPriceFinal("");
   }
 
-  const selectedService = React.useMemo(() => services.find((s) => s.id === serviceId), [services, serviceId]);
+  const selectedService = React.useMemo(
+    () => services.find((s) => s.id === serviceId),
+    [services, serviceId],
+  );
   const durationMin = selectedService?.durationMin ?? 30;
+  const standardPrice = selectedService?.priceSuggested ?? selectedService?.priceFrom ?? null;
+  const enteredPrice = priceFinal.trim() ? parsePLNToGrosze(priceFinal) : null;
+  const isStandardPrice = standardPrice !== null && enteredPrice === standardPrice;
+
+  function selectService(value: string) {
+    setServiceId(value);
+    const service = services.find((item) => item.id === value);
+    const price = service?.priceSuggested ?? service?.priceFrom ?? null;
+    setPriceFinal(price === null ? "" : (price / 100).toFixed(2).replace(".", ","));
+  }
 
   async function create() {
     if (!patientId || !specialistId || !serviceId || !startsAt) {
@@ -97,7 +129,7 @@ export function AdminBookAppointmentDialog({
           serviceId,
           startsAt: new Date(startsAt).toISOString(),
           durationMin,
-          priceEstimate: priceEstimate ? parsePLNToGrosze(priceEstimate) : null,
+          priceFinal: priceFinal ? parsePLNToGrosze(priceFinal) : null,
           note,
         }),
       });
@@ -151,9 +183,11 @@ export function AdminBookAppointmentDialog({
           </div>
           <div className="space-y-2 md:col-span-2">
             <Label>Usługa</Label>
-            <Select value={serviceId} onValueChange={setServiceId} disabled={!specialistId}>
+            <Select value={serviceId} onValueChange={selectService} disabled={!specialistId}>
               <SelectTrigger>
-                <SelectValue placeholder={specialistId ? "Wybierz" : "Najpierw wybierz specjalistę"} />
+                <SelectValue
+                  placeholder={specialistId ? "Wybierz" : "Najpierw wybierz specjalistę"}
+                />
               </SelectTrigger>
               <SelectContent disablePortal>
                 {availableServices.map((s) => (
@@ -164,17 +198,47 @@ export function AdminBookAppointmentDialog({
               </SelectContent>
             </Select>
             {specialistId && availableServices.length === 0 ? (
-              <div className="text-xs text-amber-700">Ten specjalista nie ma jeszcze przypisanych usług.</div>
+              <div className="text-xs text-amber-700">
+                Ten specjalista nie ma jeszcze przypisanych usług.
+              </div>
             ) : null}
             <div className="text-xs text-zinc-500">Czas trwania: {durationMin} min</div>
           </div>
           <div className="space-y-2">
             <Label>Termin</Label>
-            <Input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+            <Input
+              type="datetime-local"
+              value={startsAt}
+              onChange={(e) => setStartsAt(e.target.value)}
+            />
           </div>
           <div className="space-y-2">
-            <Label>Cena orientacyjna (PLN)</Label>
-            <Input value={priceEstimate} onChange={(e) => setPriceEstimate(e.target.value)} placeholder="np. 500" />
+            <div className="flex items-center gap-2">
+              <Label>Cena końcowa (PLN)</Label>
+              {enteredPrice !== null && standardPrice !== null ? (
+                <span
+                  className={
+                    "rounded-full px-2 py-0.5 text-xs font-medium " +
+                    (isStandardPrice
+                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300"
+                      : "bg-amber-100 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300")
+                  }
+                >
+                  {isStandardPrice ? "Standardowa cena" : "Niestandardowa cena"}
+                </span>
+              ) : null}
+            </div>
+            <Input
+              value={priceFinal}
+              onChange={(e) => setPriceFinal(e.target.value)}
+              placeholder="np. 500"
+            />
+            {standardPrice !== null ? (
+              <div className="text-xs text-zinc-500">
+                Cena zabiegu: {formatPLNFromGrosze(standardPrice)}. Możesz ją zmienić dla tej
+                wizyty.
+              </div>
+            ) : null}
           </div>
           <div className="space-y-2 md:col-span-2">
             <Label>Notatka</Label>
