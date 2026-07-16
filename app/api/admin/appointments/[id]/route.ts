@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
@@ -34,7 +34,13 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     prisma.warehouse.findMany({ orderBy: { name: "asc" } }),
   ]);
 
-  return NextResponse.json({ ok: true, appointment: appt, products, warehouses });
+  return NextResponse.json({
+    ok: true,
+    appointment: appt,
+    products,
+    warehouses,
+    viewerRole: user!.role,
+  });
 }
 
 const PatchSchema = z.object({
@@ -49,7 +55,7 @@ const PatchSchema = z.object({
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN", "RECEPTION", "SPECIALIST"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);
@@ -57,17 +63,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!parsed.success)
     return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
-  // Specialists can only edit their own appointments
   const existing = await prisma.appointment.findUnique({
     where: { id: params.id },
     select: { id: true, specialistId: true, startsAt: true },
   });
   if (!existing)
     return NextResponse.json({ ok: false, message: "Nie znaleziono" }, { status: 404 });
-  if (user!.role === "SPECIALIST" && existing.specialistId !== user!.id) {
-    return NextResponse.json({ ok: false, message: "Brak uprawnień" }, { status: 403 });
-  }
-
   const newStarts = parsed.data.startsAt ? new Date(parsed.data.startsAt) : undefined;
   const newEnds = parsed.data.endsAt ? new Date(parsed.data.endsAt) : undefined;
   if (newStarts && newEnds && newEnds <= newStarts) {
@@ -99,7 +100,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       status: parsed.data.status as any,
       priceFinal: parsed.data.priceFinal === undefined ? undefined : parsed.data.priceFinal,
       priceEstimate:
-        parsed.data.priceEstimate === undefined ? undefined : parsed.data.priceEstimate,
+        user!.role !== "ADMIN" || parsed.data.priceEstimate === undefined
+          ? undefined
+          : parsed.data.priceEstimate,
       note: parsed.data.note === undefined ? undefined : parsed.data.note ? parsed.data.note : null,
       startsAt: newStarts,
       endsAt: newEnds,
