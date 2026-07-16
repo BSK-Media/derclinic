@@ -8,8 +8,15 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
+import { appointmentStatusLabel, effectiveAppointmentStatus } from "@/lib/appointment-status";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -20,15 +27,7 @@ const UNIT_LABELS: Record<string, string> = {
   AMPULE: "ampułka",
   BOTOX_UNIT: "jedn. botox",
 };
-const unitLabel = (u?: string | null) => (u ? UNIT_LABELS[u] ?? u : "—");
-
-const STATUS_LABELS: Record<string, string> = {
-  SCHEDULED: "Zaplanowana",
-  COMPLETED: "Zakończona",
-  CANCELED: "Odwołana",
-  NO_SHOW: "Nieobecność pacjenta",
-};
-const statusLabel = (s?: string | null) => (s ? STATUS_LABELS[s] ?? s : "—");
+const unitLabel = (u?: string | null) => (u ? (UNIT_LABELS[u] ?? u) : "—");
 
 // Date -> wartość dla <input type="datetime-local"> w strefie lokalnej
 function toLocalInput(d: string | Date | null | undefined) {
@@ -45,6 +44,7 @@ export default function SpecialistAppointmentDetail() {
   const { data, mutate, isLoading } = useSWR(`/api/specialist/appointments/${id}`, fetcher);
   const appt = data?.appointment;
 
+  const [clock, setClock] = useState(() => new Date());
   const [status, setStatus] = useState<string>("SCHEDULED");
   const [priceFinal, setPriceFinal] = useState<string>("");
   const [note, setNote] = useState<string>("");
@@ -67,14 +67,40 @@ export default function SpecialistAppointmentDetail() {
 
   // Po wczytaniu wizyty ustaw w formularzu jej aktualny status
   const loadedStatus = data?.appointment?.status as string | undefined;
+  const loadedStartsAt = data?.appointment?.startsAt as string | undefined;
+  const loadedApprovalStatus = data?.appointment?.approvalStatus as string | undefined;
   useEffect(() => {
-    if (loadedStatus) setStatus(loadedStatus);
-  }, [loadedStatus]);
+    if (loadedStatus) {
+      setStatus(
+        loadedApprovalStatus === "REJECTED"
+          ? loadedStatus
+          : (effectiveAppointmentStatus(loadedStatus, loadedStartsAt) ?? loadedStatus),
+      );
+    }
+  }, [loadedApprovalStatus, loadedStartsAt, loadedStatus]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const nextClock = new Date();
+      setClock(nextClock);
+      setStatus((current) =>
+        current === "SCHEDULED" &&
+        loadedApprovalStatus !== "REJECTED" &&
+        effectiveAppointmentStatus(current, loadedStartsAt, nextClock) === "AWAITING"
+          ? "AWAITING"
+          : current,
+      );
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [loadedApprovalStatus, loadedStartsAt]);
 
   if (isLoading) return <div className="p-6 text-sm text-zinc-500">Ładowanie…</div>;
   if (!appt) return <div className="p-6 text-sm text-zinc-500">Nie znaleziono.</div>;
 
   async function save() {
+    if (status === "AWAITING") {
+      return toast.error("Wybierz status: Zakończona, Odwołana albo Nieobecność pacjenta.");
+    }
     const res = await fetch(`/api/specialist/appointments/${id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -152,16 +178,30 @@ export default function SpecialistAppointmentDetail() {
   const products = data?.products ?? [];
   const warehouses = data?.warehouses ?? [];
   const paymentsSum = (appt.payments ?? []).reduce((a: number, p: any) => a + (p.amount ?? 0), 0);
+  const appointmentIsAwaiting =
+    appt.approvalStatus !== "REJECTED" &&
+    effectiveAppointmentStatus(appt.status, appt.startsAt, clock) === "AWAITING";
+  const startHasPassed = new Date(appt.startsAt).getTime() <= clock.getTime();
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Wizyta — szczegóły</h1>
 
-      <Card className="p-4 space-y-2">
-        <div className="text-sm text-zinc-500">{new Date(appt.startsAt).toLocaleString("pl-PL")} – {new Date(appt.endsAt).toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"})}</div>
-        <div className="font-medium">{appt.patient.name} • {appt.customServiceName || appt.service.name}</div>
+      <Card className="space-y-2 p-4">
+        <div className="text-sm text-zinc-500">
+          {new Date(appt.startsAt).toLocaleString("pl-PL")} –{" "}
+          {new Date(appt.endsAt).toLocaleTimeString("pl-PL", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </div>
+        <div className="font-medium">
+          {appt.patient.name} • {appt.customServiceName || appt.service.name}
+        </div>
         <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
-          <span>Status: {statusLabel(appt.status)}</span>
+          <span>
+            Status: {appointmentStatusLabel(appointmentIsAwaiting ? "AWAITING" : appt.status)}
+          </span>
           {appt.approvalStatus === "PENDING" ? (
             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
               Oczekuje na akceptację recepcji — nie liczy się jeszcze do rozliczeń
@@ -175,7 +215,7 @@ export default function SpecialistAppointmentDetail() {
         </div>
       </Card>
 
-      <Card className="p-4 space-y-4">
+      <Card className="space-y-4 p-4">
         <div className="font-medium">Wykonanie i opis</div>
         <div className="grid gap-3 md:grid-cols-3">
           <div className="space-y-2">
@@ -197,39 +237,66 @@ export default function SpecialistAppointmentDetail() {
           <div className="space-y-2">
             <Label>Status</Label>
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger><SelectValue placeholder={statusLabel(appt.status)} /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={appointmentStatusLabel(appt.status, appt.startsAt, clock)}
+                />
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="SCHEDULED">Zaplanowana</SelectItem>
+                {appointmentIsAwaiting ? (
+                  <SelectItem value="AWAITING" disabled>
+                    Oczekujące — wybierz status końcowy
+                  </SelectItem>
+                ) : !startHasPassed ? (
+                  <SelectItem value="SCHEDULED">Zaplanowana</SelectItem>
+                ) : null}
                 <SelectItem value="COMPLETED">Zakończona</SelectItem>
                 <SelectItem value="CANCELED">Odwołana</SelectItem>
                 <SelectItem value="NO_SHOW">Nieobecność pacjenta</SelectItem>
               </SelectContent>
             </Select>
+            {appointmentIsAwaiting ? (
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                Minęła godzina rozpoczęcia. Wybierz status końcowy wizyty.
+              </p>
+            ) : null}
           </div>
           <div className="space-y-2">
             <Label>Cena końcowa (PLN)</Label>
-            <Input defaultValue={appt.priceFinal ? (appt.priceFinal/100).toString() : ""} onChange={(e)=>setPriceFinal(e.target.value)} />
+            <Input
+              defaultValue={appt.priceFinal ? (appt.priceFinal / 100).toString() : ""}
+              onChange={(e) => setPriceFinal(e.target.value)}
+            />
           </div>
           <div className="space-y-2 md:col-span-3">
             <Label>Notatka (opis zabiegu)</Label>
-            <Input defaultValue={appt.note ?? ""} onChange={(e)=>setNote(e.target.value)} />
+            <Input defaultValue={appt.note ?? ""} onChange={(e) => setNote(e.target.value)} />
           </div>
         </div>
-        <Button onClick={save}>Zapisz</Button>
-        <div className="text-xs text-zinc-500">Płatności (podgląd): {formatPLNFromGrosze(paymentsSum)}.</div>
+        <Button onClick={save} disabled={status === "AWAITING"}>
+          Zapisz
+        </Button>
+        <div className="text-xs text-zinc-500">
+          Płatności (podgląd): {formatPLNFromGrosze(paymentsSum)}.
+        </div>
       </Card>
 
-      <Card className="p-4 space-y-4">
+      <Card className="space-y-4 p-4">
         <div className="font-medium">Zużycie preparatów</div>
         <div className="text-sm text-zinc-600 dark:text-zinc-300">
           Sugerowane preparaty:
           <div className="mt-2 flex flex-wrap gap-2">
             {(appt.service?.suggestedProducts ?? []).map((sp: any) => (
-              <span key={sp.id} className="text-xs rounded-full border px-3 py-1 bg-zinc-50 dark:bg-zinc-900">
+              <span
+                key={sp.id}
+                className="rounded-full border bg-zinc-50 px-3 py-1 text-xs dark:bg-zinc-900"
+              >
                 {sp.product.name} • {sp.quantity} {sp.unit}
               </span>
             ))}
-            {(appt.service?.suggestedProducts ?? []).length === 0 && <span className="text-xs text-zinc-500">—</span>}
+            {(appt.service?.suggestedProducts ?? []).length === 0 && (
+              <span className="text-xs text-zinc-500">—</span>
+            )}
           </div>
         </div>
 
@@ -237,9 +304,15 @@ export default function SpecialistAppointmentDetail() {
           <div className="space-y-2">
             <Label>Produkt</Label>
             <Select value={productId} onValueChange={setProductId}>
-              <SelectTrigger><SelectValue placeholder="Wybierz" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Wybierz" />
+              </SelectTrigger>
               <SelectContent>
-                {products.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                {products.map((p: any) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -255,9 +328,15 @@ export default function SpecialistAppointmentDetail() {
               </div>
             ) : (
               <Select value={warehouseId} onValueChange={setWarehouseId}>
-                <SelectTrigger><SelectValue placeholder="Wybierz" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Wybierz" />
+                </SelectTrigger>
                 <SelectContent>
-                  {warehouses.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                  {warehouses.map((w: any) => (
+                    <SelectItem key={w.id} value={w.id}>
+                      {w.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             )}
@@ -274,8 +353,10 @@ export default function SpecialistAppointmentDetail() {
               </div>
             </div>
           </div>
-          <div className="space-y-2 flex items-end">
-            <Button onClick={addConsumption} disabled={!productId || !warehouseId}>Dodaj</Button>
+          <div className="flex items-end space-y-2">
+            <Button onClick={addConsumption} disabled={!productId || !warehouseId}>
+              Dodaj
+            </Button>
           </div>
         </div>
 
@@ -285,18 +366,25 @@ export default function SpecialistAppointmentDetail() {
               <tr>
                 <th className="p-3">Produkt</th>
                 <th className="p-3">Magazyn</th>
-                <th className="p-3 w-40">Ilość</th>
+                <th className="w-40 p-3">Ilość</th>
                 <th className="p-3">Data</th>
                 <th className="p-3">Status</th>
-                <th className="p-3 w-48">Działania</th>
+                <th className="w-48 p-3">Działania</th>
               </tr>
             </thead>
             <tbody>
-              {(appt.consumptions ?? []).length === 0 && <tr><td className="p-3 text-zinc-500" colSpan={6}>Brak zużyć.</td></tr>}
+              {(appt.consumptions ?? []).length === 0 && (
+                <tr>
+                  <td className="p-3 text-zinc-500" colSpan={6}>
+                    Brak zużyć.
+                  </td>
+                </tr>
+              )}
               {(appt.consumptions ?? []).map((c: any) => {
                 const current = String(c.quantity);
                 const value = consumptionEdits[c.id] ?? current;
-                const dirty = consumptionEdits[c.id] !== undefined && consumptionEdits[c.id] !== current;
+                const dirty =
+                  consumptionEdits[c.id] !== undefined && consumptionEdits[c.id] !== current;
                 const busy = consumptionSavingId === c.id;
                 return (
                   <tr key={c.id} className="border-t">
@@ -307,12 +395,16 @@ export default function SpecialistAppointmentDetail() {
                         <Input
                           className="w-20"
                           value={value}
-                          onChange={(e) => setConsumptionEdits((m) => ({ ...m, [c.id]: e.target.value }))}
+                          onChange={(e) =>
+                            setConsumptionEdits((m) => ({ ...m, [c.id]: e.target.value }))
+                          }
                         />
                         <span className="text-xs text-zinc-500">{unitLabel(c.product.unit)}</span>
                       </div>
                       {c.suggestedQuantity ? (
-                        <div className="mt-1 text-xs text-zinc-500">sugerowano: {c.suggestedQuantity}</div>
+                        <div className="mt-1 text-xs text-zinc-500">
+                          sugerowano: {c.suggestedQuantity}
+                        </div>
                       ) : null}
                     </td>
                     <td className="p-3">{new Date(c.createdAt).toLocaleString("pl-PL")}</td>
@@ -335,10 +427,20 @@ export default function SpecialistAppointmentDetail() {
                     </td>
                     <td className="p-3">
                       <div className="flex gap-2">
-                        <Button size="sm" onClick={() => updateConsumption(c.id)} disabled={busy || !dirty}>
+                        <Button
+                          size="sm"
+                          onClick={() => updateConsumption(c.id)}
+                          disabled={busy || !dirty}
+                        >
                           {busy ? "..." : "Zapisz"}
                         </Button>
-                        <Button size="sm" variant="outline" className="text-red-600" onClick={() => deleteConsumption(c.id)} disabled={busy}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600"
+                          onClick={() => deleteConsumption(c.id)}
+                          disabled={busy}
+                        >
                           Usuń
                         </Button>
                       </div>
