@@ -8,7 +8,13 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
 
@@ -16,19 +22,43 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 type Patient = { id: string; name: string };
 type Specialist = { id: string; name: string };
-type Service = { id: string; name: string; durationMin: number; priceSuggested?: number | null };
-type Appointment = { id: string; startsAt: string; endsAt: string; status: string; approvalStatus?: string; priceEstimate?: number | null; priceFinal?: number | null;
-  customServiceName?: string | null; patient: Patient; specialist: Specialist; service: Service };
+type Service = {
+  id: string;
+  name: string;
+  durationMin: number;
+  priceSuggested?: number | null;
+  priceFrom?: number | null;
+};
+type Appointment = {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  status: string;
+  approvalStatus?: string;
+  priceEstimate?: number | null;
+  priceFinal?: number | null;
+  customServiceName?: string | null;
+  patient: Patient;
+  specialist: Specialist;
+  service: Service;
+};
 
 export default function AdminAppointmentsPage() {
   const today = new Date();
-  const fromDefault = new Date(today); fromDefault.setDate(fromDefault.getDate()-1); fromDefault.setHours(0,0,0,0);
-  const toDefault = new Date(today); toDefault.setDate(toDefault.getDate()+14); toDefault.setHours(0,0,0,0);
+  const fromDefault = new Date(today);
+  fromDefault.setDate(fromDefault.getDate() - 1);
+  fromDefault.setHours(0, 0, 0, 0);
+  const toDefault = new Date(today);
+  toDefault.setDate(toDefault.getDate() + 14);
+  toDefault.setHours(0, 0, 0, 0);
 
-  const [from, setFrom] = useState(fromDefault.toISOString().slice(0,10));
-  const [to, setTo] = useState(toDefault.toISOString().slice(0,10));
+  const [from, setFrom] = useState(fromDefault.toISOString().slice(0, 10));
+  const [to, setTo] = useState(toDefault.toISOString().slice(0, 10));
 
-  const { data, mutate, isLoading } = useSWR(`/api/admin/appointments?from=${from}&to=${to}`, fetcher);
+  const { data, mutate, isLoading } = useSWR(
+    `/api/admin/appointments?from=${from}&to=${to}`,
+    fetcher,
+  );
 
   const appointments: Appointment[] = data?.appointments ?? [];
   const patients: Patient[] = data?.patients ?? [];
@@ -40,11 +70,11 @@ export default function AdminAppointmentsPage() {
   const [serviceId, setServiceId] = useState<string>("");
   const [startsAt, setStartsAt] = useState<string>(() => {
     const d = new Date();
-    d.setMinutes(0,0,0);
-    d.setHours(d.getHours()+1);
-    return d.toISOString().slice(0,16);
+    d.setMinutes(0, 0, 0);
+    d.setHours(d.getHours() + 1);
+    return d.toISOString().slice(0, 16);
   });
-  const [priceEstimate, setPriceEstimate] = useState("");
+  const [priceFinal, setPriceFinal] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
@@ -59,15 +89,30 @@ export default function AdminAppointmentsPage() {
       });
       const out = await res.json().catch(() => ({}));
       if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się zapisać decyzji");
-      toast.success(action === "APPROVE" ? "Wizyta zaakceptowana — liczy się do rozliczeń" : "Wizyta odrzucona");
+      toast.success(
+        action === "APPROVE" ? "Wizyta zaakceptowana — liczy się do rozliczeń" : "Wizyta odrzucona",
+      );
       mutate();
     } finally {
       setApprovingId(null);
     }
   }
 
-  const selectedService = useMemo(() => services.find((s) => s.id === serviceId), [services, serviceId]);
+  const selectedService = useMemo(
+    () => services.find((s) => s.id === serviceId),
+    [services, serviceId],
+  );
   const durationMin = selectedService?.durationMin ?? 30;
+  const standardPrice = selectedService?.priceSuggested ?? selectedService?.priceFrom ?? null;
+  const enteredPrice = priceFinal ? parsePLNToGrosze(priceFinal) : null;
+  const isStandardPrice = standardPrice !== null && enteredPrice === standardPrice;
+
+  function selectService(value: string) {
+    setServiceId(value);
+    const service = services.find((item) => item.id === value);
+    const price = service?.priceSuggested ?? service?.priceFrom ?? null;
+    setPriceFinal(price === null ? "" : (price / 100).toFixed(2).replace(".", ","));
+  }
 
   async function create() {
     setSaving(true);
@@ -81,14 +126,15 @@ export default function AdminAppointmentsPage() {
           serviceId,
           startsAt: new Date(startsAt).toISOString(),
           durationMin,
-          priceEstimate: priceEstimate ? parsePLNToGrosze(priceEstimate) : null,
+          priceFinal: priceFinal ? parsePLNToGrosze(priceFinal) : null,
           note,
         }),
       });
       const out = await res.json().catch(() => ({}));
       if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
       toast.success("Wizyta dodana");
-      setNote(""); setPriceEstimate("");
+      setNote("");
+      setPriceFinal("");
       mutate();
     } finally {
       setSaving(false);
@@ -99,45 +145,88 @@ export default function AdminAppointmentsPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Wizyty</h1>
 
-      <Card className="p-4 space-y-4">
+      <Card className="space-y-4 p-4">
         <div className="font-medium">Nowa wizyta (pacjent → specjalista → usługa → termin)</div>
         <div className="grid gap-3 md:grid-cols-4">
           <div className="space-y-2">
             <Label>Pacjent</Label>
             <Select value={patientId} onValueChange={setPatientId}>
-              <SelectTrigger><SelectValue placeholder="Wybierz" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Wybierz" />
+              </SelectTrigger>
               <SelectContent>
-                {patients.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                {patients.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
             <Label>Specjalista</Label>
             <Select value={specialistId} onValueChange={setSpecialistId}>
-              <SelectTrigger><SelectValue placeholder="Wybierz" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Wybierz" />
+              </SelectTrigger>
               <SelectContent>
-                {specialists.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                {specialists.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
             <Label>Usługa</Label>
-            <Select value={serviceId} onValueChange={setServiceId}>
-              <SelectTrigger><SelectValue placeholder="Wybierz" /></SelectTrigger>
+            <Select value={serviceId} onValueChange={selectService}>
+              <SelectTrigger>
+                <SelectValue placeholder="Wybierz" />
+              </SelectTrigger>
               <SelectContent>
-                {services.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                {services.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            <div className="text-xs text-zinc-500">Czas: {durationMin} min • Sugerowana cena: {formatPLNFromGrosze(selectedService?.priceSuggested ?? null)}</div>
+            <div className="text-xs text-zinc-500">
+              Czas: {durationMin} min • Sugerowana cena:{" "}
+              {formatPLNFromGrosze(selectedService?.priceSuggested ?? null)}
+            </div>
           </div>
           <div className="space-y-2">
             <Label>Termin</Label>
-            <Input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+            <Input
+              type="datetime-local"
+              value={startsAt}
+              onChange={(e) => setStartsAt(e.target.value)}
+            />
           </div>
 
           <div className="space-y-2">
-            <Label>Cena orientacyjna (PLN)</Label>
-            <Input value={priceEstimate} onChange={(e) => setPriceEstimate(e.target.value)} placeholder="np. 500" />
+            <div className="flex items-center gap-2">
+              <Label>Cena końcowa (PLN)</Label>
+              {enteredPrice !== null && standardPrice !== null ? (
+                <span
+                  className={
+                    "rounded-full px-2 py-0.5 text-xs font-medium " +
+                    (isStandardPrice
+                      ? "bg-emerald-100 text-emerald-800"
+                      : "bg-amber-100 text-amber-800")
+                  }
+                >
+                  {isStandardPrice ? "Standardowa cena" : "Niestandardowa cena"}
+                </span>
+              ) : null}
+            </div>
+            <Input
+              value={priceFinal}
+              onChange={(e) => setPriceFinal(e.target.value)}
+              placeholder="np. 500"
+            />
           </div>
           <div className="space-y-2 md:col-span-3">
             <Label>Notatka</Label>
@@ -149,23 +238,25 @@ export default function AdminAppointmentsPage() {
         </Button>
       </Card>
 
-      <Card className="p-4 space-y-3">
+      <Card className="space-y-3 p-4">
         <div className="font-medium">Zakres listy</div>
-        <div className="flex flex-wrap gap-3 items-end">
+        <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-2">
             <Label>Od</Label>
-            <Input type="date" value={from} onChange={(e)=>setFrom(e.target.value)} />
+            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label>Do</Label>
-            <Input type="date" value={to} onChange={(e)=>setTo(e.target.value)} />
+            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
-          <div className="text-sm text-zinc-500">{isLoading ? "Ładowanie…" : `Wyniki: ${appointments.length}`}</div>
+          <div className="text-sm text-zinc-500">
+            {isLoading ? "Ładowanie…" : `Wyniki: ${appointments.length}`}
+          </div>
         </div>
       </Card>
 
       <div className="rounded-xl border bg-white shadow-sm dark:bg-zinc-950">
-        <div className="p-4 border-b font-medium">Lista wizyt</div>
+        <div className="border-b p-4 font-medium">Lista wizyt</div>
         <div className="overflow-auto">
           <table className="w-full text-sm">
             <thead className="text-left text-zinc-500">
@@ -181,11 +272,23 @@ export default function AdminAppointmentsPage() {
             </thead>
             <tbody>
               {!isLoading && appointments.length === 0 && (
-                <tr><td className="p-3 text-zinc-500" colSpan={7}>Brak wizyt.</td></tr>
+                <tr>
+                  <td className="p-3 text-zinc-500" colSpan={7}>
+                    Brak wizyt.
+                  </td>
+                </tr>
               )}
               {appointments.map((a) => (
                 <tr key={a.id} className="border-t">
-                  <td className="p-3">{new Date(a.startsAt).toLocaleString("pl-PL",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</td>
+                  <td className="p-3">
+                    {new Date(a.startsAt).toLocaleString("pl-PL", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </td>
                   <td className="p-3 font-medium">{a.patient.name}</td>
                   <td className="p-3">{a.specialist.name}</td>
                   <td className="p-3">{a.customServiceName || a.service.name}</td>
@@ -207,15 +310,27 @@ export default function AdminAppointmentsPage() {
                     <div className="flex items-center justify-end gap-3">
                       {a.approvalStatus === "PENDING" ? (
                         <>
-                          <Button size="sm" onClick={() => decide(a.id, "APPROVE")} disabled={approvingId === a.id}>
+                          <Button
+                            size="sm"
+                            onClick={() => decide(a.id, "APPROVE")}
+                            disabled={approvingId === a.id}
+                          >
                             {approvingId === a.id ? "..." : "✓ Akceptuj"}
                           </Button>
-                          <Button size="sm" variant="outline" className="text-red-600" onClick={() => decide(a.id, "REJECT")} disabled={approvingId === a.id}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-red-600"
+                            onClick={() => decide(a.id, "REJECT")}
+                            disabled={approvingId === a.id}
+                          >
                             ✕ Odrzuć
                           </Button>
                         </>
                       ) : null}
-                      <Link className="underline" href={`/admin/appointments/${a.id}`}>Szczegóły</Link>
+                      <Link className="underline" href={`/admin/appointments/${a.id}`}>
+                        Szczegóły
+                      </Link>
                     </div>
                   </td>
                 </tr>
@@ -226,7 +341,8 @@ export default function AdminAppointmentsPage() {
       </div>
 
       <div className="text-xs text-zinc-500">
-        Po wizycie: ustaw status „Zakończona”, wpisz cenę końcową, dodaj zużyte preparaty (z magazynu) i zarejestruj płatność.
+        Po wizycie: ustaw status „Zakończona”, wpisz cenę końcową, dodaj zużyte preparaty (z
+        magazynu) i zarejestruj płatność.
       </div>
     </div>
   );
