@@ -2,12 +2,14 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
+import { effectiveAppointmentStatus } from "@/lib/appointment-status";
 
 export type CalendarAppointment = {
   id: string;
   startsAt: string;
   endsAt: string;
   status: string;
+  approvalStatus?: string;
   customServiceName?: string | null;
   patient: { name: string };
   service: { name: string };
@@ -39,6 +41,7 @@ function sameDay(a: Date, b: Date) {
 
 const STATUS_DOT: Record<string, string> = {
   SCHEDULED: "bg-indigo-500",
+  AWAITING: "bg-orange-500",
   COMPLETED: "bg-emerald-500",
   CANCELED: "bg-red-400",
   NO_SHOW: "bg-amber-500",
@@ -63,7 +66,13 @@ export function AppointmentCalendar({
   showSpecialist?: boolean;
   showAddButton?: boolean;
 }) {
+  const [clock, setClock] = React.useState(() => new Date());
   const gridStart = React.useMemo(() => startOfGrid(anchor), [anchor]);
+
+  React.useEffect(() => {
+    const timer = window.setInterval(() => setClock(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const weeks = React.useMemo(() => {
     const cells: Date[] = [];
     for (let i = 0; i < 42; i++) {
@@ -83,7 +92,8 @@ export function AppointmentCalendar({
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(a);
     }
-    for (const list of map.values()) list.sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
+    for (const list of map.values())
+      list.sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
     return map;
   }, [appointments]);
 
@@ -102,7 +112,9 @@ export function AppointmentCalendar({
               type="button"
               aria-label="Poprzedni miesiąc"
               className="inline-flex h-9 w-9 items-center justify-center rounded-xl border hover:bg-zinc-50 dark:hover:bg-zinc-900"
-              onClick={() => onAnchorChange(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1))}
+              onClick={() =>
+                onAnchorChange(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1))
+              }
             >
               ‹
             </button>
@@ -110,7 +122,9 @@ export function AppointmentCalendar({
               type="button"
               aria-label="Następny miesiąc"
               className="inline-flex h-9 w-9 items-center justify-center rounded-xl border hover:bg-zinc-50 dark:hover:bg-zinc-900"
-              onClick={() => onAnchorChange(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1))}
+              onClick={() =>
+                onAnchorChange(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1))
+              }
             >
               ›
             </button>
@@ -155,28 +169,41 @@ export function AppointmentCalendar({
                     {d.getDate()}
                   </div>
                   <div className="space-y-1">
-                    {list.slice(0, 3).map((a) => (
-                      <div
-                        key={a.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpenAppointment(a.id);
-                        }}
-                        className="truncate rounded-md px-1 py-0.5 text-[11px] leading-tight hover:bg-white dark:hover:bg-zinc-800"
-                        title={`${a.patient.name} • ${a.customServiceName || a.service.name}`}
-                      >
-                        <span
-                          className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOT[a.status] ?? "bg-zinc-400"}`}
-                        />
-                        {new Date(a.startsAt).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}{" "}
-                        <span className="font-medium">{a.customServiceName || a.service.name}</span>
-                        {showSpecialist && a.specialist ? (
-                          <span className="text-zinc-500"> • {a.specialist.name}</span>
-                        ) : null}
-                      </div>
-                    ))}
+                    {list.slice(0, 3).map((a) => {
+                      const effectiveStatus =
+                        a.approvalStatus === "REJECTED"
+                          ? a.status
+                          : effectiveAppointmentStatus(a.status, a.startsAt, clock);
+                      return (
+                        <div
+                          key={a.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenAppointment(a.id);
+                          }}
+                          className="truncate rounded-md px-1 py-0.5 text-[11px] leading-tight hover:bg-white dark:hover:bg-zinc-800"
+                          title={`${a.patient.name} • ${a.customServiceName || a.service.name}`}
+                        >
+                          <span
+                            className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOT[effectiveStatus ?? ""] ?? "bg-zinc-400"}`}
+                          />
+                          {new Date(a.startsAt).toLocaleTimeString("pl-PL", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}{" "}
+                          <span className="font-medium">
+                            {a.customServiceName || a.service.name}
+                          </span>
+                          {showSpecialist && a.specialist ? (
+                            <span className="text-zinc-500"> • {a.specialist.name}</span>
+                          ) : null}
+                        </div>
+                      );
+                    })}
                     {list.length > 3 ? (
-                      <div className="px-1 text-[11px] text-zinc-500">+{list.length - 3} więcej</div>
+                      <div className="px-1 text-[11px] text-zinc-500">
+                        +{list.length - 3} więcej
+                      </div>
                     ) : null}
                   </div>
                 </div>
