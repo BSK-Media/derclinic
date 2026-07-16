@@ -37,12 +37,24 @@ const NAV: NavItem[] = [
   { label: "Pacjenci", permission: "patients", icon: <span className="text-lg">👥</span> },
   { label: "Magazyn", permission: "inventory", icon: <span className="text-lg">📦</span> },
   { label: "Produkty", permission: "products", icon: <span className="text-lg">🧴</span> },
-  { label: "Zabiegi i Procedury", permission: "services", icon: <span className="text-lg">🩺</span> },
+  {
+    label: "Zabiegi i Procedury",
+    permission: "services",
+    icon: <span className="text-lg">🩺</span>,
+  },
   { label: "Analityka", permission: "analytics", icon: <span className="text-lg">📈</span> },
   { label: "Ustawienia", permission: "settings", icon: <span className="text-lg">⚙️</span> },
 ];
 
-function UserAvatar({ name, avatarUrl, className = "h-8 w-8" }: { name?: string | null; avatarUrl?: string | null; className?: string }) {
+function UserAvatar({
+  name,
+  avatarUrl,
+  className = "h-8 w-8",
+}: {
+  name?: string | null;
+  avatarUrl?: string | null;
+  className?: string;
+}) {
   const initials = (name ?? "U")
     .split(/\s+/)
     .filter(Boolean)
@@ -59,7 +71,12 @@ function UserAvatar({ name, avatarUrl, className = "h-8 w-8" }: { name?: string 
   }
 
   return (
-    <div className={cn("inline-flex items-center justify-center rounded-full bg-emerald-100 font-semibold text-emerald-800", className)}>
+    <div
+      className={cn(
+        "inline-flex items-center justify-center rounded-full bg-emerald-100 font-semibold text-emerald-800",
+        className,
+      )}
+    >
       {initials || "U"}
     </div>
   );
@@ -72,10 +89,16 @@ function LogoBlock() {
   return (
     <div className="flex items-center gap-3 px-3 py-2">
       <div className="relative h-11 w-11 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 dark:ring-white/10">
-        <img src="/derclinic-logo.webp" alt="DerClinic" className="h-full w-full object-contain p-1.5" />
+        <img
+          src="/derclinic-logo.webp"
+          alt="DerClinic"
+          className="h-full w-full object-contain p-1.5"
+        />
       </div>
       <div className="min-w-0">
-        <div className="truncate text-sm font-semibold text-slate-900 dark:text-white">DerClinic OS</div>
+        <div className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+          DerClinic OS
+        </div>
         <div className="truncate text-xs text-slate-500 dark:text-slate-400">
           {user?.name ?? "Użytkownik"} • {user?.role ?? "—"}
         </div>
@@ -96,7 +119,9 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const visibleNav = user
-    ? NAV.filter((item) => hasSidebarPermission(user.role, user.sidebarPermissions, item.permission))
+    ? NAV.filter((item) =>
+        hasSidebarPermission(user.role, user.sidebarPermissions, item.permission),
+      )
     : [];
 
   return (
@@ -119,7 +144,7 @@ export function AppSidebar() {
                   "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition",
                   active
                     ? "bg-emerald-50 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-200"
-                    : "text-slate-700 hover:bg-slate-100/70 dark:text-slate-200 dark:hover:bg-white/5"
+                    : "text-slate-700 hover:bg-slate-100/70 dark:text-slate-200 dark:hover:bg-white/5",
                 )}
               >
                 <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/70 shadow-sm ring-1 ring-black/5 dark:bg-white/5 dark:ring-white/10">
@@ -180,15 +205,15 @@ export function AppHeader() {
           >
             <UserAvatar name={user?.name} avatarUrl={user?.avatarUrl} className="h-8 w-8" />
             <div>
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{user?.name ?? "Użytkownik"}</div>
-              {user?.jobTitle ? <div className="text-xs text-slate-400">{user.jobTitle}</div> : null}
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                {user?.name ?? "Użytkownik"}
+              </div>
+              {user?.jobTitle ? (
+                <div className="text-xs text-slate-400">{user.jobTitle}</div>
+              ) : null}
             </div>
             <span className="text-slate-400">▾</span>
           </Link>
-
-          <button className="inline-flex h-11 items-center gap-2 rounded-2xl border border-white/60 bg-white/70 px-4 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 dark:text-slate-200">
-            EN <span className="text-slate-400">▾</span>
-          </button>
 
           <button
             type="button"
