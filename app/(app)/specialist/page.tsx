@@ -263,7 +263,11 @@ export default async function SpecialistHome() {
       },
     }),
     prisma.appointment.findMany({
-      where: { specialistId: auth.id, startsAt: { gte: todayStart, lt: tomorrowStart } },
+      where: {
+        specialistId: auth.id,
+        deletedAt: null,
+        startsAt: { gte: todayStart, lt: tomorrowStart },
+      },
       orderBy: { startsAt: "asc" },
       include: { patient: true, service: true },
     }),
@@ -272,6 +276,7 @@ export default async function SpecialistHome() {
         specialistId: auth.id,
         status: "COMPLETED",
         approvalStatus: "APPROVED",
+        deletedAt: null,
         startsAt: { gte: monthStart, lt: nextMonthStart },
       },
       select: {
@@ -287,6 +292,7 @@ export default async function SpecialistHome() {
       where: {
         specialistId: auth.id,
         status: "COMPLETED",
+        deletedAt: null,
         startsAt: { gte: monthStart, lt: nextMonthStart },
       },
     }),
@@ -295,6 +301,7 @@ export default async function SpecialistHome() {
         specialistId: auth.id,
         status: "SCHEDULED",
         approvalStatus: { not: "REJECTED" },
+        deletedAt: null,
         startsAt: { lte: now },
       },
     }),
@@ -303,6 +310,7 @@ export default async function SpecialistHome() {
         specialistId: auth.id,
         status: "SCHEDULED",
         approvalStatus: { not: "REJECTED" },
+        deletedAt: null,
         startsAt: { gt: now, lt: warningWindowEnd },
       },
       orderBy: { startsAt: "asc" },
@@ -319,6 +327,7 @@ export default async function SpecialistHome() {
     prisma.appointment.findMany({
       where: {
         specialistId: auth.id,
+        deletedAt: null,
         OR: [{ createdAt: { gte: notificationsFrom } }, { updatedAt: { gte: notificationsFrom } }],
       },
       select: {
