@@ -37,11 +37,14 @@ export function ApprovalBadge({
       </span>
     );
   }
-  return (
-    <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
-      Zaakceptowana
-    </span>
-  );
+  if (status === "APPROVED") {
+    return (
+      <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
+        Zaakceptowana
+      </span>
+    );
+  }
+  return null;
 }
 
 // Popup wymuszający podanie powodu odrzucenia wizyty
