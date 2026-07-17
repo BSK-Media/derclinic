@@ -5,10 +5,16 @@ import { requireAuth, requireRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
 const PatchSchema = z.object({
-  name: z.string().min(2).optional(),
-  phone: z.string().optional().or(z.literal("")).optional(),
-  email: z.string().email().optional().or(z.literal("")).optional(),
-  note: z.string().optional().or(z.literal("")).optional(),
+  name: z.string().trim().min(2, "Podaj imię i nazwisko").max(100).optional(),
+  phone: z.string().trim().max(40).optional().or(z.literal("")),
+  email: z
+    .string()
+    .trim()
+    .email("Podaj poprawny adres e-mail")
+    .max(200)
+    .optional()
+    .or(z.literal("")),
+  note: z.string().trim().max(1000).optional().or(z.literal("")),
 });
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -19,15 +25,22 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const json = await req.json().catch(() => null);
   const parsed = PatchSchema.safeParse(json);
-  if (!parsed.success) return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
+  if (!parsed.success) {
+    return NextResponse.json(
+      { ok: false, message: parsed.error.issues[0]?.message ?? "Niepoprawne dane" },
+      { status: 400 },
+    );
+  }
 
   const updated = await prisma.patient.update({
     where: { id: params.id },
     data: {
       name: parsed.data.name,
-      phone: parsed.data.phone === undefined ? undefined : (parsed.data.phone ? parsed.data.phone : null),
-      email: parsed.data.email === undefined ? undefined : (parsed.data.email ? parsed.data.email : null),
-      note: parsed.data.note === undefined ? undefined : (parsed.data.note ? parsed.data.note : null),
+      phone:
+        parsed.data.phone === undefined ? undefined : parsed.data.phone ? parsed.data.phone : null,
+      email:
+        parsed.data.email === undefined ? undefined : parsed.data.email ? parsed.data.email : null,
+      note: parsed.data.note === undefined ? undefined : parsed.data.note ? parsed.data.note : null,
     },
   });
 
