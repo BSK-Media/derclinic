@@ -19,7 +19,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       payments: true,
     },
   });
-  if (!appt) return NextResponse.json({ ok: false, message: "Nie znaleziono" }, { status: 404 });
+  if (!appt || appt.deletedAt) {
+    return NextResponse.json({ ok: false, message: "Nie znaleziono" }, { status: 404 });
+  }
 
   if (user!.role !== "ADMIN" && appt.specialistId !== user!.id) {
     return NextResponse.json({ ok: false, message: "Brak uprawnień" }, { status: 403 });
@@ -50,9 +52,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const existing = await prisma.appointment.findUnique({
     where: { id: params.id },
-    select: { id: true, specialistId: true, startsAt: true, status: true },
+    select: { id: true, specialistId: true, startsAt: true, status: true, deletedAt: true },
   });
-  if (!existing)
+  if (!existing || existing.deletedAt)
     return NextResponse.json({ ok: false, message: "Nie znaleziono" }, { status: 404 });
   if (user!.role !== "ADMIN" && existing.specialistId !== user!.id) {
     return NextResponse.json({ ok: false, message: "Brak uprawnień" }, { status: 403 });
