@@ -150,9 +150,16 @@ export default function SpecialistAppointmentDetail() {
             </span>
           ) : null}
           {appt.approvalStatus === "REJECTED" ? (
-            <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-500/10 dark:text-red-300">
-              Odrzucona przez recepcję — nie liczy się do rozliczeń
-            </span>
+            <>
+              <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-500/10 dark:text-red-300">
+                Odrzucona - nie liczy się do rozliczenia
+              </span>
+              {appt.rejectionReason?.trim() ? (
+                <span className="text-xs font-medium text-red-700 dark:text-red-300">
+                  Powód: {appt.rejectionReason}
+                </span>
+              ) : null}
+            </>
           ) : null}
         </div>
       </Card>
