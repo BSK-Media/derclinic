@@ -54,8 +54,7 @@ const PatchSchema = z
     category: z.string().trim().max(120).nullable().optional(),
     description: z.string().trim().max(2000).nullable().optional(),
     durationMin: z.number().int().min(5).max(480).optional(),
-    priceFrom: z.number().int().min(0).nullable().optional(),
-    priceSuggested: z.number().int().min(0).nullable().optional(),
+    price: z.number().int().min(0).nullable().optional(),
   })
   .strict();
 
