@@ -20,7 +20,7 @@ const BodySchema = z
     }
   });
 
-// Akceptacja lub odrzucenie wizyty wpisanej przez lekarza. Tylko recepcja i administrator —
+// Akceptacja lub odrzucenie zakończonej wizyty. Tylko recepcja i administrator —
 // lekarz nie może zatwierdzić własnej wizyty (specjalistów blokuje też middleware
 // dla całej ścieżki /api/admin/appointments).
 export async function POST(req: Request, { params }: { params: { id: string } }) {
@@ -41,10 +41,19 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const appt = await prisma.appointment.findUnique({
     where: { id: params.id },
-    select: { id: true, approvalStatus: true },
+    select: { id: true, status: true, approvalStatus: true },
   });
   if (!appt)
     return NextResponse.json({ ok: false, message: "Nie znaleziono wizyty" }, { status: 404 });
+  if (appt.status !== "COMPLETED") {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: "Można zaakceptować lub odrzucić wyłącznie zakończoną wizytę.",
+      },
+      { status: 400 },
+    );
+  }
   if (appt.approvalStatus === target) {
     return NextResponse.json(
       {
