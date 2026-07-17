@@ -41,9 +41,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const appt = await prisma.appointment.findUnique({
     where: { id: params.id },
-    select: { id: true, status: true, approvalStatus: true },
+    select: { id: true, status: true, approvalStatus: true, deletedAt: true },
   });
-  if (!appt)
+  if (!appt || appt.deletedAt)
     return NextResponse.json({ ok: false, message: "Nie znaleziono wizyty" }, { status: 404 });
   if (appt.status !== "COMPLETED") {
     return NextResponse.json(
