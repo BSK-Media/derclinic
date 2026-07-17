@@ -371,30 +371,34 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                       <td className="p-3 text-zinc-500">Pojedyncza rezerwacja</td>
                       <td className="p-3">{appointmentStatusLabel(a.status)}</td>
                       <td className="p-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <ApprovalBadge status={a.approvalStatus} reason={a.rejectionReason} />
-                          {a.approvalStatus === "PENDING" ? (
-                            <div className="flex items-center gap-1">
-                              <Button
-                                size="sm"
-                                onClick={() => decide(a.id, "APPROVE")}
-                                disabled={decidingId === a.id}
-                              >
-                                {decidingId === a.id ? "…" : "✓ Zaakceptuj"}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-500/40 dark:hover:bg-red-500/10"
-                                onClick={() => setRejectTarget(a)}
-                                disabled={decidingId === a.id}
-                              >
-                                ✕ Odrzuć
-                              </Button>
-                            </div>
-                          ) : null}
-                        </div>
-                        {a.approvalStatus === "REJECTED" && a.rejectionReason ? (
+                        {a.status === "COMPLETED" ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <ApprovalBadge status={a.approvalStatus} reason={a.rejectionReason} />
+                            {a.approvalStatus === "PENDING" ? (
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="sm"
+                                  onClick={() => decide(a.id, "APPROVE")}
+                                  disabled={decidingId === a.id}
+                                >
+                                  {decidingId === a.id ? "…" : "✓ Zaakceptuj"}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-500/40 dark:hover:bg-red-500/10"
+                                  onClick={() => setRejectTarget(a)}
+                                  disabled={decidingId === a.id}
+                                >
+                                  ✕ Odrzuć
+                                </Button>
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {a.status === "COMPLETED" &&
+                        a.approvalStatus === "REJECTED" &&
+                        a.rejectionReason ? (
                           <div className="mt-1 max-w-56 text-xs text-zinc-500">
                             Powód: {a.rejectionReason}
                           </div>
