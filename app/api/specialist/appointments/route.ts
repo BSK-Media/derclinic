@@ -142,8 +142,7 @@ export async function POST(req: Request) {
         select: {
           id: true,
           durationMin: true,
-          priceFrom: true,
-          priceSuggested: true,
+          price: true,
         },
       })
     : null;
@@ -162,7 +161,7 @@ export async function POST(req: Request) {
   const email = parsed.data.email?.trim() || null;
   const durationMin = requestedService?.durationMin ?? 30;
   const endsAt = new Date(startsAt.getTime() + durationMin * 60 * 1000);
-  const standardPrice = requestedService?.priceSuggested ?? requestedService?.priceFrom ?? null;
+  const standardPrice = requestedService?.price ?? null;
 
   const appointment = await prisma.$transaction(async (tx) => {
     const service = isCustom
