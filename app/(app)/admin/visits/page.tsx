@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/select";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { AdminBookAppointmentDialog } from "@/components/admin-book-appointment-dialog";
+import { ApprovalBadge, RejectReasonDialog } from "@/components/appointment-approval";
+import { toast } from "sonner";
 import { AppointmentCalendar, startOfGrid } from "@/components/appointment-calendar";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
 
@@ -73,6 +75,8 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [defaultDate, setDefaultDate] = React.useState<Date | null>(null);
+  const [decidingId, setDecidingId] = React.useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = React.useState<any | null>(null);
 
   // Zakres danych dla widoku kalendarza (siatka 6 tygodni)
   const calendarRange = React.useMemo(() => {
@@ -124,6 +128,33 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
       else next.add(id);
       return next;
     });
+  }
+
+  async function decide(id: string, action: "APPROVE" | "REJECT", reason?: string) {
+    setDecidingId(id);
+    try {
+      const res = await fetch(`/api/admin/appointments/${id}/approve`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, reason }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) {
+        toast.error(out?.message || "Nie udało się zapisać decyzji");
+        return false;
+      }
+      toast.success(action === "APPROVE" ? "Wizyta zaakceptowana" : "Wizyta odrzucona");
+      mutate();
+      return true;
+    } finally {
+      setDecidingId(null);
+    }
+  }
+
+  async function confirmReject(reason: string) {
+    if (!rejectTarget) return;
+    const ok = await decide(rejectTarget.id, "REJECT", reason);
+    if (ok) setRejectTarget(null);
   }
 
   async function cancelAppointment(id: string) {
@@ -254,6 +285,7 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                   <th className="p-3">Usługa</th>
                   <th className="p-3">Typ</th>
                   <th className="p-3">Status</th>
+                  <th className="p-3">Akceptacja</th>
                   <th className="p-3">Cena</th>
                   <th className="w-10 p-3"></th>
                 </tr>
@@ -261,7 +293,7 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
               <tbody>
                 {!isLoading && filtered.length === 0 && (
                   <tr>
-                    <td className="p-6 text-center text-zinc-500" colSpan={11}>
+                    <td className="p-6 text-center text-zinc-500" colSpan={12}>
                       Brak rezerwacji w wybranym zakresie.
                     </td>
                   </tr>
@@ -288,6 +320,36 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                     <td className="p-3">{a.customServiceName || a.service?.name}</td>
                     <td className="p-3 text-zinc-500">Pojedyncza rezerwacja</td>
                     <td className="p-3">{appointmentStatusLabel(a.status)}</td>
+                    <td className="p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <ApprovalBadge status={a.approvalStatus} reason={a.rejectionReason} />
+                        {a.approvalStatus === "PENDING" ? (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              onClick={() => decide(a.id, "APPROVE")}
+                              disabled={decidingId === a.id}
+                            >
+                              {decidingId === a.id ? "…" : "✓ Zaakceptuj"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-500/40 dark:hover:bg-red-500/10"
+                              onClick={() => setRejectTarget(a)}
+                              disabled={decidingId === a.id}
+                            >
+                              ✕ Odrzuć
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                      {a.approvalStatus === "REJECTED" && a.rejectionReason ? (
+                        <div className="mt-1 max-w-56 text-xs text-zinc-500">
+                          Powód: {a.rejectionReason}
+                        </div>
+                      ) : null}
+                    </td>
                     <td className="p-3">{formatPLNFromGrosze(a.priceFinal ?? a.priceEstimate)}</td>
                     <td className="p-3 text-right">
                       <DropdownMenu>
@@ -315,6 +377,28 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
           </div>
         </div>
       )}
+
+      <RejectReasonDialog
+        open={rejectTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRejectTarget(null);
+        }}
+        onConfirm={confirmReject}
+        saving={decidingId !== null}
+        contextLabel={
+          rejectTarget
+            ? `${new Date(rejectTarget.startsAt).toLocaleString("pl-PL", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })} • ${rejectTarget.patient?.name ?? ""} • ${
+                rejectTarget.customServiceName || rejectTarget.service?.name || ""
+              }`
+            : null
+        }
+      />
 
       <AdminBookAppointmentDialog
         open={dialogOpen}
