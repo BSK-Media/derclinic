@@ -4,6 +4,15 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
+function parseRangeDate(value: string | null, fallback: Date, includeWholeDay = false) {
+  if (!value) return fallback;
+  const date = new Date(value);
+  if (includeWholeDay && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    date.setUTCDate(date.getUTCDate() + 1);
+  }
+  return date;
+}
+
 export async function GET(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
@@ -14,8 +23,8 @@ export async function GET(req: Request) {
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
 
-  const fromDt = from ? new Date(from) : new Date(Date.now() - 1000 * 60 * 60 * 24 * 7);
-  const toDt = to ? new Date(to) : new Date(Date.now() + 1000 * 60 * 60 * 24 * 14);
+  const fromDt = parseRangeDate(from, new Date(Date.now() - 1000 * 60 * 60 * 24 * 7));
+  const toDt = parseRangeDate(to, new Date(Date.now() + 1000 * 60 * 60 * 24 * 14), true);
 
   const [appointments, patients, specialists, services] = await Promise.all([
     prisma.appointment.findMany({
