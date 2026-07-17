@@ -7,6 +7,14 @@ import { Input } from "@/components/ui/input";
 import { AppointmentCalendar, startOfGrid } from "@/components/appointment-calendar";
 import { useRouter } from "next/navigation";
 import { appointmentStatusLabel, effectiveAppointmentStatus } from "@/lib/appointment-status";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
 
 const fetcher = (url: string) => fetch(url).then((response) => response.json());
 
@@ -89,7 +97,8 @@ export default function SpecialistAppointmentsPage({
   const [from, setFrom] = React.useState(fromDefault);
   const [to, setTo] = React.useState(toDefault);
   const [search, setSearch] = React.useState("");
-  const { data, isLoading } = useSWR(
+  const [updatingStatusId, setUpdatingStatusId] = React.useState<string | null>(null);
+  const { data, isLoading, mutate } = useSWR(
     view === "calendar"
       ? `/api/specialist/appointments?from=${calendarRange.from.toISOString()}&to=${calendarRange.to.toISOString()}`
       : `/api/specialist/appointments?from=${from}&to=${to}`,
@@ -111,6 +120,32 @@ export default function SpecialistAppointmentsPage({
     const timer = window.setInterval(() => setClock(new Date()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  async function updateStatus(appointmentId: string, status: string) {
+    if (status === "AWAITING") return;
+
+    setUpdatingStatusId(appointmentId);
+    try {
+      const response = await fetch(`/api/specialist/appointments/${appointmentId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.ok) {
+        toast.error(result?.message || "Nie udało się zmienić statusu wizyty.");
+        return;
+      }
+
+      await mutate();
+      toast.success("Status wizyty został zmieniony.");
+    } catch {
+      toast.error("Nie udało się zmienić statusu wizyty.");
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -197,18 +232,21 @@ export default function SpecialistAppointmentsPage({
                     <th className="p-3">Notatka</th>
                     <th className="p-3">Zużyte preparaty</th>
                     <th className="p-3">Status</th>
+                    <th className="p-3">Zmień status</th>
                     <th className="p-3"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {!isLoading && filtered.length === 0 ? (
                     <tr>
-                      <td className="p-6 text-center text-zinc-500" colSpan={8}>
+                      <td className="p-6 text-center text-zinc-500" colSpan={9}>
                         Brak wizyt.
                       </td>
                     </tr>
                   ) : null}
                   {filtered.map((appointment: any) => {
+                    const startHasPassed =
+                      new Date(appointment.startsAt).getTime() <= clock.getTime();
                     const effectiveStatus =
                       appointment.approvalStatus === "REJECTED"
                         ? appointment.status
@@ -263,6 +301,33 @@ export default function SpecialistAppointmentsPage({
                               Odrzucona - nie liczy się do rozliczenia
                             </span>
                           ) : null}
+                        </td>
+                        <td className="min-w-52 p-3">
+                          <Select
+                            value={effectiveStatus ?? appointment.status}
+                            onValueChange={(nextStatus) => updateStatus(appointment.id, nextStatus)}
+                            disabled={updatingStatusId === appointment.id}
+                          >
+                            <SelectTrigger className="w-52">
+                              <SelectValue placeholder="Wybierz status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {effectiveStatus === "AWAITING" ? (
+                                <SelectItem value="AWAITING" disabled>
+                                  Oczekujące — wybierz status końcowy
+                                </SelectItem>
+                              ) : !startHasPassed ? (
+                                <SelectItem value="SCHEDULED">Zaplanowana</SelectItem>
+                              ) : appointment.status === "SCHEDULED" ? (
+                                <SelectItem value="SCHEDULED" disabled>
+                                  Zaplanowana
+                                </SelectItem>
+                              ) : null}
+                              <SelectItem value="COMPLETED">Zakończona</SelectItem>
+                              <SelectItem value="CANCELED">Odwołana</SelectItem>
+                              <SelectItem value="NO_SHOW">Nieobecność pacjenta</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </td>
                         <td className="p-3 text-right">
                           <Link
