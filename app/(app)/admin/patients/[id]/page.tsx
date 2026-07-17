@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
+import { PatientDetailsForm } from "@/components/patient-details-form";
 
 export default async function AdminPatientDetailPage({ params }: { params: { id: string } }) {
   const patient = await prisma.patient.findUnique({ where: { id: params.id } });
@@ -21,19 +21,14 @@ export default async function AdminPatientDetailPage({ params }: { params: { id:
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">{patient.name}</h1>
-          <div className="text-sm text-zinc-500">
-            {patient.phone ? `tel: ${patient.phone}` : ""}
-            {patient.phone && patient.email ? " • " : ""}
-            {patient.email ?? ""}
-          </div>
-        </div>
-        <Link className="underline" href="/admin/patients">
-          Wróć
-        </Link>
-      </div>
+      <PatientDetailsForm
+        patient={{
+          id: patient.id,
+          name: patient.name,
+          phone: patient.phone,
+          email: patient.email,
+        }}
+      />
 
       {patient.note && (
         <div className="rounded-xl border bg-white p-4 shadow-sm dark:bg-zinc-950">
