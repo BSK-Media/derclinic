@@ -27,8 +27,7 @@ import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
 
 const fetcher = (url: string) => fetch(url).then((response) => response.json());
 
-type EditableField =
-  "name" | "category" | "description" | "durationMin" | "priceFrom" | "priceSuggested";
+type EditableField = "name" | "category" | "description" | "durationMin" | "price";
 
 type Product = { id: string; name: string; unit: string };
 type Specialist = { id: string; name: string };
@@ -38,8 +37,7 @@ type Service = {
   category: string | null;
   description: string | null;
   durationMin: number;
-  priceFrom: number | null;
-  priceSuggested: number | null;
+  price: number | null;
   suggestedProducts: Array<{
     id: string;
     productId: string;
@@ -68,8 +66,7 @@ const FIELD_LABELS: Record<EditableField, string> = {
   category: "Kategoria",
   description: "Opis usługi",
   durationMin: "Czas trwania",
-  priceFrom: "Cena od",
-  priceSuggested: "Cena sugerowana",
+  price: "Cena",
 };
 
 const UNIT_OPTIONS = [
@@ -83,7 +80,7 @@ const UNIT_OPTIONS = [
 
 function fieldDraft(service: Service, field: EditableField) {
   const value = service[field];
-  if (field === "priceFrom" || field === "priceSuggested") {
+  if (field === "price") {
     return typeof value === "number" ? (value / 100).toFixed(2).replace(".", ",") : "";
   }
   return value === null ? "" : String(value);
@@ -91,7 +88,7 @@ function fieldDraft(service: Service, field: EditableField) {
 
 function fieldValue(service: Service, field: EditableField) {
   const value = service[field];
-  if (field === "priceFrom" || field === "priceSuggested") {
+  if (field === "price") {
     return formatPLNFromGrosze(value as number | null);
   }
   if (field === "durationMin") return `${value} min`;
@@ -147,7 +144,7 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
       }
       value = duration;
     }
-    if (field === "priceFrom" || field === "priceSuggested") {
+    if (field === "price") {
       if (!value) {
         value = null;
       } else {
@@ -275,8 +272,7 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
     "name",
     "category",
     "durationMin",
-    "priceFrom",
-    "priceSuggested",
+    "price",
     "description",
   ];
 
