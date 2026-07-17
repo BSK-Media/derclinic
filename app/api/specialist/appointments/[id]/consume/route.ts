@@ -11,6 +11,19 @@ const BodySchema = z.object({
   note: z.string().optional().or(z.literal("")),
 });
 
+async function loadActiveAppointment(appointmentId: string) {
+  const appointment = await prisma.appointment.findUnique({
+    where: { id: appointmentId },
+    select: { id: true, specialistId: true, deletedAt: true },
+  });
+  if (!appointment || appointment.deletedAt) {
+    return {
+      error: NextResponse.json({ ok: false, message: "Nie znaleziono wizyty" }, { status: 404 }),
+    };
+  }
+  return { appointment };
+}
+
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
   if (error) return error;
@@ -22,9 +35,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!parsed.success)
     return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
-  const appt = await prisma.appointment.findUnique({ where: { id: params.id } });
-  if (!appt)
-    return NextResponse.json({ ok: false, message: "Nie znaleziono wizyty" }, { status: 404 });
+  const { appointment: appt, error: appointmentError } = await loadActiveAppointment(params.id);
+  if (appointmentError) return appointmentError;
 
   const warehouseId = parsed.data.warehouseId ? parsed.data.warehouseId : null;
   if (!warehouseId)
@@ -86,6 +98,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const deny = requireStrictRole(user!.role, ["RECEPTION", "ADMIN"]);
   if (deny) return deny;
 
+  const { error: appointmentError } = await loadActiveAppointment(params.id);
+  if (appointmentError) return appointmentError;
+
   const json = await req.json().catch(() => null);
   const parsed = PatchSchema.safeParse(json);
   if (!parsed.success)
@@ -133,6 +148,9 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["RECEPTION", "ADMIN"]);
   if (deny) return deny;
+
+  const { error: appointmentError } = await loadActiveAppointment(params.id);
+  if (appointmentError) return appointmentError;
 
   const url = new URL(req.url);
   const consumptionId = url.searchParams.get("consumptionId");
