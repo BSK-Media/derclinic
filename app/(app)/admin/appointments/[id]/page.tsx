@@ -84,20 +84,12 @@ export default function AdminAppointmentDetail() {
 
   useEffect(() => {
     if (!appt?.id) return;
-    const standardPrice =
-      appt.priceEstimate ?? appt.service?.priceSuggested ?? appt.service?.priceFrom ?? null;
+    const standardPrice = appt.priceEstimate ?? appt.service?.price ?? null;
     const finalPrice = appt.priceFinal ?? standardPrice;
     setPriceEstimate(standardPrice === null ? "" : String(standardPrice / 100));
     setPriceFinal(finalPrice === null ? "" : String(finalPrice / 100));
     setNote(appt.note ?? "");
-  }, [
-    appt?.id,
-    appt?.note,
-    appt?.priceEstimate,
-    appt?.priceFinal,
-    appt?.service?.priceFrom,
-    appt?.service?.priceSuggested,
-  ]);
+  }, [appt?.id, appt?.note, appt?.priceEstimate, appt?.priceFinal, appt?.service?.price]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
