@@ -654,7 +654,7 @@ function inferServiceDuration(name: string): number {
 }
 
 function inferServiceDescription(name: string, price: number): string {
-  return `Usługa seedowana roboczo z cennika kliniki. Cena sugerowana: ${price} PLN.`;
+  return `Usługa seedowana roboczo z cennika kliniki. Cena: ${price} PLN.`;
 }
 
 
@@ -874,8 +874,7 @@ async function main() {
         category,
         description: inferServiceDescription(service.name, service.price),
         durationMin: inferServiceDuration(service.name),
-        priceFrom: service.price * 100,
-        priceSuggested: service.price * 100,
+        price: service.price * 100,
       },
       create: {
         id: `service-seed-${String(index + 1).padStart(3, "0")}`,
@@ -883,8 +882,7 @@ async function main() {
         category,
         description: inferServiceDescription(service.name, service.price),
         durationMin: inferServiceDuration(service.name),
-        priceFrom: service.price * 100,
-        priceSuggested: service.price * 100,
+        price: service.price * 100,
       },
     });
     seededServices += 1;
@@ -897,8 +895,7 @@ async function main() {
       category: "Niestandardowe",
       description: "Techniczna usługa dla wizyt z nazwą wpisaną ręcznie przez pracownika.",
       durationMin: 30,
-      priceFrom: null,
-      priceSuggested: null,
+      price: null,
     },
     create: {
       id: "service-custom",
