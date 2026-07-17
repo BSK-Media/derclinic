@@ -276,10 +276,10 @@ export default function SpecialistDetailPage() {
                   </td>
                   <td className="p-3">
                     <StatusBadge status={a.status} />
-                    {a.approvalStatus === "PENDING" ? (
+                    {a.status === "COMPLETED" && a.approvalStatus === "PENDING" ? (
                       <div className="mt-1 text-xs text-amber-600">do akceptacji</div>
                     ) : null}
-                    {a.approvalStatus === "REJECTED" ? (
+                    {a.status === "COMPLETED" && a.approvalStatus === "REJECTED" ? (
                       <div className="mt-1 text-xs text-red-600">odrzucona</div>
                     ) : null}
                   </td>
@@ -293,7 +293,7 @@ export default function SpecialistDetailPage() {
                   </td>
                   <td className="p-3">
                     <div className="flex items-center justify-end gap-1">
-                      {a.approvalStatus === "PENDING" ? (
+                      {a.status === "COMPLETED" && a.approvalStatus === "PENDING" ? (
                         <>
                           <button
                             type="button"
