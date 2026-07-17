@@ -20,11 +20,20 @@ export async function GET(req: Request) {
   const ym = url.searchParams.get("month") || new Date().toISOString().slice(0, 7);
   const { start, end } = ymToRange(ym);
 
-  const specialists = await prisma.user.findMany({ where: { role: "SPECIALIST" }, orderBy: { name: "asc" } });
+  const specialists = await prisma.user.findMany({
+    where: { role: "SPECIALIST" },
+    orderBy: { name: "asc" },
+  });
   const specialistIds = specialists.map((s) => s.id);
 
   const appointments = await prisma.appointment.findMany({
-    where: { specialistId: { in: specialistIds }, status: "COMPLETED", approvalStatus: "APPROVED", startsAt: { gte: start, lt: end } },
+    where: {
+      specialistId: { in: specialistIds },
+      status: "COMPLETED",
+      approvalStatus: "APPROVED",
+      deletedAt: null,
+      startsAt: { gte: start, lt: end },
+    },
     include: { consumptions: { include: { product: true } } },
     take: 5000,
   });
