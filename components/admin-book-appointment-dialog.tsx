@@ -27,8 +27,7 @@ type Service = {
   id: string;
   name: string;
   durationMin: number;
-  priceSuggested?: number | null;
-  priceFrom?: number | null;
+  price?: number | null;
 };
 
 const NEW_PATIENT = "__NEW__";
@@ -86,9 +85,7 @@ function PatientCombobox({
   }, [open]);
 
   const selectedLabel =
-    value === NEW_PATIENT
-      ? "➕ Nowy klient"
-      : (sorted.find((p) => p.id === value)?.name ?? "");
+    value === NEW_PATIENT ? "➕ Nowy klient" : (sorted.find((p) => p.id === value)?.name ?? "");
 
   function pick(next: string) {
     onChange(next);
@@ -229,14 +226,14 @@ export function AdminBookAppointmentDialog({
     [services, serviceId],
   );
   const durationMin = selectedService?.durationMin ?? 30;
-  const standardPrice = selectedService?.priceSuggested ?? selectedService?.priceFrom ?? null;
+  const standardPrice = selectedService?.price ?? null;
   const enteredPrice = priceFinal.trim() ? parsePLNToGrosze(priceFinal) : null;
   const isStandardPrice = standardPrice !== null && enteredPrice === standardPrice;
 
   function selectService(value: string) {
     setServiceId(value);
     const service = services.find((item) => item.id === value);
-    const price = service?.priceSuggested ?? service?.priceFrom ?? null;
+    const price = service?.price ?? null;
     setPriceFinal(price === null ? "" : (price / 100).toFixed(2).replace(".", ","));
   }
 
@@ -356,8 +353,8 @@ export function AdminBookAppointmentDialog({
                 </div>
               </div>
               <div className="text-xs text-zinc-500">
-                Jeśli klient z tym numerem telefonu już istnieje, wizyta zostanie przypisana do
-                jego kartoteki.
+                Jeśli klient z tym numerem telefonu już istnieje, wizyta zostanie przypisana do jego
+                kartoteki.
               </div>
             </div>
           ) : null}
