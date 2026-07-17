@@ -58,6 +58,7 @@ type ServiceResponse = {
   message?: string;
   viewerRole?: string;
   service?: Service;
+  services?: Service[];
   specialists?: Specialist[];
   products?: Product[];
 };
@@ -99,10 +100,10 @@ function fieldValue(service: Service, field: EditableField) {
 
 export default function ServiceDetailsPage({ params }: { params: { id: string } }) {
   const { data, error, isLoading, mutate } = useSWR<ServiceResponse>(
-    `/api/admin/services/${params.id}`,
+    "/api/admin/services",
     fetcher,
   );
-  const service = data?.service;
+  const service = data?.services?.find((item) => item.id === params.id);
   const specialists = data?.specialists ?? [];
   const products = data?.products ?? [];
   const isAdmin = data?.viewerRole === "ADMIN";
@@ -161,10 +162,10 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
 
     setSavingField(field);
     try {
-      const response = await fetch(`/api/admin/services/${service.id}`, {
+      const response = await fetch("/api/admin/services", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ [field]: value }),
+        body: JSON.stringify({ id: service.id, [field]: value }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result?.ok) {
@@ -244,14 +245,27 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
   }
 
   if (isLoading) return <div className="text-sm text-zinc-500">Ładowanie usługi...</div>;
-  if (error || !data?.ok || !service) {
+  if (error || !data?.ok) {
     return (
       <div className="space-y-4">
         <Link href="/admin/services" className="text-sm underline">
           Wróć do listy usług
         </Link>
         <div className="rounded-2xl border bg-white p-6 text-sm text-red-600 dark:bg-zinc-950">
-          {data?.message || "Nie udało się wczytać usługi."}
+          {data?.message || "Nie udało się wczytać usług."}
+        </div>
+      </div>
+    );
+  }
+
+  if (!service) {
+    return (
+      <div className="space-y-4">
+        <Link href="/admin/services" className="text-sm underline">
+          Wróć do listy usług
+        </Link>
+        <div className="rounded-2xl border bg-white p-6 text-sm text-red-600 dark:bg-zinc-950">
+          Nie znaleziono wybranej usługi.
         </div>
       </div>
     );
