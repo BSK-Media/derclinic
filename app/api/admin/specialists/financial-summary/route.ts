@@ -11,10 +11,7 @@ export async function GET(req: Request) {
 
   const period = resolveSettlementRange(new URL(req.url));
   if (!period) {
-    return NextResponse.json(
-      { ok: false, message: "Niepoprawny zakres dat" },
-      { status: 400 },
-    );
+    return NextResponse.json({ ok: false, message: "Niepoprawny zakres dat" }, { status: 400 });
   }
 
   const specialists = await prisma.user.findMany({
@@ -38,6 +35,7 @@ export async function GET(req: Request) {
       specialistId: { in: specialistIds },
       status: "COMPLETED",
       approvalStatus: "APPROVED",
+      deletedAt: null,
       startsAt: { gte: period.start, lt: period.end },
     },
     select: {
