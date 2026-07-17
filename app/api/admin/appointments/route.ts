@@ -55,17 +55,43 @@ export async function GET(req: Request) {
   });
 }
 
-const CreateSchema = z.object({
-  patientId: z.string().min(1),
-  specialistId: z.string().min(1),
-  serviceId: z.string().min(1),
-  startsAt: z.string().min(1),
-  durationMin: z.number().int().min(5).max(480),
-  priceFinal: z.number().int().optional().nullable(),
-  // Zgodność ze starszym formularzem — ta wartość również jest traktowana jako cena końcowa.
-  priceEstimate: z.number().int().optional().nullable(),
-  note: z.string().optional().or(z.literal("")),
+const NewPatientSchema = z.object({
+  firstName: z.string().trim().min(1).max(100),
+  lastName: z.string().trim().min(1).max(100),
+  phone: z.string().trim().min(3).max(40),
+  email: z.string().trim().email().max(200).optional().or(z.literal("")),
 });
+
+const CreateSchema = z
+  .object({
+    patientId: z.string().min(1).optional().nullable(),
+    // Nowy klient zakładany bezpośrednio z formularza rezerwacji (admin/recepcja)
+    newPatient: NewPatientSchema.optional().nullable(),
+    specialistId: z.string().min(1),
+    serviceId: z.string().min(1),
+    startsAt: z.string().min(1),
+    durationMin: z.number().int().min(5).max(480),
+    priceFinal: z.number().int().optional().nullable(),
+    // Zgodność ze starszym formularzem — ta wartość również jest traktowana jako cena końcowa.
+    priceEstimate: z.number().int().optional().nullable(),
+    note: z.string().optional().or(z.literal("")),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.patientId && !value.newPatient) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["patientId"],
+        message: "Wybierz pacjenta lub podaj dane nowego klienta",
+      });
+    }
+  });
+
+function normalizePhone(value: string) {
+  const trimmed = value.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return trimmed;
+  return trimmed.startsWith("+") ? `+${digits}` : digits;
+}
 
 export async function POST(req: Request) {
   const { user, error } = await requireAuth();
@@ -92,9 +118,47 @@ export async function POST(req: Request) {
   const standardPrice = service.priceSuggested ?? service.priceFrom ?? null;
   const finalPrice = parsed.data.priceFinal ?? parsed.data.priceEstimate ?? standardPrice;
 
+  let patientId = parsed.data.patientId ?? null;
+  if (!patientId && parsed.data.newPatient) {
+    const newPatient = parsed.data.newPatient;
+    const patientName = `${newPatient.firstName} ${newPatient.lastName}`
+      .replace(/\s+/g, " ")
+      .trim();
+    const phone = normalizePhone(newPatient.phone);
+    const email = newPatient.email?.trim() || null;
+
+    // Ten sam numer telefonu = ten sam klient — nie duplikujemy kartotek
+    const existingPatient = await prisma.patient.findFirst({
+      where: { phone },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, email: true },
+    });
+    if (existingPatient) {
+      patientId = existingPatient.id;
+      if (email && !existingPatient.email) {
+        await prisma.patient.update({ where: { id: existingPatient.id }, data: { email } });
+      }
+    } else {
+      const createdPatient = await prisma.patient.create({
+        data: { name: patientName, phone, email },
+        select: { id: true },
+      });
+      patientId = createdPatient.id;
+      await logAudit({
+        actorId: user!.id,
+        action: "CREATE",
+        entity: "Patient",
+        entityId: createdPatient.id,
+      });
+    }
+  }
+  if (!patientId) {
+    return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
+  }
+
   const appt = await prisma.appointment.create({
     data: {
-      patientId: parsed.data.patientId,
+      patientId,
       specialistId: parsed.data.specialistId,
       serviceId: parsed.data.serviceId,
       startsAt,
