@@ -12,10 +12,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/components/auth-provider";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
-import {
-  SIDEBAR_PERMISSION_OPTIONS,
-  type SidebarPermission,
-} from "@/lib/sidebar-permissions";
+import { SIDEBAR_PERMISSION_OPTIONS, type SidebarPermission } from "@/lib/sidebar-permissions";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -93,7 +90,11 @@ export default function SpecialistDetailPage() {
         <div className="flex items-center gap-4">
           <div className="h-16 w-16 overflow-hidden rounded-2xl bg-slate-200 ring-1 ring-black/5 dark:bg-white/10">
             {specialist?.avatarUrl ? (
-              <img src={specialist.avatarUrl} alt={specialist.name} className="h-full w-full object-cover" />
+              <img
+                src={specialist.avatarUrl}
+                alt={specialist.name}
+                className="h-full w-full object-cover"
+              />
             ) : null}
           </div>
           <div>
@@ -105,8 +106,11 @@ export default function SpecialistDetailPage() {
           </div>
         </div>
 
-        <Link href="/admin/specialists" className="text-sm text-emerald-700 underline underline-offset-2 dark:text-emerald-300">
-          ← Wróć do listy
+        <Link
+          href={user?.role === "RECEPTION" ? "/admin/visits" : "/admin/specialists"}
+          className="text-sm text-emerald-700 underline underline-offset-2 dark:text-emerald-300"
+        >
+          ← {user?.role === "RECEPTION" ? "Wróć do wizyt" : "Wróć do listy"}
         </Link>
       </div>
 
@@ -179,24 +183,36 @@ export default function SpecialistDetailPage() {
         <Card className="p-4">
           <div className="text-sm text-slate-500">Wizyty zakończone</div>
           <div className="mt-2 text-3xl font-semibold">{stats?.appointmentsCompleted ?? "—"}</div>
-          <div className="mt-1 text-xs text-slate-500">wszystkie w okresie: {stats?.appointmentsTotal ?? "—"}</div>
+          <div className="mt-1 text-xs text-slate-500">
+            wszystkie w okresie: {stats?.appointmentsTotal ?? "—"}
+          </div>
         </Card>
         <Card className="p-4">
           <div className="text-sm text-slate-500">Przychód dla kliniki</div>
-          <div className="mt-2 text-3xl font-semibold">{stats ? formatPLNFromGrosze(stats.revenue) : "—"}</div>
+          <div className="mt-2 text-3xl font-semibold">
+            {stats ? formatPLNFromGrosze(stats.revenue) : "—"}
+          </div>
         </Card>
         <Card className="p-4">
           <div className="text-sm text-slate-500">Koszt materiałów</div>
-          <div className="mt-2 text-3xl font-semibold">{stats ? formatPLNFromGrosze(stats.materialCost) : "—"}</div>
+          <div className="mt-2 text-3xl font-semibold">
+            {stats ? formatPLNFromGrosze(stats.materialCost) : "—"}
+          </div>
         </Card>
         <Card className="p-4">
           <div className="text-sm text-slate-500">Wynagrodzenie pracownika</div>
-          <div className="mt-2 text-3xl font-semibold">{stats ? formatPLNFromGrosze(stats.payout) : "—"}</div>
-          <div className="mt-1 text-xs text-slate-500">{stats ? `${stats.percent}% × (przychód − materiały)` : "% × (przychód − materiały)"}</div>
+          <div className="mt-2 text-3xl font-semibold">
+            {stats ? formatPLNFromGrosze(stats.payout) : "—"}
+          </div>
+          <div className="mt-1 text-xs text-slate-500">
+            {stats ? `${stats.percent}% × (przychód − materiały)` : "% × (przychód − materiały)"}
+          </div>
         </Card>
         <Card className="p-4">
           <div className="text-sm text-slate-500">Zysk kliniki</div>
-          <div className="mt-2 text-3xl font-semibold">{stats ? formatPLNFromGrosze(stats.profit) : "—"}</div>
+          <div className="mt-2 text-3xl font-semibold">
+            {stats ? formatPLNFromGrosze(stats.profit) : "—"}
+          </div>
           <div className="mt-1 text-xs text-slate-500">przychód − materiały − wynagrodzenie</div>
         </Card>
       </div>
@@ -206,7 +222,9 @@ export default function SpecialistDetailPage() {
         <div className="border-b p-4">
           <div className="font-medium">Historia wizyt</div>
           <div className="mt-1 text-xs text-slate-500">
-            Kwoty: przychód (cena wizyty), materiały (koszt zakupu zużytych produktów), wypłata = (przychód − materiały) × procent pracownika. Do statystyk i wypłaty liczą się tylko wizyty zakończone i zaakceptowane.
+            Kwoty: przychód (cena wizyty), materiały (koszt zakupu zużytych produktów), wypłata =
+            (przychód − materiały) × procent pracownika. Do statystyk i wypłaty liczą się tylko
+            wizyty zakończone i zaakceptowane.
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -221,7 +239,7 @@ export default function SpecialistDetailPage() {
                 <th className="p-3 text-right">Materiały</th>
                 <th className="p-3 text-right">Baza (przychód − materiały)</th>
                 <th className="p-3 text-right">Wypłata</th>
-                <th className="p-3 w-32 text-right">Akcje</th>
+                <th className="w-32 p-3 text-right">Akcje</th>
               </tr>
             </thead>
             <tbody>
@@ -241,8 +259,11 @@ export default function SpecialistDetailPage() {
               )}
               {appointments.map((a) => (
                 <tr key={a.id} className="border-t align-top">
-                  <td className="p-3 whitespace-nowrap">
-                    {new Date(a.startsAt).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })}
+                  <td className="whitespace-nowrap p-3">
+                    {new Date(a.startsAt).toLocaleString("pl-PL", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    })}
                   </td>
                   <td className="p-3">{a.patient?.name ?? "—"}</td>
                   <td className="p-3">
@@ -263,9 +284,13 @@ export default function SpecialistDetailPage() {
                     ) : null}
                   </td>
                   <td className="p-3 text-right tabular-nums">{formatPLNFromGrosze(a.revenue)}</td>
-                  <td className="p-3 text-right tabular-nums">{formatPLNFromGrosze(a.materialCost)}</td>
+                  <td className="p-3 text-right tabular-nums">
+                    {formatPLNFromGrosze(a.materialCost)}
+                  </td>
                   <td className="p-3 text-right tabular-nums">{formatPLNFromGrosze(a.base)}</td>
-                  <td className="p-3 text-right tabular-nums font-medium">{formatPLNFromGrosze(a.payout)}</td>
+                  <td className="p-3 text-right font-medium tabular-nums">
+                    {formatPLNFromGrosze(a.payout)}
+                  </td>
                   <td className="p-3">
                     <div className="flex items-center justify-end gap-1">
                       {a.approvalStatus === "PENDING" ? (
@@ -306,15 +331,25 @@ export default function SpecialistDetailPage() {
         </div>
       </Card>
 
-      <WarehousesSection specialistId={id} />
-
-      <PayoutPercentSection specialistId={id} percent={stats?.percent} onSaved={() => mutate()} />
+      {user?.role === "ADMIN" ? (
+        <>
+          <WarehousesSection specialistId={id} />
+          <PayoutPercentSection
+            specialistId={id}
+            percent={stats?.percent}
+            onSaved={() => mutate()}
+          />
+        </>
+      ) : null}
     </div>
   );
 }
 
 function WarehousesSection({ specialistId }: { specialistId: string }) {
-  const { data, mutate, isLoading } = useSWR(`/api/admin/specialists/${specialistId}/warehouses`, fetcher);
+  const { data, mutate, isLoading } = useSWR(
+    `/api/admin/specialists/${specialistId}/warehouses`,
+    fetcher,
+  );
   const warehouses: Array<{ id: string; name: string }> = data?.warehouses ?? [];
   const assignedIds: string[] = data?.assignedIds ?? [];
   const [savingId, setSavingId] = React.useState<string | null>(null);
@@ -337,12 +372,12 @@ function WarehousesSection({ specialistId }: { specialistId: string }) {
   }
 
   return (
-    <Card className="p-4 space-y-3">
+    <Card className="space-y-3 p-4">
       <div>
         <div className="font-medium">Przypisane magazyny</div>
         <div className="mt-1 text-xs text-slate-500">
-          Pracownik może rejestrować zużycie preparatów wyłącznie z przypisanych tu magazynów. Kliknij, aby
-          przypisać/odpisać.
+          Pracownik może rejestrować zużycie preparatów wyłącznie z przypisanych tu magazynów.
+          Kliknij, aby przypisać/odpisać.
         </div>
       </div>
       {isLoading ? <div className="text-sm text-slate-500">Ładowanie...</div> : null}
@@ -362,7 +397,8 @@ function WarehousesSection({ specialistId }: { specialistId: string }) {
                   : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10")
               }
             >
-              {assigned ? "✓ " : ""}{w.name}
+              {assigned ? "✓ " : ""}
+              {w.name}
             </button>
           );
         })}
@@ -433,7 +469,8 @@ function SidebarPermissionsSection({
       <div className="border-b p-4">
         <div className="font-medium">Dostęp do lewego panelu</div>
         <div className="mt-1 text-xs text-slate-500">
-          Zaznacz sekcje, które ten pracownik może widzieć i otwierać. Administrator zawsze ma dostęp do wszystkich sekcji.
+          Zaznacz sekcje, które ten pracownik może widzieć i otwierać. Administrator zawsze ma
+          dostęp do wszystkich sekcji.
         </div>
       </div>
 
@@ -520,12 +557,12 @@ function PayoutPercentSection({
   }
 
   return (
-    <Card className="p-4 space-y-3">
+    <Card className="space-y-3 p-4">
       <div>
         <div className="font-medium">Procent od zabiegów</div>
         <div className="mt-1 text-xs text-slate-500">
-          Rozliczenie: (przychód z zabiegu − koszt zużytych materiałów) × procent pracownika. Ten sam procent
-          obowiązuje dla wszystkich zabiegów tego pracownika.
+          Rozliczenie: (przychód z zabiegu − koszt zużytych materiałów) × procent pracownika. Ten
+          sam procent obowiązuje dla wszystkich zabiegów tego pracownika.
         </div>
       </div>
       <div className="flex flex-wrap items-end gap-3">
@@ -543,7 +580,8 @@ function PayoutPercentSection({
         </Button>
         {percent !== undefined ? (
           <div className="text-sm text-slate-500">
-            Aktualnie: <span className="font-medium text-slate-800 dark:text-slate-200">{percent}%</span>
+            Aktualnie:{" "}
+            <span className="font-medium text-slate-800 dark:text-slate-200">{percent}%</span>
           </div>
         ) : null}
       </div>
