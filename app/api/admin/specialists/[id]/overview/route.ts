@@ -37,7 +37,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     return NextResponse.json({ ok: false, message: "Nie znaleziono pracownika" }, { status: 404 });
 
   const appointments = await prisma.appointment.findMany({
-    where: { specialistId: params.id, startsAt: { gte: start, lt: end } },
+    where: { specialistId: params.id, deletedAt: null, startsAt: { gte: start, lt: end } },
     orderBy: { startsAt: "desc" },
     take: 1000,
     include: {
