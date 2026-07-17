@@ -7,7 +7,7 @@ import { resolveSettlementRange } from "@/lib/settlement-range";
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN"]);
+  const deny = requireRole(user!.role, ["ADMIN", "RECEPTION"]);
   if (deny) return deny;
 
   // Ta sama logika zakresów co w liście rozliczeń specjalistów
@@ -33,7 +33,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       sidebarPermissions: true,
     },
   });
-  if (!specialist) return NextResponse.json({ ok: false, message: "Nie znaleziono pracownika" }, { status: 404 });
+  if (!specialist)
+    return NextResponse.json({ ok: false, message: "Nie znaleziono pracownika" }, { status: 404 });
 
   const appointments = await prisma.appointment.findMany({
     where: { specialistId: params.id, startsAt: { gte: start, lt: end } },
@@ -42,7 +43,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     include: {
       patient: { select: { id: true, name: true } },
       service: { select: { id: true, name: true } },
-      consumptions: { include: { product: { select: { id: true, name: true, purchasePrice: true } } } },
+      consumptions: {
+        include: { product: { select: { id: true, name: true, purchasePrice: true } } },
+      },
     },
   });
 
@@ -95,7 +98,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     end,
     specialist: {
       ...specialist,
-      sidebarPermissions: normalizeSidebarPermissions(specialist.role, specialist.sidebarPermissions),
+      sidebarPermissions: normalizeSidebarPermissions(
+        specialist.role,
+        specialist.sidebarPermissions,
+      ),
     },
     stats: {
       appointmentsTotal: rows.length,
