@@ -66,6 +66,15 @@ export function sidebarPermissionForPath(pathname: string): SidebarPermission | 
   if (path === "/api/dashboard") return "dashboard";
   if (path.startsWith("/api/specialist/appointments")) return "appointments";
 
+  // Recepcja może przejść z listy wizyt do podglądu profilu specjalisty,
+  // nawet jeśli nie ma osobnej sekcji „Specjaliści” w menu.
+  if (
+    /^\/admin\/specialists\/[^/]+$/.test(path) ||
+    /^\/api\/admin\/specialists\/[^/]+\/overview$/.test(path)
+  ) {
+    return "appointments";
+  }
+
   if (path.startsWith("/admin/specialists") || path.startsWith("/api/admin/specialists")) {
     return "specialists";
   }
@@ -134,7 +143,10 @@ export function sidebarHref(permission: SidebarPermission, role: string) {
     return role === "SPECIALIST" ? "/specialist/appointments" : "/admin/visits";
   }
 
-  const hrefs: Record<Exclude<SidebarPermission, "dashboard" | "appointments" | "calendar">, string> = {
+  const hrefs: Record<
+    Exclude<SidebarPermission, "dashboard" | "appointments" | "calendar">,
+    string
+  > = {
     specialists: "/admin/specialists",
     patients: "/admin/patients",
     inventory: "/admin/inventory",
