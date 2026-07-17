@@ -1,52 +1,99 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
-const PutSchema = z.object({
-  specialistId: z.string().min(1),
-  assigned: z.boolean(),
-});
-
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN"]);
+  const deny = requireRole(user!.role, ["ADMIN", "RECEPTION"]);
+  if (deny) return deny;
+
+  const [service, specialists, products] = await Promise.all([
+    prisma.service.findUnique({
+      where: { id: params.id },
+      include: {
+        suggestedProducts: {
+          orderBy: { product: { name: "asc" } },
+          include: { product: true },
+        },
+        specialistAssignments: {
+          include: { specialist: { select: { id: true, name: true } } },
+        },
+      },
+    }),
+    prisma.user.findMany({
+      where: { role: "SPECIALIST" },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    prisma.product.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, unit: true },
+    }),
+  ]);
+
+  if (!service) {
+    return NextResponse.json({ ok: false, message: "Nie znaleziono usługi" }, { status: 404 });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    viewerRole: user!.role,
+    service,
+    specialists,
+    products,
+  });
+}
+
+const PatchSchema = z
+  .object({
+    name: z.string().trim().min(2, "Podaj nazwę usługi").max(200).optional(),
+    category: z.string().trim().max(120).nullable().optional(),
+    description: z.string().trim().max(2000).nullable().optional(),
+    durationMin: z.number().int().min(5).max(480).optional(),
+    priceFrom: z.number().int().min(0).nullable().optional(),
+    priceSuggested: z.number().int().min(0).nullable().optional(),
+  })
+  .strict();
+
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const { user, error } = await requireAuth();
+  if (error) return error;
+  const deny = requireStrictRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);
-  const parsed = PutSchema.safeParse(json);
-  if (!parsed.success) return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
-
-  const [service, specialist] = await Promise.all([
-    prisma.service.findUnique({ where: { id: params.id }, select: { id: true } }),
-    prisma.user.findUnique({ where: { id: parsed.data.specialistId }, select: { id: true, role: true } }),
-  ]);
-  if (!service) return NextResponse.json({ ok: false, message: "Nie znaleziono usługi" }, { status: 404 });
-  if (!specialist || specialist.role !== "SPECIALIST") {
-    return NextResponse.json({ ok: false, message: "Nie znaleziono specjalisty" }, { status: 404 });
+  const parsed = PatchSchema.safeParse(json);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { ok: false, message: parsed.error.issues[0]?.message ?? "Niepoprawne dane" },
+      { status: 400 },
+    );
   }
 
-  if (parsed.data.assigned) {
-    await prisma.specialistService.upsert({
-      where: { specialistId_serviceId: { specialistId: specialist.id, serviceId: service.id } },
-      update: {},
-      create: { specialistId: specialist.id, serviceId: service.id },
-    });
-  } else {
-    await prisma.specialistService.deleteMany({
-      where: { specialistId: specialist.id, serviceId: service.id },
-    });
+  const existing = await prisma.service.findUnique({
+    where: { id: params.id },
+    select: { id: true },
+  });
+  if (!existing) {
+    return NextResponse.json({ ok: false, message: "Nie znaleziono usługi" }, { status: 404 });
   }
+
+  const service = await prisma.service.update({
+    where: { id: params.id },
+    data: parsed.data,
+  });
 
   await logAudit({
     actorId: user!.id,
     action: "UPDATE",
-    entity: "SpecialistService",
-    entityId: `${specialist.id}:${service.id}`,
-    data: { assigned: parsed.data.assigned },
+    entity: "Service",
+    entityId: service.id,
+    data: parsed.data,
   });
 
-  return NextResponse.json({ ok: true, specialistId: specialist.id, serviceId: service.id, assigned: parsed.data.assigned });
+  return NextResponse.json({ ok: true, service });
 }
