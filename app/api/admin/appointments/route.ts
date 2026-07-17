@@ -143,12 +143,12 @@ export async function POST(req: Request) {
 
   const service = await prisma.service.findUnique({
     where: { id: parsed.data.serviceId },
-    select: { priceSuggested: true, priceFrom: true },
+    select: { price: true },
   });
   if (!service) {
     return NextResponse.json({ ok: false, message: "Nie znaleziono usługi" }, { status: 404 });
   }
-  const standardPrice = service.priceSuggested ?? service.priceFrom ?? null;
+  const standardPrice = service.price;
   const finalPrice = parsed.data.priceFinal ?? parsed.data.priceEstimate ?? standardPrice;
 
   let patientId = parsed.data.patientId ?? null;
