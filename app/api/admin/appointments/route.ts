@@ -22,18 +22,22 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
+  const deletedOnly = url.searchParams.get("deleted") === "only";
 
   const fromDt = parseRangeDate(from, new Date(Date.now() - 1000 * 60 * 60 * 24 * 7));
   const toDt = parseRangeDate(to, new Date(Date.now() + 1000 * 60 * 60 * 24 * 14), true);
 
   const [appointments, patients, specialists, services] = await Promise.all([
     prisma.appointment.findMany({
-      where: { startsAt: { gte: fromDt, lt: toDt } },
-      orderBy: { startsAt: "asc" },
+      where: deletedOnly
+        ? { deletedAt: { not: null } }
+        : { deletedAt: null, startsAt: { gte: fromDt, lt: toDt } },
+      orderBy: deletedOnly ? { deletedAt: "desc" } : { startsAt: "asc" },
       include: {
         patient: true,
         specialist: { select: { id: true, name: true, login: true } },
         service: true,
+        deletedBy: { select: { id: true, name: true, login: true } },
         consumptions: { include: { product: true, warehouse: true } },
         payments: true,
       },
