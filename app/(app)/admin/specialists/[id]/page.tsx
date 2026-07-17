@@ -19,7 +19,14 @@ import {
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-type RangeKey = "today" | "7d" | "30d";
+type RangeKey = "today" | "7d" | "30d" | "month" | "custom";
+
+function toDateInput(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 function StatusBadge({ status }: { status: string }) {
   const cls =
@@ -37,9 +44,27 @@ export default function SpecialistDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
   const [range, setRange] = React.useState<RangeKey>("30d");
+  const now = React.useMemo(() => new Date(), []);
+  const [from, setFrom] = React.useState(() =>
+    toDateInput(new Date(now.getFullYear(), now.getMonth(), 1)),
+  );
+  const [to, setTo] = React.useState(() => toDateInput(now));
+  const customRangeInvalid = range === "custom" && (!from || !to || from > to);
   const { user } = useAuth();
 
-  const { data, isLoading, mutate } = useSWR(`/api/admin/specialists/${id}/overview?range=${range}`, fetcher);
+  const overviewQuery = React.useMemo(() => {
+    const params = new URLSearchParams({ range });
+    if (range === "custom") {
+      params.set("from", from);
+      params.set("to", to);
+    }
+    return params.toString();
+  }, [range, from, to]);
+
+  const { data, isLoading, mutate } = useSWR(
+    customRangeInvalid ? null : `/api/admin/specialists/${id}/overview?${overviewQuery}`,
+    fetcher,
+  );
   const [decidingId, setDecidingId] = React.useState<string | null>(null);
 
   async function decide(appointmentId: string, action: "APPROVE" | "REJECT") {
@@ -94,29 +119,60 @@ export default function SpecialistDetailPage() {
         />
       ) : null}
 
-      {/* Filtr zakresu */}
-      <div className="inline-flex rounded-2xl border border-white/60 bg-white/70 p-1 text-sm shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55">
-        {(
-          [
-            { k: "today", label: "Dziś" },
-            { k: "7d", label: "7 dni" },
-            { k: "30d", label: "30 dni" },
-          ] as const
-        ).map((x) => (
-          <button
-            key={x.k}
-            onClick={() => setRange(x.k)}
-            className={
-              "rounded-2xl px-4 py-1.5 font-medium " +
-              (range === x.k
-                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200"
-                : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white")
-            }
-          >
-            {x.label}
-          </button>
-        ))}
+      {/* Filtr zakresu — te same opcje co na liście rozliczeń specjalistów */}
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="inline-flex flex-wrap rounded-2xl border border-white/60 bg-white/70 p-1 text-sm shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55">
+          {(
+            [
+              { k: "today", label: "Dziś" },
+              { k: "7d", label: "7 dni" },
+              { k: "30d", label: "30 dni" },
+              { k: "month", label: "Ten miesiąc" },
+              { k: "custom", label: "Niestandardowe" },
+            ] as const
+          ).map((x) => (
+            <button
+              key={x.k}
+              onClick={() => setRange(x.k)}
+              className={
+                "rounded-2xl px-4 py-1.5 font-medium " +
+                (range === x.k
+                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white")
+              }
+            >
+              {x.label}
+            </button>
+          ))}
+        </div>
+
+        {range === "custom" ? (
+          <>
+            <div>
+              <div className="text-xs text-slate-500">Od</div>
+              <Input
+                type="date"
+                value={from}
+                onChange={(event) => setFrom(event.target.value)}
+                className="mt-1 w-44"
+              />
+            </div>
+            <div>
+              <div className="text-xs text-slate-500">Do</div>
+              <Input
+                type="date"
+                value={to}
+                onChange={(event) => setTo(event.target.value)}
+                className="mt-1 w-44"
+              />
+            </div>
+          </>
+        ) : null}
       </div>
+
+      {customRangeInvalid ? (
+        <div className="text-sm text-red-600">Wybierz poprawny zakres dat.</div>
+      ) : null}
 
       {/* Statystyki (z wizyt zakończonych) */}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
