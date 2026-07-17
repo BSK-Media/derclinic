@@ -32,7 +32,7 @@ type Specialist = {
   sourceProfileUrl?: string | null;
 };
 
-type FinancialRange = "today" | "7d" | "30d" | "custom";
+type FinancialRange = "today" | "7d" | "30d" | "month" | "custom";
 
 type FinancialRow = {
   specialistId: string;
@@ -40,11 +40,11 @@ type FinancialRow = {
   name: string;
   avatarUrl?: string | null;
   jobTitle?: string | null;
+  payoutPercent?: number | null;
   revenue: number;
   materialCost: number;
   appointmentsCount: number;
   payout: number;
-  missingRateCount: number;
 };
 
 function Avatar({ name, avatarUrl }: { name: string; avatarUrl?: string | null }) {
@@ -289,6 +289,7 @@ function SpecialistFinancialSettlements() {
     { key: "today", label: "Dziś" },
     { key: "7d", label: "7 dni" },
     { key: "30d", label: "30 dni" },
+    { key: "month", label: "Ten miesiąc" },
     { key: "custom", label: "Niestandardowe" },
   ];
 
@@ -356,7 +357,7 @@ function SpecialistFinancialSettlements() {
         <div className="border-b p-4">
           <div className="font-medium">Rozliczenia Specjalistów</div>
           <div className="mt-1 text-xs text-slate-500">
-            Przychód pochodzi z kwot wizyt, koszt preparatów ze zużyć zapisanych podczas wizyt, a wypłata ze stawek specjalisty pomniejszonych o preparaty.
+            Przychód pochodzi z kwot wizyt, koszt preparatów ze zużyć zapisanych podczas wizyt, a wypłata = (przychód − preparaty) × procent pracownika. Liczą się tylko wizyty zakończone i zaakceptowane — tak samo jak w szczegółach pracownika.
           </div>
         </div>
 
@@ -402,11 +403,6 @@ function SpecialistFinancialSettlements() {
                               {row.name}
                             </Link>
                             {row.jobTitle ? <div className="mt-1 text-xs text-slate-500">{row.jobTitle}</div> : null}
-                            {row.missingRateCount > 0 ? (
-                              <div className="mt-1 text-xs text-amber-600">
-                                Brak stawki dla {row.missingRateCount} zabiegów
-                              </div>
-                            ) : null}
                           </div>
                         </div>
                       </td>
