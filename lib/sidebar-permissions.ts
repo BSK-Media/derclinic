@@ -127,10 +127,11 @@ export function sidebarPermissionForPath(pathname: string): SidebarPermission | 
 export function sidebarHref(permission: SidebarPermission, role: string) {
   if (permission === "dashboard") return role === "SPECIALIST" ? "/specialist" : "/admin";
   if (permission === "calendar") {
-    return role === "ADMIN" ? "/admin/calendar" : "/specialist/calendar";
+    // Admin i recepcja mają kalendarz wewnątrz zakładki Wizyty.
+    return role === "SPECIALIST" ? "/specialist/calendar" : "/admin/visits?view=calendar";
   }
   if (permission === "appointments") {
-    return role === "ADMIN" ? "/admin/visits" : "/specialist/appointments";
+    return role === "SPECIALIST" ? "/specialist/appointments" : "/admin/visits";
   }
 
   const hrefs: Record<Exclude<SidebarPermission, "dashboard" | "appointments" | "calendar">, string> = {
