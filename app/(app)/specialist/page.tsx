@@ -201,8 +201,8 @@ function MetricCard({
   );
 }
 
-function VisitStatusPill({ approvalStatus }: { approvalStatus: string }) {
-  if (approvalStatus === "PENDING") {
+function VisitStatusPill({ status, approvalStatus }: { status: string; approvalStatus: string }) {
+  if (status === "COMPLETED" && approvalStatus === "PENDING") {
     return (
       <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
         Oczekuje na akceptację
@@ -720,7 +720,10 @@ export default async function SpecialistHome() {
                     {serviceName(nearestAppointment)}
                   </div>
                   <div className="mt-2">
-                    <VisitStatusPill approvalStatus={nearestAppointment.approvalStatus} />
+                    <VisitStatusPill
+                      status={nearestAppointment.status}
+                      approvalStatus={nearestAppointment.approvalStatus}
+                    />
                   </div>
                 </div>
               </div>
@@ -785,7 +788,10 @@ export default async function SpecialistHome() {
                     {serviceName(appointment)}
                   </div>
                 </div>
-                <VisitStatusPill approvalStatus={appointment.approvalStatus} />
+                <VisitStatusPill
+                  status={appointment.status}
+                  approvalStatus={appointment.approvalStatus}
+                />
               </Link>
             ))}
           </div>
