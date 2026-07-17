@@ -20,6 +20,13 @@ import { appointmentStatusLabel } from "@/lib/appointment-status";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+function toDateInput(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 type Patient = { id: string; name: string };
 type Specialist = { id: string; name: string };
 type Service = {
@@ -44,16 +51,12 @@ type Appointment = {
 };
 
 export default function AdminAppointmentsPage() {
-  const today = new Date();
-  const fromDefault = new Date(today);
-  fromDefault.setDate(fromDefault.getDate() - 1);
-  fromDefault.setHours(0, 0, 0, 0);
-  const toDefault = new Date(today);
-  toDefault.setDate(toDefault.getDate() + 14);
-  toDefault.setHours(0, 0, 0, 0);
+  const today = useMemo(() => new Date(), []);
+  const fromDefault = useMemo(() => new Date(today.getFullYear(), today.getMonth(), 1), [today]);
+  const toDefault = useMemo(() => new Date(today.getFullYear(), today.getMonth() + 1, 0), [today]);
 
-  const [from, setFrom] = useState(fromDefault.toISOString().slice(0, 10));
-  const [to, setTo] = useState(toDefault.toISOString().slice(0, 10));
+  const [from, setFrom] = useState(toDateInput(fromDefault));
+  const [to, setTo] = useState(toDateInput(toDefault));
 
   const { data, mutate, isLoading } = useSWR(
     `/api/admin/appointments?from=${from}&to=${to}`,
@@ -278,63 +281,74 @@ export default function AdminAppointmentsPage() {
                   </td>
                 </tr>
               )}
-              {appointments.map((a) => (
-                <tr key={a.id} className="border-t">
-                  <td className="p-3">
-                    {new Date(a.startsAt).toLocaleString("pl-PL", {
-                      year: "numeric",
-                      month: "2-digit",
-                      day: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </td>
-                  <td className="p-3 font-medium">{a.patient.name}</td>
-                  <td className="p-3">{a.specialist.name}</td>
-                  <td className="p-3">{a.customServiceName || a.service.name}</td>
-                  <td className="p-3">
-                    <div>{appointmentStatusLabel(a.status)}</div>
-                    {a.approvalStatus === "PENDING" ? (
-                      <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
-                        Do akceptacji
-                      </span>
-                    ) : null}
-                    {a.approvalStatus === "REJECTED" ? (
-                      <span className="mt-1 inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-500/10 dark:text-red-300">
-                        Odrzucona
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="p-3">{formatPLNFromGrosze(a.priceFinal ?? a.priceEstimate)}</td>
-                  <td className="p-3 text-right">
-                    <div className="flex items-center justify-end gap-3">
+              {appointments.map((a) => {
+                const isHistorical = toDateInput(new Date(a.startsAt)) < toDateInput(today);
+                return (
+                  <tr
+                    key={a.id}
+                    className={
+                      "border-t " +
+                      (isHistorical
+                        ? "bg-zinc-50 hover:bg-zinc-100 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
+                        : "hover:bg-zinc-50 dark:hover:bg-zinc-900/40")
+                    }
+                  >
+                    <td className="p-3">
+                      {new Date(a.startsAt).toLocaleString("pl-PL", {
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </td>
+                    <td className="p-3 font-medium">{a.patient.name}</td>
+                    <td className="p-3">{a.specialist.name}</td>
+                    <td className="p-3">{a.customServiceName || a.service.name}</td>
+                    <td className="p-3">
+                      <div>{appointmentStatusLabel(a.status)}</div>
                       {a.approvalStatus === "PENDING" ? (
-                        <>
-                          <Button
-                            size="sm"
-                            onClick={() => decide(a.id, "APPROVE")}
-                            disabled={approvingId === a.id}
-                          >
-                            {approvingId === a.id ? "..." : "✓ Akceptuj"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-red-600"
-                            onClick={() => decide(a.id, "REJECT")}
-                            disabled={approvingId === a.id}
-                          >
-                            ✕ Odrzuć
-                          </Button>
-                        </>
+                        <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                          Do akceptacji
+                        </span>
                       ) : null}
-                      <Link className="underline" href={`/admin/appointments/${a.id}`}>
-                        Szczegóły
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                      {a.approvalStatus === "REJECTED" ? (
+                        <span className="mt-1 inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-500/10 dark:text-red-300">
+                          Odrzucona
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="p-3">{formatPLNFromGrosze(a.priceFinal ?? a.priceEstimate)}</td>
+                    <td className="p-3 text-right">
+                      <div className="flex items-center justify-end gap-3">
+                        {a.approvalStatus === "PENDING" ? (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => decide(a.id, "APPROVE")}
+                              disabled={approvingId === a.id}
+                            >
+                              {approvingId === a.id ? "..." : "✓ Akceptuj"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-red-600"
+                              onClick={() => decide(a.id, "REJECT")}
+                              disabled={approvingId === a.id}
+                            >
+                              ✕ Odrzuć
+                            </Button>
+                          </>
+                        ) : null}
+                        <Link className="underline" href={`/admin/appointments/${a.id}`}>
+                          Szczegóły
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
