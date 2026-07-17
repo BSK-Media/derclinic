@@ -61,7 +61,8 @@ export async function middleware(req: NextRequest) {
   if (!needsAuth) return NextResponse.next();
 
   // allow auth endpoints without session
-  if (pathname.startsWith("/api/auth/login") || pathname.startsWith("/api/auth/logout")) return NextResponse.next();
+  if (pathname.startsWith("/api/auth/login") || pathname.startsWith("/api/auth/logout"))
+    return NextResponse.next();
 
   const user = await getUserFromRequest(req);
   if (!user) {
@@ -86,7 +87,9 @@ export async function middleware(req: NextRequest) {
       pathname.startsWith("/admin/appointments") ||
       pathname.startsWith("/admin/visits") ||
       pathname.startsWith("/admin/calendar") ||
+      pathname.startsWith("/admin/specialists") ||
       pathname.startsWith("/api/admin/appointments") ||
+      pathname.startsWith("/api/admin/specialists") ||
       pathname.startsWith("/api/admin/consumption-adjustments"));
   if (specialistAdminAppointments) return rejectAccess(req, user);
 
@@ -96,7 +99,11 @@ export async function middleware(req: NextRequest) {
 
   // Nieznane podstrony administracyjne (np. zarządzanie kontami użytkowników)
   // pozostają zastrzeżone wyłącznie dla administratora.
-  if ((pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) && !permission && role !== "ADMIN") {
+  if (
+    (pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) &&
+    !permission &&
+    role !== "ADMIN"
+  ) {
     return rejectAccess(req, user);
   }
 
