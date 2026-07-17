@@ -43,6 +43,14 @@ function toDateInput(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function currentMonthRange() {
+  const today = new Date();
+  return {
+    from: toDateInput(new Date(today.getFullYear(), today.getMonth(), 1)),
+    to: toDateInput(new Date(today.getFullYear(), today.getMonth() + 1, 0)),
+  };
+}
+
 type SpecialistAppointmentsPageProps = {
   searchParams?: {
     view?: string | string[];
@@ -82,20 +90,8 @@ export default function SpecialistAppointmentsPage({
     return { from, to };
   }, [anchor]);
 
-  const today = React.useMemo(() => new Date(), []);
-  const fromDefault = React.useMemo(() => {
-    const date = new Date(today);
-    date.setDate(date.getDate() - 7);
-    return toDateInput(date);
-  }, [today]);
-  const toDefault = React.useMemo(() => {
-    const date = new Date(today);
-    date.setFullYear(date.getFullYear() + 1);
-    return toDateInput(date);
-  }, [today]);
-
-  const [from, setFrom] = React.useState(fromDefault);
-  const [to, setTo] = React.useState(toDefault);
+  const [from, setFrom] = React.useState(() => currentMonthRange().from);
+  const [to, setTo] = React.useState(() => currentMonthRange().to);
   const [search, setSearch] = React.useState("");
   const [updatingStatusId, setUpdatingStatusId] = React.useState<string | null>(null);
   const { data, isLoading, mutate } = useSWR(
@@ -119,6 +115,12 @@ export default function SpecialistAppointmentsPage({
   React.useEffect(() => {
     const timer = window.setInterval(() => setClock(new Date()), 30_000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  React.useEffect(() => {
+    const range = currentMonthRange();
+    setFrom(range.from);
+    setTo(range.to);
   }, []);
 
   async function updateStatus(appointmentId: string, status: string) {
@@ -245,6 +247,8 @@ export default function SpecialistAppointmentsPage({
                     </tr>
                   ) : null}
                   {filtered.map((appointment: any) => {
+                    const isHistorical =
+                      toDateInput(new Date(appointment.startsAt)) < toDateInput(clock);
                     const startHasPassed =
                       new Date(appointment.startsAt).getTime() <= clock.getTime();
                     const effectiveStatus =
@@ -258,7 +262,12 @@ export default function SpecialistAppointmentsPage({
                     return (
                       <tr
                         key={appointment.id}
-                        className="border-t hover:bg-zinc-50 dark:hover:bg-zinc-900/40"
+                        className={
+                          "border-t " +
+                          (isHistorical
+                            ? "bg-zinc-50 hover:bg-zinc-100 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
+                            : "hover:bg-zinc-50 dark:hover:bg-zinc-900/40")
+                        }
                       >
                         <td className="p-3">
                           {new Date(appointment.startsAt).toLocaleDateString("pl-PL")}
