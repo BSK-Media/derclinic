@@ -172,6 +172,7 @@ export async function POST(req: Request) {
       serviceId: parsed.data.serviceId,
       startsAt,
       endsAt,
+      approvalStatus: "PENDING",
       // priceEstimate przechowuje cenę standardową z chwili rezerwacji, priceFinal jej ewentualną zmianę.
       priceEstimate: standardPrice,
       priceFinal: finalPrice,
