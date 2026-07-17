@@ -59,23 +59,23 @@ enum ConsumptionStatus {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  role         Role     @default(SPECIALIST)
-  login        String   @unique
-  name         String
-  email        String?  @unique
-  passwordHash String
-  phone        String?
-  specialistCode Int?
-  isVisible    Boolean  @default(true)
-  isAvailable  Boolean  @default(false)
-  avatarUrl    String?
-  jobTitle     String?
-  location     String?
-  specialization String?
+  role             Role    @default(SPECIALIST)
+  login            String  @unique
+  name             String
+  email            String? @unique
+  passwordHash     String
+  phone            String?
+  specialistCode   Int?
+  isVisible        Boolean @default(true)
+  isAvailable      Boolean @default(false)
+  avatarUrl        String?
+  jobTitle         String?
+  location         String?
+  specialization   String?
   sourceProfileUrl String?
 
   // Indywidualny dostęp do sekcji lewego menu. Null = domyślny zakres pracownika.
@@ -87,31 +87,30 @@ model User {
   // Domyślna stawka kwotowa za pojedynczy zabieg (grosze); nadpisywana stawkami per zabieg
   baseRate Int?
 
-  appointments        Appointment[] @relation("AppointmentSpecialist")
-  createdConsumptions Consumption[] @relation("ConsumptionCreator")
-  specialistConsumptions Consumption[] @relation("ConsumptionSpecialist")
-  reviewedConsumptions Consumption[] @relation("ConsumptionReviewer")
-  retailSales         RetailSale[] @relation("RetailSaleSeller")
-  auditLogs           AuditLog[]
-  serviceRates        SpecialistServiceRate[]
-  warehouseAssignments SpecialistWarehouse[]
-  approvedAppointments Appointment[] @relation("AppointmentApprover")
-  assignedServices    SpecialistService[]
+  appointments           Appointment[]           @relation("AppointmentSpecialist")
+  createdConsumptions    Consumption[]           @relation("ConsumptionCreator")
+  specialistConsumptions Consumption[]           @relation("ConsumptionSpecialist")
+  reviewedConsumptions   Consumption[]           @relation("ConsumptionReviewer")
+  retailSales            RetailSale[]            @relation("RetailSaleSeller")
+  auditLogs              AuditLog[]
+  serviceRates           SpecialistServiceRate[]
+  warehouseAssignments   SpecialistWarehouse[]
+  approvedAppointments   Appointment[]           @relation("AppointmentApprover")
+  assignedServices       SpecialistService[]
 
   @@index([role])
   @@index([specialistCode])
 }
-
 
 model Patient {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  name      String
-  phone     String?
-  email     String?
-  note      String?
+  name  String
+  phone String?
+  email String?
+  note  String?
 
   appointments Appointment[]
   retailSales  RetailSale[]
@@ -128,15 +127,15 @@ model Service {
   name        String
   category    String?
   description String?
-  durationMin Int    @default(30)
+  durationMin Int     @default(30)
 
   // Suggested pricing (grosze)
   priceFrom      Int?
   priceSuggested Int?
 
-  suggestedProducts ServiceSuggestedProduct[]
-  appointments      Appointment[]
-  specialistRates   SpecialistServiceRate[]
+  suggestedProducts     ServiceSuggestedProduct[]
+  appointments          Appointment[]
+  specialistRates       SpecialistServiceRate[]
   specialistAssignments SpecialistService[]
 
   @@index([name])
@@ -144,34 +143,34 @@ model Service {
 }
 
 model ServiceSuggestedProduct {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   serviceId String
-  service   Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   // default quantity for this service suggestion
-  quantity  Decimal  @db.Decimal(12,2)
-  unit      UnitType @default(UNIT)
+  quantity Decimal  @db.Decimal(12, 2)
+  unit     UnitType @default(UNIT)
 
   @@unique([serviceId, productId])
   @@index([serviceId])
 }
 
 model SpecialistServiceRate {
-  id           String   @id @default(cuid())
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   specialistId String
-  specialist   User     @relation(fields: [specialistId], references: [id], onDelete: Cascade)
+  specialist   User   @relation(fields: [specialistId], references: [id], onDelete: Cascade)
 
-  serviceId    String
-  service      Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   // Stawka kwotowa pracownika za ten zabieg (grosze)
-  amount       Int
+  amount Int
 
   @@unique([specialistId, serviceId])
   @@index([specialistId])
@@ -181,14 +180,14 @@ model SpecialistServiceRate {
 // Usługi rzeczywiście wykonywane przez danego pracownika.
 // To osobna relacja od stawki, ponieważ pusta stawka nie oznacza braku przypisania.
 model SpecialistService {
-  id           String   @id @default(cuid())
-  createdAt    DateTime @default(now())
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
 
   specialistId String
-  specialist   User     @relation(fields: [specialistId], references: [id], onDelete: Cascade)
+  specialist   User   @relation(fields: [specialistId], references: [id], onDelete: Cascade)
 
-  serviceId    String
-  service      Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   @@unique([specialistId, serviceId])
   @@index([specialistId])
@@ -196,14 +195,14 @@ model SpecialistService {
 }
 
 model SpecialistWarehouse {
-  id           String   @id @default(cuid())
-  createdAt    DateTime @default(now())
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
 
   specialistId String
-  specialist   User      @relation(fields: [specialistId], references: [id], onDelete: Cascade)
+  specialist   User   @relation(fields: [specialistId], references: [id], onDelete: Cascade)
 
-  warehouseId  String
-  warehouse    Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
 
   @@unique([specialistId, warehouseId])
   @@index([specialistId])
@@ -215,22 +214,22 @@ model Product {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  category  ProductCategory
-  name      String
-  sku       String?
-  ean       String?
-  unit      UnitType @default(UNIT)
-  manufacturer String?
+  category        ProductCategory
+  name            String
+  sku             String?
+  ean             String?
+  unit            UnitType        @default(UNIT)
+  manufacturer    String?
   catalogCategory String?
 
   purchasePrice Int? // grosze
   salePrice     Int? // grosze
   isActive      Boolean @default(true)
 
-  stocks        Stock[]
-  lots          ProductLot[]
-  consumptions  Consumption[]
-  saleItems     RetailSaleItem[]
+  stocks             Stock[]
+  lots               ProductLot[]
+  consumptions       Consumption[]
+  saleItems          RetailSaleItem[]
   serviceSuggestions ServiceSuggestedProduct[]
 
   @@index([category])
@@ -246,14 +245,14 @@ model Warehouse {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  name      String
-  parentId  String?
-  parent    Warehouse? @relation("WarehouseTree", fields: [parentId], references: [id], onDelete: SetNull)
-  children  Warehouse[] @relation("WarehouseTree")
+  name     String
+  parentId String?
+  parent   Warehouse?  @relation("WarehouseTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children Warehouse[] @relation("WarehouseTree")
 
-  stocks    Stock[]
-  lots      ProductLot[]
-  consumptions Consumption[]
+  stocks           Stock[]
+  lots             ProductLot[]
+  consumptions     Consumption[]
   specialistAccess SpecialistWarehouse[]
 
   @@index([parentId])
@@ -261,17 +260,17 @@ model Warehouse {
 }
 
 model Stock {
-  id          String   @id @default(cuid())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  productId   String
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   warehouseId String
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
 
-  quantity    Decimal  @db.Decimal(14,2) @default(0)
+  quantity Decimal @default(0) @db.Decimal(14, 2)
 
   @@unique([productId, warehouseId])
   @@index([warehouseId])
@@ -279,24 +278,24 @@ model Stock {
 }
 
 model ProductLot {
-  id          String   @id @default(cuid())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  productId   String
-  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   warehouseId String
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
 
-  batchNumber String
-  expiryDate  DateTime?
-  quantity    Decimal   @db.Decimal(14,2) @default(0)
+  batchNumber   String
+  expiryDate    DateTime?
+  quantity      Decimal   @default(0) @db.Decimal(14, 2)
   purchasePrice Int?
   salePrice     Int?
-  status      String?
-  location    String?
-  note        String?
+  status        String?
+  location      String?
+  note          String?
 
   @@index([productId])
   @@index([warehouseId])
@@ -305,31 +304,31 @@ model ProductLot {
 }
 
 model Appointment {
-  id          String   @id @default(cuid())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  patientId   String
-  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   specialistId String
-  specialist   User     @relation("AppointmentSpecialist", fields: [specialistId], references: [id], onDelete: Restrict)
+  specialist   User   @relation("AppointmentSpecialist", fields: [specialistId], references: [id], onDelete: Restrict)
 
-  serviceId   String
-  service     Service  @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  serviceId         String
+  service           Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
   customServiceName String?
 
-  startsAt    DateTime
-  endsAt      DateTime
+  startsAt DateTime
+  endsAt   DateTime
 
-  status      AppointmentStatus @default(SCHEDULED)
+  status AppointmentStatus @default(SCHEDULED)
 
-  // Akceptacja wizyty wpisanej przez lekarza (recepcja/admin); domyślnie APPROVED,
-  // więc wizyty tworzone przez recepcję/admina i istniejące rekordy nie wymagają akceptacji
-  approvalStatus ApprovalStatus @default(APPROVED)
-  approvedAt     DateTime?
-  approvedById   String?
-  approvedBy     User? @relation("AppointmentApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  // Decyzja recepcji/admina jest wymagana dopiero po oznaczeniu wizyty jako zakończonej.
+  // Dla pozostałych statusów pole akceptacji pozostaje niewidoczne.
+  approvalStatus  ApprovalStatus @default(PENDING)
+  approvedAt      DateTime?
+  approvedById    String?
+  approvedBy      User?          @relation("AppointmentApprover", fields: [approvedById], references: [id], onDelete: SetNull)
   // Powód odrzucenia wpisywany przez recepcję/admina przy odrzucaniu wizyty
   rejectionReason String?
 
@@ -337,10 +336,10 @@ model Appointment {
   priceEstimate Int?
   priceFinal    Int?
 
-  note        String?
+  note String?
 
   consumptions Consumption[]
-  payments    Payment[]
+  payments     Payment[]
 
   @@index([specialistId, startsAt])
   @@index([patientId, startsAt])
@@ -348,38 +347,38 @@ model Appointment {
 }
 
 model Consumption {
-  id          String   @id @default(cuid())
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
 
-  kind        ConsumptionKind @default(APPOINTMENT)
+  kind ConsumptionKind @default(APPOINTMENT)
 
   appointmentId String?
   appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
 
   specialistId String?
-  specialist   User? @relation("ConsumptionSpecialist", fields: [specialistId], references: [id], onDelete: SetNull)
+  specialist   User?   @relation("ConsumptionSpecialist", fields: [specialistId], references: [id], onDelete: SetNull)
 
-  productId   String
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   warehouseId String?
   warehouse   Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
 
-  quantity    Decimal  @db.Decimal(14,2)
-  unit        UnitType @default(UNIT)
+  quantity Decimal  @db.Decimal(14, 2)
+  unit     UnitType @default(UNIT)
 
   createdById String
-  createdBy   User     @relation("ConsumptionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdBy   User   @relation("ConsumptionCreator", fields: [createdById], references: [id], onDelete: Restrict)
 
-  note        String?
+  note String?
 
   // Workflow akceptacji: gdy specjalista zmieni sugerowaną ilość preparatu,
   // wpis trafia jako PENDING i nie jest odejmowany z magazynu do czasu akceptacji admina.
-  status        ConsumptionStatus @default(APPLIED)
-  suggestedQuantity Decimal? @db.Decimal(14,2)
-  reviewedById  String?
-  reviewedBy    User?    @relation("ConsumptionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
-  reviewedAt    DateTime?
+  status            ConsumptionStatus @default(APPLIED)
+  suggestedQuantity Decimal?          @db.Decimal(14, 2)
+  reviewedById      String?
+  reviewedBy        User?             @relation("ConsumptionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt        DateTime?
 
   @@index([appointmentId])
   @@index([productId])
@@ -394,26 +393,26 @@ model RetailSale {
   patientId String?
   patient   Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
 
-  soldById  String
-  soldBy    User     @relation("RetailSaleSeller", fields: [soldById], references: [id], onDelete: Restrict)
+  soldById String
+  soldBy   User   @relation("RetailSaleSeller", fields: [soldById], references: [id], onDelete: Restrict)
 
-  items     RetailSaleItem[]
-  payments  Payment[]
+  items    RetailSaleItem[]
+  payments Payment[]
 
-  note      String?
+  note String?
 
   @@index([soldById, createdAt])
 }
 
 model RetailSaleItem {
-  id        String   @id @default(cuid())
-  saleId    String
-  sale      RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  id     String     @id @default(cuid())
+  saleId String
+  sale   RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
   productId String
-  product   Product    @relation(fields: [productId], references: [id], onDelete: Restrict)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
 
-  quantity  Decimal @db.Decimal(14,2)
+  quantity  Decimal @db.Decimal(14, 2)
   unitPrice Int? // grosze
   total     Int? // grosze
 
@@ -422,17 +421,17 @@ model RetailSaleItem {
 }
 
 model Payment {
-  id           String   @id @default(cuid())
-  createdAt    DateTime @default(now())
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
 
-  method       PaymentMethod
-  amount       Int // grosze
+  method PaymentMethod
+  amount Int // grosze
 
   appointmentId String?
   appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
 
-  retailSaleId  String?
-  retailSale    RetailSale? @relation(fields: [retailSaleId], references: [id], onDelete: Cascade)
+  retailSaleId String?
+  retailSale   RetailSale? @relation(fields: [retailSaleId], references: [id], onDelete: Cascade)
 
   @@index([appointmentId])
   @@index([retailSaleId])
@@ -442,13 +441,13 @@ model AuditLog {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
 
-  actorId   String
-  actor     User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  actorId String
+  actor   User   @relation(fields: [actorId], references: [id], onDelete: Cascade)
 
-  action    String
-  entity    String
-  entityId  String?
-  data      Json?
+  action   String
+  entity   String
+  entityId String?
+  data     Json?
 
   @@index([actorId, createdAt])
   @@index([entity, createdAt])
