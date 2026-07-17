@@ -3,11 +3,18 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 type PatientDetails = {
   id: string;
@@ -16,24 +23,67 @@ type PatientDetails = {
   email: string | null;
 };
 
+type EditableField = "name" | "phone" | "email";
+
+const FIELD_DETAILS: Record<
+  EditableField,
+  { label: string; emptyLabel: string; type: "text" | "tel" | "email"; maxLength: number }
+> = {
+  name: {
+    label: "Imię i nazwisko",
+    emptyLabel: "Brak imienia i nazwiska",
+    type: "text",
+    maxLength: 100,
+  },
+  phone: {
+    label: "Numer telefonu",
+    emptyLabel: "Brak numeru telefonu",
+    type: "tel",
+    maxLength: 40,
+  },
+  email: {
+    label: "Adres e-mail",
+    emptyLabel: "Brak adresu e-mail",
+    type: "email",
+    maxLength: 200,
+  },
+};
+
 export function PatientDetailsForm({ patient }: { patient: PatientDetails }) {
   const router = useRouter();
-  const [name, setName] = React.useState(patient.name);
-  const [phone, setPhone] = React.useState(patient.phone ?? "");
-  const [email, setEmail] = React.useState(patient.email ?? "");
-  const [savedValues, setSavedValues] = React.useState({
+  const [values, setValues] = React.useState<Record<EditableField, string>>({
     name: patient.name,
     phone: patient.phone ?? "",
     email: patient.email ?? "",
   });
+  const [confirmationField, setConfirmationField] = React.useState<EditableField | null>(null);
+  const [editingField, setEditingField] = React.useState<EditableField | null>(null);
+  const [draft, setDraft] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
-  const dirty =
-    name !== savedValues.name || phone !== savedValues.phone || email !== savedValues.email;
+  function requestEdit(field: EditableField) {
+    if (saving) return;
+    setConfirmationField(field);
+  }
 
-  async function save(event: React.FormEvent<HTMLFormElement>) {
+  function confirmEdit() {
+    if (!confirmationField) return;
+    setDraft(values[confirmationField]);
+    setEditingField(confirmationField);
+    setConfirmationField(null);
+  }
+
+  function cancelEdit() {
+    setEditingField(null);
+    setDraft("");
+  }
+
+  async function saveField(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!name.trim()) {
+    if (!editingField) return;
+
+    const nextValue = draft.trim();
+    if (editingField === "name" && nextValue.length < 2) {
       toast.error("Podaj imię i nazwisko pacjenta");
       return;
     }
@@ -43,11 +93,7 @@ export function PatientDetailsForm({ patient }: { patient: PatientDetails }) {
       const response = await fetch(`/api/admin/patients/${patient.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          phone: phone.trim(),
-          email: email.trim(),
-        }),
+        body: JSON.stringify({ [editingField]: nextValue }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result?.ok) {
@@ -55,14 +101,11 @@ export function PatientDetailsForm({ patient }: { patient: PatientDetails }) {
         return;
       }
 
-      const updatedName = result.patient.name ?? "";
-      const updatedPhone = result.patient.phone ?? "";
-      const updatedEmail = result.patient.email ?? "";
-      setName(updatedName);
-      setPhone(updatedPhone);
-      setEmail(updatedEmail);
-      setSavedValues({ name: updatedName, phone: updatedPhone, email: updatedEmail });
-      toast.success("Dane pacjenta zostały zapisane");
+      const savedValue = result.patient[editingField] ?? "";
+      setValues((current) => ({ ...current, [editingField]: savedValue }));
+      toast.success(`${FIELD_DETAILS[editingField].label} — zapisano zmianę`);
+      setEditingField(null);
+      setDraft("");
       router.refresh();
     } finally {
       setSaving(false);
@@ -74,55 +117,102 @@ export function PatientDetailsForm({ patient }: { patient: PatientDetails }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="text-sm text-zinc-500">Karta pacjenta</div>
-          <h1 className="text-2xl font-semibold">{name || "Pacjent"}</h1>
+          <h1 className="text-2xl font-semibold">{values.name || "Pacjent"}</h1>
         </div>
         <Link className="text-sm underline underline-offset-4" href="/admin/patients">
           Wróć do listy
         </Link>
       </div>
 
-      <Card className="p-4">
-        <form
-          onSubmit={save}
-          className="grid items-end gap-4 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.4fr)_minmax(190px,1fr)_minmax(260px,1.4fr)_auto]"
-        >
-          <div className="space-y-2">
-            <Label htmlFor="patient-name">Imię i nazwisko</Label>
-            <Input
-              id="patient-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              maxLength={100}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="patient-phone">Numer telefonu</Label>
-            <Input
-              id="patient-phone"
-              type="tel"
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-              maxLength={40}
-              placeholder="Brak numeru"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="patient-email">Adres e-mail</Label>
-            <Input
-              id="patient-email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              maxLength={200}
-              placeholder="Brak adresu e-mail"
-            />
-          </div>
-          <Button type="submit" disabled={saving || !dirty || !name.trim()}>
-            {saving ? "Zapisywanie…" : "Zapisz zmiany"}
-          </Button>
-        </form>
+      <Card className="grid gap-3 p-4 md:grid-cols-3">
+        {(Object.keys(FIELD_DETAILS) as EditableField[]).map((field) => {
+          const details = FIELD_DETAILS[field];
+          const isEditing = editingField === field;
+
+          return (
+            <div key={field} className="rounded-xl border bg-white p-3 dark:bg-zinc-950">
+              <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                {details.label}
+              </div>
+              {isEditing ? (
+                <form onSubmit={saveField} className="space-y-2">
+                  <Input
+                    type={details.type}
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    maxLength={details.maxLength}
+                    autoFocus
+                    required={field === "name"}
+                    disabled={saving}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={cancelEdit}
+                      disabled={saving}
+                    >
+                      Anuluj
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={saving || (field === "name" && draft.trim().length < 2)}
+                    >
+                      {saving ? "Zapisywanie…" : "Zapisz"}
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <div className="flex min-h-10 items-center justify-between gap-3">
+                  <div
+                    className={
+                      values[field]
+                        ? "break-words font-medium text-zinc-900 dark:text-zinc-100"
+                        : "text-zinc-400"
+                    }
+                  >
+                    {values[field] || details.emptyLabel}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => requestEdit(field)}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
+                    aria-label={`Edytuj: ${details.label}`}
+                    title={`Edytuj: ${details.label}`}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </Card>
+
+      <Dialog
+        open={confirmationField !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmationField(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Potwierdź edycję</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-zinc-700 dark:text-zinc-200">
+            Czy na pewno chcesz edytować pole „
+            {confirmationField ? FIELD_DETAILS[confirmationField].label : ""}”?
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmationField(null)}>
+              Anuluj
+            </Button>
+            <Button onClick={confirmEdit}>Tak, edytuj</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
