@@ -2,24 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole } from "@/lib/api-helpers";
 import { normalizeSidebarPermissions } from "@/lib/sidebar-permissions";
-
-type RangeKey = "today" | "7d" | "30d";
-
-// Początek bieżącej doby w strefie Europe/Warsaw (serwer działa w UTC)
-function warsawDayStart(): Date {
-  const now = new Date();
-  const warsawNow = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Warsaw" }));
-  const offsetMs = now.getTime() - warsawNow.getTime();
-  const start = new Date(warsawNow);
-  start.setHours(0, 0, 0, 0);
-  return new Date(start.getTime() + offsetMs);
-}
-
-function rangeToStart(range: RangeKey): Date {
-  if (range === "today") return warsawDayStart();
-  const days = range === "7d" ? 7 : 30;
-  return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-}
+import { resolveSettlementRange } from "@/lib/settlement-range";
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
@@ -27,10 +10,12 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const deny = requireRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
-  const url = new URL(req.url);
-  const rangeParam = url.searchParams.get("range");
-  const range: RangeKey = rangeParam === "today" || rangeParam === "7d" || rangeParam === "30d" ? rangeParam : "30d";
-  const start = rangeToStart(range);
+  // Ta sama logika zakresów co w liście rozliczeń specjalistów
+  const period = resolveSettlementRange(new URL(req.url));
+  if (!period) {
+    return NextResponse.json({ ok: false, message: "Niepoprawny zakres dat" }, { status: 400 });
+  }
+  const { range, start, end } = period;
 
   const specialist = await prisma.user.findUnique({
     where: { id: params.id },
@@ -51,7 +36,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   if (!specialist) return NextResponse.json({ ok: false, message: "Nie znaleziono pracownika" }, { status: 404 });
 
   const appointments = await prisma.appointment.findMany({
-    where: { specialistId: params.id, startsAt: { gte: start } },
+    where: { specialistId: params.id, startsAt: { gte: start, lt: end } },
     orderBy: { startsAt: "desc" },
     take: 1000,
     include: {
@@ -107,6 +92,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     ok: true,
     range,
     start,
+    end,
     specialist: {
       ...specialist,
       sidebarPermissions: normalizeSidebarPermissions(specialist.role, specialist.sidebarPermissions),
