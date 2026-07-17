@@ -58,7 +58,7 @@ export async function GET(req: Request) {
 
   const [appointments, services] = await Promise.all([
     prisma.appointment.findMany({
-      where: { specialistId, startsAt: { gte: fromDt, lt: toDt } },
+      where: { specialistId, deletedAt: null, startsAt: { gte: fromDt, lt: toDt } },
       orderBy: { startsAt: "asc" },
       include: {
         patient: true,
