@@ -29,7 +29,10 @@ import { appointmentStatusLabel } from "@/lib/appointment-status";
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 function toDateInput(d: Date) {
-  return d.toISOString().slice(0, 10);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 const ALL_SPECIALISTS = "__ALL__";
@@ -62,11 +65,15 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
     [router],
   );
 
-  const today = new Date();
-  const fromDefault = new Date(today);
-  fromDefault.setDate(fromDefault.getDate() - 1);
-  const toDefault = new Date(today);
-  toDefault.setFullYear(toDefault.getFullYear() + 1);
+  const today = React.useMemo(() => new Date(), []);
+  const fromDefault = React.useMemo(
+    () => new Date(today.getFullYear(), today.getMonth(), 1),
+    [today],
+  );
+  const toDefault = React.useMemo(
+    () => new Date(today.getFullYear(), today.getMonth() + 1, 0),
+    [today],
+  );
 
   const [from, setFrom] = React.useState(toDateInput(fromDefault));
   const [to, setTo] = React.useState(toDateInput(toDefault));
@@ -298,80 +305,93 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                     </td>
                   </tr>
                 )}
-                {filtered.map((a: any, index: number) => (
-                  <tr key={a.id} className="border-t hover:bg-zinc-50 dark:hover:bg-zinc-900/40">
-                    <td className="p-3">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(a.id)}
-                        onChange={() => toggleOne(a.id)}
-                      />
-                    </td>
-                    <td className="p-3 text-zinc-500">{filtered.length - index}</td>
-                    <td className="p-3">{new Date(a.startsAt).toLocaleDateString("pl-PL")}</td>
-                    <td className="p-3">
-                      {new Date(a.startsAt).toLocaleTimeString("pl-PL", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </td>
-                    <td className="p-3 font-medium">{a.patient?.name}</td>
-                    <td className="p-3">{a.specialist?.name}</td>
-                    <td className="p-3">{a.customServiceName || a.service?.name}</td>
-                    <td className="p-3 text-zinc-500">Pojedyncza rezerwacja</td>
-                    <td className="p-3">{appointmentStatusLabel(a.status)}</td>
-                    <td className="p-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <ApprovalBadge status={a.approvalStatus} reason={a.rejectionReason} />
-                        {a.approvalStatus === "PENDING" ? (
-                          <div className="flex items-center gap-1">
-                            <Button
-                              size="sm"
-                              onClick={() => decide(a.id, "APPROVE")}
-                              disabled={decidingId === a.id}
-                            >
-                              {decidingId === a.id ? "…" : "✓ Zaakceptuj"}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-500/40 dark:hover:bg-red-500/10"
-                              onClick={() => setRejectTarget(a)}
-                              disabled={decidingId === a.id}
-                            >
-                              ✕ Odrzuć
-                            </Button>
+                {filtered.map((a: any, index: number) => {
+                  const isHistorical = toDateInput(new Date(a.startsAt)) < toDateInput(today);
+                  return (
+                    <tr
+                      key={a.id}
+                      className={
+                        "border-t " +
+                        (isHistorical
+                          ? "bg-zinc-50 hover:bg-zinc-100 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
+                          : "hover:bg-zinc-50 dark:hover:bg-zinc-900/40")
+                      }
+                    >
+                      <td className="p-3">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(a.id)}
+                          onChange={() => toggleOne(a.id)}
+                        />
+                      </td>
+                      <td className="p-3 text-zinc-500">{filtered.length - index}</td>
+                      <td className="p-3">{new Date(a.startsAt).toLocaleDateString("pl-PL")}</td>
+                      <td className="p-3">
+                        {new Date(a.startsAt).toLocaleTimeString("pl-PL", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="p-3 font-medium">{a.patient?.name}</td>
+                      <td className="p-3">{a.specialist?.name}</td>
+                      <td className="p-3">{a.customServiceName || a.service?.name}</td>
+                      <td className="p-3 text-zinc-500">Pojedyncza rezerwacja</td>
+                      <td className="p-3">{appointmentStatusLabel(a.status)}</td>
+                      <td className="p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <ApprovalBadge status={a.approvalStatus} reason={a.rejectionReason} />
+                          {a.approvalStatus === "PENDING" ? (
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                onClick={() => decide(a.id, "APPROVE")}
+                                disabled={decidingId === a.id}
+                              >
+                                {decidingId === a.id ? "…" : "✓ Zaakceptuj"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-500/40 dark:hover:bg-red-500/10"
+                                onClick={() => setRejectTarget(a)}
+                                disabled={decidingId === a.id}
+                              >
+                                ✕ Odrzuć
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+                        {a.approvalStatus === "REJECTED" && a.rejectionReason ? (
+                          <div className="mt-1 max-w-56 text-xs text-zinc-500">
+                            Powód: {a.rejectionReason}
                           </div>
                         ) : null}
-                      </div>
-                      {a.approvalStatus === "REJECTED" && a.rejectionReason ? (
-                        <div className="mt-1 max-w-56 text-xs text-zinc-500">
-                          Powód: {a.rejectionReason}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td className="p-3">{formatPLNFromGrosze(a.priceFinal ?? a.priceEstimate)}</td>
-                    <td className="p-3 text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button className="rounded-lg px-2 py-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-                            •••
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link href={`/admin/appointments/${a.id}`}>Szczegóły</Link>
-                          </DropdownMenuItem>
-                          {a.status === "SCHEDULED" && (
-                            <DropdownMenuItem onSelect={() => cancelAppointment(a.id)}>
-                              Anuluj wizytę
+                      </td>
+                      <td className="p-3">
+                        {formatPLNFromGrosze(a.priceFinal ?? a.priceEstimate)}
+                      </td>
+                      <td className="p-3 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="rounded-lg px-2 py-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                              •••
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link href={`/admin/appointments/${a.id}`}>Szczegóły</Link>
                             </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
-                  </tr>
-                ))}
+                            {a.status === "SCHEDULED" && (
+                              <DropdownMenuItem onSelect={() => cancelAppointment(a.id)}>
+                                Anuluj wizytę
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
