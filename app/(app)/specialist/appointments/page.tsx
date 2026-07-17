@@ -260,7 +260,7 @@ export default function SpecialistAppointmentsPage({
                           ) : null}
                           {(appointment as any).approvalStatus === "REJECTED" ? (
                             <span className="mt-1 inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-500/10 dark:text-red-300">
-                              Odrzucona przez recepcję
+                              Odrzucona - nie liczy się do rozliczenia
                             </span>
                           ) : null}
                         </td>
