@@ -4,9 +4,21 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
-const BodySchema = z.object({
-  action: z.enum(["APPROVE", "REJECT"]).default("APPROVE"),
-});
+const BodySchema = z
+  .object({
+    action: z.enum(["APPROVE", "REJECT"]).default("APPROVE"),
+    // Powód odrzucenia — wymagany przy odrzucaniu wizyty
+    reason: z.string().trim().max(500).optional().or(z.literal("")),
+  })
+  .superRefine((value, ctx) => {
+    if (value.action === "REJECT" && (!value.reason || value.reason.trim().length < 3)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["reason"],
+        message: "Podaj powód odrzucenia wizyty",
+      });
+    }
+  });
 
 // Akceptacja lub odrzucenie wizyty wpisanej przez lekarza. Tylko recepcja i administrator —
 // lekarz nie może zatwierdzić własnej wizyty (specjalistów blokuje też middleware
@@ -20,7 +32,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const json = await req.json().catch(() => ({}));
   const parsed = BodySchema.safeParse(json ?? {});
   if (!parsed.success)
-    return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, message: parsed.error.issues[0]?.message ?? "Niepoprawne dane" },
+      { status: 400 },
+    );
 
   const target = parsed.data.action === "REJECT" ? "REJECTED" : "APPROVED";
 
@@ -49,6 +64,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       approvalStatus: target,
       approvedAt: new Date(),
       approvedById: user!.id,
+      rejectionReason: target === "REJECTED" ? parsed.data.reason!.trim() : null,
     },
   });
 
@@ -57,7 +73,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     action: "UPDATE",
     entity: "AppointmentApproval",
     entityId: updated.id,
-    data: { approvalStatus: target },
+    data: {
+      approvalStatus: target,
+      rejectionReason: target === "REJECTED" ? parsed.data.reason!.trim() : null,
+    },
   });
 
   return NextResponse.json({ ok: true, appointment: updated });
