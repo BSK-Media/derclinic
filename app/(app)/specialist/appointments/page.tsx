@@ -300,12 +300,14 @@ export default function SpecialistAppointmentsPage({
                           >
                             {appointmentStatusLabel(effectiveStatus)}
                           </div>
-                          {(appointment as any).approvalStatus === "PENDING" ? (
+                          {appointment.status === "COMPLETED" &&
+                          (appointment as any).approvalStatus === "PENDING" ? (
                             <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
                               Oczekuje na akceptację recepcji
                             </span>
                           ) : null}
-                          {(appointment as any).approvalStatus === "REJECTED" ? (
+                          {appointment.status === "COMPLETED" &&
+                          (appointment as any).approvalStatus === "REJECTED" ? (
                             <span className="mt-1 inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-500/10 dark:text-red-300">
                               Odrzucona - nie liczy się do rozliczenia
                             </span>
