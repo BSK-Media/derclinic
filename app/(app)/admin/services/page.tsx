@@ -48,8 +48,7 @@ type Service = {
   category?: string | null;
   description?: string | null;
   durationMin: number;
-  priceFrom?: number | null;
-  priceSuggested?: number | null;
+  price?: number | null;
   suggestedProducts: Suggestion[];
   specialistAssignments: Array<{ specialistId: string }>;
 };
@@ -75,8 +74,7 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState<string>(SERVICE_CATEGORIES[0]);
   const [durationMin, setDurationMin] = useState("30");
-  const [priceFrom, setPriceFrom] = useState("");
-  const [priceSuggested, setPriceSuggested] = useState("");
+  const [price, setPrice] = useState("");
   const [newServiceSpecialists, setNewServiceSpecialists] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -96,8 +94,7 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
           name,
           category,
           durationMin: Number(durationMin),
-          priceFrom: priceFrom ? parsePLNToGrosze(priceFrom) : null,
-          priceSuggested: priceSuggested ? parsePLNToGrosze(priceSuggested) : null,
+          price: price ? parsePLNToGrosze(price) : null,
           specialistIds: newServiceSpecialists,
         }),
       });
@@ -107,8 +104,7 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
       setName("");
       setCategory(SERVICE_CATEGORIES[0]);
       setDurationMin("30");
-      setPriceFrom("");
-      setPriceSuggested("");
+      setPrice("");
       setNewServiceSpecialists([]);
       mutate();
     } finally {
@@ -262,20 +258,8 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
             <Input value={durationMin} onChange={(e) => setDurationMin(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>Cena od (PLN)</Label>
-            <Input
-              value={priceFrom}
-              onChange={(e) => setPriceFrom(e.target.value)}
-              placeholder="np. 500"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Cena sugerowana (PLN)</Label>
-            <Input
-              value={priceSuggested}
-              onChange={(e) => setPriceSuggested(e.target.value)}
-              placeholder="np. 800"
-            />
+            <Label>Cena (PLN)</Label>
+            <Input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="np. 800" />
           </div>
         </div>
         {isAdmin ? (
@@ -419,9 +403,7 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
                               {s.category || "Bez kategorii"}
                             </div>
                             <div className="text-xs text-zinc-500">
-                              {s.durationMin} min •{" "}
-                              {s.priceFrom ? `od ${formatPLNFromGrosze(s.priceFrom)}` : "—"} •
-                              sugerowana: {formatPLNFromGrosze(s.priceSuggested)}
+                              {s.durationMin} min • Cena: {formatPLNFromGrosze(s.price)}
                             </div>
                           </div>
                           <Link
