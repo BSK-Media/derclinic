@@ -112,3 +112,69 @@ export function RejectReasonDialog({
     </Dialog>
   );
 }
+
+export function DeleteAppointmentDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+  saving,
+  contextLabel,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: (reason: string) => void;
+  saving?: boolean;
+  contextLabel?: string | null;
+}) {
+  const [reason, setReason] = React.useState("");
+  const tooShort = reason.trim().length < 3;
+
+  React.useEffect(() => {
+    if (open) setReason("");
+  }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Usuń wizytę</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {contextLabel ? (
+            <div className="text-sm text-zinc-600 dark:text-zinc-300">{contextLabel}</div>
+          ) : null}
+          <div className="space-y-2">
+            <Label>Dlaczego usuwasz wizytę? *</Label>
+            <Textarea
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="Wpisz powód usunięcia wizyty…"
+              rows={4}
+              maxLength={500}
+              autoFocus
+            />
+          </div>
+          <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+            Czy na pewno chcesz usunąć tę wizytę? Dane nie zostaną skasowane. Wizyta zostanie
+            przeniesiona do zakładki „Usunięte wizyty”.
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+            Anuluj
+          </Button>
+          <Button
+            variant="outline"
+            className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-500/40 dark:hover:bg-red-500/10"
+            onClick={() => onConfirm(reason.trim())}
+            disabled={saving || tooShort}
+          >
+            {saving ? "Przenoszenie…" : "Tak, usuń wizytę"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
