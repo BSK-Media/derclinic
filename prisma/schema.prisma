@@ -330,6 +330,8 @@ model Appointment {
   approvedAt     DateTime?
   approvedById   String?
   approvedBy     User? @relation("AppointmentApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  // Powód odrzucenia wpisywany przez recepcję/admina przy odrzucaniu wizyty
+  rejectionReason String?
 
   // pricing (grosze)
   priceEstimate Int?
