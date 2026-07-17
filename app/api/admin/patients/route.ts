@@ -27,7 +27,43 @@ export async function GET(req: Request) {
     take: 200,
   });
 
-  return NextResponse.json({ ok: true, patients });
+  if (user!.role !== "ADMIN" || patients.length === 0) {
+    return NextResponse.json({ ok: true, viewerRole: user!.role, patients });
+  }
+
+  const completedAppointments = await prisma.appointment.findMany({
+    where: {
+      patientId: { in: patients.map((patient) => patient.id) },
+      status: "COMPLETED",
+      approvalStatus: "APPROVED",
+      deletedAt: null,
+    },
+    select: {
+      patientId: true,
+      priceFinal: true,
+      priceEstimate: true,
+    },
+    take: 20000,
+  });
+
+  const totalsByPatient = new Map<string, { totalSpent: number; completedVisits: number }>();
+  for (const appointment of completedAppointments) {
+    const totals = totalsByPatient.get(appointment.patientId) ?? {
+      totalSpent: 0,
+      completedVisits: 0,
+    };
+    totals.totalSpent += appointment.priceFinal ?? appointment.priceEstimate ?? 0;
+    totals.completedVisits += 1;
+    totalsByPatient.set(appointment.patientId, totals);
+  }
+
+  const patientsWithStats = patients.map((patient) => ({
+    ...patient,
+    totalSpent: totalsByPatient.get(patient.id)?.totalSpent ?? 0,
+    completedVisits: totalsByPatient.get(patient.id)?.completedVisits ?? 0,
+  }));
+
+  return NextResponse.json({ ok: true, viewerRole: user!.role, patients: patientsWithStats });
 }
 
 const CreateSchema = z.object({
@@ -45,7 +81,8 @@ export async function POST(req: Request) {
 
   const json = await req.json().catch(() => null);
   const parsed = CreateSchema.safeParse(json);
-  if (!parsed.success) return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
+  if (!parsed.success)
+    return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
   const p = await prisma.patient.create({
     data: {
