@@ -170,8 +170,7 @@ const UpdateSchema = z
     category: z.string().trim().max(120).nullable().optional(),
     description: z.string().trim().max(2000).nullable().optional(),
     durationMin: z.number().int().min(5).max(480).optional(),
-    priceFrom: z.number().int().min(0).nullable().optional(),
-    priceSuggested: z.number().int().min(0).nullable().optional(),
+    price: z.number().int().min(0).nullable().optional(),
   })
   .strict();
 
@@ -213,8 +212,7 @@ const CreateSchema = z.object({
   category: z.string().optional().nullable(),
   description: z.string().optional().or(z.literal("")),
   durationMin: z.number().int().min(5).max(480).optional(),
-  priceFrom: z.number().int().optional().nullable(),
-  priceSuggested: z.number().int().optional().nullable(),
+  price: z.number().int().optional().nullable(),
   specialistIds: z.array(z.string().min(1)).optional(),
 });
 
@@ -235,8 +233,7 @@ export async function POST(req: Request) {
       category: parsed.data.category ? parsed.data.category : null,
       description: parsed.data.description ? parsed.data.description : null,
       durationMin: parsed.data.durationMin ?? 30,
-      priceFrom: parsed.data.priceFrom ?? null,
-      priceSuggested: parsed.data.priceSuggested ?? null,
+      price: parsed.data.price ?? null,
     },
   });
 
