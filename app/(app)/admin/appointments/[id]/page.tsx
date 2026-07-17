@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
 import { appointmentStatusLabel, effectiveAppointmentStatus } from "@/lib/appointment-status";
+import { ApprovalBadge, RejectReasonDialog } from "@/components/appointment-approval";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -41,6 +42,35 @@ export default function AdminAppointmentDetail() {
 
   const [payMethod, setPayMethod] = useState<string>("CARD");
   const [payAmount, setPayAmount] = useState<string>("");
+
+  const [decidingApproval, setDecidingApproval] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+
+  async function decideApproval(action: "APPROVE" | "REJECT", reason?: string) {
+    setDecidingApproval(true);
+    try {
+      const res = await fetch(`/api/admin/appointments/${id}/approve`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, reason }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) {
+        toast.error(out?.message || "Nie udało się zapisać decyzji");
+        return false;
+      }
+      toast.success(action === "APPROVE" ? "Wizyta zaakceptowana" : "Wizyta odrzucona");
+      mutate();
+      return true;
+    } finally {
+      setDecidingApproval(false);
+    }
+  }
+
+  async function confirmReject(reason: string) {
+    const ok = await decideApproval("REJECT", reason);
+    if (ok) setRejectOpen(false);
+  }
 
   useEffect(() => {
     if (appt?.status) {
@@ -226,6 +256,58 @@ export default function AdminAppointmentDetail() {
           {appointmentStatusLabel(appointmentIsAwaiting ? "AWAITING" : appt.status)}
         </div>
       </Card>
+
+      <Card className="space-y-3 p-4">
+        <div className="font-medium">Akceptacja wizyty</div>
+        <div className="flex flex-wrap items-center gap-3">
+          <ApprovalBadge status={appt.approvalStatus} reason={appt.rejectionReason} />
+          {appt.approvalStatus === "PENDING" ? (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => decideApproval("APPROVE")}
+                disabled={decidingApproval}
+              >
+                {decidingApproval ? "…" : "✓ Zaakceptuj"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-500/40 dark:hover:bg-red-500/10"
+                onClick={() => setRejectOpen(true)}
+                disabled={decidingApproval}
+              >
+                ✕ Odrzuć
+              </Button>
+            </div>
+          ) : null}
+        </div>
+        {appt.approvalStatus === "PENDING" ? (
+          <div className="text-xs text-zinc-500">
+            Wizyta wpisana przez specjalistę czeka na decyzję recepcji lub administratora. Do
+            statystyk i rozliczeń liczą się tylko wizyty zaakceptowane.
+          </div>
+        ) : null}
+        {appt.approvalStatus === "REJECTED" && appt.rejectionReason ? (
+          <div className="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-300">
+            Powód odrzucenia: {appt.rejectionReason}
+          </div>
+        ) : null}
+      </Card>
+
+      <RejectReasonDialog
+        open={rejectOpen}
+        onOpenChange={setRejectOpen}
+        onConfirm={confirmReject}
+        saving={decidingApproval}
+        contextLabel={`${new Date(appt.startsAt).toLocaleString("pl-PL", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })} • ${appt.patient.name} • ${appt.customServiceName || appt.service.name}`}
+      />
 
       <Card className="space-y-4 p-4">
         <div className="font-medium">Status i rozliczenie wizyty</div>
