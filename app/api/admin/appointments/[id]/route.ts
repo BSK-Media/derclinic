@@ -27,7 +27,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     },
   });
 
-  if (!appt) return NextResponse.json({ ok: false, message: "Nie znaleziono" }, { status: 404 });
+  if (!appt || appt.deletedAt) {
+    return NextResponse.json({ ok: false, message: "Nie znaleziono" }, { status: 404 });
+  }
 
   const [products, warehouses] = await Promise.all([
     prisma.product.findMany({ orderBy: { name: "asc" } }),
@@ -52,6 +54,10 @@ const PatchSchema = z.object({
   endsAt: z.string().datetime({ offset: true }).optional(),
 });
 
+const DeleteSchema = z.object({
+  reason: z.string().trim().min(3, "Podaj powód usunięcia wizyty").max(500),
+});
+
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
   if (error) return error;
@@ -65,9 +71,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const existing = await prisma.appointment.findUnique({
     where: { id: params.id },
-    select: { id: true, specialistId: true, startsAt: true, status: true },
+    select: { id: true, specialistId: true, startsAt: true, status: true, deletedAt: true },
   });
-  if (!existing)
+  if (!existing || existing.deletedAt)
     return NextResponse.json({ ok: false, message: "Nie znaleziono" }, { status: 404 });
   const newStarts = parsed.data.startsAt ? new Date(parsed.data.startsAt) : undefined;
   const newEnds = parsed.data.endsAt ? new Date(parsed.data.endsAt) : undefined;
@@ -126,4 +132,58 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   });
 
   return NextResponse.json({ ok: true, appointment: appt });
+}
+
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+  const { user, error } = await requireAuth();
+  if (error) return error;
+  const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
+  if (deny) return deny;
+
+  const json = await req.json().catch(() => null);
+  const parsed = DeleteSchema.safeParse(json);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { ok: false, message: parsed.error.issues[0]?.message ?? "Podaj powód usunięcia wizyty" },
+      { status: 400 },
+    );
+  }
+
+  const existing = await prisma.appointment.findUnique({
+    where: { id: params.id },
+    select: { id: true, deletedAt: true },
+  });
+  if (!existing) {
+    return NextResponse.json({ ok: false, message: "Nie znaleziono wizyty" }, { status: 404 });
+  }
+  if (existing.deletedAt) {
+    return NextResponse.json(
+      { ok: false, message: "Ta wizyta znajduje się już w usuniętych" },
+      { status: 409 },
+    );
+  }
+
+  const deletedAt = new Date();
+  const appointment = await prisma.appointment.update({
+    where: { id: params.id },
+    data: {
+      deletedAt,
+      deletedById: user!.id,
+      deletionReason: parsed.data.reason,
+    },
+  });
+
+  await logAudit({
+    actorId: user!.id,
+    action: "DELETE",
+    entity: "Appointment",
+    entityId: appointment.id,
+    data: {
+      softDelete: true,
+      deletedAt,
+      deletionReason: parsed.data.reason,
+    },
+  });
+
+  return NextResponse.json({ ok: true, appointment });
 }
