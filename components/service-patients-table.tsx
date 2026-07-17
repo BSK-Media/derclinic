@@ -77,9 +77,9 @@ export function ServicePatientsTable({ serviceId }: { serviceId: string }) {
 
   const query =
     range === "all"
-      ? `/api/admin/services/${serviceId}/patients`
+      ? `/api/admin/services?patientsFor=${encodeURIComponent(serviceId)}`
       : from && to
-        ? `/api/admin/services/${serviceId}/patients?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+        ? `/api/admin/services?patientsFor=${encodeURIComponent(serviceId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
         : null;
   const { data, isLoading } = useSWR(query, fetcher);
   const patients: ServicePatient[] = data?.patients ?? [];
