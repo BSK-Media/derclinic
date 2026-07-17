@@ -96,6 +96,7 @@ model User {
   serviceRates           SpecialistServiceRate[]
   warehouseAssignments   SpecialistWarehouse[]
   approvedAppointments   Appointment[]           @relation("AppointmentApprover")
+  deletedAppointments    Appointment[]           @relation("AppointmentDeleter")
   assignedServices       SpecialistService[]
 
   @@index([role])
@@ -332,6 +333,13 @@ model Appointment {
   // Powód odrzucenia wpisywany przez recepcję/admina przy odrzucaniu wizyty
   rejectionReason String?
 
+  // Miękkie usunięcie: dane medyczne i rozliczeniowe pozostają w systemie,
+  // a wizyta trafia do osobnej listy dostępnej dla recepcji i administratora.
+  deletedAt      DateTime?
+  deletedById    String?
+  deletedBy      User?     @relation("AppointmentDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
+  deletionReason String?
+
   // pricing (grosze)
   priceEstimate Int?
   priceFinal    Int?
@@ -344,6 +352,7 @@ model Appointment {
   @@index([specialistId, startsAt])
   @@index([patientId, startsAt])
   @@index([status])
+  @@index([deletedAt])
 }
 
 model Consumption {
