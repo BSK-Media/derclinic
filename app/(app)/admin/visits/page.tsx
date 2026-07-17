@@ -21,11 +21,7 @@ import {
 } from "@/components/ui/select";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { AdminBookAppointmentDialog } from "@/components/admin-book-appointment-dialog";
-import {
-  ApprovalBadge,
-  DeleteAppointmentDialog,
-  RejectReasonDialog,
-} from "@/components/appointment-approval";
+import { ApprovalBadge, RejectReasonDialog } from "@/components/appointment-approval";
 import { toast } from "sonner";
 import { AppointmentCalendar, startOfGrid } from "@/components/appointment-calendar";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
@@ -52,17 +48,17 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
   const requestedView = Array.isArray(searchParams?.view)
     ? searchParams?.view[0]
     : searchParams?.view;
-  const normalizedRequestedView =
-    requestedView === "calendar" || requestedView === "deleted" ? requestedView : "list";
-  const [view, setView] = React.useState<"list" | "calendar" | "deleted">(normalizedRequestedView);
+  const [view, setView] = React.useState<"list" | "calendar">(
+    requestedView === "calendar" ? "calendar" : "list",
+  );
   const [anchor, setAnchor] = React.useState(() => new Date());
 
   React.useEffect(() => {
-    setView(requestedView === "calendar" || requestedView === "deleted" ? requestedView : "list");
+    setView(requestedView === "calendar" ? "calendar" : "list");
   }, [requestedView]);
 
   const changeView = React.useCallback(
-    (nextView: "list" | "calendar" | "deleted") => {
+    (nextView: "list" | "calendar") => {
       setView(nextView);
       router.replace(`/admin/visits?view=${nextView}`, { scroll: false });
     },
@@ -88,8 +84,6 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
   const [defaultDate, setDefaultDate] = React.useState<Date | null>(null);
   const [decidingId, setDecidingId] = React.useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = React.useState<any | null>(null);
-  const [deleteTarget, setDeleteTarget] = React.useState<any | null>(null);
-  const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
   // Zakres danych dla widoku kalendarza (siatka 6 tygodni)
   const calendarRange = React.useMemo(() => {
@@ -100,11 +94,9 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
   }, [anchor]);
 
   const { data, mutate, isLoading } = useSWR(
-    view === "deleted"
-      ? "/api/admin/appointments?deleted=only"
-      : view === "calendar"
-        ? `/api/admin/appointments?from=${calendarRange.from.toISOString()}&to=${calendarRange.to.toISOString()}`
-        : `/api/admin/appointments?from=${from}&to=${to}`,
+    view === "calendar"
+      ? `/api/admin/appointments?from=${calendarRange.from.toISOString()}&to=${calendarRange.to.toISOString()}`
+      : `/api/admin/appointments?from=${from}&to=${to}`,
     fetcher,
   );
 
@@ -127,9 +119,7 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
       return (
         a.patient?.name?.toLowerCase().includes(q) ||
         a.specialist?.name?.toLowerCase().includes(q) ||
-        serviceName.includes(q) ||
-        a.deletionReason?.toLowerCase().includes(q) ||
-        a.deletedBy?.name?.toLowerCase().includes(q)
+        serviceName.includes(q)
       );
     });
   }, [bySpecialist, search]);
@@ -172,28 +162,6 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
     if (!rejectTarget) return;
     const ok = await decide(rejectTarget.id, "REJECT", reason);
     if (ok) setRejectTarget(null);
-  }
-
-  async function confirmDelete(reason: string) {
-    if (!deleteTarget) return;
-    setDeletingId(deleteTarget.id);
-    try {
-      const res = await fetch(`/api/admin/appointments/${deleteTarget.id}`, {
-        method: "DELETE",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ reason }),
-      });
-      const out = await res.json().catch(() => ({}));
-      if (!res.ok || !out?.ok) {
-        toast.error(out?.message || "Nie udało się usunąć wizyty");
-        return;
-      }
-      setDeleteTarget(null);
-      toast.success("Wizyta została przeniesiona do usuniętych");
-      mutate();
-    } finally {
-      setDeletingId(null);
-    }
   }
 
   async function cancelAppointment(id: string) {
@@ -241,18 +209,6 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
           >
             Kalendarz
           </button>
-          <button
-            type="button"
-            onClick={() => changeView("deleted")}
-            className={
-              "rounded-lg px-4 py-1.5 font-medium transition " +
-              (view === "deleted"
-                ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-                : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white")
-            }
-          >
-            Usunięte wizyty
-          </button>
         </div>
       </div>
 
@@ -273,7 +229,7 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
           </Select>
         </div>
 
-        {view !== "calendar" ? (
+        {view === "list" ? (
           <>
             <div className="relative min-w-[220px] flex-1">
               <Input
@@ -282,28 +238,26 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            {view === "list" ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  type="date"
-                  value={from}
-                  onChange={(e) => setFrom(e.target.value)}
-                  className="w-40"
-                />
-                <span className="text-zinc-400">–</span>
-                <Input
-                  type="date"
-                  value={to}
-                  onChange={(e) => setTo(e.target.value)}
-                  className="w-40"
-                />
-              </div>
-            ) : null}
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className="w-40"
+              />
+              <span className="text-zinc-400">–</span>
+              <Input
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                className="w-40"
+              />
+            </div>
           </>
         ) : (
           <div className="flex-1" />
         )}
-        {view !== "deleted" ? <Button onClick={() => openAdd()}>Dodaj rezerwację</Button> : null}
+        <Button onClick={() => openAdd()}>Dodaj rezerwację</Button>
       </div>
 
       {view === "calendar" ? (
@@ -317,61 +271,6 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
           onOpenAppointment={(id) => router.push(`/admin/appointments/${id}`)}
           showSpecialist={specialistFilter === ALL_SPECIALISTS}
         />
-      ) : view === "deleted" ? (
-        <div className="overflow-hidden rounded-2xl border bg-white shadow-sm dark:bg-zinc-950">
-          <div className="border-b px-4 py-3 text-sm text-zinc-500">
-            W tym miejscu przechowywane są wizyty usunięte przez administratora lub recepcję. Dane
-            wizyty pozostają zachowane w systemie.
-          </div>
-          <div className="overflow-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b text-left text-xs uppercase text-zinc-500">
-                <tr>
-                  <th className="p-3">Data wizyty</th>
-                  <th className="p-3">Czas</th>
-                  <th className="p-3">Klient</th>
-                  <th className="p-3">Specjalista</th>
-                  <th className="p-3">Usługa</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Data usunięcia</th>
-                  <th className="p-3">Usunięta przez</th>
-                  <th className="min-w-64 p-3">Powód usunięcia</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!isLoading && filtered.length === 0 ? (
-                  <tr>
-                    <td className="p-6 text-center text-zinc-500" colSpan={9}>
-                      Brak usuniętych wizyt.
-                    </td>
-                  </tr>
-                ) : null}
-                {filtered.map((a: any) => (
-                  <tr key={a.id} className="border-t bg-zinc-50/70 dark:bg-white/[0.03]">
-                    <td className="p-3">{new Date(a.startsAt).toLocaleDateString("pl-PL")}</td>
-                    <td className="p-3">
-                      {new Date(a.startsAt).toLocaleTimeString("pl-PL", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </td>
-                    <td className="p-3 font-medium">{a.patient?.name ?? "—"}</td>
-                    <td className="p-3">{a.specialist?.name ?? "—"}</td>
-                    <td className="p-3">{a.customServiceName || a.service?.name || "—"}</td>
-                    <td className="p-3">{appointmentStatusLabel(a.status)}</td>
-                    <td className="p-3">
-                      {a.deletedAt ? new Date(a.deletedAt).toLocaleString("pl-PL") : "—"}
-                    </td>
-                    <td className="p-3">{a.deletedBy?.name || a.deletedBy?.login || "—"}</td>
-                    <td className="whitespace-pre-wrap p-3 text-zinc-700 dark:text-zinc-200">
-                      {a.deletionReason || "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border bg-white shadow-sm dark:bg-zinc-950">
           <div className="overflow-auto">
@@ -433,73 +332,36 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                           minute: "2-digit",
                         })}
                       </td>
-                      <td className="p-3 font-medium">
-                        {a.patient?.id ? (
-                          <Link
-                            href={`/admin/patients/${a.patient.id}`}
-                            className="underline-offset-2 hover:text-emerald-700 hover:underline dark:hover:text-emerald-300"
-                          >
-                            {a.patient.name}
-                          </Link>
-                        ) : (
-                          a.patient?.name
-                        )}
-                      </td>
-                      <td className="p-3">
-                        {a.specialist?.id ? (
-                          <Link
-                            href={`/admin/specialists/${a.specialist.id}`}
-                            className="underline-offset-2 hover:text-emerald-700 hover:underline dark:hover:text-emerald-300"
-                          >
-                            {a.specialist.name}
-                          </Link>
-                        ) : (
-                          a.specialist?.name
-                        )}
-                      </td>
-                      <td className="p-3">
-                        {!a.customServiceName && a.service?.id ? (
-                          <Link
-                            href={`/admin/services?serviceId=${encodeURIComponent(a.service.id)}`}
-                            className="underline-offset-2 hover:text-emerald-700 hover:underline dark:hover:text-emerald-300"
-                          >
-                            {a.service.name}
-                          </Link>
-                        ) : (
-                          a.customServiceName || a.service?.name
-                        )}
-                      </td>
+                      <td className="p-3 font-medium">{a.patient?.name}</td>
+                      <td className="p-3">{a.specialist?.name}</td>
+                      <td className="p-3">{a.customServiceName || a.service?.name}</td>
                       <td className="p-3 text-zinc-500">Pojedyncza rezerwacja</td>
                       <td className="p-3">{appointmentStatusLabel(a.status)}</td>
                       <td className="p-3">
-                        {a.status === "COMPLETED" ? (
-                          <div className="flex flex-wrap items-center gap-2">
-                            <ApprovalBadge status={a.approvalStatus} reason={a.rejectionReason} />
-                            {a.approvalStatus === "PENDING" ? (
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  size="sm"
-                                  onClick={() => decide(a.id, "APPROVE")}
-                                  disabled={decidingId === a.id}
-                                >
-                                  {decidingId === a.id ? "…" : "✓ Zaakceptuj"}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-500/40 dark:hover:bg-red-500/10"
-                                  onClick={() => setRejectTarget(a)}
-                                  disabled={decidingId === a.id}
-                                >
-                                  ✕ Odrzuć
-                                </Button>
-                              </div>
-                            ) : null}
-                          </div>
-                        ) : null}
-                        {a.status === "COMPLETED" &&
-                        a.approvalStatus === "REJECTED" &&
-                        a.rejectionReason ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <ApprovalBadge status={a.approvalStatus} reason={a.rejectionReason} />
+                          {a.approvalStatus === "PENDING" ? (
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                onClick={() => decide(a.id, "APPROVE")}
+                                disabled={decidingId === a.id}
+                              >
+                                {decidingId === a.id ? "…" : "✓ Zaakceptuj"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-500/40 dark:hover:bg-red-500/10"
+                                onClick={() => setRejectTarget(a)}
+                                disabled={decidingId === a.id}
+                              >
+                                ✕ Odrzuć
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+                        {a.approvalStatus === "REJECTED" && a.rejectionReason ? (
                           <div className="mt-1 max-w-56 text-xs text-zinc-500">
                             Powód: {a.rejectionReason}
                           </div>
@@ -524,12 +386,6 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                                 Anuluj wizytę
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem
-                              className="text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-300"
-                              onSelect={() => setDeleteTarget(a)}
-                            >
-                              Usuń wizytę
-                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>
@@ -559,28 +415,6 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                 minute: "2-digit",
               })} • ${rejectTarget.patient?.name ?? ""} • ${
                 rejectTarget.customServiceName || rejectTarget.service?.name || ""
-              }`
-            : null
-        }
-      />
-
-      <DeleteAppointmentDialog
-        open={deleteTarget !== null}
-        onOpenChange={(open) => {
-          if (!open && !deletingId) setDeleteTarget(null);
-        }}
-        onConfirm={confirmDelete}
-        saving={deletingId !== null}
-        contextLabel={
-          deleteTarget
-            ? `${new Date(deleteTarget.startsAt).toLocaleString("pl-PL", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })} • ${deleteTarget.patient?.name ?? ""} • ${
-                deleteTarget.customServiceName || deleteTarget.service?.name || ""
               }`
             : null
         }
