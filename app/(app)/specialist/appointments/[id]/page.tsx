@@ -111,8 +111,7 @@ export default function SpecialistAppointmentDetail() {
   }
 
   const paymentsSum = (appt.payments ?? []).reduce((a: number, p: any) => a + (p.amount ?? 0), 0);
-  const standardPrice =
-    appt.priceEstimate ?? appt.service?.priceSuggested ?? appt.service?.priceFrom ?? null;
+  const standardPrice = appt.priceEstimate ?? appt.service?.price ?? null;
   const displayedFinalPrice = appt.priceFinal ?? standardPrice;
   const isStandardPrice =
     displayedFinalPrice !== null && standardPrice !== null && displayedFinalPrice === standardPrice;
