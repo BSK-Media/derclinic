@@ -307,12 +307,12 @@ export default function AdminAppointmentsPage() {
                     <td className="p-3">{a.customServiceName || a.service.name}</td>
                     <td className="p-3">
                       <div>{appointmentStatusLabel(a.status)}</div>
-                      {a.approvalStatus === "PENDING" ? (
+                      {a.status === "COMPLETED" && a.approvalStatus === "PENDING" ? (
                         <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
                           Do akceptacji
                         </span>
                       ) : null}
-                      {a.approvalStatus === "REJECTED" ? (
+                      {a.status === "COMPLETED" && a.approvalStatus === "REJECTED" ? (
                         <span className="mt-1 inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-500/10 dark:text-red-300">
                           Odrzucona
                         </span>
@@ -321,7 +321,7 @@ export default function AdminAppointmentsPage() {
                     <td className="p-3">{formatPLNFromGrosze(a.priceFinal ?? a.priceEstimate)}</td>
                     <td className="p-3 text-right">
                       <div className="flex items-center justify-end gap-3">
-                        {a.approvalStatus === "PENDING" ? (
+                        {a.status === "COMPLETED" && a.approvalStatus === "PENDING" ? (
                           <>
                             <Button
                               size="sm"
