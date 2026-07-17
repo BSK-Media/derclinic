@@ -44,6 +44,7 @@ async function getSpecialistNotifications(specialistId: string) {
   const recentAppointments = await prisma.appointment.findMany({
     where: {
       specialistId,
+      deletedAt: null,
       OR: [{ createdAt: { gte: notificationsFrom } }, { updatedAt: { gte: notificationsFrom } }],
     },
     select: {
