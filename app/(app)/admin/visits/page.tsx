@@ -332,9 +332,42 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                           minute: "2-digit",
                         })}
                       </td>
-                      <td className="p-3 font-medium">{a.patient?.name}</td>
-                      <td className="p-3">{a.specialist?.name}</td>
-                      <td className="p-3">{a.customServiceName || a.service?.name}</td>
+                      <td className="p-3 font-medium">
+                        {a.patient?.id ? (
+                          <Link
+                            href={`/admin/patients/${a.patient.id}`}
+                            className="underline-offset-2 hover:text-emerald-700 hover:underline dark:hover:text-emerald-300"
+                          >
+                            {a.patient.name}
+                          </Link>
+                        ) : (
+                          a.patient?.name
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {a.specialist?.id ? (
+                          <Link
+                            href={`/admin/specialists/${a.specialist.id}`}
+                            className="underline-offset-2 hover:text-emerald-700 hover:underline dark:hover:text-emerald-300"
+                          >
+                            {a.specialist.name}
+                          </Link>
+                        ) : (
+                          a.specialist?.name
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {!a.customServiceName && a.service?.id ? (
+                          <Link
+                            href={`/admin/services?serviceId=${encodeURIComponent(a.service.id)}`}
+                            className="underline-offset-2 hover:text-emerald-700 hover:underline dark:hover:text-emerald-300"
+                          >
+                            {a.service.name}
+                          </Link>
+                        ) : (
+                          a.customServiceName || a.service?.name
+                        )}
+                      </td>
                       <td className="p-3 text-zinc-500">Pojedyncza rezerwacja</td>
                       <td className="p-3">{appointmentStatusLabel(a.status)}</td>
                       <td className="p-3">
