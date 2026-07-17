@@ -2,8 +2,12 @@ import { prisma } from "@/lib/db";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
 import { PatientDetailsForm } from "@/components/patient-details-form";
+import { PatientStatistics } from "@/components/patient-statistics";
+import { getEffectiveAuth } from "@/lib/effective-auth";
 
 export default async function AdminPatientDetailPage({ params }: { params: { id: string } }) {
+  const { user } = await getEffectiveAuth();
+  const isAdmin = user?.role === "ADMIN";
   const patient = await prisma.patient.findUnique({ where: { id: params.id } });
   if (!patient) return <div className="p-6 text-sm">Nie znaleziono pacjenta.</div>;
 
@@ -28,7 +32,9 @@ export default async function AdminPatientDetailPage({ params }: { params: { id:
           phone: patient.phone,
           email: patient.email,
         }}
-      />
+      >
+        {isAdmin ? <PatientStatistics patientId={patient.id} /> : null}
+      </PatientDetailsForm>
 
       {patient.note && (
         <div className="rounded-xl border bg-white p-4 shadow-sm dark:bg-zinc-950">
