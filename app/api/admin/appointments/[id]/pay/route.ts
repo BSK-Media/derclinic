@@ -20,6 +20,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!parsed.success)
     return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
+  const appointment = await prisma.appointment.findUnique({
+    where: { id: params.id },
+    select: { id: true, deletedAt: true },
+  });
+  if (!appointment || appointment.deletedAt) {
+    return NextResponse.json({ ok: false, message: "Nie znaleziono wizyty" }, { status: 404 });
+  }
+
   const p = await prisma.payment.create({
     data: {
       appointmentId: params.id,
