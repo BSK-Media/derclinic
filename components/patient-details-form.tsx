@@ -49,7 +49,13 @@ const FIELD_DETAILS: Record<
   },
 };
 
-export function PatientDetailsForm({ patient }: { patient: PatientDetails }) {
+export function PatientDetailsForm({
+  patient,
+  children,
+}: {
+  patient: PatientDetails;
+  children?: React.ReactNode;
+}) {
   const router = useRouter();
   const [values, setValues] = React.useState<Record<EditableField, string>>({
     name: patient.name,
@@ -123,6 +129,8 @@ export function PatientDetailsForm({ patient }: { patient: PatientDetails }) {
           Wróć do listy
         </Link>
       </div>
+
+      {children}
 
       <Card className="grid gap-3 p-4 md:grid-cols-3">
         {(Object.keys(FIELD_DETAILS) as EditableField[]).map((field) => {
