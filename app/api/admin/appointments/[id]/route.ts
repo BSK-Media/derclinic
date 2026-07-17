@@ -65,7 +65,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const existing = await prisma.appointment.findUnique({
     where: { id: params.id },
-    select: { id: true, specialistId: true, startsAt: true },
+    select: { id: true, specialistId: true, startsAt: true, status: true },
   });
   if (!existing)
     return NextResponse.json({ ok: false, message: "Nie znaleziono" }, { status: 404 });
@@ -98,6 +98,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     where: { id: params.id },
     data: {
       status: parsed.data.status as any,
+      ...(parsed.data.status !== undefined && parsed.data.status !== existing.status
+        ? {
+            approvalStatus: "PENDING" as const,
+            approvedAt: null,
+            approvedById: null,
+            rejectionReason: null,
+          }
+        : {}),
       priceFinal: parsed.data.priceFinal === undefined ? undefined : parsed.data.priceFinal,
       priceEstimate:
         user!.role !== "ADMIN" || parsed.data.priceEstimate === undefined
