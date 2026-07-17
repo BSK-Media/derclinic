@@ -163,8 +163,12 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const visibleNav = user
-    ? NAV.filter((item) =>
-        hasSidebarPermission(user.role, user.sidebarPermissions, item.permission),
+    ? NAV.filter(
+        (item) =>
+          hasSidebarPermission(user.role, user.sidebarPermissions, item.permission) &&
+          // Admin i recepcja mają kalendarz wewnątrz zakładki Wizyty —
+          // osobna pozycja "Kalendarz" zostaje tylko dla specjalisty.
+          !(item.permission === "calendar" && user.role !== "SPECIALIST"),
       )
     : [];
 
