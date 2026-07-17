@@ -31,9 +31,125 @@ type Service = {
   priceFrom?: number | null;
 };
 
+const NEW_PATIENT = "__NEW__";
+
 function toLocalDateTimeInput(d: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Lista pacjentów z wyszukiwarką i opcją "Nowy klient" na górze
+function PatientCombobox({
+  patients,
+  value,
+  onChange,
+}: {
+  patients: Patient[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
+  const searchRef = React.useRef<HTMLInputElement | null>(null);
+
+  const sorted = React.useMemo(
+    () => [...patients].sort((a, b) => a.name.localeCompare(b.name, "pl", { sensitivity: "base" })),
+    [patients],
+  );
+
+  const filtered = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return sorted;
+    return sorted.filter((p) => p.name.toLowerCase().includes(q));
+  }, [sorted, query]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    setQuery("");
+    const timer = window.setTimeout(() => searchRef.current?.focus(), 0);
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  const selectedLabel =
+    value === NEW_PATIENT
+      ? "➕ Nowy klient"
+      : (sorted.find((p) => p.id === value)?.name ?? "");
+
+  function pick(next: string) {
+    onChange(next);
+    setOpen(false);
+  }
+
+  return (
+    <div className="relative" ref={rootRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex h-10 w-full items-center justify-between rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+      >
+        <span className={selectedLabel ? "" : "text-zinc-400"}>
+          {selectedLabel || "Wybierz lub wyszukaj"}
+        </span>
+        <span className="text-zinc-400">▾</span>
+      </button>
+
+      {open ? (
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="border-b p-2">
+            <Input
+              ref={searchRef}
+              placeholder="Szukaj klienta…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          <div className="max-h-56 overflow-auto py-1 text-sm">
+            <button
+              type="button"
+              onClick={() => pick(NEW_PATIENT)}
+              className={
+                "block w-full border-b px-3 py-2 text-left font-medium text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-500/10 " +
+                (value === NEW_PATIENT ? "bg-emerald-50 dark:bg-emerald-500/10" : "")
+              }
+            >
+              ➕ Nowy klient
+            </button>
+            {filtered.length === 0 ? (
+              <div className="px-3 py-2 text-zinc-500">Brak wyników.</div>
+            ) : null}
+            {filtered.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => pick(p.id)}
+                className={
+                  "block w-full px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900 " +
+                  (value === p.id ? "bg-zinc-100 font-medium dark:bg-zinc-800" : "")
+                }
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function AdminBookAppointmentDialog({
@@ -56,6 +172,10 @@ export function AdminBookAppointmentDialog({
   onCreated: () => void;
 }) {
   const [patientId, setPatientId] = React.useState("");
+  const [newFirstName, setNewFirstName] = React.useState("");
+  const [newLastName, setNewLastName] = React.useState("");
+  const [newPhone, setNewPhone] = React.useState("");
+  const [newEmail, setNewEmail] = React.useState("");
   const [specialistId, setSpecialistId] = React.useState(defaultSpecialistId ?? "");
   const [serviceId, setServiceId] = React.useState("");
   const [startsAt, setStartsAt] = React.useState("");
@@ -63,18 +183,25 @@ export function AdminBookAppointmentDialog({
   const [note, setNote] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
+  const isNewPatient = patientId === NEW_PATIENT;
+
   React.useEffect(() => {
     if (!open) return;
     const base = defaultDate ? new Date(defaultDate) : new Date();
     if (!defaultDate) {
       base.setMinutes(0, 0, 0);
       base.setHours(base.getHours() + 1);
-    } else {
+    } else if (base.getHours() === 0 && base.getMinutes() === 0) {
+      // Kliknięcie w dzień (widok miesiąca) — domyślnie 10:00; slot godzinowy zachowuje swoją godzinę
       base.setHours(10, 0, 0, 0);
     }
     setStartsAt(toLocalDateTimeInput(base));
     setSpecialistId(defaultSpecialistId ?? "");
     setPatientId("");
+    setNewFirstName("");
+    setNewLastName("");
+    setNewPhone("");
+    setNewEmail("");
     setServiceId("");
     setPriceFinal("");
     setNote("");
@@ -118,13 +245,32 @@ export function AdminBookAppointmentDialog({
       toast.error("Uzupełnij wszystkie wymagane pola");
       return;
     }
+    if (isNewPatient) {
+      if (!newFirstName.trim() || !newLastName.trim() || !newPhone.trim()) {
+        toast.error("Podaj imię, nazwisko i numer telefonu nowego klienta");
+        return;
+      }
+      const email = newEmail.trim();
+      if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+        toast.error("Niepoprawny adres e-mail");
+        return;
+      }
+    }
     setSaving(true);
     try {
       const res = await fetch("/api/admin/appointments", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          patientId,
+          patientId: isNewPatient ? null : patientId,
+          newPatient: isNewPatient
+            ? {
+                firstName: newFirstName.trim(),
+                lastName: newLastName.trim(),
+                phone: newPhone.trim(),
+                email: newEmail.trim() || undefined,
+              }
+            : null,
           specialistId,
           serviceId,
           startsAt: new Date(startsAt).toISOString(),
@@ -153,18 +299,7 @@ export function AdminBookAppointmentDialog({
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-2">
             <Label>Pacjent</Label>
-            <Select value={patientId} onValueChange={setPatientId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Wybierz" />
-              </SelectTrigger>
-              <SelectContent disablePortal>
-                {patients.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <PatientCombobox patients={patients} value={patientId} onChange={setPatientId} />
           </div>
           <div className="space-y-2">
             <Label>Specjalista</Label>
@@ -181,6 +316,52 @@ export function AdminBookAppointmentDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {isNewPatient ? (
+            <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-500/30 dark:bg-emerald-500/5 md:col-span-2">
+              <div className="text-sm font-medium">Dane nowego klienta</div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Imię *</Label>
+                  <Input
+                    value={newFirstName}
+                    onChange={(e) => setNewFirstName(e.target.value)}
+                    placeholder="np. Anna"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nazwisko *</Label>
+                  <Input
+                    value={newLastName}
+                    onChange={(e) => setNewLastName(e.target.value)}
+                    placeholder="np. Kowalska"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Numer telefonu *</Label>
+                  <Input
+                    value={newPhone}
+                    onChange={(e) => setNewPhone(e.target.value)}
+                    placeholder="np. +48 600 000 000"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Adres e-mail</Label>
+                  <Input
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="np. anna@example.com"
+                  />
+                </div>
+              </div>
+              <div className="text-xs text-zinc-500">
+                Jeśli klient z tym numerem telefonu już istnieje, wizyta zostanie przypisana do
+                jego kartoteki.
+              </div>
+            </div>
+          ) : null}
+
           <div className="space-y-2 md:col-span-2">
             <Label>Usługa</Label>
             <Select value={serviceId} onValueChange={selectService} disabled={!specialistId}>
