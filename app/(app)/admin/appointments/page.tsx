@@ -33,8 +33,7 @@ type Service = {
   id: string;
   name: string;
   durationMin: number;
-  priceSuggested?: number | null;
-  priceFrom?: number | null;
+  price?: number | null;
 };
 type Appointment = {
   id: string;
@@ -106,14 +105,14 @@ export default function AdminAppointmentsPage() {
     [services, serviceId],
   );
   const durationMin = selectedService?.durationMin ?? 30;
-  const standardPrice = selectedService?.priceSuggested ?? selectedService?.priceFrom ?? null;
+  const standardPrice = selectedService?.price ?? null;
   const enteredPrice = priceFinal ? parsePLNToGrosze(priceFinal) : null;
   const isStandardPrice = standardPrice !== null && enteredPrice === standardPrice;
 
   function selectService(value: string) {
     setServiceId(value);
     const service = services.find((item) => item.id === value);
-    const price = service?.priceSuggested ?? service?.priceFrom ?? null;
+    const price = service?.price ?? null;
     setPriceFinal(price === null ? "" : (price / 100).toFixed(2).replace(".", ","));
   }
 
@@ -197,7 +196,7 @@ export default function AdminAppointmentsPage() {
             </Select>
             <div className="text-xs text-zinc-500">
               Czas: {durationMin} min • Sugerowana cena:{" "}
-              {formatPLNFromGrosze(selectedService?.priceSuggested ?? null)}
+              {formatPLNFromGrosze(selectedService?.price ?? null)}
             </div>
           </div>
           <div className="space-y-2">
