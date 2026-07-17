@@ -130,9 +130,13 @@ model Service {
   description String?
   durationMin Int     @default(30)
 
-  // Suggested pricing (grosze)
-  priceFrom      Int?
-  priceSuggested Int?
+  // Jedna obowiązująca cena usługi (grosze). Pole korzysta z istniejącej
+  // kolumny priceSuggested, aby zachować dane podczas wdrożenia.
+  price Int? @map("priceSuggested")
+
+  // Historyczna kolumna pozostaje w bazie wyłącznie dla bezpiecznej zgodności
+  // wdrożeniowej i nie jest dostępna w Prisma Client ani w aplikacji.
+  legacyPriceFrom Int? @map("priceFrom") @ignore
 
   suggestedProducts     ServiceSuggestedProduct[]
   appointments          Appointment[]
