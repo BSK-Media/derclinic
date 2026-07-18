@@ -2,6 +2,7 @@
 "use client";
 
 import * as React from "react";
+import { useAuth } from "@/components/auth-provider";
 import Link from "next/link";
 import useSWR from "swr";
 import { toast } from "sonner";
@@ -70,7 +71,12 @@ export default function SpecialistsPage() {
   const { data, mutate, isLoading } = useSWR("/api/admin/specialists", fetcher);
   const specialists: Specialist[] = data?.specialists ?? [];
 
+  const { user } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
   const [activeTab, setActiveTab] = React.useState<"list" | "settlements">("list");
+  React.useEffect(() => {
+    if (!isAdmin && activeTab === "settlements") setActiveTab("list");
+  }, [isAdmin, activeTab]);
   const [editing, setEditing] = React.useState<Specialist | null>(null);
 
   async function toggleField(id: string, patch: Partial<Pick<Specialist, "isVisible" | "isAvailable">>) {
@@ -110,6 +116,7 @@ export default function SpecialistsPage() {
         >
           Lista Specjalistów
         </button>
+        {isAdmin ? (
         <button
           type="button"
           onClick={() => setActiveTab("settlements")}
@@ -122,9 +129,10 @@ export default function SpecialistsPage() {
         >
           Rozliczenia Specjalistów
         </button>
+        ) : null}
       </div>
 
-      {activeTab === "list" ? (
+      {activeTab === "list" || !isAdmin ? (
         <>
           <div className="grid gap-4 md:grid-cols-3">
             <Card className="p-4">
