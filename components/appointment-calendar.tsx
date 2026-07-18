@@ -18,7 +18,11 @@ export type CalendarAppointment = {
 
 type CalendarViewMode = "day" | "week" | "month";
 
-const WEEKDAYS = ["PON.", "WT", "ŚR", "CZW", "PT", "SOB", "SŁOŃCE"];
+const WEEKDAYS = ["PON", "WT", "ŚR", "CZW", "PT", "SOB", "NDZ"];
+
+function weekdayLabel(date: Date) {
+  return WEEKDAYS[(date.getDay() + 6) % 7];
+}
 
 // Wysokość jednej godziny w widokach Dzień/Tydzień (px)
 const HOUR_HEIGHT = 64;
@@ -280,7 +284,7 @@ export function AppointmentCalendar({
                 return (
                   <div key={dateKey(day)} className="border-l px-2 py-2 text-center">
                     <div className="text-xs uppercase text-zinc-500">
-                      {day.toLocaleDateString("pl-PL", { weekday: "short" })}
+                      {weekdayLabel(day)}
                     </div>
                     <div
                       className={
