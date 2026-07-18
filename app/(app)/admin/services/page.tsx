@@ -371,10 +371,19 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_CATEGORIES}>Wszystkie kategorie</SelectItem>
+                <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-2rem)] !bg-white dark:!bg-zinc-950">
+                  <SelectItem
+                    value={ALL_CATEGORIES}
+                    className="min-w-0 whitespace-normal break-words [&>span]:whitespace-normal [&>span]:break-words"
+                  >
+                    Wszystkie kategorie
+                  </SelectItem>
                   {categories.map((item) => (
-                    <SelectItem key={item.name} value={item.name}>
+                    <SelectItem
+                      key={item.name}
+                      value={item.name}
+                      className="min-w-0 whitespace-normal break-words [&>span]:whitespace-normal [&>span]:break-words"
+                    >
                       {item.name} ({item.count})
                     </SelectItem>
                   ))}
@@ -387,10 +396,19 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_SPECIALISTS}>Wszyscy specjaliści</SelectItem>
+                <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-2rem)] !bg-white dark:!bg-zinc-950">
+                  <SelectItem
+                    value={ALL_SPECIALISTS}
+                    className="min-w-0 whitespace-normal break-words [&>span]:whitespace-normal [&>span]:break-words"
+                  >
+                    Wszyscy specjaliści
+                  </SelectItem>
                   {specialists.map((specialist) => (
-                    <SelectItem key={specialist.id} value={specialist.id}>
+                    <SelectItem
+                      key={specialist.id}
+                      value={specialist.id}
+                      className="min-w-0 whitespace-normal break-words [&>span]:whitespace-normal [&>span]:break-words"
+                    >
                       {specialist.name}
                     </SelectItem>
                   ))}
