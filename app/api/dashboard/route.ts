@@ -275,20 +275,22 @@ export async function GET(req: Request) {
       };
     });
 
+  const isAdminUser = user!.role === "ADMIN";
+
   return NextResponse.json({
     ok: true,
     kpi: {
       todayVisits: todayCount,
       todayVisitsDeltaPct: pct(todayCount, yesterdayCount),
-      todayRevenue,
-      todayRevenueDeltaPct: pct(todayRevenue, yesterdayRevenue),
+      todayRevenue: isAdminUser ? todayRevenue : 0,
+      todayRevenueDeltaPct: isAdminUser ? pct(todayRevenue, yesterdayRevenue) : null,
       newPatients: newPatientsToday,
       newPatientsDelta: newPatientsToday - newPatientsYesterday,
       inventoryAlerts,
     },
-    chart,
+    chart: isAdminUser ? chart : chart.map((r) => ({ ...r, revenue: 0 })),
     donut,
-    topServices,
+    topServices: isAdminUser ? topServices : topServices.map((s) => ({ ...s, revenue: 0 })),
     upcoming: upcoming.map(
       (a: {
         id: string;
