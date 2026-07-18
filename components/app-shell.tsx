@@ -94,7 +94,7 @@ function UserAvatar({
   );
 }
 
-function LogoBlock() {
+function LogoBlock({ showThemeToggle = true }: { showThemeToggle?: boolean }) {
   const { user } = useAuth();
   const { isDark, toggle } = useThemeToggle();
 
@@ -115,14 +115,16 @@ function LogoBlock() {
           {user?.name ?? "Użytkownik"} • {user?.role ?? "—"}
         </div>
       </div>
-      <button
-        type="button"
-        onClick={toggle}
-        aria-label={isDark ? "Przełącz na jasny motyw" : "Przełącz na ciemny motyw"}
-        className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-white/60 bg-white/70 shadow-sm backdrop-blur transition hover:bg-white dark:border-white/10 dark:bg-[#0b1220]/55 dark:hover:bg-white/10"
-      >
-        <span className="text-slate-700 dark:text-slate-200">{isDark ? "☀" : "☾"}</span>
-      </button>
+      {showThemeToggle ? (
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label={isDark ? "Przełącz na jasny motyw" : "Przełącz na ciemny motyw"}
+          className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-white/60 bg-white/70 shadow-sm backdrop-blur transition hover:bg-white dark:border-white/10 dark:bg-[#0b1220]/55 dark:hover:bg-white/10"
+        >
+          <span className="text-slate-700 dark:text-slate-200">{isDark ? "☀" : "☾"}</span>
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -279,7 +281,7 @@ function MobileNav() {
           <div className="absolute bottom-0 left-0 top-0 flex w-[300px] max-w-[85vw] animate-[mobilenav_0.2s_ease-out] flex-col overflow-y-auto border-r border-slate-200 bg-white p-3 shadow-2xl dark:border-white/10 dark:bg-[#0b1220]">
             <style>{`@keyframes mobilenav { from { transform: translateX(-100%); } to { transform: translateX(0); } }`}</style>
             <div className="flex items-center justify-between">
-              <LogoBlock />
+              <LogoBlock showThemeToggle={false} />
               <button
                 type="button"
                 onClick={() => setOpen(false)}
