@@ -22,17 +22,25 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!parsed.success)
     return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
+  const product = await prisma.product.findUnique({
+    where: { id: parsed.data.productId },
+    select: { id: true, unit: true },
+  });
+  if (!product) {
+    return NextResponse.json({ ok: false, message: "Nie znaleziono produktu" }, { status: 404 });
+  }
+
   const row = await prisma.serviceSuggestedProduct.upsert({
     where: { serviceId_productId: { serviceId: params.id, productId: parsed.data.productId } },
     update: {
       quantity: new Prisma.Decimal(parsed.data.quantity),
-      unit: (parsed.data.unit ?? "UNIT") as any,
+      unit: product.unit,
     },
     create: {
       serviceId: params.id,
       productId: parsed.data.productId,
       quantity: new Prisma.Decimal(parsed.data.quantity),
-      unit: (parsed.data.unit ?? "UNIT") as any,
+      unit: product.unit,
     },
     include: { product: true },
   });
