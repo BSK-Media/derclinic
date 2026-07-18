@@ -414,7 +414,7 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
                           </Link>
                         </div>
                         <div className="text-sm text-zinc-600 dark:text-zinc-300">
-                          Sugerowane preparaty (warianty A/B/C):{" "}
+                          Sugerowane preparaty:{" "}
                           {s.suggestedProducts.length === 0 ? "—" : ""}
                         </div>
                         <div className="flex flex-wrap gap-2">
