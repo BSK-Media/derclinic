@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import useSWR from "swr";
 import { useTheme } from "next-themes";
 import { Plus, TrendingUp, UserPlus, AlertTriangle, Users, ChevronDown } from "lucide-react";
@@ -31,12 +32,14 @@ function StatCard({
   sub,
   accent,
   icon,
+  href,
 }: {
   title: string;
   value: React.ReactNode;
   sub: string;
   accent: "green" | "blue" | "orange";
   icon: React.ReactNode;
+  href?: string;
 }) {
   const pill =
     accent === "green"
@@ -53,7 +56,20 @@ function StatCard({
           <div className="mt-1 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">{value}</div>
           <div className="mt-1 text-sm font-medium text-emerald-600 dark:text-emerald-300">{sub}</div>
         </div>
-        <div className={"inline-flex h-9 w-9 items-center justify-center rounded-xl " + pill}>{icon}</div>
+        {href ? (
+          <Link
+            href={href}
+            title={title}
+            className={
+              "inline-flex h-9 w-9 items-center justify-center rounded-xl transition hover:scale-110 hover:shadow " +
+              pill
+            }
+          >
+            {icon}
+          </Link>
+        ) : (
+          <div className={"inline-flex h-9 w-9 items-center justify-center rounded-xl " + pill}>{icon}</div>
+        )}
       </div>
     </div>
   );
@@ -120,6 +136,7 @@ export default function AdminDashboard() {
           }
           accent="green"
           icon={<TrendingUp className="h-4 w-4" />}
+          href="/admin/visits"
         />
         <StatCard
           title="Dzisiejszy Przychód"
@@ -135,6 +152,7 @@ export default function AdminDashboard() {
           }
           accent="green"
           icon={<TrendingUp className="h-4 w-4" />}
+          href="/admin/analytics"
         />
         <StatCard
           title="Nowi Pacjenci"
@@ -146,6 +164,7 @@ export default function AdminDashboard() {
           }
           accent="blue"
           icon={<UserPlus className="h-4 w-4" />}
+          href="/admin/patients"
         />
         <StatCard
           title="Magazyn - Alerty"
@@ -159,6 +178,7 @@ export default function AdminDashboard() {
           }
           accent="orange"
           icon={<AlertTriangle className="h-4 w-4" />}
+          href="/admin/inventory"
         />
       </div>
 
