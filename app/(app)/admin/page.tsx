@@ -76,7 +76,12 @@ function InventoryProductsTable({
               <TableHead className="min-w-64">Nazwa produktu</TableHead>
               <TableHead className="min-w-52">Zużyte przez ostatnie 30 dni</TableHead>
               <TableHead className="min-w-44">Stan magazynowy</TableHead>
-              <TableHead className="min-w-28">WOS</TableHead>
+              <TableHead className="min-w-52 py-2">
+                <span className="block">WOS</span>
+                <span className="mt-0.5 block text-[10px] font-normal leading-tight text-slate-400 dark:text-slate-500">
+                  Przewidywany czas wystarczalności
+                </span>
+              </TableHead>
               <TableHead className="min-w-64">Pokrycie na kolejne 30 dni</TableHead>
             </TableRow>
           </TableHeader>
