@@ -31,6 +31,12 @@ const UNIT_LABELS: Record<string, string> = {
   BOTOX_UNIT: "jedn. botox",
 };
 
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CASH: "Gotówka",
+  CARD: "Karta",
+  VOUCHER: "Voucher",
+};
+
 export default function AdminAppointmentDetail() {
   const params = useParams<{ id: string }>();
   const id = params.id;
@@ -210,6 +216,11 @@ export default function AdminAppointmentDetail() {
   async function addPayment() {
     const amount = parsePLNToGrosze(payAmount);
     if (!amount || amount <= 0) return toast.error("Niepoprawna kwota");
+    if (amount > paymentRemaining) {
+      return toast.error(
+        `Kwota przekracza pozostałą należność o ${formatPLNFromGrosze(amount - paymentRemaining)}.`,
+      );
+    }
     const res = await fetch(`/api/admin/appointments/${id}/pay`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -228,6 +239,15 @@ export default function AdminAppointmentDetail() {
   const canEditStandardPrice = data?.viewerRole === "ADMIN";
 
   const paymentsSum = (appt.payments ?? []).reduce((a: number, p: any) => a + (p.amount ?? 0), 0);
+  const paymentTotal = appt.priceFinal ?? appt.service?.price ?? appt.priceEstimate ?? 0;
+  const paymentBalance = paymentTotal - paymentsSum;
+  const paymentRemaining = Math.max(0, paymentBalance);
+  const paymentOverpaid = Math.max(0, -paymentBalance);
+  const enteredPaymentAmount = payAmount.trim() ? parsePLNToGrosze(payAmount) : null;
+  const balanceAfterEnteredPayment =
+    enteredPaymentAmount && enteredPaymentAmount > 0
+      ? paymentRemaining - enteredPaymentAmount
+      : null;
   const appointmentIsAwaiting =
     appt.approvalStatus !== "REJECTED" &&
     effectiveAppointmentStatus(appt.status, appt.startsAt, clock) === "AWAITING";
@@ -379,8 +399,8 @@ export default function AdminAppointmentDetail() {
           Zapisz
         </Button>
         <div className="text-xs text-zinc-500">
-          Płatności: {formatPLNFromGrosze(paymentsSum)} • Do zapłaty (wg ceny końcowej):{" "}
-          {formatPLNFromGrosze((appt.priceFinal ?? 0) - paymentsSum)}
+          Płatności: {formatPLNFromGrosze(paymentsSum)} • Pozostało do zapłaty:{" "}
+          {formatPLNFromGrosze(paymentRemaining)}
         </div>
       </Card>
 
@@ -580,7 +600,52 @@ export default function AdminAppointmentDetail() {
       </Card>
 
       <Card className="space-y-4 p-4">
-        <div className="font-medium">Płatności</div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="font-medium">Płatności</div>
+          <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs text-zinc-600 dark:bg-white/10 dark:text-zinc-300">
+            {appt.priceFinal != null ? "Według ceny końcowej" : "Według ceny usługi"}
+          </span>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-white/10 dark:bg-white/5">
+            <div className="text-xs font-medium text-zinc-500">Do zapłaty</div>
+            <div className="mt-1 text-xl font-semibold">{formatPLNFromGrosze(paymentTotal)}</div>
+          </div>
+          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-white/10 dark:bg-white/5">
+            <div className="text-xs font-medium text-zinc-500">Opłacono</div>
+            <div className="mt-1 text-xl font-semibold text-emerald-700 dark:text-emerald-300">
+              {formatPLNFromGrosze(paymentsSum)}
+            </div>
+          </div>
+          <div
+            className={
+              "rounded-2xl border p-4 " +
+              (paymentRemaining > 0
+                ? "border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10"
+                : "border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10")
+            }
+          >
+            <div className="text-xs font-medium text-zinc-500">Pozostało</div>
+            <div
+              className={
+                "mt-1 text-xl font-semibold " +
+                (paymentRemaining > 0
+                  ? "text-amber-800 dark:text-amber-300"
+                  : "text-emerald-700 dark:text-emerald-300")
+              }
+            >
+              {formatPLNFromGrosze(paymentRemaining)}
+            </div>
+          </div>
+        </div>
+
+        {paymentOverpaid > 0 ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+            Nadpłata: {formatPLNFromGrosze(paymentOverpaid)}
+          </div>
+        ) : null}
+
         <div className="grid gap-3 md:grid-cols-3">
           <div className="space-y-2">
             <Label>Metoda</Label>
@@ -591,7 +656,6 @@ export default function AdminAppointmentDetail() {
               <SelectContent>
                 <SelectItem value="CASH">Gotówka</SelectItem>
                 <SelectItem value="CARD">Karta</SelectItem>
-                <SelectItem value="VOUCHER">Voucher</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -600,9 +664,41 @@ export default function AdminAppointmentDetail() {
             <Input value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
           </div>
           <div className="flex items-end space-y-2">
-            <Button onClick={addPayment}>Dodaj płatność</Button>
+            <Button
+              onClick={addPayment}
+              disabled={
+                paymentRemaining <= 0 ||
+                !enteredPaymentAmount ||
+                enteredPaymentAmount <= 0 ||
+                enteredPaymentAmount > paymentRemaining
+              }
+            >
+              Dodaj płatność
+            </Button>
           </div>
         </div>
+
+        {paymentRemaining <= 0 ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+            Wizyta jest opłacona w całości.
+          </div>
+        ) : balanceAfterEnteredPayment === null ? (
+          <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300">
+            Do rozliczenia pozostało {formatPLNFromGrosze(paymentRemaining)}. Możesz dodać płatność częściową.
+          </div>
+        ) : balanceAfterEnteredPayment > 0 ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+            Po dodaniu tej płatności pozostanie {formatPLNFromGrosze(balanceAfterEnteredPayment)} do zapłaty.
+          </div>
+        ) : balanceAfterEnteredPayment === 0 ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+            Ta płatność rozliczy wizytę w całości.
+          </div>
+        ) : (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+            Kwota przekracza pozostałą należność o {formatPLNFromGrosze(Math.abs(balanceAfterEnteredPayment))}.
+          </div>
+        )}
 
         <div className="overflow-auto">
           <table className="w-full text-sm">
@@ -624,7 +720,7 @@ export default function AdminAppointmentDetail() {
               {(appt.payments ?? []).map((p: any) => (
                 <tr key={p.id} className="border-t">
                   <td className="p-3">{new Date(p.createdAt).toLocaleString("pl-PL")}</td>
-                  <td className="p-3">{p.method}</td>
+                  <td className="p-3">{PAYMENT_METHOD_LABELS[p.method] ?? p.method}</td>
                   <td className="p-3">{formatPLNFromGrosze(p.amount)}</td>
                 </tr>
               ))}
