@@ -57,6 +57,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const warehouseId = parsed.data.warehouseId ? parsed.data.warehouseId : null;
 
+  const product = await prisma.product.findUnique({
+    where: { id: parsed.data.productId },
+    select: { id: true, unit: true },
+  });
+  if (!product) {
+    return NextResponse.json({ ok: false, message: "Nie znaleziono produktu" }, { status: 404 });
+  }
+
   const c = await prisma.consumption.create({
     data: {
       appointmentId: appt.id,
@@ -64,6 +72,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       productId: parsed.data.productId,
       warehouseId,
       quantity: new Prisma.Decimal(parsed.data.quantity),
+      unit: product.unit,
       kind: (parsed.data.kind ?? "APPOINTMENT") as any,
       createdById: user!.id,
       note: parsed.data.note ? parsed.data.note : null,
