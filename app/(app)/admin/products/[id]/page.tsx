@@ -266,7 +266,6 @@ function ServicesUsingProductCard({
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<ServiceLite | null>(null);
   const [newQty, setNewQty] = useState("1");
-  const [newUnit, setNewUnit] = useState<string>(productUnit || "UNIT");
   const [adding, setAdding] = useState(false);
 
   const assignedIds = useMemo(() => new Set(suggestions.map((s) => s.serviceId)), [suggestions]);
@@ -283,11 +282,11 @@ function ServicesUsingProductCard({
     return [...startsWith, ...contains].slice(0, 8);
   }, [services, assignedIds, query]);
 
-  async function upsert(serviceId: string, quantity: number, unit: string) {
+  async function upsert(serviceId: string, quantity: number) {
     const res = await fetch(`/api/admin/services/${serviceId}/suggestions`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ productId, quantity, unit }),
+      body: JSON.stringify({ productId, quantity }),
     });
     const out = await res.json().catch(() => ({}));
     if (!res.ok || !out?.ok) {
@@ -303,7 +302,7 @@ function ServicesUsingProductCard({
     if (!Number.isFinite(q) || q <= 0) return toast.error("Niepoprawna ilość");
     setSavingId(sg.serviceId);
     try {
-      if (await upsert(sg.serviceId, q, sg.unit)) {
+      if (await upsert(sg.serviceId, q)) {
         toast.success("Zapisano ilość");
         setQtyEdits((m) => {
           const n = { ...m };
@@ -339,7 +338,7 @@ function ServicesUsingProductCard({
     if (!Number.isFinite(q) || q <= 0) return toast.error("Niepoprawna ilość");
     setAdding(true);
     try {
-      if (await upsert(selected.id, q, newUnit)) {
+      if (await upsert(selected.id, q)) {
         toast.success("Dodano preparat do zabiegu");
         setSelected(null);
         setQuery("");
@@ -383,7 +382,7 @@ function ServicesUsingProductCard({
                         onChange={(e) => setQtyEdits((m) => ({ ...m, [sg.serviceId]: e.target.value }))}
                       />
                     </TableCell>
-                    <TableCell>{unitLabel(sg.unit)}</TableCell>
+                    <TableCell>{unitLabel(productUnit)}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         <Button size="sm" onClick={() => saveQty(sg)} disabled={savingId === sg.serviceId || !dirty}>
@@ -455,7 +454,7 @@ function ServicesUsingProductCard({
             </div>
             <div className="space-y-2">
               <Label>Jednostka</Label>
-              <Select value={newUnit} onValueChange={setNewUnit}>
+              <Select value={productUnit} disabled>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {UNIT_OPTIONS.map((u) => (
