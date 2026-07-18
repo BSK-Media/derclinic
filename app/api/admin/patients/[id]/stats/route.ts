@@ -6,7 +6,7 @@ import { resolveSettlementRange } from "@/lib/settlement-range";
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
   if (deny) return deny;
 
   const requestUrl = new URL(req.url);
@@ -92,7 +92,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   return NextResponse.json({
     ok: true,
     stats: {
-      totalSpent,
+      totalSpent: user!.role === "ADMIN" ? totalSpent : 0,
       treatmentsCount: appointments.length,
       latestTreatments,
     },
