@@ -216,9 +216,9 @@ export default function AdminAppointmentDetail() {
   async function addPayment() {
     const amount = parsePLNToGrosze(payAmount);
     if (!amount || amount <= 0) return toast.error("Niepoprawna kwota");
-    if (amount > paymentRemaining) {
+    if (amount > paymentLimitForSelectedMethod) {
       return toast.error(
-        `Kwota przekracza pozostałą należność o ${formatPLNFromGrosze(amount - paymentRemaining)}.`,
+        `Kwota przekracza należność dostępną dla tej metody o ${formatPLNFromGrosze(amount - paymentLimitForSelectedMethod)}.`,
       );
     }
     const res = await fetch(`/api/admin/appointments/${id}/pay`, {
@@ -228,7 +228,7 @@ export default function AdminAppointmentDetail() {
     });
     const out = await res.json().catch(() => ({}));
     if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
-    toast.success("Dodano płatność");
+    toast.success(out.replaced ? "Zaktualizowano płatność" : "Dodano płatność");
     setPayAmount("");
     mutate();
   }
@@ -243,10 +243,14 @@ export default function AdminAppointmentDetail() {
   const paymentBalance = paymentTotal - paymentsSum;
   const paymentRemaining = Math.max(0, paymentBalance);
   const paymentOverpaid = Math.max(0, -paymentBalance);
+  const selectedMethodAmount = (appt.payments ?? [])
+    .filter((payment: any) => payment.method === payMethod)
+    .reduce((sum: number, payment: any) => sum + (payment.amount ?? 0), 0);
+  const paymentLimitForSelectedMethod = paymentRemaining + selectedMethodAmount;
   const enteredPaymentAmount = payAmount.trim() ? parsePLNToGrosze(payAmount) : null;
   const balanceAfterEnteredPayment =
     enteredPaymentAmount && enteredPaymentAmount > 0
-      ? paymentRemaining - enteredPaymentAmount
+      ? paymentLimitForSelectedMethod - enteredPaymentAmount
       : null;
   const appointmentIsAwaiting =
     appt.approvalStatus !== "REJECTED" &&
@@ -667,10 +671,10 @@ export default function AdminAppointmentDetail() {
             <Button
               onClick={addPayment}
               disabled={
-                paymentRemaining <= 0 ||
+                paymentLimitForSelectedMethod <= 0 ||
                 !enteredPaymentAmount ||
                 enteredPaymentAmount <= 0 ||
-                enteredPaymentAmount > paymentRemaining
+                enteredPaymentAmount > paymentLimitForSelectedMethod
               }
             >
               Dodaj płatność
@@ -678,14 +682,25 @@ export default function AdminAppointmentDetail() {
           </div>
         </div>
 
-        {paymentRemaining <= 0 ? (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
-            Wizyta jest opłacona w całości.
-          </div>
-        ) : balanceAfterEnteredPayment === null ? (
+        {balanceAfterEnteredPayment === null ? (
+          paymentRemaining <= 0 ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+              Wizyta jest opłacona w całości.
+            </div>
+          ) : (
           <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300">
-            Do rozliczenia pozostało {formatPLNFromGrosze(paymentRemaining)}. Możesz dodać płatność częściową.
+            {selectedMethodAmount > 0 ? (
+              <>
+                Dla metody {PAYMENT_METHOD_LABELS[payMethod] ?? payMethod} zapisano obecnie{" "}
+                {formatPLNFromGrosze(selectedMethodAmount)}. Nowa kwota zastąpi tę wartość.
+              </>
+            ) : (
+              <>
+                Do rozliczenia pozostało {formatPLNFromGrosze(paymentRemaining)}. Możesz dodać płatność częściową.
+              </>
+            )}
           </div>
+          )
         ) : balanceAfterEnteredPayment > 0 ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
             Po dodaniu tej płatności pozostanie {formatPLNFromGrosze(balanceAfterEnteredPayment)} do zapłaty.
