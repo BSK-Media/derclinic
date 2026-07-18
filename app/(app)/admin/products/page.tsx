@@ -61,6 +61,7 @@ type Product = {
   purchasePrice: number | null;
   salePrice: number | null;
   isActive: boolean;
+  wosWeeks: number | null;
   lots: ProductLot[];
   stocks: ProductStock[];
 };
@@ -523,6 +524,12 @@ export default function ProductsPage() {
                   <SortableHead label="Cena zakupu" sortKey="purchasePrice" activeKey={sortKey} direction={sortDirection} onSort={handleSort} />
                   <SortableHead label="Cena sprzedaży" sortKey="salePrice" activeKey={sortKey} direction={sortDirection} onSort={handleSort} />
                   <SortableHead label="Termin ważności" sortKey="expiryDate" activeKey={sortKey} direction={sortDirection} onSort={handleSort} />
+                  <TableHead className="min-w-52 py-2">
+                    <span className="block">WOS</span>
+                    <span className="mt-0.5 block text-[10px] font-normal leading-tight text-slate-400 dark:text-slate-500">
+                      Przewidywany czas wystarczalności
+                    </span>
+                  </TableHead>
                   <SortableHead label="Status" sortKey="status" activeKey={sortKey} direction={sortDirection} onSort={handleSort} />
                   <TableHead className="text-right">Akcje</TableHead>
                 </TableRow>
@@ -552,6 +559,9 @@ export default function ProductsPage() {
                       <TableCell className="whitespace-nowrap">
                         <div>{date(expiry)}</div>
                         {lotsCount > 1 ? <div className="text-[11px] text-slate-400">najbliższy z {lotsCount} terminów</div> : null}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {product.wosWeeks == null ? "—" : `${quantity(product.wosWeeks)} tyg.`}
                       </TableCell>
                       <TableCell><StatusBadge status={status} /></TableCell>
                       <TableCell>
