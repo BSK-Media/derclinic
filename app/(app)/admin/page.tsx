@@ -23,6 +23,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatPLNFromGrosze } from "@/lib/money";
 import { useAuth } from "@/components/auth-provider";
 
+const DONUT_COLORS = [
+  "#10b981",
+  "#3b82f6",
+  "#8b5cf6",
+  "#f59e0b",
+  "#f43f5e",
+  "#06b6d4",
+  "#84cc16",
+  "#ec4899",
+  "#6366f1",
+  "#f97316",
+];
+
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 type Period = "30d" | "7d" | "month" | "year";
@@ -353,7 +366,12 @@ export default function AdminDashboard() {
               <PieChart>
                 <Pie data={donut} dataKey="value" innerRadius={68} outerRadius={100} paddingAngle={2}>
                   {donut.map((_, i) => (
-                    <Cell key={i} />
+                    <Cell
+                      key={i}
+                      fill={DONUT_COLORS[i % DONUT_COLORS.length]}
+                      stroke={isDark ? "#0b1220" : "#ffffff"}
+                      strokeWidth={2}
+                    />
                   ))}
                 </Pie>
                 <Tooltip {...tooltipProps} />
@@ -362,9 +380,12 @@ export default function AdminDashboard() {
           </div>
 
           <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-300">
-            {donut.map((d) => (
+            {donut.map((d, index) => (
               <div key={d.name} className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-slate-300 dark:bg-slate-600" />
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: DONUT_COLORS[index % DONUT_COLORS.length] }}
+                />
                 <span className="truncate">{d.name}</span>
               </div>
             ))}
