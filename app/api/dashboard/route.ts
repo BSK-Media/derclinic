@@ -247,20 +247,28 @@ export async function GET(req: Request) {
 
   // ── Status magazynu: top zużywane preparaty (30 dni) + poziom zapasu ──
   const consumptions = await prisma.consumption.findMany({
-    where: { createdAt: { gte: last30Start }, status: { not: "REJECTED" } },
-    select: { productId: true, quantity: true, product: { select: { name: true } } },
+    where: { createdAt: { gte: last30Start }, status: "APPLIED" },
+    select: {
+      productId: true,
+      quantity: true,
+      product: { select: { name: true, unit: true } },
+    },
     take: 20000,
   });
-  const usedByProduct = new Map<string, { name: string; used: number }>();
+  const usedByProduct = new Map<string, { name: string; unit: string; used: number }>();
   let usedTotal = 0;
   for (const c of consumptions as {
     productId: string;
     quantity: unknown;
-    product: { name: string };
+    product: { name: string; unit: string };
   }[]) {
     const q = Math.abs(toNum(c.quantity));
     usedTotal += q;
-    const row = usedByProduct.get(c.productId) ?? { name: c.product.name, used: 0 };
+    const row = usedByProduct.get(c.productId) ?? {
+      name: c.product.name,
+      unit: c.product.unit,
+      used: 0,
+    };
     row.used += q;
     usedByProduct.set(c.productId, row);
   }
@@ -268,18 +276,39 @@ export async function GET(req: Request) {
   for (const s of stocks as { productId: string; quantity: unknown }[]) {
     stockByProduct.set(s.productId, (stockByProduct.get(s.productId) ?? 0) + toNum(s.quantity));
   }
-  const stockStatus = Array.from(usedByProduct.entries())
-    .sort((a, b) => b[1].used - a[1].used)
-    .slice(0, 4)
-    .map(([productId, row]) => {
-      const stock = stockByProduct.get(productId) ?? 0;
-      const percent = stock + row.used > 0 ? Math.round((stock / (stock + row.used)) * 100) : 0;
-      return {
-        name: row.name,
-        share: usedTotal > 0 ? Math.round((row.used / usedTotal) * 100) : 0,
-        percent: Math.max(0, Math.min(100, percent)),
-      };
-    });
+  const inventoryRows = Array.from(usedByProduct.entries()).map(([productId, row]) => {
+    const stock = Math.max(0, stockByProduct.get(productId) ?? 0);
+    const dailyUsage = row.used / 30;
+    const coverageDays = dailyUsage > 0 ? stock / dailyUsage : 0;
+    return {
+      productId,
+      name: row.name,
+      unit: row.unit,
+      used30: row.used,
+      stock,
+      wosWeeks: coverageDays / 7,
+      coverageDays,
+      coveragePercent: Math.max(0, Math.min(100, Math.round((coverageDays / 30) * 100))),
+    };
+  });
+
+  const mostUsedProducts = [...inventoryRows]
+    .sort((a, b) => b.used30 - a.used30 || a.name.localeCompare(b.name, "pl"))
+    .slice(0, 10);
+
+  const lowStockProducts = [...inventoryRows]
+    .sort(
+      (a, b) =>
+        a.wosWeeks - b.wosWeeks || b.used30 - a.used30 || a.name.localeCompare(b.name, "pl"),
+    )
+    .slice(0, 10);
+
+  // Zachowane dla starszego widoku /admin/sales.
+  const stockStatus = mostUsedProducts.slice(0, 4).map((row) => ({
+    name: row.name,
+    share: usedTotal > 0 ? Math.round((row.used30 / usedTotal) * 100) : 0,
+    percent: row.coveragePercent,
+  }));
 
   const isAdminUser = user!.role === "ADMIN";
 
@@ -315,5 +344,7 @@ export async function GET(req: Request) {
       }),
     ),
     stockStatus,
+    mostUsedProducts,
+    lowStockProducts,
   });
 }
