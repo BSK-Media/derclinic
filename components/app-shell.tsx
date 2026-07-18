@@ -218,6 +218,116 @@ export function AppSidebar() {
   );
 }
 
+function MobileNav() {
+  const pathname = usePathname();
+  const { user, logout } = useAuth();
+  const [open, setOpen] = React.useState(false);
+
+  // Zamknij menu po zmianie strony
+  React.useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  // Esc zamyka, blokada scrolla tła gdy otwarte
+  React.useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [open]);
+
+  const visibleNav = user
+    ? NAV.filter(
+        (item) =>
+          hasSidebarPermission(user.role, user.sidebarPermissions, item.permission) &&
+          !(item.permission === "calendar" && user.role !== "SPECIALIST"),
+      )
+    : [];
+
+  return (
+    <div className="lg:hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Otwórz menu"
+        aria-expanded={open}
+        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/60 bg-white/70 shadow-sm backdrop-blur transition hover:bg-white dark:border-white/10 dark:bg-[#0b1220]/55 dark:hover:bg-white/10"
+      >
+        <span className="flex flex-col gap-1">
+          <span className="h-0.5 w-5 rounded-full bg-slate-700 dark:bg-slate-200" />
+          <span className="h-0.5 w-5 rounded-full bg-slate-700 dark:bg-slate-200" />
+          <span className="h-0.5 w-5 rounded-full bg-slate-700 dark:bg-slate-200" />
+        </span>
+      </button>
+
+      {open ? (
+        <div className="fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute left-0 top-0 flex h-full w-[300px] max-w-[85vw] flex-col border-r border-white/70 bg-white p-3 shadow-2xl dark:border-white/10 dark:bg-[#0b1220]">
+            <div className="flex items-center justify-between">
+              <LogoBlock />
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Zamknij menu"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-xl text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
+              >
+                ✕
+              </button>
+            </div>
+
+            <nav className="mt-3 flex-1 space-y-1 overflow-y-auto px-1">
+              {visibleNav.map((item) => {
+                const href = sidebarHref(item.permission, user!.role);
+                const active =
+                  pathname === href ||
+                  (href !== "/admin" && href !== "/specialist" && pathname.startsWith(href));
+
+                return (
+                  <Link
+                    key={item.permission}
+                    href={href}
+                    onClick={() => setOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition",
+                      active
+                        ? "bg-emerald-50 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-200"
+                        : "text-slate-700 hover:bg-slate-100/70 dark:text-slate-200 dark:hover:bg-white/5",
+                    )}
+                  >
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/70 shadow-sm ring-1 ring-black/5 dark:bg-white/5 dark:ring-white/10">
+                      {item.icon}
+                    </span>
+                    <span className="truncate">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+
+            <div className="mt-2 rounded-2xl border border-white/60 bg-white/70 p-3 shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55">
+              <button
+                onClick={() => logout()}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+              >
+                Wyloguj
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function AppHeader() {
   const { user } = useAuth();
   const { isDark, toggle } = useThemeToggle();
@@ -276,7 +386,8 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-white/60 bg-white/70 px-4 py-3 backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 lg:px-6">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 lg:gap-4">
+        <MobileNav />
         <GlobalSearch />
 
         <div className="flex items-center gap-3">
