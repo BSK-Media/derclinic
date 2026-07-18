@@ -350,6 +350,10 @@ model Appointment {
 
   note String?
 
+  // Dokumentacja zabiegu: zdjęcia przed i po (data URL base64)
+  photoBefore String? @db.Text
+  photoAfter  String? @db.Text
+
   consumptions Consumption[]
   payments     Payment[]
 
