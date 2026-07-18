@@ -55,19 +55,30 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const parsed = PatchSchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
-  const updated = await prisma.product.update({
-    where: { id: params.id },
-    data: {
-      name: parsed.data.name,
-      sku: parsed.data.sku === undefined ? undefined : (parsed.data.sku ? parsed.data.sku : null),
-      ean: parsed.data.ean === undefined ? undefined : (parsed.data.ean ? parsed.data.ean : null),
-      unit: parsed.data.unit as any,
-      manufacturer: parsed.data.manufacturer === undefined ? undefined : parsed.data.manufacturer,
-      catalogCategory: parsed.data.catalogCategory === undefined ? undefined : parsed.data.catalogCategory,
-      purchasePrice: parsed.data.purchasePrice === undefined ? undefined : parsed.data.purchasePrice,
-      salePrice: parsed.data.salePrice === undefined ? undefined : parsed.data.salePrice,
-      isActive: parsed.data.isActive,
-    },
+  const updated = await prisma.$transaction(async (tx) => {
+    const product = await tx.product.update({
+      where: { id: params.id },
+      data: {
+        name: parsed.data.name,
+        sku: parsed.data.sku === undefined ? undefined : (parsed.data.sku ? parsed.data.sku : null),
+        ean: parsed.data.ean === undefined ? undefined : (parsed.data.ean ? parsed.data.ean : null),
+        unit: parsed.data.unit as any,
+        manufacturer: parsed.data.manufacturer === undefined ? undefined : parsed.data.manufacturer,
+        catalogCategory: parsed.data.catalogCategory === undefined ? undefined : parsed.data.catalogCategory,
+        purchasePrice: parsed.data.purchasePrice === undefined ? undefined : parsed.data.purchasePrice,
+        salePrice: parsed.data.salePrice === undefined ? undefined : parsed.data.salePrice,
+        isActive: parsed.data.isActive,
+      },
+    });
+
+    if (parsed.data.unit !== undefined) {
+      await tx.serviceSuggestedProduct.updateMany({
+        where: { productId: params.id },
+        data: { unit: parsed.data.unit as any },
+      });
+    }
+
+    return product;
   });
 
   await logAudit({ actorId: user!.id, action: "UPDATE", entity: "Product", entityId: updated.id });
