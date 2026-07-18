@@ -73,6 +73,7 @@ const CATEGORY_ORDER = [
 ];
 
 const ALL_CATEGORIES = "__all__";
+const ALL_SPECIALISTS = "__all_specialists__";
 
 type Specialist = { id: string; name: string };
 type Service = {
@@ -146,10 +147,13 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
   }
 
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORIES);
+  const [selectedSpecialist, setSelectedSpecialist] = useState(ALL_SPECIALISTS);
   const [categoryQuery, setCategoryQuery] = useState("");
   const [query, setQuery] = useState("");
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [mobileCreateOpen, setMobileCreateOpen] = useState(false);
 
   // Podpowiedzi na żywo podczas wpisywania (maks. 8 trafień)
   const suggestions = useMemo(() => {
@@ -229,6 +233,14 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
         if (selectedCategory !== ALL_CATEGORIES && serviceCategory !== selectedCategory) {
           return false;
         }
+        if (
+          selectedSpecialist !== ALL_SPECIALISTS &&
+          !service.specialistAssignments.some(
+            (assignment) => assignment.specialistId === selectedSpecialist,
+          )
+        ) {
+          return false;
+        }
         if (!q) return true;
         return (
           service.name.toLowerCase().includes(q) ||
@@ -239,16 +251,32 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
         );
       })
       .sort((first, second) => first.name.localeCompare(second.name, "pl"));
-  }, [services, selectedCategory, query]);
+  }, [services, selectedCategory, selectedSpecialist, query]);
 
   const selectedCategoryLabel =
     selectedCategory === ALL_CATEGORIES ? "Wszystkie usługi" : selectedCategory;
+  const activeMobileFilters =
+    Number(selectedCategory !== ALL_CATEGORIES) +
+    Number(selectedSpecialist !== ALL_SPECIALISTS);
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Usługi i zabiegi</h1>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Usługi i zabiegi</h1>
+          <div className="mt-1 text-sm text-zinc-500 sm:hidden">{services.length} usług</div>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="sm:hidden"
+          onClick={() => setMobileCreateOpen((open) => !open)}
+        >
+          {mobileCreateOpen ? "Zamknij" : "+ Dodaj usługę"}
+        </Button>
+      </div>
 
-      <Card className="space-y-4 p-4">
+      <Card className={`${mobileCreateOpen ? "block" : "hidden"} space-y-4 p-4 sm:block`}>
         <div className="font-medium">Dodaj usługę</div>
         <div className="grid gap-3 md:grid-cols-4">
           <div className="space-y-2 md:col-span-2">
@@ -317,7 +345,158 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
         </Button>
       </Card>
 
-      <div className="rounded-xl border bg-white p-4 shadow-sm dark:bg-zinc-950">
+      <div className="space-y-4 sm:hidden">
+        <div className="flex items-stretch gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 shrink-0 px-3"
+            onClick={() => setMobileFiltersOpen((open) => !open)}
+          >
+            Filtry{activeMobileFilters > 0 ? ` (${activeMobileFilters})` : ""}
+          </Button>
+          <Input
+            className="min-w-0 flex-1"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Szukaj usługi..."
+          />
+        </div>
+
+        {mobileFiltersOpen ? (
+          <Card className="space-y-4 p-4">
+            <div className="space-y-2">
+              <Label>Kategoria</Label>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_CATEGORIES}>Wszystkie kategorie</SelectItem>
+                  {categories.map((item) => (
+                    <SelectItem key={item.name} value={item.name}>
+                      {item.name} ({item.count})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Specjalista</Label>
+              <Select value={selectedSpecialist} onValueChange={setSelectedSpecialist}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_SPECIALISTS}>Wszyscy specjaliści</SelectItem>
+                  {specialists.map((specialist) => (
+                    <SelectItem key={specialist.id} value={specialist.id}>
+                      {specialist.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedCategory(ALL_CATEGORIES);
+                  setSelectedSpecialist(ALL_SPECIALISTS);
+                }}
+                disabled={activeMobileFilters === 0}
+              >
+                Wyczyść filtry
+              </Button>
+              <Button type="button" size="sm" onClick={() => setMobileFiltersOpen(false)}>
+                Pokaż wyniki
+              </Button>
+            </div>
+          </Card>
+        ) : null}
+
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <div className="truncate text-lg font-semibold">{selectedCategoryLabel}</div>
+            <div className="mt-0.5 text-xs text-zinc-500">
+              {visibleServices.length}{" "}
+              {visibleServices.length === 1
+                ? "usługa"
+                : visibleServices.length > 1 && visibleServices.length < 5
+                  ? "usługi"
+                  : "usług"}
+            </div>
+          </div>
+          {selectedSpecialist !== ALL_SPECIALISTS ? (
+            <div className="max-w-[45%] truncate rounded-full border bg-white px-2.5 py-1 text-xs text-zinc-600 dark:bg-zinc-950 dark:text-zinc-300">
+              {specialists.find((specialist) => specialist.id === selectedSpecialist)?.name}
+            </div>
+          ) : null}
+        </div>
+
+        {isLoading ? (
+          <Card className="p-5 text-sm text-zinc-500">Ładowanie...</Card>
+        ) : visibleServices.length === 0 ? (
+          <Card className="p-6 text-center text-sm text-zinc-500">
+            Brak usług pasujących do wybranych filtrów.
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {visibleServices.map((service) => (
+              <Link
+                key={service.id}
+                href={`/admin/services/${service.id}`}
+                className="block rounded-2xl border bg-white p-4 shadow-sm transition-colors active:bg-zinc-50 dark:bg-zinc-950 dark:active:bg-zinc-900"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold leading-5 text-zinc-900 dark:text-zinc-100">
+                      {service.name}
+                    </div>
+                    <div className="mt-1 text-xs text-zinc-500">
+                      {service.category || "Bez kategorii"} • {service.durationMin} min
+                    </div>
+                  </div>
+                  <div className="shrink-0 whitespace-nowrap font-semibold">
+                    {formatPLNFromGrosze(service.price)}
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-end justify-between gap-3">
+                  <div className="flex min-w-0 flex-wrap gap-1.5">
+                    {service.suggestedProducts.length === 0 ? (
+                      <span className="text-xs text-zinc-400">Brak przypisanych preparatów</span>
+                    ) : (
+                      <>
+                        {service.suggestedProducts.slice(0, 2).map((suggestion) => (
+                          <span
+                            key={suggestion.id}
+                            className="max-w-44 truncate rounded-lg bg-zinc-100 px-2.5 py-1 text-xs text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                          >
+                            {suggestion.product.name}
+                          </span>
+                        ))}
+                        {service.suggestedProducts.length > 2 ? (
+                          <span className="rounded-lg bg-zinc-100 px-2.5 py-1 text-xs text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+                            +{service.suggestedProducts.length - 2}
+                          </span>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                    Otwórz
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="hidden rounded-xl border bg-white p-4 shadow-sm dark:bg-zinc-950 sm:block">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="font-medium">Katalog zabiegów</div>
@@ -364,7 +543,7 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
         </div>
       </div>
 
-      <div className="grid items-start gap-4 lg:grid-cols-[290px_minmax(0,1fr)]">
+      <div className="hidden items-start gap-4 sm:grid lg:grid-cols-[290px_minmax(0,1fr)]">
         <aside className="overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-zinc-950">
           <div className="border-b p-4">
             <div className="font-medium">Kategorie</div>
