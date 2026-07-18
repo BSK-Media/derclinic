@@ -22,6 +22,15 @@ import { AppointmentPhotos } from "@/components/appointment-photos";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+const UNIT_LABELS: Record<string, string> = {
+  UNIT: "szt.",
+  ML: "ml",
+  MG: "mg",
+  G: "g",
+  AMPULE: "ampułka",
+  BOTOX_UNIT: "jedn. botox",
+};
+
 export default function AdminAppointmentDetail() {
   const params = useParams<{ id: string }>();
   const id = params.id;
@@ -215,6 +224,7 @@ export default function AdminAppointmentDetail() {
 
   const products = data?.products ?? [];
   const warehouses = data?.warehouses ?? [];
+  const selectedProduct = products.find((product: any) => product.id === productId);
   const canEditStandardPrice = data?.viewerRole === "ADMIN";
 
   const paymentsSum = (appt.payments ?? []).reduce((a: number, p: any) => a + (p.amount ?? 0), 0);
@@ -385,7 +395,7 @@ export default function AdminAppointmentDetail() {
                 key={sp.id}
                 className="rounded-full border bg-zinc-50 px-3 py-1 text-xs dark:bg-zinc-900"
               >
-                {sp.product.name} • {sp.quantity} {sp.unit}
+                {sp.product.name} • {sp.quantity} {UNIT_LABELS[sp.product.unit] ?? sp.product.unit}
               </span>
             ))}
             {(appt.service?.suggestedProducts ?? []).length === 0 && (
@@ -394,7 +404,7 @@ export default function AdminAppointmentDetail() {
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-5">
           <div className="space-y-2">
             <Label>Produkt</Label>
             <Select value={productId} onValueChange={setProductId}>
@@ -428,6 +438,19 @@ export default function AdminAppointmentDetail() {
           <div className="space-y-2">
             <Label>Ilość</Label>
             <Input value={qty} onChange={(e) => setQty(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Jednostka</Label>
+            <Select value={selectedProduct?.unit} disabled>
+              <SelectTrigger>
+                <SelectValue placeholder="Wybierz produkt" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(UNIT_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex items-end space-y-2">
             <Button onClick={addConsumption} disabled={!productId || !warehouseId}>
@@ -480,6 +503,9 @@ export default function AdminAppointmentDetail() {
                           }))
                         }
                       />
+                      <span className="mt-1 block text-xs text-zinc-500">
+                        {UNIT_LABELS[c.product.unit] ?? c.product.unit}
+                      </span>
                       {c.suggestedQuantity ? (
                         <span className="mt-1 block text-xs text-zinc-500">
                           (sugerowano: {c.suggestedQuantity})
