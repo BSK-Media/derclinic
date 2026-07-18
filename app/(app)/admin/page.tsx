@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import useSWR from "swr";
 import { useTheme } from "next-themes";
 import { Plus, TrendingUp, UserPlus, AlertTriangle, Users, ChevronDown } from "lucide-react";
 import {
@@ -18,42 +19,11 @@ import {
   YAxis,
 } from "recharts";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatPLNFromGrosze } from "@/lib/money";
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 type Period = "30d" | "7d" | "month" | "year";
-
-const chart30d = Array.from({ length: 30 }).map((_, i) => {
-  const day = i + 1;
-  const visits = Math.round(80 + 60 * Math.abs(Math.sin(day / 3)) + (day % 7) * 6);
-  const revenue = Math.round(250 + 420 * Math.abs(Math.cos(day / 4)) + (day % 5) * 30);
-  return { day, visits, revenue };
-});
-
-const procedures = [
-  { name: "Toksyna Botulinowa", volume: "35%", revenue: "PLN 18,750" },
-  { name: "Wypełniacze", volume: "30%", revenue: "PLN 18,750" },
-  { name: "Laseroterapia", volume: "20%", revenue: "PLN 8,250" },
-  { name: "Inne", volume: "15%", revenue: "PLN 5,500" },
-];
-
-const donut = [
-  { name: "Toksyna Botulinowa", value: 35 },
-  { name: "Wypełniacze", value: 30 },
-  { name: "Laseroterapia", value: 20 },
-  { name: "Inne", value: 15 },
-];
-
-const upcoming = [
-  { patient: "Ewaa Kowalska", time: "09:00 PM", procedure: "Toksyna Botulinowa" },
-  { patient: "Ewaa Kowalska", time: "09:00 PM", procedure: "Wypełniacze" },
-  { patient: "Mara Łonsia", time: "07:00 AM", procedure: "Toksyna Botulinowa" },
-];
-
-const stock = [
-  { name: "Toksyna Botulinowa", percent: 78, share: "35%" },
-  { name: "Wypełniacze", percent: 62, share: "30%" },
-  { name: "Laseroterapia", percent: 41, share: "20%" },
-  { name: "Inne", percent: 28, share: "15%" },
-];
 
 function StatCard({
   title,
@@ -92,6 +62,16 @@ function StatCard({
 export default function AdminDashboard() {
   const [period, setPeriod] = React.useState<Period>("30d");
 
+  const { data: dash } = useSWR(`/api/dashboard?period=${period}`, fetcher, {
+    keepPreviousData: true,
+  });
+  const kpi = dash?.kpi;
+  const donut: { name: string; value: number }[] = dash?.donut ?? [];
+  const procedures: { name: string; volume: number; revenue: number }[] = dash?.topServices ?? [];
+  const upcoming: { id: string; patient: string; time: string; procedure: string }[] =
+    dash?.upcoming ?? [];
+  const stock: { name: string; share: number; percent: number }[] = dash?.stockStatus ?? [];
+
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
@@ -116,12 +96,7 @@ export default function AdminDashboard() {
     itemStyle: { color: isDark ? "#e2e8f0" : "#0f172a" },
   };
 
-  const data = React.useMemo(() => {
-    if (period === "30d") return chart30d;
-    if (period === "7d") return chart30d.slice(-7);
-    if (period === "month") return chart30d.slice(-30);
-    return chart30d;
-  }, [period]);
+  const data: { day: string; revenue: number; visits: number }[] = dash?.chart ?? [];
 
   return (
     <div className="space-y-6">
@@ -137,8 +112,12 @@ export default function AdminDashboard() {
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Dzisiejsze Wizyty"
-          value="24"
-          sub="+8% z wczoraj"
+          value={kpi ? String(kpi.todayVisits) : "—"}
+          sub={
+            kpi?.todayVisitsDeltaPct === null || kpi?.todayVisitsDeltaPct === undefined
+              ? " "
+              : `${kpi.todayVisitsDeltaPct >= 0 ? "+" : ""}${kpi.todayVisitsDeltaPct}% z wczoraj`
+          }
           accent="green"
           icon={<TrendingUp className="h-4 w-4" />}
         />
@@ -146,18 +125,38 @@ export default function AdminDashboard() {
           title="Dzisiejszy Przychód"
           value={
             <span className="text-3xl font-semibold">
-              PLN <span className="font-semibold">18,750</span>
+              {kpi ? formatPLNFromGrosze(kpi.todayRevenue) : "—"}
             </span>
           }
-          sub="+12% vs. target"
+          sub={
+            kpi?.todayRevenueDeltaPct === null || kpi?.todayRevenueDeltaPct === undefined
+              ? " "
+              : `${kpi.todayRevenueDeltaPct >= 0 ? "+" : ""}${kpi.todayRevenueDeltaPct}% vs. wczoraj`
+          }
           accent="green"
           icon={<TrendingUp className="h-4 w-4" />}
         />
-        <StatCard title="Nowi Pacjenci" value="15" sub="+3" accent="blue" icon={<UserPlus className="h-4 w-4" />} />
+        <StatCard
+          title="Nowi Pacjenci"
+          value={kpi ? String(kpi.newPatients) : "—"}
+          sub={
+            kpi
+              ? `${kpi.newPatientsDelta >= 0 ? "+" : ""}${kpi.newPatientsDelta} vs. wczoraj`
+              : " "
+          }
+          accent="blue"
+          icon={<UserPlus className="h-4 w-4" />}
+        />
         <StatCard
           title="Magazyn - Alerty"
-          value="4"
-          sub="4 preparaty blisko terminu"
+          value={kpi ? String(kpi.inventoryAlerts) : "—"}
+          sub={
+            kpi
+              ? kpi.inventoryAlerts > 0
+                ? `${kpi.inventoryAlerts} preparaty blisko terminu`
+                : "brak alertów"
+              : " "
+          }
           accent="orange"
           icon={<AlertTriangle className="h-4 w-4" />}
         />
@@ -251,8 +250,15 @@ export default function AdminDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {upcoming.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-slate-500">
+                      Brak nadchodzących wizyt dzisiaj.
+                    </TableCell>
+                  </TableRow>
+                )}
                 {upcoming.map((r) => (
-                  <TableRow key={r.patient + r.time + r.procedure}>
+                  <TableRow key={r.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <div className="h-8 w-8 rounded-full bg-slate-200" />
@@ -287,11 +293,18 @@ export default function AdminDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {procedures.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-slate-500">
+                      Brak danych z ostatnich 30 dni.
+                    </TableCell>
+                  </TableRow>
+                )}
                 {procedures.map((r) => (
                   <TableRow key={r.name}>
                     <TableCell className="font-medium">{r.name}</TableCell>
-                    <TableCell>{r.volume}</TableCell>
-                    <TableCell className="text-right">{r.revenue}</TableCell>
+                    <TableCell>{r.volume}%</TableCell>
+                    <TableCell className="text-right">{formatPLNFromGrosze(r.revenue)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -312,10 +325,17 @@ export default function AdminDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
+              {stock.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-slate-500">
+                    Brak zużyć z ostatnich 30 dni.
+                  </TableCell>
+                </TableRow>
+              )}
               {stock.map((r) => (
                 <TableRow key={r.name}>
                   <TableCell className="font-medium">{r.name}</TableCell>
-                  <TableCell>{r.share}</TableCell>
+                  <TableCell>{r.share}%</TableCell>
                   <TableCell>
                     <div className="h-2.5 w-full rounded-full bg-slate-200 dark:bg-white/10">
                       <div
