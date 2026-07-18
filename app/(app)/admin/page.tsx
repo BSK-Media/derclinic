@@ -21,6 +21,7 @@ import {
 } from "recharts";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatPLNFromGrosze } from "@/lib/money";
+import { useAuth } from "@/components/auth-provider";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -77,6 +78,8 @@ function StatCard({
 
 export default function AdminDashboard() {
   const [period, setPeriod] = React.useState<Period>("30d");
+  const { user } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
 
   const { data: dash } = useSWR(`/api/dashboard?period=${period}`, fetcher, {
     keepPreviousData: true,
@@ -125,7 +128,7 @@ export default function AdminDashboard() {
         </button>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+      <div className={"grid gap-5 md:grid-cols-2 " + (isAdmin ? "xl:grid-cols-4" : "xl:grid-cols-3")}>
         <StatCard
           title="Dzisiejsze Wizyty"
           value={kpi ? String(kpi.todayVisits) : "—"}
@@ -138,6 +141,7 @@ export default function AdminDashboard() {
           icon={<TrendingUp className="h-4 w-4" />}
           href="/admin/visits"
         />
+        {isAdmin ? (
         <StatCard
           title="Dzisiejszy Przychód"
           value={
@@ -154,6 +158,7 @@ export default function AdminDashboard() {
           icon={<TrendingUp className="h-4 w-4" />}
           href="/admin/analytics"
         />
+        ) : null}
         <StatCard
           title="Nowi Pacjenci"
           value={kpi ? String(kpi.newPatients) : "—"}
@@ -185,7 +190,7 @@ export default function AdminDashboard() {
       <div className="grid gap-6 xl:grid-cols-3">
         <div className="xl:col-span-2 rounded-2xl border border-white/60 bg-white/80 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-base font-semibold">Przychód i Wizyty (Ostatnie 30 Dni)</div>
+            <div className="text-base font-semibold">{isAdmin ? "Przychód i Wizyty" : "Wizyty"}</div>
             <div className="flex items-center gap-1 rounded-2xl bg-slate-50 p-1 text-sm dark:bg-white/5">
               {[
                 { k: "30d" as const, label: "30 dni" },
@@ -214,11 +219,33 @@ export default function AdminDashboard() {
               <BarChart data={data} margin={{ top: 8, left: 0, right: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="4 4" vertical={false} stroke={chartColors.grid} />
                 <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: chartColors.tick }} />
-                <YAxis yAxisId="left" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: chartColors.tick }} />
+                {isAdmin ? (
+                  <YAxis yAxisId="left" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: chartColors.tick }} />
+                ) : null}
                 <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: chartColors.tick }} />
-                <Tooltip {...tooltipProps} cursor={{ fill: chartColors.cursor }} />
-                <Bar yAxisId="left" dataKey="revenue" fill={chartColors.bar} radius={[10, 10, 0, 0]} />
-                <Line yAxisId="right" type="monotone" dataKey="visits" stroke={chartColors.line} strokeWidth={2} dot={false} />
+                <Tooltip
+                  {...tooltipProps}
+                  cursor={{ fill: chartColors.cursor }}
+                  formatter={(value: any, name: any) =>
+                    name === "Przychód" ? [`${Number(value).toLocaleString("pl-PL")} zł`, name] : [value, name]
+                  }
+                />
+                {isAdmin ? (
+                  <Bar
+                    yAxisId="left"
+                    dataKey="revenue"
+                    name="Przychód"
+                    fill={chartColors.bar}
+                    radius={[10, 10, 0, 0]}
+                  />
+                ) : null}
+                <Bar
+                  yAxisId="right"
+                  dataKey="visits"
+                  name="Wizyty"
+                  fill={chartColors.line}
+                  radius={[10, 10, 0, 0]}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -309,13 +336,13 @@ export default function AdminDashboard() {
                 <TableRow>
                   <TableHead>Zabiegi</TableHead>
                   <TableHead>Volume</TableHead>
-                  <TableHead className="text-right">Przychód</TableHead>
+                  {isAdmin ? <TableHead className="text-right">Przychód</TableHead> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {procedures.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-slate-500">
+                    <TableCell colSpan={isAdmin ? 3 : 2} className="text-slate-500">
                       Brak danych z ostatnich 30 dni.
                     </TableCell>
                   </TableRow>
@@ -324,7 +351,9 @@ export default function AdminDashboard() {
                   <TableRow key={r.name}>
                     <TableCell className="font-medium">{r.name}</TableCell>
                     <TableCell>{r.volume}%</TableCell>
-                    <TableCell className="text-right">{formatPLNFromGrosze(r.revenue)}</TableCell>
+                    {isAdmin ? (
+                      <TableCell className="text-right">{formatPLNFromGrosze(r.revenue)}</TableCell>
+                    ) : null}
                   </TableRow>
                 ))}
               </TableBody>
