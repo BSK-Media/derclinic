@@ -259,17 +259,17 @@ export function AppHeader() {
     return () => document.removeEventListener("mousedown", closeOnOutsideClick);
   }, []);
 
-  async function markNotificationRead(notificationId: string) {
+  async function toggleNotificationRead(notificationId: string, nextRead: boolean) {
     const previous = notifications;
     setNotifications((current) =>
       current.map((notification) =>
-        notification.id === notificationId ? { ...notification, read: true } : notification,
+        notification.id === notificationId ? { ...notification, read: nextRead } : notification,
       ),
     );
     const response = await fetch("/api/notifications", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ notificationId }),
+      body: JSON.stringify({ notificationId, read: nextRead }),
     });
     if (!response.ok) setNotifications(previous);
   }
@@ -372,22 +372,21 @@ export function AppHeader() {
                         )}
                         <button
                           type="button"
-                          onClick={() => markNotificationRead(notification.id)}
-                          disabled={notification.read}
+                          onClick={() => toggleNotificationRead(notification.id, !notification.read)}
                           className={cn(
                             "mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border text-sm font-bold transition",
                             notification.read
-                              ? "cursor-default border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-500/20 dark:bg-emerald-500/10"
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-600 hover:border-slate-300 hover:bg-white hover:text-slate-500 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:hover:bg-white/5 dark:hover:text-slate-300"
                               : "border-slate-200 bg-white text-slate-500 hover:border-emerald-300 hover:text-emerald-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300",
                           )}
                           aria-label={
                             notification.read
-                              ? "Powiadomienie przeczytane"
+                              ? "Oznacz jako nieprzeczytane"
                               : "Oznacz jako przeczytane"
                           }
                           title={
                             notification.read
-                              ? "Powiadomienie przeczytane"
+                              ? "Oznacz jako nieprzeczytane"
                               : "Oznacz jako przeczytane"
                           }
                         >
