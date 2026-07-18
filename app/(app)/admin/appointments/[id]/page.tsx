@@ -18,6 +18,7 @@ import {
 import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
 import { appointmentStatusLabel, effectiveAppointmentStatus } from "@/lib/appointment-status";
 import { ApprovalBadge, RejectReasonDialog } from "@/components/appointment-approval";
+import { AppointmentPhotos } from "@/components/appointment-photos";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -605,6 +606,13 @@ export default function AdminAppointmentDetail() {
           </table>
         </div>
       </Card>
+
+      <AppointmentPhotos
+        appointmentId={id}
+        photoBefore={appt.photoBefore}
+        photoAfter={appt.photoAfter}
+        onChanged={() => mutate()}
+      />
     </div>
   );
 }
