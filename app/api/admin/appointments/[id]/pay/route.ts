@@ -28,7 +28,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       priceFinal: true,
       priceEstimate: true,
       service: { select: { price: true } },
-      payments: { select: { amount: true } },
+      payments: { select: { amount: true, method: true } },
     },
   });
   if (!appointment || appointment.deletedAt) {
@@ -36,24 +36,45 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   const total = appointment.priceFinal ?? appointment.service?.price ?? appointment.priceEstimate ?? 0;
-  const paid = appointment.payments.reduce((sum, payment) => sum + payment.amount, 0);
-  const remaining = Math.max(0, total - paid);
-  if (remaining <= 0) {
-    return NextResponse.json({ ok: false, message: "Wizyta jest już opłacona" }, { status: 400 });
-  }
-  if (parsed.data.amount > remaining) {
+  const paymentsWithOtherMethods = appointment.payments.filter(
+    (payment) => payment.method !== parsed.data.method,
+  );
+  const paidWithOtherMethods = paymentsWithOtherMethods.reduce(
+    (sum, payment) => sum + payment.amount,
+    0,
+  );
+  const availableForMethod = Math.max(0, total - paidWithOtherMethods);
+  if (availableForMethod <= 0) {
     return NextResponse.json(
-      { ok: false, message: "Kwota przekracza pozostałą należność" },
+      { ok: false, message: "Cała należność została już rozliczona inną metodą" },
+      { status: 400 },
+    );
+  }
+  if (parsed.data.amount > availableForMethod) {
+    return NextResponse.json(
+      { ok: false, message: "Kwota przekracza należność dostępną dla tej metody" },
       { status: 400 },
     );
   }
 
-  const p = await prisma.payment.create({
-    data: {
-      appointmentId: params.id,
-      method: parsed.data.method as any,
-      amount: parsed.data.amount,
-    },
+  const replaced = appointment.payments.some(
+    (payment) => payment.method === parsed.data.method,
+  );
+  const p = await prisma.$transaction(async (tx) => {
+    await tx.payment.deleteMany({
+      where: {
+        appointmentId: params.id,
+        method: parsed.data.method as any,
+      },
+    });
+
+    return tx.payment.create({
+      data: {
+        appointmentId: params.id,
+        method: parsed.data.method as any,
+        amount: parsed.data.amount,
+      },
+    });
   });
 
   await logAudit({
@@ -61,8 +82,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     action: "CREATE",
     entity: "Payment",
     entityId: p.id,
-    data: { appointmentId: params.id },
+    data: { appointmentId: params.id, replaced },
   });
 
-  return NextResponse.json({ ok: true, payment: p });
+  return NextResponse.json({ ok: true, payment: p, replaced });
 }
