@@ -504,7 +504,7 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      <div className="hidden gap-4 sm:grid md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Łączna liczba produktów" value={products.length} />
         <StatCard title="Firmy / producenci" value={manufacturers.length - 1} />
         <StatCard title="Produkty z niskim stanem lub brakiem" value={lowStockCount} />
