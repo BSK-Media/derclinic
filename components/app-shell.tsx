@@ -418,7 +418,7 @@ export function AppHeader() {
             </button>
 
             {notificationsOpen ? (
-              <div className="absolute right-0 top-[calc(100%+10px)] z-50 w-[min(390px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-white/10 dark:bg-[#0b1220]">
+              <div className="fixed inset-x-3 top-[calc(100%-6px)] z-50 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-white/10 dark:bg-[#0b1220] lg:absolute lg:inset-x-auto lg:right-0 lg:top-[calc(100%+10px)] lg:w-[min(390px,calc(100vw-32px))]">
                 <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-white/10">
                   <div>
                     <div className="font-semibold text-slate-900 dark:text-white">
