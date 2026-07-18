@@ -167,20 +167,22 @@ export default function SpecialistAppointmentDetail() {
       <Card className="space-y-4 p-4">
         <div className="font-medium">Wykonanie i opis</div>
         <div className="grid gap-3 md:grid-cols-3">
-          <div className="space-y-2">
+          <div className="space-y-2 max-sm:min-w-0">
             <Label>Rozpoczęcie zabiegu</Label>
             <Input
               type="datetime-local"
               value={startsAt}
               onChange={(e) => setStartsAt(e.target.value)}
+              className="max-sm:min-w-0 max-sm:max-w-full"
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 max-sm:min-w-0">
             <Label>Zakończenie zabiegu</Label>
             <Input
               type="datetime-local"
               value={endsAt}
               onChange={(e) => setEndsAt(e.target.value)}
+              className="max-sm:min-w-0 max-sm:max-w-full"
             />
           </div>
           <div className="space-y-2">
