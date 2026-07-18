@@ -345,7 +345,9 @@ export default function AdminDashboard() {
         </div>
 
         <div className="rounded-2xl border border-white/60 bg-white/80 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55">
-          <div className="text-base font-semibold">Struktura Zabiegów</div>
+          <div className="text-base font-semibold">
+            Udział zabiegów według kategorii - ostatnie 30 dni
+          </div>
           <div className="mt-3 h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
