@@ -68,7 +68,13 @@ const RANGE_OPTIONS: Array<{ key: RangeKey; label: string }> = [
   { key: "custom", label: "Niestandardowy zakres" },
 ];
 
-export function PatientStatistics({ patientId }: { patientId: string }) {
+export function PatientStatistics({
+  patientId,
+  showSpending = true,
+}: {
+  patientId: string;
+  showSpending?: boolean;
+}) {
   const today = React.useMemo(() => warsawDateInput(), []);
   const [range, setRange] = React.useState<RangeKey>("custom");
   const [from, setFrom] = React.useState(() => `${today.slice(0, 4)}-01-01`);
@@ -155,7 +161,8 @@ export function PatientStatistics({ patientId }: { patientId: string }) {
         </div>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className={"grid gap-3 " + (showSpending ? "md:grid-cols-2" : "md:grid-cols-1")}>
+        {showSpending ? (
         <div className="rounded-2xl border bg-emerald-50/70 p-4 dark:bg-emerald-500/10">
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm font-medium text-emerald-900 dark:text-emerald-200">
@@ -167,6 +174,7 @@ export function PatientStatistics({ patientId }: { patientId: string }) {
             {isLoading ? "…" : formatPLNFromGrosze(stats.totalSpent)}
           </div>
         </div>
+        ) : null}
         <div className="rounded-2xl border bg-sky-50/70 p-4 dark:bg-sky-500/10">
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm font-medium text-sky-900 dark:text-sky-200">
