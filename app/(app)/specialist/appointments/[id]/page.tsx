@@ -167,22 +167,40 @@ export default function SpecialistAppointmentDetail() {
       <Card className="space-y-4 p-4">
         <div className="font-medium">Wykonanie i opis</div>
         <div className="grid gap-3 md:grid-cols-3">
-          <div className="space-y-2 max-sm:min-w-0">
+          <div className="min-w-0 space-y-2">
             <Label>Rozpoczęcie zabiegu</Label>
+            <div className="relative h-10 w-full max-w-full overflow-hidden rounded-xl border border-zinc-200 bg-white focus-within:ring-2 focus-within:ring-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:focus-within:ring-zinc-700 sm:hidden">
+              <input
+                type="datetime-local"
+                value={startsAt}
+                onChange={(e) => setStartsAt(e.target.value)}
+                className="absolute inset-0 block h-full min-w-0 max-w-full appearance-none bg-transparent px-3 text-sm outline-none"
+                style={{ width: "100%", WebkitAppearance: "none" }}
+              />
+            </div>
             <Input
               type="datetime-local"
               value={startsAt}
               onChange={(e) => setStartsAt(e.target.value)}
-              className="max-sm:min-w-0 max-sm:max-w-full"
+              className="hidden sm:block"
             />
           </div>
-          <div className="space-y-2 max-sm:min-w-0">
+          <div className="min-w-0 space-y-2">
             <Label>Zakończenie zabiegu</Label>
+            <div className="relative h-10 w-full max-w-full overflow-hidden rounded-xl border border-zinc-200 bg-white focus-within:ring-2 focus-within:ring-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:focus-within:ring-zinc-700 sm:hidden">
+              <input
+                type="datetime-local"
+                value={endsAt}
+                onChange={(e) => setEndsAt(e.target.value)}
+                className="absolute inset-0 block h-full min-w-0 max-w-full appearance-none bg-transparent px-3 text-sm outline-none"
+                style={{ width: "100%", WebkitAppearance: "none" }}
+              />
+            </div>
             <Input
               type="datetime-local"
               value={endsAt}
               onChange={(e) => setEndsAt(e.target.value)}
-              className="max-sm:min-w-0 max-sm:max-w-full"
+              className="hidden sm:block"
             />
           </div>
           <div className="space-y-2">
