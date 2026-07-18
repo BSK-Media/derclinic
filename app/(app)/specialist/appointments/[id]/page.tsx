@@ -300,7 +300,7 @@ export default function SpecialistAppointmentDetail() {
                 key={sp.id}
                 className="rounded-full border bg-zinc-50 px-3 py-1 text-xs dark:bg-zinc-900"
               >
-                {sp.product.name} • {sp.quantity} {sp.unit}
+                {sp.product.name} • {sp.quantity} {unitLabel(sp.product.unit)}
               </span>
             ))}
             {(appt.service?.suggestedProducts ?? []).length === 0 && (
