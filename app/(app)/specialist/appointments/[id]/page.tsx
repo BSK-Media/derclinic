@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { appointmentStatusLabel, effectiveAppointmentStatus } from "@/lib/appointment-status";
+import { AppointmentPhotos } from "@/components/appointment-photos";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -337,6 +338,13 @@ export default function SpecialistAppointmentDetail() {
           </table>
         </div>
       </Card>
+
+      <AppointmentPhotos
+        appointmentId={id}
+        photoBefore={appt.photoBefore}
+        photoAfter={appt.photoAfter}
+        onChanged={() => mutate()}
+      />
     </div>
   );
 }
