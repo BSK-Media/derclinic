@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { useTheme } from "next-themes";
-import { Plus, TrendingUp, UserPlus, AlertTriangle, Users, ChevronDown } from "lucide-react";
+import { TrendingUp, UserPlus, AlertTriangle, Users, ChevronDown } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -122,10 +122,6 @@ export default function AdminDashboard() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-3xl font-semibold tracking-tight">Panel Zarządzania Kliniką - DerClinic</h1>
 
-        <button className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
-          <Plus className="h-4 w-4" />
-          Panel zdarzenia
-        </button>
       </div>
 
       <div className={"grid gap-5 md:grid-cols-2 " + (isAdmin ? "xl:grid-cols-4" : "xl:grid-cols-3")}>
