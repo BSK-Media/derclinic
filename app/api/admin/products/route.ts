@@ -1,8 +1,11 @@
+import { ConsumptionKind } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+
+const WOS_WEEKS = 10;
 
 export async function GET() {
   const { user, error } = await requireAuth();
@@ -10,7 +13,10 @@ export async function GET() {
   const deny = requireRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
-  const [products, warehouses] = await Promise.all([
+  const wosStart = new Date();
+  wosStart.setDate(wosStart.getDate() - WOS_WEEKS * 7);
+
+  const [products, warehouses, consumptions] = await Promise.all([
     prisma.product.findMany({
       orderBy: [{ manufacturer: "asc" }, { name: "asc" }],
       include: {
@@ -29,9 +35,34 @@ export async function GET() {
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
+    prisma.consumption.findMany({
+      where: {
+        createdAt: { gte: wosStart },
+        kind: { in: [ConsumptionKind.APPOINTMENT, ConsumptionKind.SALE] },
+      },
+      select: { productId: true, quantity: true },
+    }),
   ]);
 
-  return NextResponse.json({ ok: true, products, warehouses });
+  const usedByProduct = new Map<string, number>();
+  for (const consumption of consumptions) {
+    usedByProduct.set(
+      consumption.productId,
+      (usedByProduct.get(consumption.productId) ?? 0) + Number(consumption.quantity),
+    );
+  }
+
+  const productsWithWos = products.map((product) => {
+    const stock = product.stocks.reduce((sum, item) => sum + Number(item.quantity), 0);
+    const weeklyUsage = (usedByProduct.get(product.id) ?? 0) / WOS_WEEKS;
+
+    return {
+      ...product,
+      wosWeeks: weeklyUsage > 0 ? stock / weeklyUsage : null,
+    };
+  });
+
+  return NextResponse.json({ ok: true, products: productsWithWos, warehouses });
 }
 
 const CreateSchema = z.object({
