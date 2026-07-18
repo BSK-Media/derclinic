@@ -424,7 +424,7 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
                               className="flex items-center gap-2 rounded-full border bg-zinc-50 px-3 py-1 text-xs dark:bg-zinc-900"
                             >
                               <span>
-                                {sp.product.name} • {sp.quantity} {sp.unit}
+                                {sp.product.name} • {sp.quantity} {sp.product.unit}
                               </span>
                             </div>
                           ))}
