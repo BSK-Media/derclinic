@@ -33,7 +33,7 @@ export default async function AdminPatientDetailPage({ params }: { params: { id:
           email: patient.email,
         }}
       >
-        {isAdmin ? <PatientStatistics patientId={patient.id} /> : null}
+        <PatientStatistics patientId={patient.id} showSpending={isAdmin} />
       </PatientDetailsForm>
 
       {patient.note && (
