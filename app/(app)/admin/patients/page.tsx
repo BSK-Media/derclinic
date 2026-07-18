@@ -142,18 +142,18 @@ export default function AdminPatientsPage() {
                 <th className="p-3">Email</th>
                 <th className="p-3">Notatka</th>
                 {isAdmin ? (
-                  <>
-                    <th className="p-3">
-                      <button
-                        type="button"
-                        onClick={() => changeSort("totalSpent")}
-                        className="inline-flex items-center gap-1.5 font-medium hover:text-zinc-900 dark:hover:text-white"
-                      >
-                        Wydano łącznie
-                        {sortIcon("totalSpent")}
-                      </button>
-                    </th>
-                    <th className="p-3">
+                  <th className="p-3">
+                    <button
+                      type="button"
+                      onClick={() => changeSort("totalSpent")}
+                      className="inline-flex items-center gap-1.5 font-medium hover:text-zinc-900 dark:hover:text-white"
+                    >
+                      Wydano łącznie
+                      {sortIcon("totalSpent")}
+                    </button>
+                  </th>
+                ) : null}
+                <th className="p-3">
                       <button
                         type="button"
                         onClick={() => changeSort("completedVisits")}
@@ -162,15 +162,13 @@ export default function AdminPatientsPage() {
                         Wykonane wizyty
                         {sortIcon("completedVisits")}
                       </button>
-                    </th>
-                  </>
-                ) : null}
+                </th>
               </tr>
             </thead>
             <tbody>
               {patients.length === 0 && !isLoading && (
                 <tr>
-                  <td className="p-3 text-zinc-500" colSpan={isAdmin ? 6 : 4}>
+                  <td className="p-3 text-zinc-500" colSpan={isAdmin ? 6 : 5}>
                     Brak wyników.
                   </td>
                 </tr>
@@ -186,13 +184,11 @@ export default function AdminPatientsPage() {
                   <td className="p-3">{p.email ?? "—"}</td>
                   <td className="p-3">{p.note ?? "—"}</td>
                   {isAdmin ? (
-                    <>
-                      <td className="p-3 font-medium text-emerald-700 dark:text-emerald-300">
-                        {formatPLNFromGrosze(p.totalSpent ?? 0)}
-                      </td>
-                      <td className="p-3 font-medium">{p.completedVisits ?? 0}</td>
-                    </>
+                    <td className="p-3 font-medium text-emerald-700 dark:text-emerald-300">
+                      {formatPLNFromGrosze(p.totalSpent ?? 0)}
+                    </td>
                   ) : null}
+                  <td className="p-3 font-medium">{p.completedVisits ?? 0}</td>
                 </tr>
               ))}
             </tbody>
