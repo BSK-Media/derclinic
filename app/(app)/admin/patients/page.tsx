@@ -35,6 +35,27 @@ export default function AdminPatientsPage() {
   );
   const patients: Patient[] = data?.patients ?? [];
   const isAdmin = data?.viewerRole === "ADMIN";
+
+  // Statystyki liczone z pełnej listy (niezależnie od pola wyszukiwania)
+  const { data: allData } = useSWR(`/api/admin/patients?q=`, fetcher);
+  const allPatients: Patient[] = allData?.patients ?? [];
+  const topVisits = useMemo(
+    () =>
+      allPatients.reduce<Patient | null>(
+        (best, p) =>
+          (p.completedVisits ?? 0) > (best?.completedVisits ?? 0) ? p : best,
+        null,
+      ),
+    [allPatients],
+  );
+  const topSpender = useMemo(
+    () =>
+      allPatients.reduce<Patient | null>(
+        (best, p) => ((p.totalSpent ?? 0) > (best?.totalSpent ?? 0) ? p : best),
+        null,
+      ),
+    [allPatients],
+  );
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
@@ -96,6 +117,45 @@ export default function AdminPatientsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Pacjenci</h1>
+
+      {isAdmin ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="p-4">
+            <div className="text-sm text-zinc-500">Najwięcej wizyt</div>
+            {topVisits && (topVisits.completedVisits ?? 0) > 0 ? (
+              <>
+                <div className="mt-2 text-2xl font-semibold">
+                  <Link className="underline underline-offset-2" href={`/admin/patients/${topVisits.id}`}>
+                    {topVisits.name}
+                  </Link>
+                </div>
+                <div className="mt-1 text-sm text-zinc-500">
+                  {topVisits.completedVisits} wykonanych wizyt
+                </div>
+              </>
+            ) : (
+              <div className="mt-2 text-sm text-zinc-500">Brak danych.</div>
+            )}
+          </Card>
+          <Card className="p-4">
+            <div className="text-sm text-zinc-500">Najwięcej wydał</div>
+            {topSpender && (topSpender.totalSpent ?? 0) > 0 ? (
+              <>
+                <div className="mt-2 text-2xl font-semibold">
+                  <Link className="underline underline-offset-2" href={`/admin/patients/${topSpender.id}`}>
+                    {topSpender.name}
+                  </Link>
+                </div>
+                <div className="mt-1 text-sm text-emerald-700 dark:text-emerald-300">
+                  {formatPLNFromGrosze(topSpender.totalSpent ?? 0)} łącznie
+                </div>
+              </>
+            ) : (
+              <div className="mt-2 text-sm text-zinc-500">Brak danych.</div>
+            )}
+          </Card>
+        </div>
+      ) : null}
 
       <Card className="space-y-4 p-4">
         <div className="font-medium">Dodaj pacjenta</div>
