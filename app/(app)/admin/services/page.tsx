@@ -41,6 +41,39 @@ const SERVICE_CATEGORIES = [
   "Leczenie otyłości",
 ] as const;
 
+// Kolejność kategorii jak w cenniku na stronie www.
+const CATEGORY_ORDER = [
+  "Autorskie terapie Dr Marty",
+  "Laser tulowy",
+  "Kosmetologia",
+  "PRO XN - Twarz",
+  "Toksyna botulinowa BOTOX - likwidacja zmarszczek",
+  "Dermatologia",
+  "Chirurgia plastyczna",
+  "Ginekologia",
+  "Chirurgia naczyniowa",
+  "Chirurgia ogólna",
+  "Leczenie otyłości",
+  "Hydrafacial nr 1 w USA ( oczyszczanie wodorowe)",
+  "MEDIDERMA - zabiegi na twarz",
+  "MedEstelle - zabiegi bankietowe na twarz",
+  "Mezoterapia igłowa / Stymulatory tkankowe",
+  "Icoone - zabiegi na ciało",
+  "Radiofrekwencja mikroigłowa RF",
+  "Kwas Hialuronowy - wypełnienie / modelowanie",
+  "Konsultacje Specjalistyczne",
+  "Nici - liftingujące, stymulujące",
+  "DERMAPEN 4.0",
+  "Tropokolagen GUNA",
+  "Zabiegi ANTI-AGING odmłodzenie/ujędrnienie",
+  "Bandaże AROSHA",
+  "Nebula",
+  "ScarINK – Kompleksowa Terapia",
+  "Makijaż permanentny",
+];
+
+const ALL_CATEGORIES = "__all__";
+
 type Specialist = { id: string; name: string };
 type Service = {
   id: string;
@@ -112,38 +145,8 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
     }
   }
 
-  // Kolejność kategorii jak w cenniku na stronie www
-  const CATEGORY_ORDER = [
-    "Autorskie terapie Dr Marty",
-    "Laser tulowy",
-    "Kosmetologia",
-    "PRO XN - Twarz",
-    "Toksyna botulinowa BOTOX - likwidacja zmarszczek",
-    "Dermatologia",
-    "Chirurgia plastyczna",
-    "Ginekologia",
-    "Chirurgia naczyniowa",
-    "Chirurgia ogólna",
-    "Leczenie otyłości",
-    "Hydrafacial nr 1 w USA ( oczyszczanie wodorowe)",
-    "MEDIDERMA - zabiegi na twarz",
-    "MedEstelle - zabiegi bankietowe na twarz",
-    "Mezoterapia igłowa / Stymulatory tkankowe",
-    "Icoone - zabiegi na ciało",
-    "Radiofrekwencja mikroigłowa RF",
-    "Kwas Hialuronowy - wypełnienie / modelowanie",
-    "Konsultacje Specjalistyczne",
-    "Nici - liftingujące, stymulujące",
-    "DERMAPEN 4.0",
-    "Tropokolagen GUNA",
-    "Zabiegi ANTI-AGING odmłodzenie/ujędrnienie",
-    "Bandaże AROSHA",
-    "Nebula",
-    "ScarINK – Kompleksowa Terapia",
-    "Makijaż permanentny",
-  ];
-
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORIES);
+  const [categoryQuery, setCategoryQuery] = useState("");
   const [query, setQuery] = useState("");
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -172,7 +175,7 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
 
     handledServiceId.current = requestedServiceId;
     const category = service.category?.trim() || "Bez kategorii";
-    setExpanded((current) => new Set(current).add(category));
+    setSelectedCategory(category);
     setHighlightId(service.id);
 
     const scrollTimer = window.setTimeout(() => {
@@ -188,43 +191,58 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
     };
   }, [requestedServiceId, services]);
 
-  const grouped = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const filtered = q
-      ? services.filter(
-          (sv) =>
-            sv.name.toLowerCase().includes(q) || (sv.category ?? "").toLowerCase().includes(q),
-        )
-      : services;
-
-    const byCategory = new Map<string, Service[]>();
-    for (const sv of filtered) {
-      const key = sv.category?.trim() || "Bez kategorii";
-      if (!byCategory.has(key)) byCategory.set(key, []);
-      byCategory.get(key)!.push(sv);
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const service of services) {
+      const categoryName = service.category?.trim() || "Bez kategorii";
+      counts.set(categoryName, (counts.get(categoryName) ?? 0) + 1);
     }
-    for (const list of byCategory.values()) list.sort((a, b) => a.name.localeCompare(b.name, "pl"));
 
-    const orderIndex = (cat: string) => {
-      const i = CATEGORY_ORDER.indexOf(cat);
-      return i === -1 ? CATEGORY_ORDER.length : i;
+    const orderIndex = (categoryName: string) => {
+      const index = CATEGORY_ORDER.indexOf(categoryName);
+      return index === -1 ? CATEGORY_ORDER.length : index;
     };
-    return [...byCategory.entries()].sort((a, b) => {
-      const d = orderIndex(a[0]) - orderIndex(b[0]);
-      return d !== 0 ? d : a[0].localeCompare(b[0], "pl");
-    });
-  }, [services, query]);
 
-  const searching = query.trim().length > 0;
+    return [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((first, second) => {
+        const orderDifference = orderIndex(first.name) - orderIndex(second.name);
+        return orderDifference !== 0
+          ? orderDifference
+          : first.name.localeCompare(second.name, "pl");
+      });
+  }, [services]);
 
-  function toggleCategory(cat: string) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat);
-      else next.add(cat);
-      return next;
-    });
-  }
+  const visibleCategories = useMemo(() => {
+    const normalizedQuery = categoryQuery.trim().toLocaleLowerCase("pl");
+    if (!normalizedQuery) return categories;
+    return categories.filter((item) =>
+      item.name.toLocaleLowerCase("pl").includes(normalizedQuery),
+    );
+  }, [categories, categoryQuery]);
+
+  const visibleServices = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return services
+      .filter((service) => {
+        const serviceCategory = service.category?.trim() || "Bez kategorii";
+        if (selectedCategory !== ALL_CATEGORIES && serviceCategory !== selectedCategory) {
+          return false;
+        }
+        if (!q) return true;
+        return (
+          service.name.toLowerCase().includes(q) ||
+          serviceCategory.toLowerCase().includes(q) ||
+          service.suggestedProducts.some((suggestion) =>
+            suggestion.product.name.toLowerCase().includes(q),
+          )
+        );
+      })
+      .sort((first, second) => first.name.localeCompare(second.name, "pl"));
+  }, [services, selectedCategory, query]);
+
+  const selectedCategoryLabel =
+    selectedCategory === ALL_CATEGORIES ? "Wszystkie usługi" : selectedCategory;
 
   return (
     <div className="space-y-6">
@@ -299,144 +317,211 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
         </Button>
       </Card>
 
-      <div className="rounded-xl border bg-white shadow-sm dark:bg-zinc-950">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
-          <div className="font-medium">Lista zabiegów</div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <Input
-                className="w-72"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setSuggestionsOpen(true);
-                }}
-                onFocus={() => setSuggestionsOpen(true)}
-                onBlur={() => setTimeout(() => setSuggestionsOpen(false), 150)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") setSuggestionsOpen(false);
-                  if (e.key === "Enter" && suggestions.length > 0) goToService(suggestions[0]);
-                }}
-                placeholder="Szukaj zabiegu lub kategorii..."
-              />
-              {suggestionsOpen && suggestions.length > 0 ? (
-                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
-                  {suggestions.map((sv) => (
-                    <button
-                      key={sv.id}
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        goToService(sv);
-                      }}
-                      className="block w-full px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-900"
-                    >
-                      <div className="truncate">{sv.name}</div>
-                      <div className="truncate text-xs text-zinc-500">
-                        {sv.category || "Bez kategorii"}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
+      <div className="rounded-xl border bg-white p-4 shadow-sm dark:bg-zinc-950">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="font-medium">Katalog zabiegów</div>
+            <div className="mt-0.5 text-xs text-zinc-500">
+              Wybierz kategorię, aby wyświetlić przypisane do niej usługi.
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setExpanded(new Set(grouped.map(([c]) => c)))}
-            >
-              Rozwiń wszystkie
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setExpanded(new Set())}>
-              Zwiń wszystkie
-            </Button>
+          </div>
+          <div className="relative w-full sm:w-80">
+            <Input
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setSuggestionsOpen(true);
+              }}
+              onFocus={() => setSuggestionsOpen(true)}
+              onBlur={() => setTimeout(() => setSuggestionsOpen(false), 150)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setSuggestionsOpen(false);
+                if (event.key === "Enter" && suggestions.length > 0) goToService(suggestions[0]);
+              }}
+              placeholder="Szukaj usługi, kategorii lub preparatu..."
+            />
+            {suggestionsOpen && suggestions.length > 0 ? (
+              <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
+                {suggestions.map((service) => (
+                  <button
+                    key={service.id}
+                    type="button"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      goToService(service);
+                    }}
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                  >
+                    <div className="truncate">{service.name}</div>
+                    <div className="truncate text-xs text-zinc-500">
+                      {service.category || "Bez kategorii"}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
-        <div className="divide-y">
-          {isLoading && <div className="p-4 text-sm text-zinc-500">Ładowanie...</div>}
-          {!isLoading && grouped.length === 0 && (
-            <div className="p-4 text-sm text-zinc-500">Brak usług.</div>
-          )}
-          {grouped.map(([cat, items]) => {
-            const open = searching || expanded.has(cat);
-            return (
-              <div key={cat}>
-                <button
-                  type="button"
-                  onClick={() => toggleCategory(cat)}
-                  className="flex w-full items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3 text-left hover:bg-zinc-100 dark:bg-zinc-900/60 dark:hover:bg-zinc-900"
-                >
-                  <span className="text-sm font-semibold uppercase tracking-wide text-zinc-800 dark:text-zinc-100">
-                    {cat}
-                  </span>
-                  <span className="flex items-center gap-3 text-xs text-zinc-500">
-                    <span>
-                      {items.length}{" "}
-                      {items.length === 1 ? "zabieg" : items.length < 5 ? "zabiegi" : "zabiegów"}
-                    </span>
-                    <span className="text-base leading-none">{open ? "−" : "+"}</span>
-                  </span>
-                </button>
+      </div>
 
-                {open ? (
-                  <div className="divide-y border-t">
-                    {items.map((s) => (
-                      <div
-                        key={s.id}
-                        id={`service-row-${s.id}`}
-                        className={
-                          "space-y-2 p-4 pl-6 transition-colors " +
-                          (highlightId === s.id
-                            ? "bg-emerald-50 ring-1 ring-inset ring-emerald-300 dark:bg-emerald-500/10 dark:ring-emerald-500/40"
-                            : "")
-                        }
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <Link
-                              href={`/admin/services/${s.id}`}
-                              className="font-medium underline-offset-2 hover:text-emerald-700 hover:underline dark:hover:text-emerald-300"
-                            >
-                              {s.name}
-                            </Link>
-                            <div className="text-xs text-zinc-500">
-                              {s.category || "Bez kategorii"}
-                            </div>
-                            <div className="text-xs text-zinc-500">
-                              {s.durationMin} min • Cena: {formatPLNFromGrosze(s.price)}
-                            </div>
-                          </div>
-                          <Link
-                            href={`/admin/services/${s.id}`}
-                            className="inline-flex h-9 items-center justify-center rounded-xl border border-zinc-200 px-3 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-                          >
-                            Otwórz usługę
-                          </Link>
-                        </div>
-                        <div className="text-sm text-zinc-600 dark:text-zinc-300">
-                          Sugerowane preparaty:{" "}
-                          {s.suggestedProducts.length === 0 ? "—" : ""}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {s.suggestedProducts.map((sp) => (
-                            <div
-                              key={sp.id}
-                              className="flex items-center gap-2 rounded-full border bg-zinc-50 px-3 py-1 text-xs dark:bg-zinc-900"
-                            >
-                              <span>
-                                {sp.product.name} • {sp.quantity} {sp.product.unit}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
+      <div className="grid items-start gap-4 lg:grid-cols-[290px_minmax(0,1fr)]">
+        <aside className="overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-zinc-950">
+          <div className="border-b p-4">
+            <div className="font-medium">Kategorie</div>
+            <Input
+              className="mt-3"
+              value={categoryQuery}
+              onChange={(event) => setCategoryQuery(event.target.value)}
+              placeholder="Szukaj kategorii..."
+            />
+          </div>
+          <div className="max-h-[680px] space-y-1 overflow-y-auto p-2">
+            <button
+              type="button"
+              onClick={() => setSelectedCategory(ALL_CATEGORIES)}
+              className={
+                "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors " +
+                (selectedCategory === ALL_CATEGORIES
+                  ? "bg-emerald-100 font-medium text-emerald-900 dark:bg-emerald-500/15 dark:text-emerald-200"
+                  : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-900")
+              }
+            >
+              <span>Wszystkie usługi</span>
+              <span className="text-xs text-zinc-500">{services.length}</span>
+            </button>
+            {visibleCategories.map((item) => (
+              <button
+                key={item.name}
+                type="button"
+                onClick={() => setSelectedCategory(item.name)}
+                className={
+                  "flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors " +
+                  (selectedCategory === item.name
+                    ? "bg-emerald-100 font-medium text-emerald-900 dark:bg-emerald-500/15 dark:text-emerald-200"
+                    : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-900")
+                }
+              >
+                <span className="min-w-0 leading-5">{item.name}</span>
+                <span className="shrink-0 text-xs text-zinc-500">{item.count}</span>
+              </button>
+            ))}
+            {visibleCategories.length === 0 ? (
+              <div className="px-3 py-6 text-center text-sm text-zinc-500">
+                Brak pasujących kategorii.
               </div>
-            );
-          })}
-        </div>
+            ) : null}
+          </div>
+        </aside>
+
+        <section className="overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-zinc-950">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
+            <div>
+              <div className="font-medium">{selectedCategoryLabel}</div>
+              <div className="mt-0.5 text-xs text-zinc-500">
+                {visibleServices.length}{" "}
+                {visibleServices.length === 1
+                  ? "usługa"
+                  : visibleServices.length > 1 && visibleServices.length < 5
+                    ? "usługi"
+                    : "usług"}
+              </div>
+            </div>
+            {selectedCategory !== ALL_CATEGORIES ? (
+              <Button variant="outline" size="sm" onClick={() => setSelectedCategory(ALL_CATEGORIES)}>
+                Pokaż wszystkie
+              </Button>
+            ) : null}
+          </div>
+
+          <div className="overflow-x-auto">
+            <div className="min-w-[900px]">
+              <div className="grid grid-cols-[minmax(260px,1.5fr)_minmax(190px,1fr)_100px_130px_minmax(240px,1.2fr)_130px] gap-3 border-b bg-zinc-50/70 px-4 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:bg-zinc-900/60">
+                <div>Usługa</div>
+                <div>Kategoria</div>
+                <div>Czas</div>
+                <div>Cena</div>
+                <div>Preparaty</div>
+                <div className="text-right">Działania</div>
+              </div>
+
+              {isLoading ? (
+                <div className="p-6 text-sm text-zinc-500">Ładowanie...</div>
+              ) : visibleServices.length === 0 ? (
+                <div className="p-8 text-center text-sm text-zinc-500">
+                  Brak usług w wybranej kategorii.
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {visibleServices.map((service) => (
+                    <div
+                      key={service.id}
+                      id={`service-row-${service.id}`}
+                      className={
+                        "grid grid-cols-[minmax(260px,1.5fr)_minmax(190px,1fr)_100px_130px_minmax(240px,1.2fr)_130px] items-center gap-3 px-4 py-4 transition-colors " +
+                        (highlightId === service.id
+                          ? "bg-emerald-50 ring-1 ring-inset ring-emerald-300 dark:bg-emerald-500/10 dark:ring-emerald-500/40"
+                          : "hover:bg-zinc-50/70 dark:hover:bg-zinc-900/40")
+                      }
+                    >
+                      <div className="min-w-0">
+                        <Link
+                          href={`/admin/services/${service.id}`}
+                          className="font-medium text-zinc-900 underline-offset-2 hover:text-emerald-700 hover:underline dark:text-zinc-100 dark:hover:text-emerald-300"
+                        >
+                          {service.name}
+                        </Link>
+                        {service.description ? (
+                          <div className="mt-1 line-clamp-1 text-xs text-zinc-500">
+                            {service.description}
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="text-sm text-zinc-600 dark:text-zinc-300">
+                        {service.category || "Bez kategorii"}
+                      </div>
+                      <div className="whitespace-nowrap text-sm text-zinc-600 dark:text-zinc-300">
+                        {service.durationMin} min
+                      </div>
+                      <div className="whitespace-nowrap text-sm font-medium">
+                        {formatPLNFromGrosze(service.price)}
+                      </div>
+                      <div className="flex min-w-0 flex-wrap gap-1.5">
+                        {service.suggestedProducts.length === 0 ? (
+                          <span className="text-sm text-zinc-400">—</span>
+                        ) : (
+                          <>
+                            {service.suggestedProducts.slice(0, 2).map((suggestion) => (
+                              <span
+                                key={suggestion.id}
+                                className="max-w-40 truncate rounded-full border bg-zinc-50 px-2.5 py-1 text-xs dark:bg-zinc-900"
+                                title={`${suggestion.product.name} • ${suggestion.quantity} ${suggestion.product.unit}`}
+                              >
+                                {suggestion.product.name}
+                              </span>
+                            ))}
+                            {service.suggestedProducts.length > 2 ? (
+                              <span className="rounded-full border bg-zinc-50 px-2.5 py-1 text-xs dark:bg-zinc-900">
+                                +{service.suggestedProducts.length - 2}
+                              </span>
+                            ) : null}
+                          </>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <Link
+                          href={`/admin/services/${service.id}`}
+                          className="inline-flex h-9 items-center justify-center rounded-xl border border-zinc-200 px-3 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                        >
+                          Otwórz usługę
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );
