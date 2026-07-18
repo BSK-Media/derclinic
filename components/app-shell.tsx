@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React from "react";
+import { createPortal } from "react-dom";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth-provider";
@@ -222,6 +223,8 @@ function MobileNav() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [open, setOpen] = React.useState(false);
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
 
   // Zamknij menu po zmianie strony
   React.useEffect(() => {
@@ -266,13 +269,15 @@ function MobileNav() {
         </span>
       </button>
 
-      {open ? (
-        <div className="fixed inset-0 z-50">
+      {open && mounted
+        ? createPortal(
+        <div className="fixed inset-0 z-[100] lg:hidden">
           <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/50"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute left-0 top-0 flex h-full w-[300px] max-w-[85vw] flex-col border-r border-white/70 bg-white p-3 shadow-2xl dark:border-white/10 dark:bg-[#0b1220]">
+          <div className="absolute bottom-0 left-0 top-0 flex w-[300px] max-w-[85vw] animate-[mobilenav_0.2s_ease-out] flex-col overflow-y-auto border-r border-slate-200 bg-white p-3 shadow-2xl dark:border-white/10 dark:bg-[#0b1220]">
+            <style>{`@keyframes mobilenav { from { transform: translateX(-100%); } to { transform: translateX(0); } }`}</style>
             <div className="flex items-center justify-between">
               <LogoBlock />
               <button
@@ -322,8 +327,10 @@ function MobileNav() {
               </button>
             </div>
           </div>
-        </div>
-      ) : null}
+        </div>,
+        document.body,
+      )
+      : null}
     </div>
   );
 }
