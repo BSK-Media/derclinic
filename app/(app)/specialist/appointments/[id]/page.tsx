@@ -38,6 +38,13 @@ function toLocalInput(d: string | Date | null | undefined) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function formatLocalDateTime(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!match) return "Wybierz datę i godzinę";
+  const [, year, month, day, hour, minute] = match;
+  return `${day}.${month}.${year}, ${hour}:${minute}`;
+}
+
 export default function SpecialistAppointmentDetail() {
   const params = useParams<{ id: string }>();
   const id = params.id;
@@ -170,11 +177,15 @@ export default function SpecialistAppointmentDetail() {
           <div className="min-w-0 space-y-2">
             <Label>Rozpoczęcie zabiegu</Label>
             <div className="relative h-10 w-full max-w-full overflow-hidden rounded-xl border border-zinc-200 bg-white focus-within:ring-2 focus-within:ring-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:focus-within:ring-zinc-700 sm:hidden">
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center px-3 text-center text-sm">
+                {formatLocalDateTime(startsAt)}
+              </span>
               <input
                 type="datetime-local"
                 value={startsAt}
                 onChange={(e) => setStartsAt(e.target.value)}
-                className="absolute inset-0 block h-full min-w-0 max-w-full appearance-none bg-transparent px-3 text-sm outline-none"
+                aria-label="Rozpoczęcie zabiegu"
+                className="absolute inset-0 block h-full min-w-0 max-w-full cursor-pointer opacity-0"
                 style={{ width: "100%", WebkitAppearance: "none" }}
               />
             </div>
@@ -188,11 +199,15 @@ export default function SpecialistAppointmentDetail() {
           <div className="min-w-0 space-y-2">
             <Label>Zakończenie zabiegu</Label>
             <div className="relative h-10 w-full max-w-full overflow-hidden rounded-xl border border-zinc-200 bg-white focus-within:ring-2 focus-within:ring-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:focus-within:ring-zinc-700 sm:hidden">
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center px-3 text-center text-sm">
+                {formatLocalDateTime(endsAt)}
+              </span>
               <input
                 type="datetime-local"
                 value={endsAt}
                 onChange={(e) => setEndsAt(e.target.value)}
-                className="absolute inset-0 block h-full min-w-0 max-w-full appearance-none bg-transparent px-3 text-sm outline-none"
+                aria-label="Zakończenie zabiegu"
+                className="absolute inset-0 block h-full min-w-0 max-w-full cursor-pointer opacity-0"
                 style={{ width: "100%", WebkitAppearance: "none" }}
               />
             </div>
