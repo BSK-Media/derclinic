@@ -22,10 +22,30 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const appointment = await prisma.appointment.findUnique({
     where: { id: params.id },
-    select: { id: true, deletedAt: true },
+    select: {
+      id: true,
+      deletedAt: true,
+      priceFinal: true,
+      priceEstimate: true,
+      service: { select: { price: true } },
+      payments: { select: { amount: true } },
+    },
   });
   if (!appointment || appointment.deletedAt) {
     return NextResponse.json({ ok: false, message: "Nie znaleziono wizyty" }, { status: 404 });
+  }
+
+  const total = appointment.priceFinal ?? appointment.service?.price ?? appointment.priceEstimate ?? 0;
+  const paid = appointment.payments.reduce((sum, payment) => sum + payment.amount, 0);
+  const remaining = Math.max(0, total - paid);
+  if (remaining <= 0) {
+    return NextResponse.json({ ok: false, message: "Wizyta jest już opłacona" }, { status: 400 });
+  }
+  if (parsed.data.amount > remaining) {
+    return NextResponse.json(
+      { ok: false, message: "Kwota przekracza pozostałą należność" },
+      { status: 400 },
+    );
   }
 
   const p = await prisma.payment.create({
