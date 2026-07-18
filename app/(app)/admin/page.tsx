@@ -27,6 +27,97 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 type Period = "30d" | "7d" | "month" | "year";
 
+type InventoryStatusRow = {
+  productId: string;
+  name: string;
+  unit: string;
+  used30: number;
+  stock: number;
+  wosWeeks: number;
+  coverageDays: number;
+  coveragePercent: number;
+};
+
+const UNIT_LABELS: Record<string, string> = {
+  UNIT: "szt.",
+  ML: "ml",
+  MG: "mg",
+  G: "g",
+  AMPULE: "amp.",
+  BOTOX_UNIT: "j. botoksu",
+};
+
+const quantityFormatter = new Intl.NumberFormat("pl-PL", {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
+
+const wosFormatter = new Intl.NumberFormat("pl-PL", {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
+function InventoryProductsTable({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: InventoryStatusRow[];
+}) {
+  return (
+    <div>
+      <div className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-200">
+        {title}
+      </div>
+      <div className="overflow-x-auto rounded-2xl border border-white/60 bg-white/60 dark:border-white/10 dark:bg-white/5">
+        <Table className="min-w-[900px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="min-w-64">Nazwa produktu</TableHead>
+              <TableHead className="min-w-52">Zużyte przez ostatnie 30 dni</TableHead>
+              <TableHead className="min-w-44">Stan magazynowy</TableHead>
+              <TableHead className="min-w-28">WOS</TableHead>
+              <TableHead className="min-w-64">Pokrycie na kolejne 30 dni</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-slate-500">
+                  Brak potwierdzonych zużyć z ostatnich 30 dni.
+                </TableCell>
+              </TableRow>
+            ) : null}
+            {rows.map((row) => (
+              <TableRow key={row.productId}>
+                <TableCell className="font-medium">{row.name}</TableCell>
+                <TableCell>
+                  {quantityFormatter.format(row.used30)} {UNIT_LABELS[row.unit] ?? row.unit}
+                </TableCell>
+                <TableCell>
+                  {quantityFormatter.format(row.stock)} {UNIT_LABELS[row.unit] ?? row.unit}
+                </TableCell>
+                <TableCell>{wosFormatter.format(row.wosWeeks)} tyg.</TableCell>
+                <TableCell>
+                  <div
+                    className="h-2.5 w-full rounded-full bg-slate-200 dark:bg-white/10"
+                    title={`Zapas na około ${quantityFormatter.format(row.coverageDays)} dni`}
+                  >
+                    <div
+                      className="h-2.5 rounded-full bg-emerald-500 transition-[width]"
+                      style={{ width: `${row.coveragePercent}%` }}
+                    />
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
 function StatCard({
   title,
   value,
@@ -89,7 +180,8 @@ export default function AdminDashboard() {
   const procedures: { name: string; volume: number; revenue: number }[] = dash?.topServices ?? [];
   const upcoming: { id: string; patient: string; time: string; procedure: string }[] =
     dash?.upcoming ?? [];
-  const stock: { name: string; share: number; percent: number }[] = dash?.stockStatus ?? [];
+  const mostUsedProducts: InventoryStatusRow[] = dash?.mostUsedProducts ?? [];
+  const lowStockProducts: InventoryStatusRow[] = dash?.lowStockProducts ?? [];
 
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
@@ -357,39 +449,12 @@ export default function AdminDashboard() {
 
       <div className="rounded-2xl border border-white/60 bg-white/80 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55">
         <div className="text-base font-semibold">Status Magazynu Preparatów</div>
-        <div className="mt-4 overflow-hidden rounded-2xl border border-white/60 bg-white/60 dark:border-white/10 dark:bg-white/5">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Top usualized items</TableHead>
-                <TableHead>Preparatów</TableHead>
-                <TableHead>Stock</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {stock.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-slate-500">
-                    Brak zużyć z ostatnich 30 dni.
-                  </TableCell>
-                </TableRow>
-              )}
-              {stock.map((r) => (
-                <TableRow key={r.name}>
-                  <TableCell className="font-medium">{r.name}</TableCell>
-                  <TableCell>{r.share}%</TableCell>
-                  <TableCell>
-                    <div className="h-2.5 w-full rounded-full bg-slate-200 dark:bg-white/10">
-                      <div
-                        className="h-2.5 rounded-full bg-emerald-500"
-                        style={{ width: `${r.percent}%` }}
-                      />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <div className="mt-5 space-y-7">
+          <InventoryProductsTable
+            title="Najczęściej używane produkty"
+            rows={mostUsedProducts}
+          />
+          <InventoryProductsTable title="Produkty z niskim stanem" rows={lowStockProducts} />
         </div>
       </div>
     </div>
