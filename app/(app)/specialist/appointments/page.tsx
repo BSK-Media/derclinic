@@ -231,11 +231,11 @@ export default function SpecialistAppointmentsPage({
                     <th className="p-3">Czas</th>
                     <th className="p-3">Pacjent</th>
                     <th className="p-3">Usługa</th>
-                    <th className="p-3">Notatka</th>
-                    <th className="p-3">Zużyte preparaty</th>
+                    <th className="hidden p-3 sm:table-cell">Notatka</th>
+                    <th className="hidden p-3 sm:table-cell">Zużyte preparaty</th>
                     <th className="p-3">Status</th>
-                    <th className="p-3">Zmień status</th>
-                    <th className="p-3"></th>
+                    <th className="hidden p-3 sm:table-cell">Zmień status</th>
+                    <th className="hidden p-3 sm:table-cell"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -262,8 +262,13 @@ export default function SpecialistAppointmentsPage({
                     return (
                       <tr
                         key={appointment.id}
+                        onClick={() => {
+                          if (window.matchMedia("(max-width: 639px)").matches) {
+                            router.push(`/specialist/appointments/${appointment.id}`);
+                          }
+                        }}
                         className={
-                          "border-t " +
+                          "cursor-pointer border-t sm:cursor-default " +
                           (isHistorical
                             ? "bg-zinc-50 hover:bg-zinc-100 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
                             : "hover:bg-zinc-50 dark:hover:bg-zinc-900/40")
@@ -282,10 +287,10 @@ export default function SpecialistAppointmentsPage({
                         <td className="p-3">
                           {appointment.customServiceName || appointment.service.name}
                         </td>
-                        <td className="max-w-56 p-3 text-zinc-500">
+                        <td className="hidden max-w-56 p-3 text-zinc-500 sm:table-cell">
                           <span className="line-clamp-2">{appointment.note?.trim() || "—"}</span>
                         </td>
-                        <td className="max-w-64 p-3 text-zinc-500">
+                        <td className="hidden max-w-64 p-3 text-zinc-500 sm:table-cell">
                           <span className="line-clamp-2">
                             {formatPreparations(appointment.consumptions) ?? "—"}
                           </span>
@@ -313,7 +318,7 @@ export default function SpecialistAppointmentsPage({
                             </span>
                           ) : null}
                         </td>
-                        <td className="min-w-52 p-3">
+                        <td className="hidden min-w-52 p-3 sm:table-cell">
                           <Select
                             value={effectiveStatus ?? appointment.status}
                             onValueChange={(nextStatus) => updateStatus(appointment.id, nextStatus)}
@@ -340,7 +345,7 @@ export default function SpecialistAppointmentsPage({
                             </SelectContent>
                           </Select>
                         </td>
-                        <td className="p-3 text-right">
+                        <td className="hidden p-3 text-right sm:table-cell">
                           <Link
                             className="underline"
                             href={`/specialist/appointments/${appointment.id}`}
