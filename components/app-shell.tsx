@@ -6,6 +6,7 @@ import React from "react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth-provider";
+import { GlobalSearch } from "@/components/global-search";
 import {
   firstAllowedSidebarHref,
   hasSidebarPermission,
@@ -276,16 +277,7 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-white/60 bg-white/70 px-4 py-3 backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 lg:px-6">
       <div className="flex items-center gap-4">
-        <div className="relative flex-1">
-          <div className="flex h-11 items-center gap-3 rounded-2xl border border-white/60 bg-white/70 px-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55">
-            <span className="text-slate-400 dark:text-slate-500">⌕</span>
-            <input
-              aria-label="Search"
-              placeholder="Search..."
-              className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
-            />
-          </div>
-        </div>
+        <GlobalSearch />
 
         <div className="flex items-center gap-3">
           <div ref={notificationsRef} className="relative">
