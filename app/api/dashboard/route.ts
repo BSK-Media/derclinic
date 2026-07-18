@@ -147,6 +147,12 @@ export async function GET(req: Request) {
 
   const pct = (cur: number, prev: number) =>
     prev > 0 ? Math.round(((cur - prev) / prev) * 100) : null;
+  const todayRevenueDeltaPct =
+    yesterdayRevenue > 0
+      ? Math.round(((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100)
+      : todayRevenue > 0
+        ? 100
+        : 0;
 
   // ── Alerty magazynowe: preparaty blisko terminu (≤60 dni) ─────────────
   const expiringProducts = new Set(expiringLots.map((l: { productId: string }) => l.productId));
@@ -283,7 +289,7 @@ export async function GET(req: Request) {
       todayVisits: todayCount,
       todayVisitsDeltaPct: pct(todayCount, yesterdayCount),
       todayRevenue: isAdminUser ? todayRevenue : 0,
-      todayRevenueDeltaPct: isAdminUser ? pct(todayRevenue, yesterdayRevenue) : null,
+      todayRevenueDeltaPct: isAdminUser ? todayRevenueDeltaPct : null,
       newPatients: newPatientsToday,
       newPatientsDelta: newPatientsToday - newPatientsYesterday,
       inventoryAlerts,
