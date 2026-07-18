@@ -6,12 +6,14 @@ import useSWR from "swr";
 import {
   ArrowDown,
   ArrowLeft,
+  ArrowRight,
   ArrowRightLeft,
   ArrowUp,
   ChevronsUpDown,
   Minus,
   PackagePlus,
   Plus,
+  SlidersHorizontal,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -63,6 +65,7 @@ type InventoryProduct = {
 type SortKey = "sku" | "name" | "manufacturer" | "ean" | "catalogCategory" | "quantity" | "purchasePrice" | "salePrice" | "expiryDate" | "status";
 type SortDirection = "asc" | "desc";
 type AdjustmentMode = "add" | "remove";
+type MobileProductFilter = "all" | "low" | "missing" | "expiring";
 
 function money(value: number | null | undefined) {
   if (value == null) return "—";
@@ -157,6 +160,9 @@ export default function WarehouseDetailsPage({ params }: { params: { id: string 
   const [sortKey, setSortKey] = React.useState<SortKey>("name");
   const [sortDirection, setSortDirection] = React.useState<SortDirection>("asc");
   const [addProductOpen, setAddProductOpen] = React.useState(false);
+  const [mobileFilter, setMobileFilter] = React.useState<MobileProductFilter>("all");
+  const [mobileManufacturer, setMobileManufacturer] = React.useState("Wszystkie");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
 
   const [adjustOpen, setAdjustOpen] = React.useState(false);
   const [adjustMode, setAdjustMode] = React.useState<AdjustmentMode>("add");
@@ -198,6 +204,38 @@ export default function WarehouseDetailsPage({ params }: { params: { id: string 
       return sortDirection === "asc" ? result : -result;
     });
   }, [products, query, sortDirection, sortKey]);
+
+  const manufacturers = React.useMemo(
+    () => ["Wszystkie", ...Array.from(new Set(products.map((product) => product.manufacturer).filter(Boolean) as string[]))],
+    [products],
+  );
+
+  const mobileBaseProducts = React.useMemo(
+    () => visibleProducts.filter((product) =>
+      mobileManufacturer === "Wszystkie" || product.manufacturer === mobileManufacturer
+    ),
+    [mobileManufacturer, visibleProducts],
+  );
+
+  const mobileProducts = React.useMemo(() => {
+    if (mobileFilter === "low") {
+      return mobileBaseProducts.filter((product) => product.status === "Niski stan");
+    }
+    if (mobileFilter === "missing") {
+      return mobileBaseProducts.filter((product) => product.status === "Brak");
+    }
+    if (mobileFilter === "expiring") {
+      return mobileBaseProducts.filter((product) => product.isShortExpiry);
+    }
+    return mobileBaseProducts;
+  }, [mobileBaseProducts, mobileFilter]);
+
+  const mobileCounts = React.useMemo(() => ({
+    all: mobileBaseProducts.length,
+    low: mobileBaseProducts.filter((product) => product.status === "Niski stan").length,
+    missing: mobileBaseProducts.filter((product) => product.status === "Brak").length,
+    expiring: mobileBaseProducts.filter((product) => product.isShortExpiry).length,
+  }), [mobileBaseProducts]);
 
   function handleSort(column: SortKey) {
     if (column === sortKey) {
@@ -384,7 +422,206 @@ export default function WarehouseDetailsPage({ params }: { params: { id: string 
         <StatCard title="Produkty z krótkim terminem" value={kpis?.shortExpiryCount ?? 0} hint="termin krótszy niż 6 miesięcy" />
       </div>
 
-      <Card className="border-white/60 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55">
+      <section className="space-y-4 sm:hidden">
+        <div className="flex items-stretch gap-2">
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Szukaj produktu, SKU lub firmy..."
+            className="min-w-0 flex-1 rounded-xl"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            className="relative h-10 w-11 shrink-0 px-0"
+            onClick={() => setMobileFiltersOpen((open) => !open)}
+            aria-label="Pokaż filtry produktów"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            {mobileManufacturer !== "Wszystkie" ? (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-semibold text-white">
+                1
+              </span>
+            ) : null}
+          </Button>
+        </div>
+
+        {mobileFiltersOpen ? (
+          <Card className="space-y-4 border-slate-200 bg-white p-4 shadow-lg dark:border-white/10 dark:bg-zinc-950">
+            <div className="space-y-2">
+              <Label>Firma / producent</Label>
+              <Select value={mobileManufacturer} onValueChange={setMobileManufacturer}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-2rem)] !bg-white dark:!bg-zinc-950">
+                  {manufacturers.map((item) => (
+                    <SelectItem
+                      key={item}
+                      value={item}
+                      className="min-w-0 whitespace-normal break-words [&>span]:whitespace-normal [&>span]:break-words"
+                    >
+                      {item === "Wszystkie" ? "Wszystkie firmy" : item}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Sortowanie</Label>
+              <Select
+                value={`${sortKey}:${sortDirection}`}
+                onValueChange={(value) => {
+                  const [key, direction] = value.split(":") as [SortKey, SortDirection];
+                  setSortKey(key);
+                  setSortDirection(direction);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-2rem)] !bg-white dark:!bg-zinc-950">
+                  <SelectItem value="name:asc">Nazwa A–Z</SelectItem>
+                  <SelectItem value="name:desc">Nazwa Z–A</SelectItem>
+                  <SelectItem value="quantity:asc">Najmniejszy stan</SelectItem>
+                  <SelectItem value="quantity:desc">Największy stan</SelectItem>
+                  <SelectItem value="expiryDate:asc">Najkrótszy termin ważności</SelectItem>
+                  <SelectItem value="salePrice:asc">Najniższa cena</SelectItem>
+                  <SelectItem value="salePrice:desc">Najwyższa cena</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setMobileManufacturer("Wszystkie")}
+                disabled={mobileManufacturer === "Wszystkie"}
+              >
+                Wyczyść filtr
+              </Button>
+              <Button type="button" size="sm" onClick={() => setMobileFiltersOpen(false)}>
+                Pokaż wyniki
+              </Button>
+            </div>
+          </Card>
+        ) : null}
+
+        <div className="grid grid-cols-4 gap-2">
+          {([
+            ["all", "Wszystkie", mobileCounts.all],
+            ["low", "Niski stan", mobileCounts.low],
+            ["missing", "Brak", mobileCounts.missing],
+            ["expiring", "Wygasa wkrótce", mobileCounts.expiring],
+          ] as const).map(([value, label, count]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setMobileFilter(value)}
+              className={
+                "min-w-0 rounded-xl border px-1.5 py-2 text-center transition-colors " +
+                (mobileFilter === value
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200"
+                  : "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-zinc-950 dark:text-slate-300")
+              }
+            >
+              <span className="block text-[11px] font-medium leading-tight">{label}</span>
+              <span className="mt-1 block text-[10px] opacity-70">{count}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-slate-900 dark:text-white">Lista produktów</h2>
+            <div className="mt-0.5 text-xs text-slate-500">{mobileProducts.length} produktów</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setSortKey("name");
+              setSortDirection((direction) => direction === "asc" ? "desc" : "asc");
+            }}
+            className="text-xs font-medium text-slate-500 dark:text-slate-400"
+          >
+            Nazwa {sortKey === "name" && sortDirection === "desc" ? "Z–A" : "A–Z"}
+          </button>
+        </div>
+
+        {mobileProducts.length === 0 ? (
+          <Card className="p-6 text-center text-sm text-slate-500">
+            {query ? "Brak produktów pasujących do wyszukiwania." : "Ten magazyn nie ma produktów spełniających wybrane filtry."}
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {mobileProducts.map((product) => (
+              <Link
+                key={product.productId}
+                href={`/admin/products/${product.productId}`}
+                className="block overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-colors active:bg-slate-50 dark:border-white/10 dark:bg-zinc-950 dark:active:bg-zinc-900"
+              >
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="break-words font-semibold leading-5 text-slate-900 dark:text-white">
+                      {product.name}
+                    </div>
+                    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
+                      <span className="max-w-full break-words">{product.manufacturer ?? "Brak firmy"}</span>
+                      <span className="text-emerald-600">•</span>
+                      <span>SKU: {product.sku}</span>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-start gap-2">
+                    <div className="text-right">
+                      <div className={
+                        "rounded-lg px-2 py-1 text-[11px] font-semibold " +
+                        (product.status === "Brak"
+                          ? "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-200"
+                          : product.status === "Niski stan"
+                            ? "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200"
+                            : "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200")
+                      }>
+                        {product.status === "Brak" ? "Brak" : `${quantity(product.quantity)} szt.`}
+                      </div>
+                      {product.status === "Niski stan" ? (
+                        <div className="mt-1 text-[10px] font-medium text-amber-600 dark:text-amber-300">
+                          Niski stan
+                        </div>
+                      ) : null}
+                    </div>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full border border-emerald-300 text-emerald-700 dark:border-emerald-500/40 dark:text-emerald-300">
+                      <ArrowRight className="h-4 w-4" />
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-slate-100 pt-3 dark:border-white/10">
+                  <div className="min-w-0">
+                    <div className="text-[10px] text-slate-400">Cena sprzedaży</div>
+                    <div className="truncate text-xs font-semibold text-slate-800 dark:text-slate-100">
+                      {money(product.salePrice)}
+                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[10px] text-slate-400">Termin ważności</div>
+                    <div className="truncate text-xs font-semibold text-slate-800 dark:text-slate-100">
+                      {date(product.expiryDate)}
+                    </div>
+                  </div>
+                  <div className="col-span-2 flex items-center justify-end">
+                    <span className="rounded-lg bg-slate-50 px-2 py-1 text-[10px] text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                      WOS: {product.coverageDays == null ? "—" : `${quantity(product.coverageDays / 7)} tyg.`}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <Card className="hidden border-white/60 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 sm:block">
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-xl">Lista produktów</CardTitle>
