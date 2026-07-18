@@ -218,7 +218,7 @@ function PhotoSlot({
       captureInputRef.current.click();
       return;
     }
-    if (navigator.mediaDevices?.getUserMedia) {
+    if (typeof navigator.mediaDevices?.getUserMedia === "function") {
       setCameraOpen(true);
     } else if (captureInputRef.current) {
       captureInputRef.current.click();
