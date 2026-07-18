@@ -32,7 +32,10 @@ const TIME_FORMATTER = new Intl.DateTimeFormat("pl-PL", {
   minute: "2-digit",
 });
 
-const MarkReadSchema = z.object({ notificationId: z.string().min(1).max(200) });
+const MarkReadSchema = z.object({
+  notificationId: z.string().min(1).max(200),
+  read: z.boolean().optional().default(true),
+});
 
 function serviceName(appointment: { customServiceName: string | null; service: { name: string } }) {
   return appointment.customServiceName || appointment.service.name;
@@ -219,19 +222,30 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
   }
 
-  const existing = await prisma.auditLog.findFirst({
-    where: {
-      actorId: user!.id,
-      entity: "NotificationRead",
-      entityId: parsed.data.notificationId,
-    },
-    select: { id: true },
-  });
-  if (!existing) {
-    await prisma.auditLog.create({
-      data: {
+  if (parsed.data.read) {
+    const existing = await prisma.auditLog.findFirst({
+      where: {
         actorId: user!.id,
-        action: "READ",
+        entity: "NotificationRead",
+        entityId: parsed.data.notificationId,
+      },
+      select: { id: true },
+    });
+    if (!existing) {
+      await prisma.auditLog.create({
+        data: {
+          actorId: user!.id,
+          action: "READ",
+          entity: "NotificationRead",
+          entityId: parsed.data.notificationId,
+        },
+      });
+    }
+  } else {
+    // Ponowne oznaczenie jako nieprzeczytane — usuwamy wpis o odczycie
+    await prisma.auditLog.deleteMany({
+      where: {
+        actorId: user!.id,
         entity: "NotificationRead",
         entityId: parsed.data.notificationId,
       },
