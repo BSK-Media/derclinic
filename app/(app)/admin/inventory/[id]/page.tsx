@@ -410,6 +410,12 @@ export default function WarehouseDetailsPage({ params }: { params: { id: string 
                   <SortableHead label="Cena zakupu" column="purchasePrice" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
                   <SortableHead label="Cena sprzedaży" column="salePrice" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
                   <SortableHead label="Termin ważności" column="expiryDate" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
+                  <TableHead className="min-w-52 py-2">
+                    <span className="block">WOS</span>
+                    <span className="mt-0.5 block text-[10px] font-normal leading-tight text-slate-400 dark:text-slate-500">
+                      Przewidywany czas wystarczalności
+                    </span>
+                  </TableHead>
                   <SortableHead label="Status" column="status" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
                   <TableHead className="text-right">Akcje</TableHead>
                 </TableRow>
@@ -428,13 +434,15 @@ export default function WarehouseDetailsPage({ params }: { params: { id: string 
                     <TableCell className="min-w-44">{product.catalogCategory ?? "—"}</TableCell>
                     <TableCell className="whitespace-nowrap">
                       <div className="font-medium">{quantity(product.quantity)}</div>
-                      {product.weeklyUsage > 0 ? <div className="text-[11px] text-slate-400">WOS: {quantity(product.weeklyUsage)}/tydz.</div> : null}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">{money(product.purchasePrice)}</TableCell>
                     <TableCell className="whitespace-nowrap">{money(product.salePrice)}</TableCell>
                     <TableCell className="whitespace-nowrap">
                       <div>{date(product.expiryDate)}</div>
                       {product.lotsCount > 1 ? <div className="text-[11px] text-slate-400">najbliższy z {product.lotsCount} terminów</div> : null}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {product.coverageDays == null ? "—" : `${quantity(product.coverageDays / 7)} tyg.`}
                     </TableCell>
                     <TableCell><StatusBadge status={product.status} /></TableCell>
                     <TableCell>
