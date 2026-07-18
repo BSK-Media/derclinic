@@ -48,6 +48,7 @@ export default function SpecialistDetailPage() {
   const [to, setTo] = React.useState(() => toDateInput(now));
   const customRangeInvalid = range === "custom" && (!from || !to || from > to);
   const { user } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
 
   const overviewQuery = React.useMemo(() => {
     const params = new URLSearchParams({ range });
@@ -179,7 +180,7 @@ export default function SpecialistDetailPage() {
       ) : null}
 
       {/* Statystyki (z wizyt zakończonych) */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className={"grid gap-4 md:grid-cols-2 " + (isAdmin ? "xl:grid-cols-5" : "xl:grid-cols-2")}>
         <Card className="p-4">
           <div className="text-sm text-slate-500">Wizyty zakończone</div>
           <div className="mt-2 text-3xl font-semibold">{stats?.appointmentsCompleted ?? "—"}</div>
@@ -187,6 +188,8 @@ export default function SpecialistDetailPage() {
             wszystkie w okresie: {stats?.appointmentsTotal ?? "—"}
           </div>
         </Card>
+        {isAdmin ? (
+        <>
         <Card className="p-4">
           <div className="text-sm text-slate-500">Przychód dla kliniki</div>
           <div className="mt-2 text-3xl font-semibold">
@@ -215,6 +218,8 @@ export default function SpecialistDetailPage() {
           </div>
           <div className="mt-1 text-xs text-slate-500">przychód − materiały − wynagrodzenie</div>
         </Card>
+        </>
+        ) : null}
       </div>
 
       {/* Historia wizyt */}
@@ -222,9 +227,9 @@ export default function SpecialistDetailPage() {
         <div className="border-b p-4">
           <div className="font-medium">Historia wizyt</div>
           <div className="mt-1 text-xs text-slate-500">
-            Kwoty: przychód (cena wizyty), materiały (koszt zakupu zużytych produktów), wypłata =
-            (przychód − materiały) × procent pracownika. Do statystyk i wypłaty liczą się tylko
-            wizyty zakończone i zaakceptowane.
+            {isAdmin
+              ? "Kwoty: przychód (cena wizyty), materiały (koszt zakupu zużytych produktów), wypłata = (przychód − materiały) × procent pracownika. Do statystyk i wypłaty liczą się tylko wizyty zakończone i zaakceptowane."
+              : "Do statystyk liczą się tylko wizyty zakończone i zaakceptowane."}
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -235,24 +240,28 @@ export default function SpecialistDetailPage() {
                 <th className="p-3">Pacjent</th>
                 <th className="p-3">Zabieg</th>
                 <th className="p-3">Status</th>
-                <th className="p-3 text-right">Przychód</th>
-                <th className="p-3 text-right">Materiały</th>
-                <th className="p-3 text-right">Baza (przychód − materiały)</th>
-                <th className="p-3 text-right">Wypłata</th>
+                {isAdmin ? (
+                  <>
+                    <th className="p-3 text-right">Przychód</th>
+                    <th className="p-3 text-right">Materiały</th>
+                    <th className="p-3 text-right">Baza (przychód − materiały)</th>
+                    <th className="p-3 text-right">Wypłata</th>
+                  </>
+                ) : null}
                 <th className="w-32 p-3 text-right">Akcje</th>
               </tr>
             </thead>
             <tbody>
               {isLoading && (
                 <tr>
-                  <td className="p-4 text-slate-500" colSpan={9}>
+                  <td className="p-4 text-slate-500" colSpan={isAdmin ? 9 : 5}>
                     Ładowanie...
                   </td>
                 </tr>
               )}
               {!isLoading && appointments.length === 0 && (
                 <tr>
-                  <td className="p-4 text-slate-500" colSpan={9}>
+                  <td className="p-4 text-slate-500" colSpan={isAdmin ? 9 : 5}>
                     Brak wizyt w wybranym okresie.
                   </td>
                 </tr>
@@ -283,14 +292,20 @@ export default function SpecialistDetailPage() {
                       <div className="mt-1 text-xs text-red-600">odrzucona</div>
                     ) : null}
                   </td>
-                  <td className="p-3 text-right tabular-nums">{formatPLNFromGrosze(a.revenue)}</td>
-                  <td className="p-3 text-right tabular-nums">
-                    {formatPLNFromGrosze(a.materialCost)}
-                  </td>
-                  <td className="p-3 text-right tabular-nums">{formatPLNFromGrosze(a.base)}</td>
-                  <td className="p-3 text-right font-medium tabular-nums">
-                    {formatPLNFromGrosze(a.payout)}
-                  </td>
+                  {isAdmin ? (
+                    <>
+                      <td className="p-3 text-right tabular-nums">
+                        {formatPLNFromGrosze(a.revenue)}
+                      </td>
+                      <td className="p-3 text-right tabular-nums">
+                        {formatPLNFromGrosze(a.materialCost)}
+                      </td>
+                      <td className="p-3 text-right tabular-nums">{formatPLNFromGrosze(a.base)}</td>
+                      <td className="p-3 text-right font-medium tabular-nums">
+                        {formatPLNFromGrosze(a.payout)}
+                      </td>
+                    </>
+                  ) : null}
                   <td className="p-3">
                     <div className="flex items-center justify-end gap-1">
                       {a.status === "COMPLETED" && a.approvalStatus === "PENDING" ? (
