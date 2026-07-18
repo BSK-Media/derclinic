@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { useTheme } from "next-themes";
-import { TrendingUp, UserPlus, AlertTriangle, Users, ChevronDown } from "lucide-react";
+import { TrendingUp, UserPlus, AlertTriangle, Users } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -321,9 +321,6 @@ export default function AdminDashboard() {
         <div className="rounded-2xl border border-white/60 bg-white/80 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55">
           <div className="flex items-center justify-between gap-3">
             <div className="text-base font-semibold">Najpopularniejsze Zabiegi</div>
-            <button className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10">
-              Zabiegów <ChevronDown className="h-4 w-4 text-slate-400" />
-            </button>
           </div>
 
           <div className="mt-4 overflow-hidden rounded-2xl border border-white/60 bg-white/60 dark:border-white/10 dark:bg-white/5">
