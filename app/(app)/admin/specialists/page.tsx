@@ -6,11 +6,13 @@ import { useAuth } from "@/components/auth-provider";
 import Link from "next/link";
 import useSWR from "swr";
 import { toast } from "sonner";
+import { ArrowRight, CalendarDays, Eye, EyeOff, MoreHorizontal, SlidersHorizontal } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { formatPLNFromGrosze } from "@/lib/money";
 
@@ -34,6 +36,9 @@ type Specialist = {
 };
 
 type FinancialRange = "today" | "7d" | "30d" | "month" | "custom";
+type MobileSpecialistFilter = "all" | "available" | "unavailable" | "hidden";
+type MobileSpecialistRole = "all" | "specialist" | "reception";
+type MobileSettlementSort = "revenue" | "payout" | "name";
 
 type FinancialRow = {
   specialistId: string;
@@ -48,7 +53,7 @@ type FinancialRow = {
   payout: number;
 };
 
-function Avatar({ name, avatarUrl }: { name: string; avatarUrl?: string | null }) {
+function Avatar({ name, avatarUrl, large = false }: { name: string; avatarUrl?: string | null; large?: boolean }) {
   const initials = name
     .split(/\s+/)
     .filter(Boolean)
@@ -57,11 +62,17 @@ function Avatar({ name, avatarUrl }: { name: string; avatarUrl?: string | null }
     .join("");
 
   if (avatarUrl) {
-    return <img src={avatarUrl} alt={name} className="h-12 w-12 rounded-2xl object-cover ring-1 ring-black/5" />;
+    return (
+      <img
+        src={avatarUrl}
+        alt={name}
+        className={`${large ? "h-16 w-16 rounded-full" : "h-12 w-12 rounded-2xl"} object-cover ring-1 ring-black/5`}
+      />
+    );
   }
 
   return (
-    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-sm font-semibold text-emerald-800 ring-1 ring-black/5">
+    <div className={`flex ${large ? "h-16 w-16 rounded-full text-lg" : "h-12 w-12 rounded-2xl text-sm"} items-center justify-center bg-emerald-100 font-semibold text-emerald-800 ring-1 ring-black/5`}>
       {initials}
     </div>
   );
@@ -78,6 +89,11 @@ export default function SpecialistsPage() {
     if (!isAdmin && activeTab === "settlements") setActiveTab("list");
   }, [isAdmin, activeTab]);
   const [editing, setEditing] = React.useState<Specialist | null>(null);
+  const [mobileQuery, setMobileQuery] = React.useState("");
+  const [mobileFilter, setMobileFilter] = React.useState<MobileSpecialistFilter>("all");
+  const [mobileRole, setMobileRole] = React.useState<MobileSpecialistRole>("all");
+  const [mobileSortDescending, setMobileSortDescending] = React.useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
 
   async function toggleField(id: string, patch: Partial<Pick<Specialist, "isVisible" | "isAvailable">>) {
     const res = await fetch(`/api/admin/specialists/${id}`, {
@@ -93,17 +109,42 @@ export default function SpecialistsPage() {
 
   const visibleCount = specialists.filter((s) => s.isVisible).length;
   const availableCount = specialists.filter((s) => s.isAvailable).length;
+  const unavailableCount = specialists.filter((s) => !s.isAvailable).length;
+  const hiddenCount = specialists.filter((s) => !s.isVisible).length;
+
+  const mobileSpecialists = React.useMemo(() => {
+    const normalizedQuery = mobileQuery.trim().toLocaleLowerCase("pl");
+    return specialists
+      .filter((specialist) => {
+        if (mobileFilter === "available" && !specialist.isAvailable) return false;
+        if (mobileFilter === "unavailable" && specialist.isAvailable) return false;
+        if (mobileFilter === "hidden" && specialist.isVisible) return false;
+        if (mobileRole === "specialist" && specialist.role === "RECEPTION") return false;
+        if (mobileRole === "reception" && specialist.role !== "RECEPTION") return false;
+        if (!normalizedQuery) return true;
+        return `${specialist.name} ${specialist.jobTitle ?? ""} ${specialist.specialization ?? ""}`
+          .toLocaleLowerCase("pl")
+          .includes(normalizedQuery);
+      })
+      .sort((first, second) => {
+        const result = first.name.localeCompare(second.name, "pl", { sensitivity: "base" });
+        return mobileSortDescending ? -result : result;
+      });
+  }, [mobileFilter, mobileQuery, mobileRole, mobileSortDescending, specialists]);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Specjaliści</h1>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+        <p className="mt-1 text-sm text-slate-500 sm:hidden">
+          {activeTab === "list" ? `${specialists.length} profili` : "Rozliczenia"}
+        </p>
+        <p className="mt-1 hidden text-sm text-slate-600 dark:text-slate-300 sm:block">
           Profile specjalistów i pracowników recepcji z gotowymi kontami logowania do panelu.
         </p>
       </div>
 
-      <div className="inline-flex flex-wrap rounded-2xl border border-white/60 bg-white/70 p-1 shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55">
+      <div className="grid w-full grid-cols-2 rounded-2xl border border-white/60 bg-white/70 p-1 shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55 sm:inline-flex sm:w-auto sm:flex-wrap">
         <button
           type="button"
           onClick={() => setActiveTab("list")}
@@ -114,7 +155,8 @@ export default function SpecialistsPage() {
               : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5")
           }
         >
-          Lista Specjalistów
+          <span className="sm:hidden">Lista specjalistów</span>
+          <span className="hidden sm:inline">Lista Specjalistów</span>
         </button>
         {isAdmin ? (
         <button
@@ -127,29 +169,192 @@ export default function SpecialistsPage() {
               : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5")
           }
         >
-          Rozliczenia Specjalistów
+          <span className="sm:hidden">Rozliczenia</span>
+          <span className="hidden sm:inline">Rozliczenia Specjalistów</span>
         </button>
         ) : null}
       </div>
 
       {activeTab === "list" || !isAdmin ? (
         <>
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card className="p-4">
-              <div className="text-sm text-slate-500">Łączna liczba profili</div>
-              <div className="mt-2 text-3xl font-semibold">{specialists.length}</div>
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            <Card className="p-3 sm:p-4">
+              <div className="text-xs leading-tight text-slate-500 sm:text-sm">Łączna liczba profili</div>
+              <div className="mt-2 text-2xl font-semibold sm:text-3xl">{specialists.length}</div>
             </Card>
-            <Card className="p-4">
-              <div className="text-sm text-slate-500">Widoczne profile</div>
-              <div className="mt-2 text-3xl font-semibold">{visibleCount}</div>
+            <Card className="p-3 sm:p-4">
+              <div className="text-xs leading-tight text-slate-500 sm:text-sm">Widoczne profile</div>
+              <div className="mt-2 text-2xl font-semibold sm:text-3xl">{visibleCount}</div>
             </Card>
-            <Card className="p-4">
-              <div className="text-sm text-slate-500">Aktualnie dostępni</div>
-              <div className="mt-2 text-3xl font-semibold">{availableCount}</div>
+            <Card className="p-3 sm:p-4">
+              <div className="text-xs leading-tight text-slate-500 sm:text-sm">Aktualnie dostępni</div>
+              <div className="mt-2 text-2xl font-semibold sm:text-3xl">{availableCount}</div>
             </Card>
           </div>
 
-          <Card className="overflow-hidden">
+          <section className="space-y-4 sm:hidden">
+            <div className="flex items-stretch gap-2">
+              <Input
+                value={mobileQuery}
+                onChange={(event) => setMobileQuery(event.target.value)}
+                placeholder="Szukaj specjalisty..."
+                className="min-w-0 flex-1 rounded-xl"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="relative h-10 w-11 shrink-0 px-0"
+                onClick={() => setMobileFiltersOpen((open) => !open)}
+                aria-label="Pokaż filtry specjalistów"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                {mobileRole !== "all" ? (
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-semibold text-white">
+                    1
+                  </span>
+                ) : null}
+              </Button>
+            </div>
+
+            {mobileFiltersOpen ? (
+              <Card className="space-y-4 border-slate-200 bg-white p-4 shadow-lg dark:border-white/10 dark:bg-zinc-950">
+                <div className="space-y-2">
+                  <Label>Typ profilu</Label>
+                  <Select value={mobileRole} onValueChange={(value) => setMobileRole(value as MobileSpecialistRole)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-2rem)] !bg-white dark:!bg-zinc-950">
+                      <SelectItem value="all">Wszystkie profile</SelectItem>
+                      <SelectItem value="specialist">Specjaliści</SelectItem>
+                      <SelectItem value="reception">Recepcja</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setMobileRole("all")}
+                    disabled={mobileRole === "all"}
+                  >
+                    Wyczyść filtr
+                  </Button>
+                  <Button type="button" size="sm" onClick={() => setMobileFiltersOpen(false)}>
+                    Pokaż wyniki
+                  </Button>
+                </div>
+              </Card>
+            ) : null}
+
+            <div className="grid grid-cols-4 gap-2">
+              {([
+                ["all", "Wszyscy", specialists.length],
+                ["available", "Dostępni", availableCount],
+                ["unavailable", "Niedostępni", unavailableCount],
+                ["hidden", "Ukryci", hiddenCount],
+              ] as const).map(([value, label, count]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setMobileFilter(value)}
+                  className={
+                    "min-w-0 rounded-xl border px-1.5 py-2 text-center transition-colors " +
+                    (mobileFilter === value
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200"
+                      : "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-zinc-950 dark:text-slate-300")
+                  }
+                >
+                  <span className="block text-[10px] font-medium leading-tight">{label}</span>
+                  <span className="mt-1 block text-[10px] opacity-70">{count}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between gap-3 px-1">
+              <div>
+                <h2 className="font-semibold">Lista specjalistów</h2>
+                <div className="mt-0.5 text-xs text-slate-500">{mobileSpecialists.length} profili</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileSortDescending((descending) => !descending)}
+                className="text-xs font-medium text-slate-500 dark:text-slate-400"
+              >
+                Nazwa {mobileSortDescending ? "Z–A" : "A–Z"}
+              </button>
+            </div>
+
+            {isLoading ? (
+              <Card className="p-5 text-sm text-slate-500">Ładowanie...</Card>
+            ) : mobileSpecialists.length === 0 ? (
+              <Card className="p-6 text-center text-sm text-slate-500">Brak pasujących specjalistów.</Card>
+            ) : (
+              <div className="space-y-3">
+                {mobileSpecialists.map((specialist) => (
+                  <Card key={specialist.id} className="overflow-hidden p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="shrink-0">
+                        <Avatar name={specialist.name} avatarUrl={specialist.avatarUrl} large />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          href={`/admin/specialists/${specialist.id}`}
+                          className="break-words font-semibold leading-5 text-slate-900 dark:text-white"
+                        >
+                          {specialist.name}
+                        </Link>
+                        <div className="mt-1 break-words text-sm leading-5 text-slate-500">
+                          {specialist.jobTitle || specialist.specialization || (specialist.role === "RECEPTION" ? "Recepcja" : "Specjalista")}
+                        </div>
+                        <Badge variant="secondary" className="mt-2">
+                          {specialist.role === "RECEPTION" ? "Recepcja" : "Specjalista"}
+                        </Badge>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditing(specialist)}
+                          aria-label={`Edytuj: ${specialist.name}`}
+                          className="flex h-8 w-8 items-center justify-center rounded-xl border text-slate-500"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </button>
+                        <Link
+                          href={`/admin/specialists/${specialist.id}`}
+                          aria-label={`Otwórz profil: ${specialist.name}`}
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-slate-900 dark:text-white"
+                        >
+                          <ArrowRight className="h-5 w-5" />
+                        </Link>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap justify-end gap-2 border-t pt-3">
+                      <span className={
+                        "rounded-lg px-2.5 py-1 text-xs font-medium " +
+                        (specialist.isVisible
+                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200"
+                          : "bg-slate-100 text-slate-600 dark:bg-white/5 dark:text-slate-300")
+                      }>
+                        {specialist.isVisible ? "Widoczny" : "Ukryty"}
+                      </span>
+                      <span className={
+                        "rounded-lg px-2.5 py-1 text-xs font-medium " +
+                        (specialist.isAvailable
+                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200"
+                          : "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200")
+                      }>
+                        {specialist.isAvailable ? "Dostępny" : "Niedostępny"}
+                      </span>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <Card className="hidden overflow-hidden sm:block">
             <div className="border-b p-4">
               <div className="font-medium">Lista Specjalistów</div>
               <div className="mt-1 text-xs text-slate-500">Każdy rekord ma utworzony login. Specjalista po zalogowaniu widzi własne wizyty w panelu specjalisty.</div>
@@ -259,6 +464,8 @@ function toDateInput(date: Date) {
 function SpecialistFinancialSettlements() {
   const now = React.useMemo(() => new Date(), []);
   const [range, setRange] = React.useState<FinancialRange>("30d");
+  const [hideZero, setHideZero] = React.useState(true);
+  const [mobileSort, setMobileSort] = React.useState<MobileSettlementSort>("revenue");
   const [from, setFrom] = React.useState(() =>
     toDateInput(new Date(now.getFullYear(), now.getMonth(), 1)),
   );
@@ -292,6 +499,16 @@ function SpecialistFinancialSettlements() {
       ),
     [rows],
   );
+  const mobileRows = React.useMemo(() => {
+    const filtered = hideZero
+      ? rows.filter((row) => row.revenue !== 0 || row.materialCost !== 0 || row.appointmentsCount !== 0 || row.payout !== 0)
+      : rows;
+    return [...filtered].sort((first, second) => {
+      if (mobileSort === "name") return first.name.localeCompare(second.name, "pl", { sensitivity: "base" });
+      if (mobileSort === "payout") return second.payout - first.payout;
+      return second.revenue - first.revenue;
+    });
+  }, [hideZero, mobileSort, rows]);
 
   const ranges: Array<{ key: FinancialRange; label: string }> = [
     { key: "today", label: "Dziś" },
@@ -303,6 +520,173 @@ function SpecialistFinancialSettlements() {
 
   return (
     <div className="space-y-4">
+      <section className="space-y-5 sm:hidden">
+        <div>
+          <div className="font-semibold">Zakres rozliczenia</div>
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+            {ranges.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setRange(item.key)}
+                aria-label={item.label}
+                className={
+                  "flex h-11 shrink-0 items-center justify-center rounded-xl border px-4 text-sm font-medium transition-colors " +
+                  (range === item.key
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200"
+                    : "border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-zinc-950 dark:text-slate-300")
+                }
+              >
+                {item.key === "custom" ? <CalendarDays className="h-4 w-4" /> : item.label}
+              </button>
+            ))}
+          </div>
+          <div className="mt-2 text-xs text-slate-500">Tylko zakończone i zaakceptowane wizyty.</div>
+
+          {range === "custom" ? (
+            <Card className="mt-3 grid grid-cols-2 gap-3 p-3">
+              <div>
+                <Label htmlFor="mobile-settlements-from" className="text-xs text-slate-500">Od</Label>
+                <Input
+                  id="mobile-settlements-from"
+                  type="date"
+                  value={from}
+                  onChange={(event) => setFrom(event.target.value)}
+                  className="mt-1 min-w-0"
+                />
+              </div>
+              <div>
+                <Label htmlFor="mobile-settlements-to" className="text-xs text-slate-500">Do</Label>
+                <Input
+                  id="mobile-settlements-to"
+                  type="date"
+                  value={to}
+                  onChange={(event) => setTo(event.target.value)}
+                  className="mt-1 min-w-0"
+                />
+              </div>
+            </Card>
+          ) : null}
+        </div>
+
+        <div>
+          <h2 className="font-semibold">Podsumowanie</h2>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <Card className="p-4">
+              <div className="text-xs text-slate-500">Przychód</div>
+              <div className="mt-1 break-words text-lg font-semibold tabular-nums">{formatPLNFromGrosze(totals.revenue)}</div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-xs text-slate-500">Koszt preparatów</div>
+              <div className="mt-1 break-words text-lg font-semibold tabular-nums">{formatPLNFromGrosze(totals.materialCost)}</div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-xs text-slate-500">Zabiegi</div>
+              <div className="mt-1 text-lg font-semibold tabular-nums">{totals.appointmentsCount}</div>
+            </Card>
+            <Card className="border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+              <div className="text-xs text-slate-500 dark:text-emerald-200/70">Wypłaty</div>
+              <div className={`mt-1 break-words text-lg font-semibold tabular-nums ${totals.payout < 0 ? "text-red-600 dark:text-red-300" : "text-emerald-700 dark:text-emerald-200"}`}>
+                {formatPLNFromGrosze(totals.payout)}
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">Rozliczenia specjalistów</h2>
+              <div className="mt-0.5 text-xs text-slate-500">{mobileRows.length} specjalistów</div>
+            </div>
+            <Select value={mobileSort} onValueChange={(value) => setMobileSort(value as MobileSettlementSort)}>
+              <SelectTrigger className="h-9 w-40 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="w-48 max-w-[calc(100vw-2rem)] !bg-white dark:!bg-zinc-950">
+                <SelectItem value="revenue">Najwyższy przychód</SelectItem>
+                <SelectItem value="payout">Najwyższa wypłata</SelectItem>
+                <SelectItem value="name">Nazwa A–Z</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setHideZero((hidden) => !hidden)}
+            className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200"
+          >
+            {hideZero ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {hideZero ? "Pokaż zerowe" : "Ukryj zerowe"}
+          </button>
+
+          {customRangeInvalid ? (
+            <Card className="border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
+              Wybierz poprawny zakres dat.
+            </Card>
+          ) : isLoading ? (
+            <Card className="p-5 text-sm text-slate-500">Ładowanie...</Card>
+          ) : error || data?.ok === false ? (
+            <Card className="border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
+              {data?.message || "Nie udało się pobrać rozliczeń."}
+            </Card>
+          ) : mobileRows.length === 0 ? (
+            <Card className="p-6 text-center text-sm text-slate-500">Brak rozliczeń dla wybranego zakresu.</Card>
+          ) : (
+            <div className="space-y-3">
+              {mobileRows.map((row) => (
+                <Card key={row.specialistId} className="overflow-hidden p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="shrink-0">
+                      <Avatar name={row.name} avatarUrl={row.avatarUrl} large />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <Link
+                        href={`/admin/specialists/${row.specialistId}`}
+                        className="break-words font-semibold leading-5 text-slate-900 dark:text-white"
+                      >
+                        {row.name}
+                      </Link>
+                      {row.jobTitle ? (
+                        <div className="mt-1 break-words text-sm leading-5 text-slate-500">{row.jobTitle}</div>
+                      ) : null}
+                    </div>
+                    <Link
+                      href={`/admin/specialists/${row.specialistId}`}
+                      aria-label={`Otwórz rozliczenia: ${row.name}`}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-900 dark:text-white"
+                    >
+                      <ArrowRight className="h-5 w-5" />
+                    </Link>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 overflow-hidden rounded-xl border text-xs">
+                    <div className="border-b border-r p-3">
+                      <div className="text-slate-500">Przychód kliniki</div>
+                      <div className="mt-1 break-words font-semibold tabular-nums">{formatPLNFromGrosze(row.revenue)}</div>
+                    </div>
+                    <div className="border-b p-3">
+                      <div className="text-slate-500">Preparaty</div>
+                      <div className="mt-1 break-words font-semibold tabular-nums">{formatPLNFromGrosze(row.materialCost)}</div>
+                    </div>
+                    <div className="border-r p-3">
+                      <div className="text-slate-500">Zabiegi</div>
+                      <div className="mt-1 font-semibold tabular-nums">{row.appointmentsCount}</div>
+                    </div>
+                    <div className="p-3">
+                      <div className={row.payout < 0 ? "text-red-500" : "text-emerald-600"}>Wypłata</div>
+                      <div className={`mt-1 break-words font-semibold tabular-nums ${row.payout < 0 ? "text-red-600 dark:text-red-300" : "text-emerald-700 dark:text-emerald-200"}`}>
+                        {formatPLNFromGrosze(row.payout)}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <div className="hidden space-y-4 sm:block">
       <Card className="p-4">
         <div className="font-medium">Zakres rozliczenia</div>
         <div className="mt-1 text-xs text-slate-500">
@@ -442,6 +826,7 @@ function SpecialistFinancialSettlements() {
           </table>
         </div>
       </Card>
+      </div>
     </div>
   );
 }
