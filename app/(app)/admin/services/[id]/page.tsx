@@ -112,8 +112,8 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
   const [savingSpecialist, setSavingSpecialist] = React.useState<string | null>(null);
   const [selectedProductId, setSelectedProductId] = React.useState("");
   const [quantity, setQuantity] = React.useState("1");
-  const [unit, setUnit] = React.useState("UNIT");
   const [savingProduct, setSavingProduct] = React.useState(false);
+  const selectedProduct = products.find((product) => product.id === selectedProductId);
 
   function beginEditing() {
     if (!service || !confirmField) return;
@@ -210,7 +210,7 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
       const response = await fetch(`/api/admin/services/${service.id}/suggestions`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ productId: selectedProductId, quantity: parsedQuantity, unit }),
+        body: JSON.stringify({ productId: selectedProductId, quantity: parsedQuantity }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result?.ok) {
@@ -411,8 +411,8 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
             >
               <span>
                 {suggestion.product.name} • {suggestion.quantity}{" "}
-                {UNIT_OPTIONS.find((option) => option.value === suggestion.unit)?.label ??
-                  suggestion.unit}
+                {UNIT_OPTIONS.find((option) => option.value === suggestion.product.unit)?.label ??
+                  suggestion.product.unit}
               </span>
               {isAdmin ? (
                 <button
@@ -454,9 +454,9 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
             </div>
             <div className="space-y-2">
               <Label>Jednostka</Label>
-              <Select value={unit} onValueChange={setUnit}>
+              <Select value={selectedProduct?.unit} disabled>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Wybierz preparat" />
                 </SelectTrigger>
                 <SelectContent>
                   {UNIT_OPTIONS.map((option) => (
