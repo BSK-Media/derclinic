@@ -398,12 +398,12 @@ export default async function SpecialistHome() {
     },
     include: { actor: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
-    take: 30,
+    take: 100,
   });
 
   const notifications: NotificationItem[] = [];
   for (const log of auditLogs) {
-    if (notifications.length >= 6) break;
+    if (notifications.length >= 50) break;
     const data =
       log.data && typeof log.data === "object" && !Array.isArray(log.data)
         ? (log.data as Record<string, unknown>)
@@ -816,7 +816,7 @@ export default async function SpecialistHome() {
               <p className="mt-0.5 text-xs text-slate-500">Zmiany z ostatnich 30 dni</p>
             </div>
           </div>
-          <div className="divide-y divide-slate-100 dark:divide-white/10">
+          <div className="max-h-[29rem] divide-y divide-slate-100 overflow-y-auto overscroll-contain dark:divide-white/10">
             {notifications.length === 0 ? (
               <div className="px-5 py-10 text-center text-sm text-slate-500">
                 Brak nowych powiadomień.
