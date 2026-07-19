@@ -659,16 +659,24 @@ function SpecialistFinancialSettlements() {
                       <ArrowRight className="h-5 w-5" />
                     </Link>
                   </div>
-                  <div className="mt-3 grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 text-xs dark:border-white">
-                    <div className="border-b border-r border-slate-200 p-3 dark:border-white">
+                  <div className="relative mt-3 grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 text-xs dark:border-white">
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-y-0 left-1/2 z-10 w-px -translate-x-1/2 bg-slate-200 dark:bg-white"
+                    />
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-x-0 top-1/2 z-10 h-px -translate-y-1/2 bg-slate-200 dark:bg-white"
+                    />
+                    <div className="p-3">
                       <div className="text-slate-500">Przychód kliniki</div>
                       <div className="mt-1 break-words font-semibold tabular-nums">{formatPLNFromGrosze(row.revenue)}</div>
                     </div>
-                    <div className="border-b border-slate-200 p-3 dark:border-white">
+                    <div className="p-3">
                       <div className="text-slate-500">Preparaty</div>
                       <div className="mt-1 break-words font-semibold tabular-nums">{formatPLNFromGrosze(row.materialCost)}</div>
                     </div>
-                    <div className="border-r border-slate-200 p-3 dark:border-white">
+                    <div className="p-3">
                       <div className="text-slate-500">Zabiegi</div>
                       <div className="mt-1 font-semibold tabular-nums">{row.appointmentsCount}</div>
                     </div>
