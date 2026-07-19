@@ -262,7 +262,7 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
             <SelectTrigger>
               <SelectValue placeholder="Specjalista" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="admin-visits-specialist-menu">
               <SelectItem value={ALL_SPECIALISTS}>Wszyscy specjaliści</SelectItem>
               {specialists.map((s: any) => (
                 <SelectItem key={s.id} value={s.id}>
@@ -595,6 +595,19 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
         defaultDate={defaultDate}
         onCreated={() => mutate()}
       />
+
+      <style jsx global>{`
+        .admin-visits-specialist-menu.admin-visits-specialist-menu {
+          background-color: rgb(255 255 255) !important;
+          box-shadow: 0 18px 45px rgb(15 23 42 / 0.2) !important;
+        }
+
+        .dark .admin-visits-specialist-menu.admin-visits-specialist-menu {
+          border-color: rgb(var(--app-dark-border) / 0.3) !important;
+          background-color: rgb(var(--app-dark-surface)) !important;
+          box-shadow: 0 18px 45px rgb(0 0 0 / 0.55) !important;
+        }
+      `}</style>
     </div>
   );
 }
