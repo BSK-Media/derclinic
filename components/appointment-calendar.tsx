@@ -282,7 +282,7 @@ export function AppointmentCalendar({
               {days.map((day) => {
                 const isToday = sameDay(day, today);
                 return (
-                  <div key={dateKey(day)} className="border-l px-2 py-2 text-center">
+                  <div key={dateKey(day)} className="calendar-vertical-line border-l px-2 py-2 text-center">
                     <div className="text-xs uppercase text-zinc-500">
                       {weekdayLabel(day)}
                     </div>
@@ -324,7 +324,7 @@ export function AppointmentCalendar({
               return (
                 <div
                   key={dateKey(day)}
-                  className="relative border-l"
+                  className="calendar-vertical-line relative border-l"
                   style={{ height: gridHeight }}
                 >
                   {/* Linie godzin + kliknięcie w pusty slot */}
@@ -421,7 +421,7 @@ export function AppointmentCalendar({
   }
 
   return (
-    <div className="rounded-2xl border bg-white shadow-sm dark:bg-zinc-950">
+    <div className="appointment-calendar rounded-2xl border bg-white shadow-sm dark:bg-zinc-950">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="outline" onClick={() => onAnchorChange(new Date())}>
@@ -497,7 +497,7 @@ export function AppointmentCalendar({
                     <div
                       key={dateKey(d)}
                       className={
-                        "min-h-[110px] border-r p-2 align-top last:border-r-0 " +
+                        "calendar-vertical-line min-h-[110px] border-r p-2 align-top last:border-r-0 " +
                         (onAdd ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/40" : "")
                       }
                       onClick={onAdd ? () => onAdd(d) : undefined}
@@ -562,6 +562,13 @@ export function AppointmentCalendar({
       ) : (
         renderTimeGrid(visibleDays)
       )}
+      <style jsx global>{`
+        @media (max-width: 639px) {
+          .dark .appointment-calendar .calendar-vertical-line {
+            border-color: rgb(var(--app-dark-border) / 0.14) !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
