@@ -266,6 +266,15 @@ export function AppointmentCalendar({
   const nextAriaLabel =
     mode === "month" ? "Następny miesiąc" : mode === "week" ? "Następny tydzień" : "Następny dzień";
 
+  const mobileWeek = React.useMemo(() => {
+    const start = startOfWeek(anchor);
+    return Array.from({ length: 7 }, (_, index) => {
+      const day = new Date(start);
+      day.setDate(day.getDate() + index);
+      return day;
+    });
+  }, [anchor]);
+
   function renderTimeGrid(days: Date[]) {
     const gridHeight = hours.length * HOUR_HEIGHT;
     const nowOffset =
@@ -420,8 +429,325 @@ export function AppointmentCalendar({
     );
   }
 
+  function renderMobileDay(day: Date) {
+    const mobileStartHour = Math.min(6, hourRange.startHour);
+    const mobileEndHour = Math.max(23, hourRange.endHour);
+    const mobileHours = Array.from(
+      { length: mobileEndHour - mobileStartHour + 1 },
+      (_, index) => mobileStartHour + index,
+    );
+    const gridHeight = (mobileEndHour - mobileStartHour) * HOUR_HEIGHT;
+    const list = byDay.get(dateKey(day)) ?? [];
+    const positioned = layoutOverlaps(list);
+    const isToday = sameDay(day, today);
+    const nowOffset =
+      (clock.getHours() - mobileStartHour) * HOUR_HEIGHT +
+      (clock.getMinutes() / 60) * HOUR_HEIGHT;
+    const nowVisible = nowOffset >= 0 && nowOffset <= gridHeight;
+
+    return (
+      <div className="grid grid-cols-[54px_minmax(0,1fr)]">
+        <div className="relative" style={{ height: gridHeight }}>
+          {mobileHours.map((hour, index) => (
+            <div
+              key={hour}
+              className="absolute right-2 -translate-y-1/2 text-[11px] tabular-nums text-zinc-400"
+              style={{ top: index * HOUR_HEIGHT }}
+            >
+              {String(hour).padStart(2, "0")}:00
+            </div>
+          ))}
+        </div>
+        <div className="relative" style={{ height: gridHeight }}>
+          {mobileHours.map((hour, index) => (
+            <div
+              key={hour}
+              className={
+                "absolute inset-x-0 border-t border-zinc-100 dark:border-zinc-800 " +
+                (onAdd && index < mobileHours.length - 1
+                  ? "cursor-pointer active:bg-zinc-50 dark:active:bg-zinc-900/40"
+                  : "")
+              }
+              style={{ top: index * HOUR_HEIGHT, height: index < mobileHours.length - 1 ? HOUR_HEIGHT : 0 }}
+              onClick={
+                onAdd && index < mobileHours.length - 1
+                  ? () => {
+                      const slot = new Date(day);
+                      slot.setHours(hour, 0, 0, 0);
+                      onAdd(slot);
+                    }
+                  : undefined
+              }
+            />
+          ))}
+
+          {isToday && nowVisible ? (
+            <div className="pointer-events-none absolute inset-x-0 z-20" style={{ top: nowOffset }}>
+              <div className="relative border-t-2 border-red-500">
+                <span className="absolute -left-1 -top-[5px] h-2 w-2 rounded-full bg-red-500" />
+              </div>
+            </div>
+          ) : null}
+
+          {positioned.map(({ appointment: appointment, col, cols }) => {
+            const start = new Date(appointment.startsAt);
+            const end = new Date(appointment.endsAt);
+            const startMinutes =
+              (start.getHours() - mobileStartHour) * 60 + start.getMinutes();
+            const duration = Math.max(15, (+end - +start) / 60_000);
+            const top = (startMinutes / 60) * HOUR_HEIGHT;
+            const height = Math.max(34, (duration / 60) * HOUR_HEIGHT - 2);
+            const width = 100 / cols;
+            const effectiveStatus =
+              appointment.approvalStatus === "REJECTED"
+                ? appointment.status
+                : effectiveAppointmentStatus(appointment.status, appointment.startsAt, clock);
+            const blockTone =
+              STATUS_BLOCK[effectiveStatus ?? ""] ??
+              "border-zinc-300 bg-zinc-50 text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100";
+            const timeLabel = start.toLocaleTimeString("pl-PL", {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+
+            return (
+              <button
+                key={appointment.id}
+                type="button"
+                onClick={() => onOpenAppointment(appointment.id)}
+                className={
+                  "absolute z-10 overflow-hidden rounded-lg border px-2 py-1 text-left text-[11px] leading-tight shadow-sm " +
+                  blockTone
+                }
+                style={{
+                  top,
+                  height,
+                  left: `calc(${col * width}% + 2px)`,
+                  width: `calc(${width}% - 4px)`,
+                }}
+              >
+                <div className="font-semibold">
+                  {timeLabel} • {appointment.customServiceName || appointment.service.name}
+                </div>
+                <div className="mt-0.5 truncate">
+                  {appointment.patient.name}
+                  {showSpecialist && appointment.specialist ? ` • ${appointment.specialist.name}` : ""}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="appointment-calendar rounded-2xl border bg-white shadow-sm dark:bg-zinc-950">
+      <div className="sm:hidden">
+        {mode === "month" ? (
+          <>
+            <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+              <div>
+                <div className="text-xl font-semibold capitalize text-zinc-950 dark:text-zinc-50">
+                  {anchor.toLocaleDateString("pl-PL", { month: "long" })}
+                </div>
+                <div className="text-sm text-zinc-500">{anchor.getFullYear()}</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-xl border px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200"
+                  onClick={() => onAnchorChange(startOfDay(new Date()))}
+                >
+                  Dzisiaj
+                </button>
+                <div className="flex overflow-hidden rounded-xl border">
+                  <button
+                    type="button"
+                    aria-label="Poprzedni miesiąc"
+                    className="flex h-9 w-9 items-center justify-center border-r text-xl"
+                    onClick={() =>
+                      onAnchorChange(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1))
+                    }
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Następny miesiąc"
+                    className="flex h-9 w-9 items-center justify-center text-xl"
+                    onClick={() =>
+                      onAnchorChange(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1))
+                    }
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-7 border-b px-1 py-2 text-center text-[11px] font-semibold text-zinc-500">
+              {WEEKDAYS.map((weekday) => (
+                <div key={weekday}>{weekday}</div>
+              ))}
+            </div>
+
+            <div>
+              {weeks.map((row, rowIndex) => (
+                <div key={rowIndex} className="grid grid-cols-7 border-b last:border-b-0">
+                  {row.map((day) => {
+                    const inMonth = day.getMonth() === anchor.getMonth();
+                    const isToday = sameDay(day, today);
+                    const isSelected = sameDay(day, anchor);
+                    const dayAppointments = byDay.get(dateKey(day)) ?? [];
+
+                    return (
+                      <button
+                        key={dateKey(day)}
+                        type="button"
+                        className="flex min-h-[68px] min-w-0 flex-col items-center px-0.5 py-2 active:bg-zinc-50 dark:active:bg-zinc-900"
+                        onClick={() => {
+                          onAnchorChange(startOfDay(day));
+                          setMode("day");
+                        }}
+                      >
+                        <span
+                          className={
+                            "flex h-8 min-w-8 items-center justify-center rounded-full px-1 text-sm font-medium " +
+                            (isSelected
+                              ? "bg-indigo-600 text-white"
+                              : isToday
+                                ? "ring-2 ring-indigo-500 text-indigo-600 dark:text-indigo-300"
+                                : inMonth
+                                  ? "text-zinc-900 dark:text-zinc-100"
+                                  : "text-zinc-400 dark:text-zinc-600")
+                          }
+                        >
+                          {day.getDate()}
+                        </span>
+                        <span className="mt-2 flex h-2 max-w-full items-center justify-center gap-1">
+                          {dayAppointments.slice(0, 4).map((appointment) => {
+                            const effectiveStatus =
+                              appointment.approvalStatus === "REJECTED"
+                                ? appointment.status
+                                : effectiveAppointmentStatus(
+                                    appointment.status,
+                                    appointment.startsAt,
+                                    clock,
+                                  );
+                            return (
+                              <span
+                                key={appointment.id}
+                                className={
+                                  "h-1.5 w-1.5 shrink-0 rounded-full " +
+                                  (STATUS_DOT[effectiveStatus ?? ""] ?? "bg-zinc-400")
+                                }
+                              />
+                            );
+                          })}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+            {isLoading ? (
+              <div className="border-t px-4 py-2 text-center text-xs text-zinc-500">Ładowanie…</div>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <div className="border-b px-3 pb-3 pt-2">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-xl border px-3 py-2 text-sm font-medium"
+                  onClick={() => setMode("month")}
+                >
+                  <span aria-hidden="true">‹</span>
+                  {anchor.toLocaleDateString("pl-PL", { month: "long" })}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl border px-3 py-2 text-sm font-medium"
+                  onClick={() => onAnchorChange(startOfDay(new Date()))}
+                >
+                  Dzisiaj
+                </button>
+              </div>
+
+              <div className="grid grid-cols-7 gap-1">
+                {mobileWeek.map((day) => {
+                  const isSelected = sameDay(day, anchor);
+                  const isToday = sameDay(day, today);
+                  const dayAppointments = byDay.get(dateKey(day)) ?? [];
+                  return (
+                    <button
+                      key={dateKey(day)}
+                      type="button"
+                      className="flex min-w-0 flex-col items-center rounded-xl py-1.5"
+                      onClick={() => onAnchorChange(startOfDay(day))}
+                    >
+                      <span className="text-[10px] font-semibold text-zinc-500">
+                        {weekdayLabel(day)}
+                      </span>
+                      <span
+                        className={
+                          "mt-1 flex h-9 min-w-9 items-center justify-center rounded-full px-1 text-sm font-semibold " +
+                          (isSelected
+                            ? "bg-indigo-600 text-white"
+                            : isToday
+                              ? "ring-2 ring-indigo-500 text-indigo-600 dark:text-indigo-300"
+                              : "text-zinc-900 dark:text-zinc-100")
+                        }
+                      >
+                        {day.getDate()}
+                      </span>
+                      <span className="mt-1 flex h-1.5 items-center justify-center gap-0.5">
+                        {dayAppointments.slice(0, 3).map((appointment) => {
+                          const effectiveStatus =
+                            appointment.approvalStatus === "REJECTED"
+                              ? appointment.status
+                              : effectiveAppointmentStatus(
+                                  appointment.status,
+                                  appointment.startsAt,
+                                  clock,
+                                );
+                          return (
+                            <span
+                              key={appointment.id}
+                              className={
+                                "h-1 w-1 rounded-full " +
+                                (STATUS_DOT[effectiveStatus ?? ""] ?? "bg-zinc-400")
+                              }
+                            />
+                          );
+                        })}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="border-b px-4 py-3 text-center">
+              <div className="font-semibold capitalize text-zinc-900 dark:text-zinc-100">
+                {anchor.toLocaleDateString("pl-PL", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </div>
+              {isLoading ? <div className="mt-1 text-xs text-zinc-500">Ładowanie…</div> : null}
+            </div>
+            <div className="overflow-x-hidden">{renderMobileDay(startOfDay(anchor))}</div>
+          </>
+        )}
+      </div>
+
+      <div className="hidden sm:block">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="outline" onClick={() => onAnchorChange(new Date())}>
@@ -562,6 +888,7 @@ export function AppointmentCalendar({
       ) : (
         renderTimeGrid(visibleDays)
       )}
+      </div>
       <style jsx global>{`
         @media (max-width: 639px) {
           .dark .appointment-calendar .calendar-vertical-line {
