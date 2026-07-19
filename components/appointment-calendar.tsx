@@ -153,14 +153,27 @@ export function AppointmentCalendar({
 }) {
   const [clock, setClock] = React.useState(() => new Date());
   const [mode, setMode] = React.useState<CalendarViewMode>("month");
+  const [mobileWeekAnimation, setMobileWeekAnimation] = React.useState<
+    "next" | "previous" | null
+  >(null);
   const mobileWeekTouchStartX = React.useRef<number | null>(null);
   const mobileWeekWasSwiped = React.useRef(false);
+  const mobileWeekAnimationTimer = React.useRef<number | null>(null);
   const gridStart = React.useMemo(() => startOfGrid(anchor), [anchor]);
 
   React.useEffect(() => {
     const timer = window.setInterval(() => setClock(new Date()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  React.useEffect(
+    () => () => {
+      if (mobileWeekAnimationTimer.current !== null) {
+        window.clearTimeout(mobileWeekAnimationTimer.current);
+      }
+    },
+    [],
+  );
 
   const weeks = React.useMemo(() => {
     const cells: Date[] = [];
@@ -301,8 +314,18 @@ export function AppointmentCalendar({
       return;
     }
 
+    const direction = distance < 0 ? "next" : "previous";
+    setMobileWeekAnimation(direction);
+    if (mobileWeekAnimationTimer.current !== null) {
+      window.clearTimeout(mobileWeekAnimationTimer.current);
+    }
+    mobileWeekAnimationTimer.current = window.setTimeout(() => {
+      setMobileWeekAnimation(null);
+      mobileWeekAnimationTimer.current = null;
+    }, 220);
+
     const next = new Date(anchor);
-    next.setDate(next.getDate() + (distance < 0 ? 7 : -7));
+    next.setDate(next.getDate() + (direction === "next" ? 7 : -7));
     onAnchorChange(startOfDay(next));
   }
 
@@ -708,8 +731,17 @@ export function AppointmentCalendar({
                 </button>
               </div>
 
+              <div className="overflow-hidden">
               <div
-                className="grid touch-pan-y grid-cols-7 gap-1"
+                key={dateKey(mobileWeek[0])}
+                className={
+                  "grid touch-pan-y grid-cols-7 gap-1 " +
+                  (mobileWeekAnimation === "next"
+                    ? "mobile-calendar-week-in-next"
+                    : mobileWeekAnimation === "previous"
+                      ? "mobile-calendar-week-in-previous"
+                      : "")
+                }
                 onTouchStart={handleMobileWeekTouchStart}
                 onTouchMove={handleMobileWeekTouchMove}
                 onTouchEnd={handleMobileWeekTouchEnd}
@@ -767,6 +799,7 @@ export function AppointmentCalendar({
                     </button>
                   );
                 })}
+              </div>
               </div>
             </div>
 
@@ -929,6 +962,36 @@ export function AppointmentCalendar({
       )}
       </div>
       <style jsx global>{`
+        @keyframes mobile-calendar-week-next {
+          from {
+            opacity: 0.55;
+            transform: translateX(18px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        @keyframes mobile-calendar-week-previous {
+          from {
+            opacity: 0.55;
+            transform: translateX(-18px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        .mobile-calendar-week-in-next {
+          animation: mobile-calendar-week-next 200ms ease-out;
+        }
+
+        .mobile-calendar-week-in-previous {
+          animation: mobile-calendar-week-previous 200ms ease-out;
+        }
+
         @media (max-width: 639px) {
           .dark .appointment-calendar .calendar-vertical-line {
             border-color: rgb(var(--app-dark-border) / 0.14) !important;
