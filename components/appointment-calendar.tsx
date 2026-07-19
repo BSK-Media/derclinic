@@ -153,6 +153,8 @@ export function AppointmentCalendar({
 }) {
   const [clock, setClock] = React.useState(() => new Date());
   const [mode, setMode] = React.useState<CalendarViewMode>("month");
+  const mobileWeekTouchStartX = React.useRef<number | null>(null);
+  const mobileWeekWasSwiped = React.useRef(false);
   const gridStart = React.useMemo(() => startOfGrid(anchor), [anchor]);
 
   React.useEffect(() => {
@@ -274,6 +276,35 @@ export function AppointmentCalendar({
       return day;
     });
   }, [anchor]);
+
+  function handleMobileWeekTouchStart(event: React.TouchEvent<HTMLDivElement>) {
+    mobileWeekTouchStartX.current = event.touches[0]?.clientX ?? null;
+    mobileWeekWasSwiped.current = false;
+  }
+
+  function handleMobileWeekTouchMove(event: React.TouchEvent<HTMLDivElement>) {
+    const startX = mobileWeekTouchStartX.current;
+    const currentX = event.touches[0]?.clientX;
+    if (startX === null || currentX === undefined) return;
+    if (Math.abs(currentX - startX) > 8) mobileWeekWasSwiped.current = true;
+  }
+
+  function handleMobileWeekTouchEnd(event: React.TouchEvent<HTMLDivElement>) {
+    const startX = mobileWeekTouchStartX.current;
+    const endX = event.changedTouches[0]?.clientX;
+    mobileWeekTouchStartX.current = null;
+    if (startX === null || endX === undefined) return;
+
+    const distance = endX - startX;
+    if (Math.abs(distance) < 45) {
+      mobileWeekWasSwiped.current = false;
+      return;
+    }
+
+    const next = new Date(anchor);
+    next.setDate(next.getDate() + (distance < 0 ? 7 : -7));
+    onAnchorChange(startOfDay(next));
+  }
 
   function renderTimeGrid(days: Date[]) {
     const gridHeight = hours.length * HOUR_HEIGHT;
@@ -677,7 +708,12 @@ export function AppointmentCalendar({
                 </button>
               </div>
 
-              <div className="grid grid-cols-7 gap-1">
+              <div
+                className="grid touch-pan-y grid-cols-7 gap-1"
+                onTouchStart={handleMobileWeekTouchStart}
+                onTouchMove={handleMobileWeekTouchMove}
+                onTouchEnd={handleMobileWeekTouchEnd}
+              >
                 {mobileWeek.map((day) => {
                   const isSelected = sameDay(day, anchor);
                   const isToday = sameDay(day, today);
@@ -687,7 +723,10 @@ export function AppointmentCalendar({
                       key={dateKey(day)}
                       type="button"
                       className="flex min-w-0 flex-col items-center rounded-xl py-1.5"
-                      onClick={() => onAnchorChange(startOfDay(day))}
+                      onClick={() => {
+                        if (mobileWeekWasSwiped.current) return;
+                        onAnchorChange(startOfDay(day));
+                      }}
                     >
                       <span className="text-[10px] font-semibold text-zinc-500">
                         {weekdayLabel(day)}
