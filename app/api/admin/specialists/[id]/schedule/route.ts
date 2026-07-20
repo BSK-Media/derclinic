@@ -26,6 +26,16 @@ const TimeOffSchema = z.object({
   note: z.string().trim().max(300).optional().nullable(),
 });
 
+const CustomWorkDaysSchema = z.object({
+  action: z.literal("CREATE_CUSTOM_WORK_DAYS"),
+  dates: z
+    .array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Niepoprawna data"))
+    .min(1, "Wybierz co najmniej jeden dzień")
+    .max(366),
+  startTime: z.string().regex(TIME_REGEX, "Niepoprawna godzina rozpoczęcia"),
+  endTime: z.string().regex(TIME_REGEX, "Niepoprawna godzina zakończenia"),
+});
+
 async function ensureSpecialist(id: string) {
   const specialist = await prisma.user.findUnique({
     where: { id },
@@ -51,14 +61,16 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
   const dateFilter =
-    from && to
-      ? { gte: new Date(`${from}T00:00:00`), lte: new Date(`${to}T23:59:59`) }
-      : undefined;
+    from && to ? { gte: new Date(`${from}T00:00:00`), lte: new Date(`${to}T23:59:59`) } : undefined;
 
-  const [workDays, timeOffs] = await Promise.all([
+  const [workDays, customWorkDays, timeOffs] = await Promise.all([
     prisma.specialistWorkDay.findMany({
       where: { specialistId: params.id },
       orderBy: { weekday: "asc" },
+    }),
+    prisma.specialistCustomWorkDay.findMany({
+      where: { specialistId: params.id, ...(dateFilter ? { date: dateFilter } : {}) },
+      orderBy: { date: "asc" },
     }),
     prisma.specialistTimeOff.findMany({
       where: { specialistId: params.id, ...(dateFilter ? { date: dateFilter } : {}) },
@@ -66,7 +78,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     }),
   ]);
 
-  return NextResponse.json({ ok: true, workDays, timeOffs });
+  return NextResponse.json({ ok: true, workDays, customWorkDays, timeOffs });
 }
 
 // PUT — zapis tygodniowego wzorca pracy (zastępuje poprzedni w całości)
@@ -131,7 +143,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   return NextResponse.json({ ok: true, workDays });
 }
 
-// POST — dodanie dnia wolnego (cały dzień) lub wolnych godzin
+// POST — dodanie niestandardowych dni pracy albo dnia/godzin wolnych
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
   if (error) return error;
@@ -144,6 +156,62 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   const json = await req.json().catch(() => null);
+
+  if (json?.action === "CREATE_CUSTOM_WORK_DAYS") {
+    const parsed = CustomWorkDaysSchema.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { ok: false, message: parsed.error.issues[0]?.message || "Niepoprawne dane" },
+        { status: 400 },
+      );
+    }
+    if (parsed.data.endTime <= parsed.data.startTime) {
+      return NextResponse.json(
+        { ok: false, message: "Godzina zakończenia musi być późniejsza niż rozpoczęcia" },
+        { status: 400 },
+      );
+    }
+
+    const dates = [...new Set(parsed.data.dates)];
+    const customWorkDays = await prisma.$transaction(
+      dates.map((date) => {
+        const normalizedDate = new Date(`${date}T00:00:00.000Z`);
+        return prisma.specialistCustomWorkDay.upsert({
+          where: {
+            specialistId_date: {
+              specialistId: params.id,
+              date: normalizedDate,
+            },
+          },
+          create: {
+            specialistId: params.id,
+            date: normalizedDate,
+            startTime: parsed.data.startTime,
+            endTime: parsed.data.endTime,
+          },
+          update: {
+            startTime: parsed.data.startTime,
+            endTime: parsed.data.endTime,
+          },
+        });
+      }),
+    );
+
+    await logAudit({
+      actorId: user!.id,
+      action: "UPDATE",
+      entity: "SpecialistCustomWorkDay",
+      entityId: params.id,
+      data: {
+        dates,
+        startTime: parsed.data.startTime,
+        endTime: parsed.data.endTime,
+      },
+    });
+
+    return NextResponse.json({ ok: true, customWorkDays });
+  }
+
   const parsed = TimeOffSchema.safeParse(json);
   if (!parsed.success)
     return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
@@ -185,7 +253,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   return NextResponse.json({ ok: true, timeOff });
 }
 
-// DELETE — usunięcie wpisu wolnego (?timeOffId=...)
+// DELETE — usunięcie wpisu wolnego albo niestandardowego dnia pracy
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
   if (error) return error;
@@ -193,6 +261,28 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   if (deny) return deny;
 
   const url = new URL(req.url);
+  const customWorkDayId = url.searchParams.get("customWorkDayId");
+  if (customWorkDayId) {
+    const customWorkDay = await prisma.specialistCustomWorkDay.findUnique({
+      where: { id: customWorkDayId },
+    });
+    if (!customWorkDay || customWorkDay.specialistId !== params.id) {
+      return NextResponse.json({ ok: false, message: "Nie znaleziono wpisu" }, { status: 404 });
+    }
+
+    await prisma.specialistCustomWorkDay.delete({ where: { id: customWorkDayId } });
+
+    await logAudit({
+      actorId: user!.id,
+      action: "DELETE",
+      entity: "SpecialistCustomWorkDay",
+      entityId: customWorkDayId,
+      data: { specialistId: params.id, date: customWorkDay.date },
+    });
+
+    return NextResponse.json({ ok: true });
+  }
+
   const timeOffId = url.searchParams.get("timeOffId");
   if (!timeOffId) {
     return NextResponse.json({ ok: false, message: "Brak identyfikatora wpisu" }, { status: 400 });
