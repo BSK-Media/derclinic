@@ -68,9 +68,11 @@ export function sidebarPermissionForPath(pathname: string): SidebarPermission | 
 
   // Recepcja może przejść z listy wizyt do podglądu profilu specjalisty,
   // nawet jeśli nie ma osobnej sekcji „Specjaliści” w menu.
+  // Grafik specjalisty również dostępny dla recepcji.
   if (
     /^\/admin\/specialists\/[^/]+$/.test(path) ||
-    /^\/api\/admin\/specialists\/[^/]+\/overview$/.test(path)
+    /^\/api\/admin\/specialists\/[^/]+\/overview$/.test(path) ||
+    /^\/api\/admin\/specialists\/[^/]+\/schedule$/.test(path)
   ) {
     return "appointments";
   }
