@@ -87,18 +87,19 @@ model User {
   // Domyślna stawka kwotowa za pojedynczy zabieg (grosze); nadpisywana stawkami per zabieg
   baseRate Int?
 
-  appointments           Appointment[]           @relation("AppointmentSpecialist")
-  createdConsumptions    Consumption[]           @relation("ConsumptionCreator")
-  specialistConsumptions Consumption[]           @relation("ConsumptionSpecialist")
-  reviewedConsumptions   Consumption[]           @relation("ConsumptionReviewer")
-  retailSales            RetailSale[]            @relation("RetailSaleSeller")
+  appointments           Appointment[]             @relation("AppointmentSpecialist")
+  createdConsumptions    Consumption[]             @relation("ConsumptionCreator")
+  specialistConsumptions Consumption[]             @relation("ConsumptionSpecialist")
+  reviewedConsumptions   Consumption[]             @relation("ConsumptionReviewer")
+  retailSales            RetailSale[]              @relation("RetailSaleSeller")
   auditLogs              AuditLog[]
   serviceRates           SpecialistServiceRate[]
   warehouseAssignments   SpecialistWarehouse[]
-  approvedAppointments   Appointment[]           @relation("AppointmentApprover")
-  deletedAppointments    Appointment[]           @relation("AppointmentDeleter")
+  approvedAppointments   Appointment[]             @relation("AppointmentApprover")
+  deletedAppointments    Appointment[]             @relation("AppointmentDeleter")
   assignedServices       SpecialistService[]
   workDays               SpecialistWorkDay[]
+  customWorkDays         SpecialistCustomWorkDay[]
   timeOffs               SpecialistTimeOff[]
 
   @@index([role])
@@ -232,6 +233,24 @@ model SpecialistWorkDay {
 
   @@unique([specialistId, weekday])
   @@index([specialistId])
+}
+
+// Indywidualne godziny pracy w konkretnych dniach. Taki wpis zastępuje
+// tygodniowy wzorzec dla wskazanej daty.
+model SpecialistCustomWorkDay {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  specialistId String
+  specialist   User   @relation(fields: [specialistId], references: [id], onDelete: Cascade)
+
+  date      DateTime // dzień pracy (godzina 00:00)
+  startTime String // np. "10:00"
+  endTime   String // np. "21:00"
+
+  @@unique([specialistId, date])
+  @@index([specialistId, date])
 }
 
 // Wyjątki od grafiku: całe dni wolne albo wolne pojedyncze godziny w danym dniu.
