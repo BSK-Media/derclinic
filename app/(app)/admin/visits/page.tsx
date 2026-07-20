@@ -308,19 +308,19 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="start"
-            className="admin-visits-specialist-menu max-h-80 w-72 overflow-y-auto"
+            className="admin-visits-specialist-menu max-h-80 w-[420px] max-w-[90vw] overflow-y-auto"
           >
             <DropdownMenuItem
               onSelect={(e) => {
                 e.preventDefault();
                 setServiceFilter(new Set());
               }}
-              className="cursor-pointer font-medium"
+              className="flex cursor-pointer items-center gap-2 font-medium"
             >
-              <span className="mr-2 inline-block w-4 text-emerald-600">
+              <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center text-emerald-600">
                 {serviceFilter.size === 0 ? "✓" : ""}
               </span>
-              Wszystkie usługi
+              <span className="min-w-0 flex-1 truncate">Wszystkie usługi</span>
             </DropdownMenuItem>
             {services.map((s: any) => (
               <DropdownMenuItem
@@ -330,9 +330,9 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                   e.preventDefault();
                   toggleServiceFilter(s.id);
                 }}
-                className="cursor-pointer"
+                className="flex cursor-pointer items-center gap-2"
               >
-                <span className="mr-2 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border border-zinc-300 text-[10px] leading-none text-white dark:border-zinc-700">
+                <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border border-zinc-300 text-[10px] leading-none text-white dark:border-zinc-700">
                   <span
                     className={
                       serviceFilter.has(s.id)
@@ -343,7 +343,9 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                     {serviceFilter.has(s.id) ? "✓" : ""}
                   </span>
                 </span>
-                <span className="truncate">{s.name}</span>
+                <span className="min-w-0 flex-1 truncate" title={s.name}>
+                  {s.name}
+                </span>
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
