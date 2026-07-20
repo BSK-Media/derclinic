@@ -13,6 +13,7 @@ import { useAuth } from "@/components/auth-provider";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
 import { SIDEBAR_PERMISSION_OPTIONS, type SidebarPermission } from "@/lib/sidebar-permissions";
+import { SpecialistSchedule } from "@/components/specialist-schedule";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -40,6 +41,7 @@ function StatusBadge({ status }: { status: string }) {
 export default function SpecialistDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
+  const [tab, setTab] = React.useState<"overview" | "schedule">("overview");
   const [range, setRange] = React.useState<RangeKey>("30d");
   const now = React.useMemo(() => new Date(), []);
   const [from, setFrom] = React.useState(() =>
@@ -114,6 +116,39 @@ export default function SpecialistDetailPage() {
           ← {user?.role === "RECEPTION" ? "Wróć do wizyt" : "Wróć do listy"}
         </Link>
       </div>
+
+      {/* Zakładki: Przegląd / Grafik */}
+      <div className="inline-flex rounded-2xl border border-white/60 bg-white/70 p-1 text-sm shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55">
+        <button
+          type="button"
+          onClick={() => setTab("overview")}
+          className={
+            "rounded-2xl px-4 py-1.5 font-medium " +
+            (tab === "overview"
+              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200"
+              : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white")
+          }
+        >
+          Przegląd
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("schedule")}
+          className={
+            "rounded-2xl px-4 py-1.5 font-medium " +
+            (tab === "schedule"
+              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200"
+              : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white")
+          }
+        >
+          Grafik
+        </button>
+      </div>
+
+      {tab === "schedule" ? (
+        <SpecialistSchedule specialistId={id} />
+      ) : (
+      <>
 
       {user?.role === "ADMIN" ? (
         <SidebarPermissionsSection
@@ -356,6 +391,9 @@ export default function SpecialistDetailPage() {
           />
         </>
       ) : null}
+
+      </>
+      )}
     </div>
   );
 }
