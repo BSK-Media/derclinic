@@ -49,7 +49,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     products,
     warehouses,
     services,
-    specialistServiceIds: specialistAssignments.map((a) => a.serviceId),
+    specialistServiceIds: specialistAssignments.map((a: { serviceId: string }) => a.serviceId),
     viewerRole: user!.role,
   });
 }
@@ -95,7 +95,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ ok: false, message: "Nie znaleziono" }, { status: 404 });
 
   // Zmiana usługi — tylko gdy wizyta ma status Zaplanowana
-  let serviceChange: { serviceId: string; price: number } | null = null;
+  let serviceChange: { serviceId: string; price: number | null } | null = null;
   if (parsed.data.serviceId !== undefined && parsed.data.serviceId !== existing.serviceId) {
     if (existing.status !== "SCHEDULED") {
       return NextResponse.json(
