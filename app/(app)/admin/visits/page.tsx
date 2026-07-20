@@ -52,13 +52,15 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
   const requestedView = Array.isArray(searchParams?.view)
     ? searchParams?.view[0]
     : searchParams?.view;
+  // Domyślnym widokiem po wejściu w "Wizyty" (admin i recepcja) jest kalendarz.
+  // Lista i usunięte wizyty pozostają dostępne po jawnym wybraniu (?view=list / ?view=deleted).
   const normalizedRequestedView =
-    requestedView === "calendar" || requestedView === "deleted" ? requestedView : "list";
+    requestedView === "list" || requestedView === "deleted" ? requestedView : "calendar";
   const [view, setView] = React.useState<"list" | "calendar" | "deleted">(normalizedRequestedView);
   const [anchor, setAnchor] = React.useState(() => new Date());
 
   React.useEffect(() => {
-    setView(requestedView === "calendar" || requestedView === "deleted" ? requestedView : "list");
+    setView(requestedView === "list" || requestedView === "deleted" ? requestedView : "calendar");
   }, [requestedView]);
 
   const changeView = React.useCallback(
