@@ -58,6 +58,10 @@ export default function AdminAppointmentDetail() {
 
   const [payMethod, setPayMethod] = useState<string>("CARD");
   const [payAmount, setPayAmount] = useState<string>("");
+  // Edycja / usuwanie pojedynczej zapisanej płatności
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [editingPaymentAmount, setEditingPaymentAmount] = useState<string>("");
+  const [paymentBusyId, setPaymentBusyId] = useState<string | null>(null);
 
   const [decidingApproval, setDecidingApproval] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -231,6 +235,54 @@ export default function AdminAppointmentDetail() {
     toast.success(out.replaced ? "Zaktualizowano płatność" : "Dodano płatność");
     setPayAmount("");
     mutate();
+  }
+
+  function startEditPayment(p: any) {
+    setEditingPaymentId(p.id);
+    setEditingPaymentAmount((p.amount / 100).toFixed(2).replace(".", ","));
+  }
+
+  function cancelEditPayment() {
+    setEditingPaymentId(null);
+    setEditingPaymentAmount("");
+  }
+
+  async function saveEditedPayment(paymentId: string) {
+    const amount = parsePLNToGrosze(editingPaymentAmount);
+    if (!amount || amount <= 0) return toast.error("Niepoprawna kwota");
+    setPaymentBusyId(paymentId);
+    try {
+      const res = await fetch(`/api/admin/appointments/${id}/payments/${paymentId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ amount }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się zmienić kwoty");
+      toast.success("Zmieniono kwotę płatności");
+      cancelEditPayment();
+      mutate();
+    } finally {
+      setPaymentBusyId(null);
+    }
+  }
+
+  async function deletePayment(p: any) {
+    const label = `${PAYMENT_METHOD_LABELS[p.method] ?? p.method} • ${formatPLNFromGrosze(p.amount)}`;
+    if (!window.confirm(`Czy na pewno usunąć płatność: ${label}?`)) return;
+    setPaymentBusyId(p.id);
+    try {
+      const res = await fetch(`/api/admin/appointments/${id}/payments/${p.id}`, {
+        method: "DELETE",
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się usunąć płatności");
+      toast.success("Usunięto płatność");
+      if (editingPaymentId === p.id) cancelEditPayment();
+      mutate();
+    } finally {
+      setPaymentBusyId(null);
+    }
   }
 
   const products = data?.products ?? [];
@@ -722,12 +774,13 @@ export default function AdminAppointmentDetail() {
                 <th className="p-3">Data</th>
                 <th className="p-3">Metoda</th>
                 <th className="p-3">Kwota</th>
+                <th className="p-3 text-right">Akcje</th>
               </tr>
             </thead>
             <tbody>
               {(appt.payments ?? []).length === 0 && (
                 <tr>
-                  <td className="p-3 text-zinc-500" colSpan={3}>
+                  <td className="p-3 text-zinc-500" colSpan={4}>
                     Brak płatności.
                   </td>
                 </tr>
@@ -736,7 +789,61 @@ export default function AdminAppointmentDetail() {
                 <tr key={p.id} className="border-t">
                   <td className="p-3">{new Date(p.createdAt).toLocaleString("pl-PL")}</td>
                   <td className="p-3">{PAYMENT_METHOD_LABELS[p.method] ?? p.method}</td>
-                  <td className="p-3">{formatPLNFromGrosze(p.amount)}</td>
+                  <td className="p-3">
+                    {editingPaymentId === p.id ? (
+                      <Input
+                        value={editingPaymentAmount}
+                        onChange={(e) => setEditingPaymentAmount(e.target.value)}
+                        className="h-8 w-28"
+                        autoFocus
+                      />
+                    ) : (
+                      formatPLNFromGrosze(p.amount)
+                    )}
+                  </td>
+                  <td className="p-3">
+                    <div className="flex items-center justify-end gap-2">
+                      {editingPaymentId === p.id ? (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() => saveEditedPayment(p.id)}
+                            disabled={paymentBusyId === p.id}
+                          >
+                            {paymentBusyId === p.id ? "…" : "Zapisz"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={cancelEditPayment}
+                            disabled={paymentBusyId === p.id}
+                          >
+                            Anuluj
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => startEditPayment(p)}
+                            disabled={paymentBusyId !== null}
+                          >
+                            Zmień kwotę
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-500/40 dark:hover:bg-red-500/10"
+                            onClick={() => deletePayment(p)}
+                            disabled={paymentBusyId !== null}
+                          >
+                            {paymentBusyId === p.id ? "…" : "Usuń"}
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
