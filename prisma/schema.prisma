@@ -98,6 +98,8 @@ model User {
   approvedAppointments   Appointment[]           @relation("AppointmentApprover")
   deletedAppointments    Appointment[]           @relation("AppointmentDeleter")
   assignedServices       SpecialistService[]
+  workDays               SpecialistWorkDay[]
+  timeOffs               SpecialistTimeOff[]
 
   @@index([role])
   @@index([specialistCode])
@@ -212,6 +214,41 @@ model SpecialistWarehouse {
   @@unique([specialistId, warehouseId])
   @@index([specialistId])
   @@index([warehouseId])
+}
+
+// Tygodniowy wzorzec pracy specjalisty — dni tygodnia i godziny,
+// w których pracownik jest zazwyczaj dostępny.
+model SpecialistWorkDay {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  specialistId String
+  specialist   User   @relation(fields: [specialistId], references: [id], onDelete: Cascade)
+
+  weekday   Int // 0 = poniedziałek ... 6 = niedziela
+  startTime String // np. "08:00"
+  endTime   String // np. "16:00"
+
+  @@unique([specialistId, weekday])
+  @@index([specialistId])
+}
+
+// Wyjątki od grafiku: całe dni wolne albo wolne pojedyncze godziny w danym dniu.
+model SpecialistTimeOff {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  specialistId String
+  specialist   User   @relation(fields: [specialistId], references: [id], onDelete: Cascade)
+
+  date      DateTime // dzień, którego dotyczy wolne (godzina 00:00)
+  allDay    Boolean  @default(true)
+  startTime String? // np. "10:00" — tylko gdy allDay = false
+  endTime   String? // np. "13:00" — tylko gdy allDay = false
+  note      String?
+
+  @@index([specialistId, date])
 }
 
 model Product {
