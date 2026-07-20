@@ -37,6 +37,12 @@ const MONTH_LABELS = [
 ];
 
 type WorkDay = { weekday: number; startTime: string; endTime: string };
+type CustomWorkDay = {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+};
 type TimeOff = {
   id: string;
   date: string;
@@ -84,6 +90,7 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
   );
 
   const workDays: WorkDay[] = data?.workDays ?? [];
+  const customWorkDays: CustomWorkDay[] = data?.customWorkDays ?? [];
   const timeOffs: TimeOff[] = data?.timeOffs ?? [];
 
   // ==== Tygodniowy wzorzec pracy ====
@@ -126,7 +133,12 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           workDays: pattern
-            .map((row, weekday) => ({ weekday, startTime: row.startTime, endTime: row.endTime, enabled: row.enabled }))
+            .map((row, weekday) => ({
+              weekday,
+              startTime: row.startTime,
+              endTime: row.endTime,
+              enabled: row.enabled,
+            }))
             .filter((row) => row.enabled)
             .map(({ weekday, startTime, endTime }) => ({ weekday, startTime, endTime })),
         }),
@@ -137,6 +149,94 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
       mutate();
     } finally {
       setSavingPattern(false);
+    }
+  }
+
+  // ==== Niestandardowe dni pracy ====
+  const [showCustomWorkPanel, setShowCustomWorkPanel] = React.useState(false);
+  const [selectingCustomDays, setSelectingCustomDays] = React.useState(false);
+  const [selectedCustomDates, setSelectedCustomDates] = React.useState<string[]>([]);
+  const [customStart, setCustomStart] = React.useState("08:00");
+  const [customEnd, setCustomEnd] = React.useState("16:00");
+  const [savingCustomDays, setSavingCustomDays] = React.useState(false);
+  const [deletingCustomId, setDeletingCustomId] = React.useState<string | null>(null);
+
+  function startSelectingCustomDays() {
+    if (selectingCustomDays) {
+      setSelectingCustomDays(false);
+      return;
+    }
+    setSelectingCustomDays(true);
+    window.setTimeout(() => {
+      document
+        .getElementById("specialist-schedule-calendar")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
+  function toggleCustomDate(date: string) {
+    setSelectedCustomDates((current) =>
+      current.includes(date)
+        ? current.filter((selectedDate) => selectedDate !== date)
+        : [...current, date].sort(),
+    );
+  }
+
+  async function saveCustomWorkDays() {
+    if (selectedCustomDates.length === 0) {
+      return toast.error("Wybierz co najmniej jeden dzień w kalendarzu");
+    }
+    if (customEnd <= customStart) {
+      return toast.error("Godzina zakończenia musi być późniejsza niż rozpoczęcia");
+    }
+
+    setSavingCustomDays(true);
+    try {
+      const res = await fetch(`/api/admin/specialists/${specialistId}/schedule`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "CREATE_CUSTOM_WORK_DAYS",
+          dates: selectedCustomDates,
+          startTime: customStart,
+          endTime: customEnd,
+        }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) {
+        return toast.error(out?.message || "Nie udało się zapisać niestandardowych dni pracy");
+      }
+      toast.success(
+        selectedCustomDates.length === 1
+          ? "Zapisano niestandardowy dzień pracy"
+          : `Zapisano ${selectedCustomDates.length} niestandardowych dni pracy`,
+      );
+      setSelectedCustomDates([]);
+      setSelectingCustomDays(false);
+      mutate();
+    } finally {
+      setSavingCustomDays(false);
+    }
+  }
+
+  async function deleteCustomWorkDay(customWorkDay: CustomWorkDay) {
+    const dateLabel = new Date(`${customWorkDay.date.slice(0, 10)}T12:00:00`).toLocaleDateString(
+      "pl-PL",
+    );
+    if (!window.confirm(`Usunąć niestandardowe godziny pracy z dnia ${dateLabel}?`)) return;
+
+    setDeletingCustomId(customWorkDay.id);
+    try {
+      const res = await fetch(
+        `/api/admin/specialists/${specialistId}/schedule?customWorkDayId=${encodeURIComponent(customWorkDay.id)}`,
+        { method: "DELETE" },
+      );
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się usunąć wpisu");
+      toast.success("Usunięto niestandardowy dzień pracy");
+      mutate();
+    } finally {
+      setDeletingCustomId(null);
     }
   }
 
@@ -212,6 +312,14 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
     return map;
   }, [timeOffs]);
 
+  const customWorkDaysByDate = React.useMemo(() => {
+    const map = new Map<string, CustomWorkDay>();
+    for (const customWorkDay of customWorkDays) {
+      map.set(customWorkDay.date.slice(0, 10), customWorkDay);
+    }
+    return map;
+  }, [customWorkDays]);
+
   const todayKey = toDateInput(new Date());
 
   return (
@@ -221,8 +329,8 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
         <div>
           <div className="font-medium">Dni i godziny pracy</div>
           <div className="mt-1 text-xs text-slate-500">
-            Zaznacz dni tygodnia, w które pracownik zazwyczaj pracuje, i ustaw godziny. W
-            kalendarzu poniżej niezaznaczone dni będą oznaczone jako niedostępne.
+            Zaznacz dni tygodnia, w które pracownik zazwyczaj pracuje, i ustaw godziny. W kalendarzu
+            poniżej niezaznaczone dni będą oznaczone jako niedostępne.
           </div>
         </div>
         {isLoading ? <div className="text-sm text-slate-500">Ładowanie...</div> : null}
@@ -267,9 +375,95 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
             </div>
           ))}
         </div>
-        <Button onClick={savePattern} disabled={savingPattern}>
-          {savingPattern ? "Zapisywanie…" : "Zapisz grafik"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={savePattern} disabled={savingPattern}>
+            {savingPattern ? "Zapisywanie…" : "Zapisz grafik"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setShowCustomWorkPanel((visible) => !visible);
+              setSelectingCustomDays(false);
+            }}
+          >
+            {showCustomWorkPanel
+              ? "Zamknij niestandardowy grafik"
+              : "Utwórz niestandardowe dni pracy"}
+          </Button>
+        </div>
+
+        {showCustomWorkPanel ? (
+          <div className="space-y-4 border-t pt-4 dark:border-white/10">
+            <div>
+              <div className="font-medium">Niestandardowe dni pracy</div>
+              <div className="mt-1 text-xs text-slate-500">
+                Ustaw godziny, kliknij „Wybierz dni”, a następnie zaznacz dowolne daty w kalendarzu.
+                Po zapisaniu możesz ustawić inne godziny i wybrać kolejną grupę dni.
+              </div>
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-1">
+                <Label>Od</Label>
+                <Input
+                  type="time"
+                  value={customStart}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                  className="w-28"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Do</Label>
+                <Input
+                  type="time"
+                  value={customEnd}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  className="w-28"
+                />
+              </div>
+              <Button
+                type="button"
+                variant={selectingCustomDays ? "default" : "outline"}
+                onClick={startSelectingCustomDays}
+              >
+                {selectingCustomDays ? "Zakończ wybieranie" : "Wybierz dni"}
+              </Button>
+              <Button
+                type="button"
+                onClick={saveCustomWorkDays}
+                disabled={savingCustomDays || selectedCustomDates.length === 0}
+              >
+                {savingCustomDays
+                  ? "Zapisywanie…"
+                  : `Zapisz wybrane dni${selectedCustomDates.length ? ` (${selectedCustomDates.length})` : ""}`}
+              </Button>
+            </div>
+
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-sm dark:border-indigo-500/30 dark:bg-indigo-500/10">
+              {selectedCustomDates.length === 0 ? (
+                <span className="text-slate-500">
+                  Nie wybrano jeszcze żadnych dni. Po kliknięciu „Wybierz dni” zaznacz je w
+                  kalendarzu poniżej.
+                </span>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">Wybrane dni:</span>
+                  {selectedCustomDates.map((date) => (
+                    <button
+                      key={date}
+                      type="button"
+                      onClick={() => toggleCustomDate(date)}
+                      className="rounded-lg bg-white px-2 py-1 text-xs shadow-sm ring-1 ring-indigo-200 hover:bg-indigo-100 dark:bg-white/10 dark:ring-indigo-500/30"
+                      title="Usuń z wyboru"
+                    >
+                      {new Date(`${date}T12:00:00`).toLocaleDateString("pl-PL")} ×
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
       </Card>
 
       {/* Dodawanie wolnego */}
@@ -336,7 +530,7 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
       </Card>
 
       {/* Kalendarz dostępności */}
-      <Card className="overflow-hidden">
+      <Card id="specialist-schedule-calendar" className="scroll-mt-4 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
           <div className="font-medium">Kalendarz dostępności</div>
           <div className="flex items-center gap-2">
@@ -346,18 +540,14 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() =>
-                setAnchor((a) => new Date(a.getFullYear(), a.getMonth() - 1, 1))
-              }
+              onClick={() => setAnchor((a) => new Date(a.getFullYear(), a.getMonth() - 1, 1))}
             >
               ‹
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() =>
-                setAnchor((a) => new Date(a.getFullYear(), a.getMonth() + 1, 1))
-              }
+              onClick={() => setAnchor((a) => new Date(a.getFullYear(), a.getMonth() + 1, 1))}
             >
               ›
             </Button>
@@ -367,10 +557,21 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
           </div>
         </div>
 
+        {selectingCustomDays ? (
+          <div className="border-b border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-800 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-200">
+            Tryb wyboru dni jest aktywny — klikaj daty, które mają mieć godziny {customStart}–
+            {customEnd}. Ponowne kliknięcie usuwa dzień z wyboru.
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap items-center gap-4 border-b px-4 py-2 text-xs text-slate-500">
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-3 w-3 rounded bg-emerald-100 ring-1 ring-emerald-300 dark:bg-emerald-500/20" />
             Dostępny (godziny pracy)
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-3 w-3 rounded bg-indigo-100 ring-1 ring-indigo-300 dark:bg-indigo-500/20" />
+            Niestandardowe godziny
           </span>
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-3 w-3 rounded bg-slate-100 ring-1 ring-slate-300 dark:bg-white/5" />
@@ -398,25 +599,35 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
             const key = toDateInput(day);
             const weekday = (day.getDay() + 6) % 7;
             const inMonth = day.getMonth() === anchor.getMonth();
-            const work = workDays.find((w) => w.weekday === weekday);
+            const weeklyWork = workDays.find((w) => w.weekday === weekday);
+            const customWork = customWorkDaysByDate.get(key);
+            const work = customWork ?? weeklyWork;
             const dayOffs = timeOffsByDate.get(key) ?? [];
             const fullDayOff = dayOffs.some((t) => t.allDay);
+            const selectedForCustomWork = selectedCustomDates.includes(key);
 
             const bg = fullDayOff
               ? "bg-red-50 dark:bg-red-500/10"
-              : work
-                ? "bg-emerald-50/50 dark:bg-emerald-500/5"
-                : "bg-slate-50/70 dark:bg-white/[0.03]";
+              : customWork
+                ? "bg-indigo-50/70 dark:bg-indigo-500/10"
+                : work
+                  ? "bg-emerald-50/50 dark:bg-emerald-500/5"
+                  : "bg-slate-50/70 dark:bg-white/[0.03]";
 
             return (
               <button
                 key={key}
                 type="button"
-                onClick={() => setOffDate(key)}
-                title="Kliknij, aby podstawić datę w formularzu wolnego"
+                onClick={() => (selectingCustomDays ? toggleCustomDate(key) : setOffDate(key))}
+                title={
+                  selectingCustomDays
+                    ? "Kliknij, aby dodać lub usunąć dzień z niestandardowego grafiku"
+                    : "Kliknij, aby podstawić datę w formularzu wolnego"
+                }
                 className={
                   "min-h-24 border-b border-r p-1.5 text-left align-top transition hover:ring-2 hover:ring-inset hover:ring-emerald-300 " +
                   bg +
+                  (selectedForCustomWork ? " ring-2 ring-inset ring-indigo-500" : "") +
                   (inMonth ? "" : " opacity-45")
                 }
               >
@@ -431,9 +642,13 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
                   >
                     {day.getDate()}
                   </span>
-                  {offDate === key ? (
-                    <span className="rounded bg-indigo-100 px-1 text-[10px] font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
+                  {selectedForCustomWork ? (
+                    <span className="rounded bg-indigo-600 px-1 text-[10px] font-medium text-white">
                       wybrano
+                    </span>
+                  ) : !selectingCustomDays && offDate === key ? (
+                    <span className="rounded bg-indigo-100 px-1 text-[10px] font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
+                      data wolnego
                     </span>
                   ) : null}
                 </div>
@@ -442,13 +657,41 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
                     <div className="text-[11px] font-medium text-red-700 dark:text-red-300">
                       Dzień wolny
                     </div>
-                  ) : work ? (
+                  ) : !customWork && work ? (
                     <div className="text-[11px] text-emerald-700 dark:text-emerald-300">
                       {work.startTime}–{work.endTime}
                     </div>
-                  ) : (
+                  ) : !customWork ? (
                     <div className="text-[11px] text-slate-400">Nie pracuje</div>
-                  )}
+                  ) : null}
+                  {customWork ? (
+                    <div className="flex items-center justify-between gap-1 rounded bg-indigo-100 px-1 py-0.5 text-[11px] text-indigo-800 dark:bg-indigo-500/15 dark:text-indigo-300">
+                      <span className="truncate">
+                        Niestandardowo {customWork.startTime}–{customWork.endTime}
+                      </span>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        aria-label="Usuń niestandardowe godziny pracy"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteCustomWorkDay(customWork);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.stopPropagation();
+                            deleteCustomWorkDay(customWork);
+                          }
+                        }}
+                        className={
+                          "shrink-0 cursor-pointer rounded px-1 font-semibold hover:bg-black/10 dark:hover:bg-white/10 " +
+                          (deletingCustomId === customWork.id ? "opacity-50" : "")
+                        }
+                      >
+                        ×
+                      </span>
+                    </div>
+                  ) : null}
                   {dayOffs.map((t) => (
                     <div
                       key={t.id}
