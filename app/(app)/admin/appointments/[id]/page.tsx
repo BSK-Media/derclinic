@@ -46,6 +46,7 @@ export default function AdminAppointmentDetail() {
 
   const [clock, setClock] = useState(() => new Date());
   const [status, setStatus] = useState<string>("SCHEDULED");
+  const [serviceId, setServiceId] = useState<string>("");
   const [priceFinal, setPriceFinal] = useState<string>("");
   const [priceEstimate, setPriceEstimate] = useState<string>("");
   const [note, setNote] = useState<string>("");
@@ -112,6 +113,11 @@ export default function AdminAppointmentDetail() {
   }, [appt?.id, appt?.note, appt?.priceEstimate, appt?.priceFinal, appt?.service?.price]);
 
   useEffect(() => {
+    if (!appt?.id) return;
+    setServiceId(appt.serviceId ?? "");
+  }, [appt?.id, appt?.serviceId]);
+
+  useEffect(() => {
     const timer = window.setInterval(() => {
       const nextClock = new Date();
       setClock(nextClock);
@@ -141,6 +147,7 @@ export default function AdminAppointmentDetail() {
         priceFinal: priceFinal ? parsePLNToGrosze(priceFinal) : null,
         priceEstimate: priceEstimate ? parsePLNToGrosze(priceEstimate) : null,
         note,
+        ...(serviceId && serviceId !== appt.serviceId ? { serviceId } : {}),
       }),
     });
     const out = await res.json().catch(() => ({}));
@@ -287,6 +294,36 @@ export default function AdminAppointmentDetail() {
 
   const products = data?.products ?? [];
   const warehouses = data?.warehouses ?? [];
+  const services = data?.services ?? [];
+  const specialistServiceIds: string[] = data?.specialistServiceIds ?? [];
+  // Zmiana usługi jest możliwa tylko dla wizyty o statusie Zaplanowana (admin i recepcja)
+  const canChangeService = appt.status === "SCHEDULED";
+  const availableServices = (() => {
+    const allowed = new Set(specialistServiceIds);
+    const filteredServices =
+      allowed.size > 0 ? services.filter((s: any) => allowed.has(s.id)) : services;
+    // Aktualna usługa wizyty zawsze widoczna na liście, nawet jeśli nie jest już przypisana
+    if (appt.serviceId && !filteredServices.some((s: any) => s.id === appt.serviceId)) {
+      const current = services.find((s: any) => s.id === appt.serviceId);
+      if (current) return [current, ...filteredServices];
+    }
+    return filteredServices;
+  })();
+
+  function selectService(nextId: string) {
+    setServiceId(nextId);
+    const svc = services.find((s: any) => s.id === nextId);
+    if (!svc) return;
+    const currentStandard = priceEstimate ? parsePLNToGrosze(priceEstimate) : null;
+    const currentFinal = priceFinal ? parsePLNToGrosze(priceFinal) : null;
+    const nextPriceStr = String(svc.price / 100);
+    setPriceEstimate(nextPriceStr);
+    // Cenę końcową aktualizujemy tylko, gdy była pusta lub równa dotychczasowej cenie standardowej
+    if (currentFinal === null || currentFinal === currentStandard) {
+      setPriceFinal(nextPriceStr);
+    }
+  }
+
   const selectedProduct = products.find((product: any) => product.id === productId);
   const canEditStandardPrice = data?.viewerRole === "ADMIN";
 
@@ -417,6 +454,34 @@ export default function AdminAppointmentDetail() {
               </SelectContent>
             </Select>
           </div>
+          {canChangeService ? (
+            <div className="space-y-2">
+              <Label>Usługa</Label>
+              <Select value={serviceId} onValueChange={selectService}>
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={appt.customServiceName || appt.service?.name || "Wybierz usługę"}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableServices.map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {serviceId && serviceId !== appt.serviceId ? (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Zmiana usługi zostanie zapisana po kliknięciu „Zapisz".
+                </p>
+              ) : (
+                <p className="text-xs text-zinc-500">
+                  Usługę można zmienić, dopóki wizyta jest zaplanowana.
+                </p>
+              )}
+            </div>
+          ) : null}
           <div className="space-y-2">
             <Label>Cena orientacyjna (PLN)</Label>
             <Input
