@@ -85,6 +85,8 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
   const [to, setTo] = React.useState(toDateInput(toDefault));
   const [search, setSearch] = React.useState("");
   const [specialistFilter, setSpecialistFilter] = React.useState<string>(ALL_SPECIALISTS);
+  // Filtr usług — wielokrotny wybór. Pusty zbiór oznacza "Wszystkie usługi".
+  const [serviceFilter, setServiceFilter] = React.useState<Set<string>>(new Set());
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [defaultDate, setDefaultDate] = React.useState<Date | null>(null);
@@ -121,10 +123,25 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
     return appointments.filter((a: any) => a.specialist?.id === specialistFilter);
   }, [appointments, specialistFilter]);
 
+  // Filtr po usługach — wielokrotny wybór, wspólny dla listy i kalendarza
+  const byService = React.useMemo(() => {
+    if (serviceFilter.size === 0) return bySpecialist;
+    return bySpecialist.filter((a: any) => a.service?.id && serviceFilter.has(a.service.id));
+  }, [bySpecialist, serviceFilter]);
+
+  function toggleServiceFilter(id: string) {
+    setServiceFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   const filtered = React.useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return bySpecialist;
-    return bySpecialist.filter((a: any) => {
+    if (!q) return byService;
+    return byService.filter((a: any) => {
       const serviceName = (a.customServiceName || a.service?.name || "").toLowerCase();
       return (
         a.patient?.name?.toLowerCase().includes(q) ||
@@ -134,7 +151,7 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
         a.deletedBy?.name?.toLowerCase().includes(q)
       );
     });
-  }, [bySpecialist, search]);
+  }, [byService, search]);
 
   function toggleAll() {
     if (selected.size === filtered.length) return setSelected(new Set());
@@ -275,6 +292,63 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
           </Select>
         </div>
 
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex h-10 w-56 items-center justify-between rounded-xl border border-zinc-200 bg-white px-3 text-sm shadow-sm transition hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+            >
+              <span className="truncate">
+                {serviceFilter.size === 0
+                  ? "Wszystkie usługi"
+                  : `Usługi: ${serviceFilter.size}`}
+              </span>
+              <span className="ml-2 text-zinc-400">▾</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            className="admin-visits-specialist-menu max-h-80 w-72 overflow-y-auto"
+          >
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault();
+                setServiceFilter(new Set());
+              }}
+              className="cursor-pointer font-medium"
+            >
+              <span className="mr-2 inline-block w-4 text-emerald-600">
+                {serviceFilter.size === 0 ? "✓" : ""}
+              </span>
+              Wszystkie usługi
+            </DropdownMenuItem>
+            {services.map((s: any) => (
+              <DropdownMenuItem
+                key={s.id}
+                onSelect={(e) => {
+                  // Nie zamykaj menu — pozwala zaznaczyć kilka usług naraz
+                  e.preventDefault();
+                  toggleServiceFilter(s.id);
+                }}
+                className="cursor-pointer"
+              >
+                <span className="mr-2 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border border-zinc-300 text-[10px] leading-none text-white dark:border-zinc-700">
+                  <span
+                    className={
+                      serviceFilter.has(s.id)
+                        ? "flex h-full w-full items-center justify-center rounded-[3px] bg-emerald-600"
+                        : ""
+                    }
+                  >
+                    {serviceFilter.has(s.id) ? "✓" : ""}
+                  </span>
+                </span>
+                <span className="truncate">{s.name}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         {view !== "calendar" ? (
           <>
             <div className="relative min-w-[220px] flex-1">
@@ -312,7 +386,7 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
         <AppointmentCalendar
           anchor={anchor}
           onAnchorChange={setAnchor}
-          appointments={bySpecialist}
+          appointments={byService}
           isLoading={isLoading}
           onAdd={openAdd}
           showAddButton={false}
