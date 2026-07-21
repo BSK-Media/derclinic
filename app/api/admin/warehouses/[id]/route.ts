@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
 const PatchSchema = z.object({
@@ -14,6 +14,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (error) return error;
   const deny = requireRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
+
+  const visibleWarehouse = await prisma.warehouse.findFirst({
+    where: { id: params.id, ...scopedLocationWhere(user!) },
+    select: { id: true },
+  });
+  if (!visibleWarehouse) return NextResponse.json({ ok: false, message: "Nie znaleziono magazynu" }, { status: 404 });
 
   const json = await req.json().catch(() => null);
   const parsed = PatchSchema.safeParse(json);
@@ -35,7 +41,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   const deny = requireRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
-  const warehouse = await prisma.warehouse.findUnique({ where: { id: params.id } });
+  const warehouse = await prisma.warehouse.findFirst({ where: { id: params.id, ...scopedLocationWhere(user!) } });
   if (!warehouse) {
     return NextResponse.json({ ok: false, message: "Nie znaleziono magazynu" }, { status: 404 });
   }
