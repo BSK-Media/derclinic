@@ -31,8 +31,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     );
   }
 
-  const existing = await prisma.appointment.findUnique({
-    where: { id: params.id },
+  const existing = await prisma.appointment.findFirst({
+    where: {
+      id: params.id,
+      ...(user!.role === "SPECIALIST"
+        ? { specialistId: user!.id, locationId: user!.locationId }
+        : user!.locationScopeId
+          ? { locationId: user!.locationScopeId }
+          : {}),
+    },
     select: { id: true, specialistId: true, deletedAt: true },
   });
   if (!existing || existing.deletedAt) {
