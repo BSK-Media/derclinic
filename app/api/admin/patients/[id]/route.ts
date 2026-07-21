@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
 const PatchSchema = z.object({
@@ -22,6 +22,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (error) return error;
   const deny = requireRole(user!.role, ["ADMIN", "RECEPTION"]);
   if (deny) return deny;
+
+  const visiblePatient = await prisma.patient.findFirst({
+    where: { id: params.id, ...scopedLocationWhere(user!) },
+    select: { id: true },
+  });
+  if (!visiblePatient) return NextResponse.json({ ok: false, message: "Nie znaleziono pacjenta" }, { status: 404 });
 
   const json = await req.json().catch(() => null);
   const parsed = PatchSchema.safeParse(json);
@@ -54,6 +60,12 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   if (error) return error;
   const deny = requireRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
+
+  const visiblePatient = await prisma.patient.findFirst({
+    where: { id: params.id, ...scopedLocationWhere(user!) },
+    select: { id: true },
+  });
+  if (!visiblePatient) return NextResponse.json({ ok: false, message: "Nie znaleziono pacjenta" }, { status: 404 });
 
   await prisma.patient.delete({ where: { id: params.id } });
   await logAudit({ actorId: user!.id, action: "DELETE", entity: "Patient", entityId: params.id });
