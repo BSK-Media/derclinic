@@ -63,18 +63,20 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  role             Role    @default(SPECIALIST)
-  login            String  @unique
+  role             Role     @default(SPECIALIST)
+  login            String   @unique
   name             String
-  email            String? @unique
+  email            String?  @unique
   passwordHash     String
   phone            String?
   specialistCode   Int?
-  isVisible        Boolean @default(true)
-  isAvailable      Boolean @default(false)
+  isVisible        Boolean  @default(true)
+  isAvailable      Boolean  @default(false)
   avatarUrl        String?
   jobTitle         String?
   location         String?
+  locationId       String   @default("grodzisk-mazowiecki")
+  assignedLocation Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
   specialization   String?
   sourceProfileUrl String?
 
@@ -103,6 +105,7 @@ model User {
   timeOffs               SpecialistTimeOff[]
 
   @@index([role])
+  @@index([locationId])
   @@index([specialistCode])
 }
 
@@ -116,11 +119,15 @@ model Patient {
   email String?
   note  String?
 
+  locationId String   @default("grodzisk-mazowiecki")
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
   appointments Appointment[]
   retailSales  RetailSale[]
 
   @@index([name])
   @@index([phone])
+  @@index([locationId])
 }
 
 model Location {
@@ -132,6 +139,10 @@ model Location {
   isActive Boolean @default(true)
 
   appointments Appointment[]
+  users        User[]
+  patients     Patient[]
+  warehouses   Warehouse[]
+  retailSales  RetailSale[]
 
   @@index([name])
 }
@@ -319,10 +330,12 @@ model Warehouse {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  name     String
-  parentId String?
-  parent   Warehouse?  @relation("WarehouseTree", fields: [parentId], references: [id], onDelete: SetNull)
-  children Warehouse[] @relation("WarehouseTree")
+  name       String
+  locationId String      @default("grodzisk-mazowiecki")
+  location   Location    @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  parentId   String?
+  parent     Warehouse?  @relation("WarehouseTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children   Warehouse[] @relation("WarehouseTree")
 
   stocks           Stock[]
   lots             ProductLot[]
@@ -330,6 +343,7 @@ model Warehouse {
   specialistAccess SpecialistWarehouse[]
 
   @@index([parentId])
+  @@index([locationId])
   @@index([name])
 }
 
@@ -390,8 +404,8 @@ model Appointment {
 
   // Lokalizacja jest zapisywana na wizycie, dzięki czemu historyczna analityka
   // nie zmieni się po przeniesieniu pracownika do innej placówki.
-  locationId String?
-  location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  locationId String   @default("grodzisk-mazowiecki")
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
 
   serviceId         String
   service           Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
@@ -488,12 +502,16 @@ model RetailSale {
   soldById String
   soldBy   User   @relation("RetailSaleSeller", fields: [soldById], references: [id], onDelete: Restrict)
 
+  locationId String   @default("grodzisk-mazowiecki")
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
   items    RetailSaleItem[]
   payments Payment[]
 
   note String?
 
   @@index([soldById, createdAt])
+  @@index([locationId, createdAt])
 }
 
 model RetailSaleItem {
