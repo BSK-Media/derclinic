@@ -10,9 +10,9 @@ const PatchSchema = z.object({
 
 type RouteParams = { params: { id: string; paymentId: string } };
 
-async function loadAppointmentWithPayment(appointmentId: string, paymentId: string) {
-  const appointment = await prisma.appointment.findUnique({
-    where: { id: appointmentId },
+async function loadAppointmentWithPayment(appointmentId: string, paymentId: string, locationScopeId: string | null) {
+  const appointment = await prisma.appointment.findFirst({
+    where: { id: appointmentId, ...(locationScopeId ? { locationId: locationScopeId } : {}) },
     select: {
       id: true,
       deletedAt: true,
@@ -40,7 +40,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
   if (!parsed.success)
     return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
-  const { appointment, payment } = await loadAppointmentWithPayment(params.id, params.paymentId);
+  const { appointment, payment } = await loadAppointmentWithPayment(params.id, params.paymentId, user!.locationScopeId);
   if (!appointment) {
     return NextResponse.json({ ok: false, message: "Nie znaleziono wizyty" }, { status: 404 });
   }
@@ -88,7 +88,7 @@ export async function DELETE(_req: Request, { params }: RouteParams) {
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
   if (deny) return deny;
 
-  const { appointment, payment } = await loadAppointmentWithPayment(params.id, params.paymentId);
+  const { appointment, payment } = await loadAppointmentWithPayment(params.id, params.paymentId, user!.locationScopeId);
   if (!appointment) {
     return NextResponse.json({ ok: false, message: "Nie znaleziono wizyty" }, { status: 404 });
   }
