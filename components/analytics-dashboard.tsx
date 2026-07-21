@@ -16,7 +16,17 @@ import {
   YAxis,
   Legend,
 } from "recharts";
-import { TrendingDown, TrendingUp } from "lucide-react";
+import {
+  BarChart3,
+  CalendarDays,
+  ChevronDown,
+  ChevronUp,
+  PackageOpen,
+  Stethoscope,
+  TrendingDown,
+  TrendingUp,
+  UserRound,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
 import {
   Select,
@@ -38,6 +48,7 @@ import { formatPLNFromGrosze } from "@/lib/money";
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 type Period = "7d" | "30d" | "90d" | "month" | "prevMonth" | "year";
+type MobileTab = "overview" | "specialists" | "services" | "products";
 
 const PERIODS: { value: Period; label: string }[] = [
   { value: "7d", label: "Ostatnie 7 dni" },
@@ -120,11 +131,41 @@ function KpiCard({
   );
 }
 
+function MobileMetric({
+  title,
+  value,
+  sub,
+  valueClassName = "",
+}: {
+  title: string;
+  value: React.ReactNode;
+  sub?: React.ReactNode;
+  valueClassName?: string;
+}) {
+  return (
+    <Card className="min-w-0 p-3.5">
+      <div className="text-xs leading-4 text-zinc-500">{title}</div>
+      <div
+        className={`mt-1 break-words text-xl font-semibold tabular-nums leading-tight ${valueClassName}`}
+      >
+        {value}
+      </div>
+      {sub ? <div className="mt-1.5">{sub}</div> : null}
+    </Card>
+  );
+}
+
+const MOBILE_TABS: { value: MobileTab; label: string; icon: React.ReactNode }[] = [
+  { value: "overview", label: "Przegląd", icon: <BarChart3 className="h-4 w-4" /> },
+  { value: "specialists", label: "Specjaliści", icon: <UserRound className="h-4 w-4" /> },
+  { value: "services", label: "Usługi", icon: <Stethoscope className="h-4 w-4" /> },
+  { value: "products", label: "Preparaty", icon: <PackageOpen className="h-4 w-4" /> },
+];
+
 export function AnalyticsDashboard({
   apiPath = "/api/admin/analytics",
   title = "Analityka",
-  description =
-    "Przychody, wizyty i zużycie preparatów — dane liczone dla wizyt zakończonych i zaakceptowanych.",
+  description = "Przychody, wizyty i zużycie preparatów — dane liczone dla wizyt zakończonych i zaakceptowanych.",
 }: {
   apiPath?: string;
   title?: string;
@@ -132,6 +173,8 @@ export function AnalyticsDashboard({
 }) {
   const [period, setPeriod] = React.useState<Period>("30d");
   const [specialistId, setSpecialistId] = React.useState<string>("ALL");
+  const [mobileTab, setMobileTab] = React.useState<MobileTab>("overview");
+  const [showAllIndicators, setShowAllIndicators] = React.useState(false);
 
   const { from, to } = React.useMemo(() => periodToRange(period), [period]);
   const query = new URLSearchParams({ from, to });
@@ -164,7 +207,7 @@ export function AnalyticsDashboard({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="hidden flex-wrap items-end justify-between gap-3 md:flex">
         <div>
           <h1 className="text-2xl font-semibold">{title}</h1>
           <p className="text-sm text-zinc-500">{description}</p>
@@ -198,14 +241,464 @@ export function AnalyticsDashboard({
         </div>
       </div>
 
+      <div className="space-y-4 md:hidden">
+        <div>
+          <h1 className="text-2xl font-semibold">{title}</h1>
+          <p className="mt-1 text-sm leading-5 text-zinc-500">{description}</p>
+        </div>
+
+        <Card className="divide-y divide-zinc-200 p-0 dark:divide-zinc-800">
+          <div className="flex items-center gap-3 p-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-200 dark:border-zinc-800">
+              <CalendarDays className="h-5 w-5" />
+            </div>
+            <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
+              <SelectTrigger className="h-10 min-w-0 flex-1 border-0 bg-transparent px-0 text-left font-medium shadow-none dark:bg-transparent">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PERIODS.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-3 p-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-200 dark:border-zinc-800">
+              <UserRound className="h-5 w-5" />
+            </div>
+            <Select value={specialistId} onValueChange={setSpecialistId}>
+              <SelectTrigger className="h-10 min-w-0 flex-1 border-0 bg-transparent px-0 text-left font-medium shadow-none dark:bg-transparent">
+                <SelectValue placeholder="Specjalista" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Wszyscy specjaliści</SelectItem>
+                {(data?.specialistOptions ?? []).map((s: any) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </Card>
+
+        <div className="grid grid-cols-4 gap-2" role="tablist" aria-label="Sekcje analityki">
+          {MOBILE_TABS.map((tab) => {
+            const active = mobileTab === tab.value;
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setMobileTab(tab.value)}
+                className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1 py-2.5 text-[11px] font-medium transition-colors ${
+                  active
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                    : "border-zinc-200 bg-white text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
+                }`}
+              >
+                {tab.icon}
+                <span className="w-full truncate">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {isLoading && !data ? (
         <div className="p-6 text-sm text-zinc-500">Ładowanie danych…</div>
       ) : !kpi ? (
         <div className="p-6 text-sm text-zinc-500">Brak danych.</div>
       ) : (
         <>
+          {/* Mobile */}
+          <div className="space-y-5 md:hidden">
+            {mobileTab === "overview" ? (
+              <>
+                <section className="space-y-3">
+                  <h2 className="text-lg font-semibold">Najważniejsze wyniki</h2>
+                  <div className="grid grid-cols-2 gap-3">
+                    <MobileMetric
+                      title="Przychód"
+                      value={formatPLNFromGrosze(kpi.revenue)}
+                      sub={<Delta current={kpi.revenue} previous={kpi.prevRevenue} />}
+                    />
+                    <MobileMetric
+                      title="Wizyty rozliczone"
+                      value={kpi.appointments}
+                      sub={<Delta current={kpi.appointments} previous={kpi.prevAppointments} />}
+                    />
+                    <MobileMetric
+                      title="Śr. wartość wizyty"
+                      value={formatPLNFromGrosze(kpi.avgPrice)}
+                    />
+                    <MobileMetric
+                      title="Marża po materiałach"
+                      value={formatPLNFromGrosze(kpi.margin)}
+                      sub={
+                        <span className="block text-[11px] leading-4 text-zinc-500">
+                          Koszt: {formatPLNFromGrosze(kpi.materialsCost)}
+                        </span>
+                      }
+                    />
+                  </div>
+
+                  {showAllIndicators ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      <MobileMetric title="Zapłacono" value={formatPLNFromGrosze(kpi.paid)} />
+                      <MobileMetric
+                        title="Zaległości"
+                        value={formatPLNFromGrosze(kpi.outstanding)}
+                        valueClassName={
+                          kpi.outstanding > 0 ? "text-amber-600 dark:text-amber-400" : ""
+                        }
+                      />
+                      <MobileMetric title="Nowi pacjenci" value={kpi.newPatients} />
+                      <MobileMetric
+                        title="Odwołania / no-show"
+                        value={`${(kpi.noShowRate * 100).toFixed(1)}%`}
+                        sub={
+                          <span className="text-[11px] text-zinc-500">
+                            Odwołania: {(kpi.cancelRate * 100).toFixed(1)}%
+                          </span>
+                        }
+                      />
+                      <MobileMetric
+                        title="Sprzedaż materiałów"
+                        value={formatPLNFromGrosze(kpi.materialsSaleValue)}
+                      />
+                      <MobileMetric
+                        title="Czeka na akceptację"
+                        value={kpi.pendingApproval}
+                        valueClassName={
+                          kpi.pendingApproval > 0 ? "text-amber-600 dark:text-amber-400" : ""
+                        }
+                      />
+                    </div>
+                  ) : (
+                    <div className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-1">
+                      <div className="w-[45%] min-w-[145px] shrink-0 snap-start">
+                        <MobileMetric title="Zapłacono" value={formatPLNFromGrosze(kpi.paid)} />
+                      </div>
+                      <div className="w-[45%] min-w-[145px] shrink-0 snap-start">
+                        <MobileMetric
+                          title="Zaległości"
+                          value={formatPLNFromGrosze(kpi.outstanding)}
+                          valueClassName={
+                            kpi.outstanding > 0 ? "text-amber-600 dark:text-amber-400" : ""
+                          }
+                        />
+                      </div>
+                      <div className="w-[45%] min-w-[145px] shrink-0 snap-start">
+                        <MobileMetric title="Nowi pacjenci" value={kpi.newPatients} />
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setShowAllIndicators((value) => !value)}
+                    className="mx-auto flex items-center gap-2 py-1 text-sm font-medium text-emerald-600 dark:text-emerald-400"
+                  >
+                    {showAllIndicators ? "Ukryj dodatkowe wskaźniki" : "Wszystkie wskaźniki"}
+                    {showAllIndicators ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </button>
+                </section>
+
+                <Card className="overflow-hidden p-3">
+                  <div className="mb-3 font-medium">Przychód i liczba wizyt</div>
+                  <div className="h-64 w-full min-w-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart
+                        data={series}
+                        margin={{ top: 8, right: 0, left: -18, bottom: 0 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                        <XAxis dataKey="date" tick={{ fontSize: 9 }} minTickGap={30} />
+                        <YAxis
+                          yAxisId="rev"
+                          width={52}
+                          tick={{ fontSize: 9 }}
+                          tickFormatter={(v) => `${Math.round(v)} zł`}
+                        />
+                        <YAxis
+                          yAxisId="vis"
+                          width={24}
+                          orientation="right"
+                          tick={{ fontSize: 9 }}
+                          allowDecimals={false}
+                        />
+                        <Tooltip
+                          formatter={(value: any, name: any) =>
+                            name === "Przychód"
+                              ? [
+                                  Number(value).toLocaleString("pl-PL", {
+                                    style: "currency",
+                                    currency: "PLN",
+                                  }),
+                                  name,
+                                ]
+                              : [value, name]
+                          }
+                        />
+                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                        <Bar
+                          yAxisId="vis"
+                          dataKey="visits"
+                          name="Wizyty"
+                          fill="#c7d2fe"
+                          radius={[3, 3, 0, 0]}
+                        />
+                        <Line
+                          yAxisId="rev"
+                          type="monotone"
+                          dataKey="revenuePLN"
+                          name="Przychód"
+                          stroke="#10b981"
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Card>
+
+                <section className="space-y-3">
+                  <h2 className="text-lg font-semibold">Struktura</h2>
+                  <div className="grid gap-3 min-[400px]:grid-cols-2">
+                    <Card className="min-w-0 p-3">
+                      <div className="font-medium">Wizyty wg statusu</div>
+                      {statusData.length === 0 ? (
+                        <div className="mt-3 text-sm text-zinc-500">Brak wizyt w okresie.</div>
+                      ) : (
+                        <div className="h-52 min-w-0">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={statusData}
+                                dataKey="value"
+                                nameKey="name"
+                                innerRadius={40}
+                                outerRadius={62}
+                                paddingAngle={2}
+                              >
+                                {statusData.map((s) => (
+                                  <Cell key={s.name} fill={s.color} />
+                                ))}
+                              </Pie>
+                              <Tooltip />
+                              <Legend wrapperStyle={{ fontSize: 10 }} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </Card>
+
+                    <Card className="min-w-0 p-3">
+                      <div className="font-medium">Płatności</div>
+                      {methodData.length === 0 ? (
+                        <div className="mt-3 text-sm text-zinc-500">Brak płatności w okresie.</div>
+                      ) : (
+                        <div className="h-52 min-w-0">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={methodData}
+                                dataKey="value"
+                                nameKey="name"
+                                innerRadius={40}
+                                outerRadius={62}
+                                paddingAngle={2}
+                              >
+                                {methodData.map((m: any, i: number) => (
+                                  <Cell key={m.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                formatter={(value: any) =>
+                                  Number(value).toLocaleString("pl-PL", {
+                                    style: "currency",
+                                    currency: "PLN",
+                                  })
+                                }
+                              />
+                              <Legend wrapperStyle={{ fontSize: 10 }} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </Card>
+                  </div>
+
+                  <Card className="min-w-0 p-3">
+                    <div className="mb-3 font-medium">Obłożenie — dni i godziny</div>
+                    <div className="max-w-full overflow-x-auto pb-1">
+                      <div className="min-w-[420px]">
+                        <div className="grid grid-cols-[28px_repeat(14,1fr)] gap-0.5 text-[10px] text-zinc-500">
+                          <div />
+                          {HEATMAP_HOURS.map((h) => (
+                            <div key={h} className="text-center">
+                              {h}
+                            </div>
+                          ))}
+                          {DOW_LABELS.map((d, di) => (
+                            <React.Fragment key={d}>
+                              <div className="flex items-center">{d}</div>
+                              {HEATMAP_HOURS.map((h) => {
+                                const v = heatmap[di]?.[h] ?? 0;
+                                const alpha = v === 0 ? 0 : 0.15 + 0.85 * (v / heatMax);
+                                return (
+                                  <div
+                                    key={h}
+                                    title={`${d} ${h}:00 — ${v} wizyt`}
+                                    className="aspect-square rounded-sm border border-zinc-100 dark:border-zinc-800"
+                                    style={{ backgroundColor: `rgba(16,185,129,${alpha})` }}
+                                  />
+                                );
+                              })}
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </section>
+              </>
+            ) : null}
+
+            {mobileTab === "specialists" ? (
+              <section className="space-y-3">
+                <h2 className="text-lg font-semibold">Ranking specjalistów</h2>
+                {(data.specialists ?? []).length === 0 ? (
+                  <Card className="text-sm text-zinc-500">Brak danych w okresie.</Card>
+                ) : (
+                  (data.specialists ?? []).map((s: any, index: number) => (
+                    <Card key={s.id} className="space-y-3 p-3.5">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                          {index + 1}
+                        </div>
+                        <div className="min-w-0 truncate font-semibold">{s.name}</div>
+                      </div>
+                      <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-zinc-200 text-xs dark:border-zinc-800">
+                        <div className="border-b border-r border-zinc-200 p-2.5 dark:border-zinc-800">
+                          <div className="text-zinc-500">Wizyty</div>
+                          <div className="mt-1 font-semibold">{s.appointments}</div>
+                        </div>
+                        <div className="border-b border-zinc-200 p-2.5 dark:border-zinc-800">
+                          <div className="text-zinc-500">Przychód</div>
+                          <div className="mt-1 break-words font-semibold">
+                            {formatPLNFromGrosze(s.revenue)}
+                          </div>
+                        </div>
+                        <div className="border-r border-zinc-200 p-2.5 dark:border-zinc-800">
+                          <div className="text-zinc-500">Koszt materiałów</div>
+                          <div className="mt-1 break-words font-semibold">
+                            {formatPLNFromGrosze(s.materialsCost)}
+                          </div>
+                        </div>
+                        <div className="p-2.5">
+                          <div className="text-zinc-500">Marża</div>
+                          <div className="mt-1 break-words font-semibold">
+                            {formatPLNFromGrosze(s.margin)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-xs text-zinc-500">
+                        Śr. cena: {formatPLNFromGrosze(s.avgPrice)} · odwołania/no-show:{" "}
+                        {(s.cancelNoShowRate * 100).toFixed(1)}%
+                      </div>
+                    </Card>
+                  ))
+                )}
+              </section>
+            ) : null}
+
+            {mobileTab === "services" ? (
+              <section className="space-y-3">
+                <h2 className="text-lg font-semibold">Top 10 usług wg przychodu</h2>
+                {(data.topServices ?? []).length === 0 ? (
+                  <Card className="text-sm text-zinc-500">Brak danych w okresie.</Card>
+                ) : (
+                  (data.topServices ?? []).map((s: any, index: number) => (
+                    <Card key={`${s.name}-${index}`} className="p-3.5">
+                      <div className="flex min-w-0 gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                          {index + 1}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="break-words font-medium leading-5">{s.name}</div>
+                          <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <div className="text-zinc-500">Wykonania</div>
+                              <div className="mt-0.5 font-semibold">{s.count}</div>
+                            </div>
+                            <div>
+                              <div className="text-zinc-500">Przychód</div>
+                              <div className="mt-0.5 break-words font-semibold">
+                                {formatPLNFromGrosze(s.revenue)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  ))
+                )}
+              </section>
+            ) : null}
+
+            {mobileTab === "products" ? (
+              <section className="space-y-3">
+                <h2 className="text-lg font-semibold">Top 10 preparatów wg wartości zużycia</h2>
+                {(data.topProducts ?? []).length === 0 ? (
+                  <Card className="text-sm text-zinc-500">Brak danych w okresie.</Card>
+                ) : (
+                  (data.topProducts ?? []).map((p: any, index: number) => (
+                    <Card key={`${p.name}-${index}`} className="p-3.5">
+                      <div className="flex min-w-0 gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-xs font-semibold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
+                          {index + 1}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="break-words font-medium leading-5">{p.name}</div>
+                          <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                            <div>
+                              <div className="text-zinc-500">Ilość</div>
+                              <div className="mt-0.5 font-semibold">{p.quantity}</div>
+                            </div>
+                            <div>
+                              <div className="text-zinc-500">Koszt</div>
+                              <div className="mt-0.5 break-words font-semibold">
+                                {formatPLNFromGrosze(p.cost)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-zinc-500">Sprzedaż</div>
+                              <div className="mt-0.5 break-words font-semibold">
+                                {formatPLNFromGrosze(p.value)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  ))
+                )}
+              </section>
+            ) : null}
+          </div>
+
           {/* KPI */}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+          <div className="hidden gap-4 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
             <KpiCard
               title="Przychód"
               value={formatPLNFromGrosze(kpi.revenue)}
@@ -247,7 +740,7 @@ export function AnalyticsDashboard({
           </div>
 
           {/* Rozliczenia */}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="hidden gap-4 md:grid md:grid-cols-2 xl:grid-cols-4">
             <KpiCard title="Zapłacono" value={formatPLNFromGrosze(kpi.paid)} />
             <KpiCard
               title="Do zapłaty (zaległości)"
@@ -264,7 +757,9 @@ export function AnalyticsDashboard({
             <KpiCard
               title="Czeka na akceptację"
               value={
-                <span className={kpi.pendingApproval > 0 ? "text-amber-600 dark:text-amber-400" : ""}>
+                <span
+                  className={kpi.pendingApproval > 0 ? "text-amber-600 dark:text-amber-400" : ""}
+                >
                   {kpi.pendingApproval}
                 </span>
               }
@@ -279,7 +774,7 @@ export function AnalyticsDashboard({
           </div>
 
           {/* Przychód w czasie */}
-          <Card className="p-4">
+          <Card className="hidden p-4 md:block">
             <div className="mb-4 font-medium">
               Przychód i liczba wizyt{" "}
               <span className="text-xs font-normal text-zinc-500">
@@ -296,7 +791,12 @@ export function AnalyticsDashboard({
                     tick={{ fontSize: 11 }}
                     tickFormatter={(v) => `${Math.round(v)} zł`}
                   />
-                  <YAxis yAxisId="vis" orientation="right" tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <YAxis
+                    yAxisId="vis"
+                    orientation="right"
+                    tick={{ fontSize: 11 }}
+                    allowDecimals={false}
+                  />
                   <Tooltip
                     formatter={(value: any, name: any) =>
                       name === "Przychód"
@@ -333,7 +833,7 @@ export function AnalyticsDashboard({
           </Card>
 
           {/* Statusy + metody płatności + heatmapa */}
-          <div className="grid gap-4 xl:grid-cols-3">
+          <div className="hidden gap-4 md:grid xl:grid-cols-3">
             <Card className="p-4">
               <div className="mb-2 font-medium">Wizyty wg statusu</div>
               {statusData.length === 0 ? (
@@ -435,7 +935,7 @@ export function AnalyticsDashboard({
           </div>
 
           {/* Ranking specjalistów */}
-          <Card className="p-4">
+          <Card className="hidden p-4 md:block">
             <div className="mb-3 font-medium">Ranking specjalistów</div>
             <div className="overflow-auto">
               <Table>
@@ -465,7 +965,9 @@ export function AnalyticsDashboard({
                       <TableCell className="text-right font-medium">
                         {formatPLNFromGrosze(s.revenue)}
                       </TableCell>
-                      <TableCell className="text-right">{formatPLNFromGrosze(s.avgPrice)}</TableCell>
+                      <TableCell className="text-right">
+                        {formatPLNFromGrosze(s.avgPrice)}
+                      </TableCell>
                       <TableCell className="text-right">
                         {formatPLNFromGrosze(s.materialsCost)}
                       </TableCell>
@@ -481,7 +983,7 @@ export function AnalyticsDashboard({
           </Card>
 
           {/* Top usługi i preparaty */}
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="hidden gap-4 md:grid xl:grid-cols-2">
             <Card className="p-4">
               <div className="mb-3 font-medium">Top 10 usług wg przychodu</div>
               <Table>
