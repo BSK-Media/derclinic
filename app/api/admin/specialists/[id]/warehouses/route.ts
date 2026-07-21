@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
@@ -10,13 +10,13 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const deny = requireRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
-  const specialist = await prisma.user.findUnique({
-    where: { id: params.id },
-    select: { id: true, name: true, warehouseAssignments: { select: { warehouseId: true } } },
+  const specialist = await prisma.user.findFirst({
+    where: { id: params.id, ...scopedLocationWhere(user!) },
+    select: { id: true, name: true, locationId: true, warehouseAssignments: { select: { warehouseId: true } } },
   });
   if (!specialist) return NextResponse.json({ ok: false, message: "Nie znaleziono pracownika" }, { status: 404 });
 
-  const warehouses = await prisma.warehouse.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } });
+  const warehouses = await prisma.warehouse.findMany({ where: { locationId: specialist.locationId }, orderBy: { name: "asc" }, select: { id: true, name: true } });
   const assignedIds = specialist.warehouseAssignments.map((a) => a.warehouseId);
 
   return NextResponse.json({ ok: true, warehouses, assignedIds });
@@ -38,11 +38,14 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   if (!parsed.success) return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
   const [specialist, warehouse] = await Promise.all([
-    prisma.user.findUnique({ where: { id: params.id }, select: { id: true } }),
-    prisma.warehouse.findUnique({ where: { id: parsed.data.warehouseId }, select: { id: true } }),
+    prisma.user.findFirst({ where: { id: params.id, ...scopedLocationWhere(user!) }, select: { id: true, locationId: true } }),
+    prisma.warehouse.findFirst({ where: { id: parsed.data.warehouseId, ...scopedLocationWhere(user!) }, select: { id: true, locationId: true } }),
   ]);
   if (!specialist) return NextResponse.json({ ok: false, message: "Nie znaleziono pracownika" }, { status: 404 });
   if (!warehouse) return NextResponse.json({ ok: false, message: "Nie znaleziono magazynu" }, { status: 404 });
+  if (warehouse.locationId !== specialist.locationId) {
+    return NextResponse.json({ ok: false, message: "Magazyn i pracownik muszą należeć do tej samej lokalizacji" }, { status: 400 });
+  }
 
   if (parsed.data.assigned) {
     await prisma.specialistWarehouse.upsert({
