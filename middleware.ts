@@ -88,8 +88,10 @@ export async function middleware(req: NextRequest) {
       pathname.startsWith("/admin/visits") ||
       pathname.startsWith("/admin/calendar") ||
       pathname.startsWith("/admin/specialists") ||
+      pathname.startsWith("/admin/locations") ||
       pathname.startsWith("/api/admin/appointments") ||
       pathname.startsWith("/api/admin/specialists") ||
+      pathname.startsWith("/api/admin/locations") ||
       pathname.startsWith("/api/admin/consumption-adjustments"));
   if (specialistAdminAppointments) return rejectAccess(req, user);
 
