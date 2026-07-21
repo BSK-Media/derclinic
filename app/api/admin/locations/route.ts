@@ -23,7 +23,7 @@ export async function GET() {
   if (deny) return deny;
 
   const locations = await prisma.location.findMany({
-    where: { isActive: true },
+    where: { isActive: true, ...(user!.role === "ADMIN" ? {} : { id: user!.locationId }) },
     orderBy: { name: "asc" },
     include: { _count: { select: { appointments: true } } },
   });
@@ -38,7 +38,7 @@ const CreateSchema = z.object({
 export async function POST(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);
