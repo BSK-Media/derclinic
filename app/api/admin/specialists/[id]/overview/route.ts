@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { normalizeSidebarPermissions } from "@/lib/sidebar-permissions";
 import { resolveSettlementRange } from "@/lib/settlement-range";
 
@@ -17,8 +17,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   }
   const { range, start, end } = period;
 
-  const specialist = await prisma.user.findUnique({
-    where: { id: params.id },
+  const specialist = await prisma.user.findFirst({
+    where: { id: params.id, ...scopedLocationWhere(user!) },
     select: {
       id: true,
       name: true,
@@ -28,6 +28,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       jobTitle: true,
       specialization: true,
       location: true,
+      assignedLocation: { select: { id: true, name: true } },
       baseRate: true,
       payoutPercent: true,
       sidebarPermissions: true,
@@ -37,7 +38,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     return NextResponse.json({ ok: false, message: "Nie znaleziono pracownika" }, { status: 404 });
 
   const appointments = await prisma.appointment.findMany({
-    where: { specialistId: params.id, deletedAt: null, startsAt: { gte: start, lt: end } },
+    where: { specialistId: params.id, deletedAt: null, startsAt: { gte: start, lt: end }, ...scopedLocationWhere(user!) },
     orderBy: { startsAt: "desc" },
     take: 1000,
     include: {
@@ -98,6 +99,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     end,
     specialist: {
       ...specialist,
+      location: specialist.assignedLocation.name,
       sidebarPermissions: normalizeSidebarPermissions(
         specialist.role,
         specialist.sidebarPermissions,
