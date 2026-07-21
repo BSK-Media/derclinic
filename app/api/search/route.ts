@@ -74,7 +74,7 @@ export async function GET(req: Request) {
   }
 
   // ── ADMIN / RECEPCJA: kategorie zgodne z uprawnieniami sidebara ────────
-  const [patients, appointments, specialists, products, services, warehouses] =
+  const [patients, appointments, specialists, products, services, warehouses, locations] =
     await Promise.all([
       can("patients")
         ? prisma.patient.findMany({
@@ -145,6 +145,14 @@ export async function GET(req: Request) {
         ? prisma.warehouse.findMany({
             where: { name: contains },
             select: { id: true, name: true, parent: { select: { name: true } } },
+            orderBy: { name: "asc" },
+            take: LIMIT,
+          })
+        : Promise.resolve([]),
+      can("locations")
+        ? prisma.location.findMany({
+            where: { isActive: true, name: contains },
+            select: { id: true, name: true },
             orderBy: { name: "asc" },
             take: LIMIT,
           })
@@ -223,6 +231,18 @@ export async function GET(req: Request) {
         title: w.name,
         subtitle: w.parent?.name ? `w: ${w.parent.name}` : undefined,
         href: `/admin/inventory/${w.id}`,
+      })),
+    });
+  }
+  if (locations.length > 0) {
+    groups.push({
+      key: "locations",
+      label: "Lokalizacje",
+      items: locations.map((location: (typeof locations)[number]) => ({
+        id: location.id,
+        title: location.name,
+        subtitle: "Analityka lokalizacji",
+        href: `/admin/locations/${location.id}`,
       })),
     });
   }
