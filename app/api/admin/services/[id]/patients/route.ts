@@ -43,6 +43,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       approvalStatus: "APPROVED",
       deletedAt: null,
       startsAt,
+      ...(user!.locationScopeId ? { locationId: user!.locationScopeId } : {}),
     },
     orderBy: { startsAt: "desc" },
     select: {
@@ -108,6 +109,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       approvalStatus: "APPROVED",
       deletedAt: null,
       startsAt,
+      ...(user!.locationScopeId ? { locationId: user!.locationScopeId } : {}),
     },
     select: { patientId: true, priceFinal: true, priceEstimate: true },
     take: 20000,
