@@ -36,9 +36,9 @@ const CustomWorkDaysSchema = z.object({
   endTime: z.string().regex(TIME_REGEX, "Niepoprawna godzina zakończenia"),
 });
 
-async function ensureSpecialist(id: string) {
-  const specialist = await prisma.user.findUnique({
-    where: { id },
+async function ensureSpecialist(id: string, locationScopeId: string | null) {
+  const specialist = await prisma.user.findFirst({
+    where: { id, ...(locationScopeId ? { locationId: locationScopeId } : {}) },
     select: { id: true, role: true, name: true },
   });
   if (!specialist || specialist.role !== "SPECIALIST") return null;
@@ -52,7 +52,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
   if (deny) return deny;
 
-  const specialist = await ensureSpecialist(params.id);
+  const specialist = await ensureSpecialist(params.id, user!.locationScopeId);
   if (!specialist) {
     return NextResponse.json({ ok: false, message: "Nie znaleziono specjalisty" }, { status: 404 });
   }
@@ -88,7 +88,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
   if (deny) return deny;
 
-  const specialist = await ensureSpecialist(params.id);
+  const specialist = await ensureSpecialist(params.id, user!.locationScopeId);
   if (!specialist) {
     return NextResponse.json({ ok: false, message: "Nie znaleziono specjalisty" }, { status: 404 });
   }
@@ -150,7 +150,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
   if (deny) return deny;
 
-  const specialist = await ensureSpecialist(params.id);
+  const specialist = await ensureSpecialist(params.id, user!.locationScopeId);
   if (!specialist) {
     return NextResponse.json({ ok: false, message: "Nie znaleziono specjalisty" }, { status: 404 });
   }
