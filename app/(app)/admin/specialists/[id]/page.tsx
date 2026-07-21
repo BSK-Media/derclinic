@@ -257,6 +257,25 @@ export default function SpecialistDetailPage() {
         ) : null}
       </div>
 
+      {user?.role === "ADMIN" ? (
+        <>
+          <WarehousesSection
+            specialistId={id}
+            assignedLocationId={specialist?.assignedLocation?.id}
+          />
+          <LocationsSection
+            specialistId={id}
+            assignedLocationId={specialist?.assignedLocation?.id}
+            onSaved={() => mutate()}
+          />
+          <PayoutPercentSection
+            specialistId={id}
+            percent={stats?.percent}
+            onSaved={() => mutate()}
+          />
+        </>
+      ) : null}
+
       {/* Historia wizyt */}
       <Card className="overflow-hidden">
         <div className="border-b p-4">
@@ -381,26 +400,23 @@ export default function SpecialistDetailPage() {
         </div>
       </Card>
 
-      {user?.role === "ADMIN" ? (
-        <>
-          <WarehousesSection specialistId={id} />
-          <PayoutPercentSection
-            specialistId={id}
-            percent={stats?.percent}
-            onSaved={() => mutate()}
-          />
-        </>
-      ) : null}
-
       </>
       )}
     </div>
   );
 }
 
-function WarehousesSection({ specialistId }: { specialistId: string }) {
+function WarehousesSection({
+  specialistId,
+  assignedLocationId,
+}: {
+  specialistId: string;
+  assignedLocationId?: string;
+}) {
   const { data, mutate, isLoading } = useSWR(
-    `/api/admin/specialists/${specialistId}/warehouses`,
+    assignedLocationId
+      ? `/api/admin/specialists/${specialistId}/warehouses?locationId=${encodeURIComponent(assignedLocationId)}`
+      : null,
     fetcher,
   );
   const warehouses: Array<{ id: string; name: string }> = data?.warehouses ?? [];
@@ -459,6 +475,84 @@ function WarehousesSection({ specialistId }: { specialistId: string }) {
       {!isLoading && assignedIds.length === 0 ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
           Brak przypisanych magazynów — pracownik nie będzie mógł rejestrować zużycia preparatów.
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+function LocationsSection({
+  specialistId,
+  assignedLocationId,
+  onSaved,
+}: {
+  specialistId: string;
+  assignedLocationId?: string;
+  onSaved: () => void;
+}) {
+  const { data, isLoading } = useSWR("/api/admin/locations", fetcher);
+  const locations: Array<{ id: string; name: string }> = data?.locations ?? [];
+  const [savingId, setSavingId] = React.useState<string | null>(null);
+
+  async function assign(locationId: string) {
+    if (!assignedLocationId || locationId === assignedLocationId) return;
+
+    setSavingId(locationId);
+    try {
+      const res = await fetch(`/api/admin/users/${specialistId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ locationId }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) {
+        return toast.error(out?.message || "Nie udało się przypisać lokalizacji");
+      }
+
+      toast.success("Przypisano lokalizację");
+      onSaved();
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  return (
+    <Card className="space-y-3 p-4">
+      <div>
+        <div className="font-medium">Przypisana lokalizacja</div>
+        <div className="mt-1 text-xs text-slate-500">
+          Pracownik widzi dane placówki przypisanej w tej sekcji. Kliknij inną lokalizację, aby
+          przenieść do niej pracownika.
+        </div>
+      </div>
+      {isLoading || !assignedLocationId ? (
+        <div className="text-sm text-slate-500">Ładowanie...</div>
+      ) : null}
+      <div className="flex flex-wrap gap-2">
+        {locations.map((location) => {
+          const assigned = location.id === assignedLocationId;
+          return (
+            <button
+              key={location.id}
+              type="button"
+              disabled={savingId !== null || !assignedLocationId}
+              onClick={() => assign(location.id)}
+              className={
+                "rounded-full border px-3 py-1.5 text-sm transition disabled:opacity-60 " +
+                (assigned
+                  ? "border-emerald-300 bg-emerald-100 font-medium text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-200"
+                  : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10")
+              }
+            >
+              {assigned ? "✓ " : ""}
+              {location.name}
+            </button>
+          );
+        })}
+      </div>
+      {!isLoading && locations.length === 0 ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          Brak aktywnych lokalizacji do przypisania.
         </div>
       ) : null}
     </Card>
