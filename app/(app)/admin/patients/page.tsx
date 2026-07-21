@@ -454,17 +454,35 @@ export default function AdminPatientsPage() {
                     </div>
                   </div>
                 </div>
-                {patient.note?.trim() ? (
-                  <span
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-zinc-500 dark:text-zinc-300"
-                    title={patient.note}
-                  >
-                    <MessageSquareText className="h-4 w-4" />
+                <div className="ml-auto flex shrink-0 flex-col items-end self-stretch">
+                  <span className="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">
+                    {patient.lastVisitAt
+                      ? new Intl.DateTimeFormat("pl-PL", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        }).format(new Date(patient.lastVisitAt))
+                      : "Brak wizyty"}
                   </span>
-                ) : null}
-                <ChevronRight className="h-5 w-5 shrink-0 text-zinc-500" />
+                  <div className="mt-auto flex items-center gap-1">
+                    {patient.note?.trim() ? (
+                      <span
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-zinc-500 dark:text-zinc-300"
+                        title={patient.note}
+                      >
+                        <MessageSquareText className="h-4 w-4" />
+                      </span>
+                    ) : null}
+                    <ChevronRight className="h-5 w-5 shrink-0 text-zinc-500" />
+                  </div>
+                </div>
               </div>
-              <div className="mt-3 grid grid-cols-2 border-t pt-3 text-sm">
+              <div
+                className={cn(
+                  "mt-3 grid border-t pt-3 text-sm",
+                  isAdmin ? "grid-cols-2" : "grid-cols-1",
+                )}
+              >
                 {isAdmin ? (
                   <div className="border-r pr-3">
                     <span className="text-zinc-500">Wydano</span>
@@ -472,21 +490,8 @@ export default function AdminPatientsPage() {
                       {formatPLNFromGrosze(patient.totalSpent ?? 0)}
                     </span>
                   </div>
-                ) : (
-                  <div className="border-r pr-3">
-                    <span className="text-zinc-500">Ostatnia wizyta</span>
-                    <span className="ml-2 font-medium">
-                      {patient.lastVisitAt
-                        ? new Intl.DateTimeFormat("pl-PL", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                          }).format(new Date(patient.lastVisitAt))
-                        : "—"}
-                    </span>
-                  </div>
-                )}
-                <div className="pl-3 text-right">
+                ) : null}
+                <div className={cn("text-right", isAdmin && "pl-3")}>
                   <span className="text-zinc-500">Wizyty</span>
                   <span className="ml-2 font-semibold">{patient.completedVisits ?? 0}</span>
                 </div>
