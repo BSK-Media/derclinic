@@ -41,6 +41,70 @@ type HeaderNotification = {
   read: boolean;
 };
 
+type LocationOption = { id: string; name: string };
+
+function LocationScopeSelect() {
+  const { user } = useAuth();
+  const [locations, setLocations] = React.useState<LocationOption[]>([]);
+  const [value, setValue] = React.useState("__LOADING__");
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!user) return;
+    let active = true;
+    fetch("/api/location-scope", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((result) => {
+        if (!active || !result?.ok) return;
+        setLocations(result.locations ?? []);
+        setValue(result.selectedLocationId ?? "__ALL__");
+      })
+      .catch(() => null);
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  async function changeLocation(nextValue: string) {
+    setValue(nextValue);
+    setSaving(true);
+    try {
+      const response = await fetch("/api/location-scope", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ locationId: nextValue === "__ALL__" ? null : nextValue }),
+      });
+      if (response.ok) window.location.reload();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!user) return null;
+
+  return (
+    <label className="order-3 flex w-full min-w-0 items-center gap-2 md:order-none md:w-auto">
+      <span className="hidden shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400 xl:inline">
+        Lokalizacja
+      </span>
+      <select
+        value={value}
+        onChange={(event) => changeLocation(event.target.value)}
+        disabled={saving || value === "__LOADING__" || user.role !== "ADMIN"}
+        className="h-10 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 shadow-sm outline-none focus:border-emerald-400 disabled:cursor-default disabled:opacity-90 dark:border-white/10 dark:bg-[#111827] dark:text-slate-100 md:w-[180px] xl:w-[220px]"
+        aria-label="Filtr lokalizacji"
+      >
+        {user.role === "ADMIN" ? <option value="__ALL__">Wszystkie lokalizacje</option> : null}
+        {locations.map((location) => (
+          <option key={location.id} value={location.id}>
+            {location.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 const NAV: NavItem[] = [
   { label: "Dashboard", permission: "dashboard", icon: <span className="text-lg">⌂</span> },
   { label: "Kalendarz", permission: "calendar", icon: <span className="text-lg">🗓️</span> },
@@ -396,9 +460,10 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-white/60 bg-white/70 px-4 py-3 backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 lg:px-6">
-      <div className="flex items-center gap-3 lg:gap-4">
+      <div className="flex flex-wrap items-center gap-3 lg:gap-4">
         <MobileNav />
         <GlobalSearch />
+        <LocationScopeSelect />
 
         <div className="flex items-center gap-3">
           <div ref={notificationsRef} className="relative">
