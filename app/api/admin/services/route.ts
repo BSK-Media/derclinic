@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole, requireStrictRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, requireStrictRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { resolveSettlementRange } from "@/lib/settlement-range";
 
-async function servicePatientsResponse(url: URL, serviceId: string, viewerRole: string) {
+async function servicePatientsResponse(url: URL, serviceId: string, viewerRole: string, locationScopeId: string | null) {
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
   const hasDateRange = Boolean(from || to);
@@ -39,6 +39,7 @@ async function servicePatientsResponse(url: URL, serviceId: string, viewerRole: 
       approvalStatus: "APPROVED",
       deletedAt: null,
       startsAt,
+      ...(locationScopeId ? { locationId: locationScopeId } : {}),
     },
     orderBy: { startsAt: "desc" },
     select: {
@@ -104,6 +105,7 @@ async function servicePatientsResponse(url: URL, serviceId: string, viewerRole: 
       approvalStatus: "APPROVED",
       deletedAt: null,
       startsAt,
+      ...(locationScopeId ? { locationId: locationScopeId } : {}),
     },
     select: { patientId: true, priceFinal: true, priceEstimate: true },
     take: 20000,
@@ -136,7 +138,7 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const patientsFor = url.searchParams.get("patientsFor");
-  if (patientsFor) return servicePatientsResponse(url, patientsFor, user!.role);
+  if (patientsFor) return servicePatientsResponse(url, patientsFor, user!.role, user!.locationScopeId);
 
   const [services, products, specialists] = await Promise.all([
     prisma.service.findMany({
@@ -148,7 +150,7 @@ export async function GET(req: Request) {
     }),
     prisma.product.findMany({ orderBy: { name: "asc" } }),
     prisma.user.findMany({
-      where: { role: "SPECIALIST" },
+      where: { role: "SPECIALIST", ...scopedLocationWhere(user!) },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
