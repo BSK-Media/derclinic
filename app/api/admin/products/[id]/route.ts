@@ -25,8 +25,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const product = await prisma.product.findUnique({
     where: { id: params.id },
     include: {
-      stocks: { include: { warehouse: true }, orderBy: { warehouse: { name: "asc" } } },
-      lots: { include: { warehouse: true }, orderBy: [{ expiryDate: "asc" }, { warehouse: { name: "asc" } }] },
+      stocks: { where: user!.locationScopeId ? { warehouse: { locationId: user!.locationScopeId } } : {}, include: { warehouse: true }, orderBy: { warehouse: { name: "asc" } } },
+      lots: { where: user!.locationScopeId ? { warehouse: { locationId: user!.locationScopeId } } : {}, include: { warehouse: true }, orderBy: [{ expiryDate: "asc" }, { warehouse: { name: "asc" } }] },
       serviceSuggestions: {
         include: { service: { select: { id: true, name: true, category: true } } },
         orderBy: { service: { name: "asc" } },
