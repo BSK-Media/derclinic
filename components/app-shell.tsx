@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React from "react";
+import useSWR from "swr";
 import { createPortal } from "react-dom";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
@@ -45,25 +46,19 @@ type LocationOption = { id: string; name: string };
 
 function LocationScopeSelect() {
   const { user } = useAuth();
-  const [locations, setLocations] = React.useState<LocationOption[]>([]);
+  const { data } = useSWR(
+    user ? "/api/location-scope" : null,
+    (url: string) => fetch(url, { cache: "no-store" }).then((response) => response.json()),
+    { revalidateOnFocus: true },
+  );
+  const locations = (data?.locations ?? []) as LocationOption[];
   const [value, setValue] = React.useState("__LOADING__");
   const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
-    if (!user) return;
-    let active = true;
-    fetch("/api/location-scope", { cache: "no-store" })
-      .then((response) => response.json())
-      .then((result) => {
-        if (!active || !result?.ok) return;
-        setLocations(result.locations ?? []);
-        setValue(result.selectedLocationId ?? "__ALL__");
-      })
-      .catch(() => null);
-    return () => {
-      active = false;
-    };
-  }, [user]);
+    if (!data?.ok) return;
+    setValue(data.selectedLocationId ?? "__ALL__");
+  }, [data]);
 
   async function changeLocation(nextValue: string) {
     setValue(nextValue);
@@ -338,66 +333,63 @@ function MobileNav() {
 
       {open && mounted
         ? createPortal(
-        <div className="fixed inset-0 z-[100] lg:hidden">
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setOpen(false)}
-          />
-          <div className="absolute bottom-0 left-0 top-0 flex w-[300px] max-w-[85vw] animate-[mobilenav_0.2s_ease-out] flex-col overflow-y-auto border-r border-slate-200 bg-white p-3 shadow-2xl dark:border-white/10 dark:bg-[#0b1220]">
-            <style>{`@keyframes mobilenav { from { transform: translateX(-100%); } to { transform: translateX(0); } }`}</style>
-            <div className="flex items-center justify-between">
-              <LogoBlock showThemeToggle={false} />
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                aria-label="Zamknij menu"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-xl text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
-              >
-                ✕
-              </button>
-            </div>
-
-            <nav className="mt-3 flex-1 space-y-1 overflow-y-auto px-1">
-              {visibleNav.map((item) => {
-                const href = sidebarHref(item.permission, user!.role);
-                const active =
-                  pathname === href ||
-                  (href !== "/admin" && href !== "/specialist" && pathname.startsWith(href));
-
-                return (
-                  <Link
-                    key={item.permission}
-                    href={href}
+            <div className="fixed inset-0 z-[100] lg:hidden">
+              <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
+              <div className="absolute bottom-0 left-0 top-0 flex w-[300px] max-w-[85vw] animate-[mobilenav_0.2s_ease-out] flex-col overflow-y-auto border-r border-slate-200 bg-white p-3 shadow-2xl dark:border-white/10 dark:bg-[#0b1220]">
+                <style>{`@keyframes mobilenav { from { transform: translateX(-100%); } to { transform: translateX(0); } }`}</style>
+                <div className="flex items-center justify-between">
+                  <LogoBlock showThemeToggle={false} />
+                  <button
+                    type="button"
                     onClick={() => setOpen(false)}
-                    className={cn(
-                      "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition",
-                      active
-                        ? "bg-emerald-50 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-200"
-                        : "text-slate-700 hover:bg-slate-100/70 dark:text-slate-200 dark:hover:bg-white/5",
-                    )}
+                    aria-label="Zamknij menu"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-xl text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
                   >
-                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/70 shadow-sm ring-1 ring-black/5 dark:bg-white/5 dark:ring-white/10">
-                      {item.icon}
-                    </span>
-                    <span className="truncate">{item.label}</span>
-                  </Link>
-                );
-              })}
-            </nav>
+                    ✕
+                  </button>
+                </div>
 
-            <div className="mt-2 rounded-2xl border border-white/60 bg-white/70 p-3 shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55">
-              <button
-                onClick={() => logout()}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
-              >
-                Wyloguj
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )
-      : null}
+                <nav className="mt-3 flex-1 space-y-1 overflow-y-auto px-1">
+                  {visibleNav.map((item) => {
+                    const href = sidebarHref(item.permission, user!.role);
+                    const active =
+                      pathname === href ||
+                      (href !== "/admin" && href !== "/specialist" && pathname.startsWith(href));
+
+                    return (
+                      <Link
+                        key={item.permission}
+                        href={href}
+                        onClick={() => setOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition",
+                          active
+                            ? "bg-emerald-50 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-200"
+                            : "text-slate-700 hover:bg-slate-100/70 dark:text-slate-200 dark:hover:bg-white/5",
+                        )}
+                      >
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/70 shadow-sm ring-1 ring-black/5 dark:bg-white/5 dark:ring-white/10">
+                          {item.icon}
+                        </span>
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </nav>
+
+                <div className="mt-2 rounded-2xl border border-white/60 bg-white/70 p-3 shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55">
+                  <button
+                    onClick={() => logout()}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+                  >
+                    Wyloguj
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
@@ -558,7 +550,9 @@ export function AppHeader() {
                         )}
                         <button
                           type="button"
-                          onClick={() => toggleNotificationRead(notification.id, !notification.read)}
+                          onClick={() =>
+                            toggleNotificationRead(notification.id, !notification.read)
+                          }
                           className={cn(
                             "mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border text-sm font-bold transition",
                             notification.read
