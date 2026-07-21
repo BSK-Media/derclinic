@@ -115,6 +115,7 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
   const appointments = data?.appointments ?? [];
   const patients = data?.patients ?? [];
   const specialists = data?.specialists ?? [];
+  const bookingSpecialists = data?.bookingSpecialists ?? specialists;
   const services = data?.services ?? [];
 
   // Filtr po specjaliście — wspólny dla listy i kalendarza
@@ -668,7 +669,7 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         patients={patients}
-        specialists={specialists}
+        specialists={bookingSpecialists}
         services={services}
         defaultDate={defaultDate}
         onCreated={() => mutate()}
