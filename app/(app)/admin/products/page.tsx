@@ -178,12 +178,13 @@ function SortableHead({
   );
 }
 
-function StatCard({ title, value }: { title: string; value: React.ReactNode }) {
+function StatCard({ title, value, hint }: { title: string; value: React.ReactNode; hint: string }) {
   return (
     <Card className="border-white/60 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55">
       <CardContent className="p-5">
         <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</div>
         <div className="mt-1 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">{value}</div>
+        <div className="mt-1 text-xs text-slate-400">{hint}</div>
       </CardContent>
     </Card>
   );
@@ -470,7 +471,14 @@ export default function ProductsPage() {
     );
   }
 
-  const lowStockCount = products.filter((product) => productStatus(product) !== "Aktywny").length;
+  const lowStockCount = products.filter(
+    (product) => product.wosWeeks != null && product.wosWeeks * 7 < 14,
+  ).length;
+  const shortExpiryCount = products.filter(expiresWithinSixMonths).length;
+  const totalProductsQuantity = products.reduce(
+    (sum, product) => sum + totalQuantity(product),
+    0,
+  );
   const totalValue = products.reduce(
     (sum, product) => sum + (product.purchasePrice ?? 0) * totalQuantity(product),
     0,
@@ -505,11 +513,11 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Łączna liczba produktów" value={products.length} />
-        <StatCard title="Firmy / producenci" value={manufacturers.length - 1} />
-        <StatCard title="Produkty z niskim stanem lub brakiem" value={lowStockCount} />
-        <StatCard title="Szacowana wartość zakupu" value={money(totalValue)} />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard title="Łączna wartość produktów" value={money(totalValue)} hint="według cen zakupu" />
+        <StatCard title="Łączna liczba produktów" value={quantity(totalProductsQuantity)} hint="wszystkie sztuki łącznie" />
+        <StatCard title="Produkty z niskim stanem" value={lowStockCount} hint="mniej niż 14 dni zapasu" />
+        <StatCard title="Produkty z krótkim terminem" value={shortExpiryCount} hint="termin krótszy niż 6 miesięcy" />
       </div>
 
       <section className="space-y-4 sm:hidden">
