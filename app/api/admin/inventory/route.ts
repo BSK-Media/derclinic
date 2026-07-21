@@ -1,7 +1,7 @@
 import { ConsumptionKind } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 
 const WOS_WEEKS = 10;
 const LOW_STOCK_DAYS = 14;
@@ -17,17 +17,22 @@ export async function GET() {
 
   const sixMonthsFromNow = new Date();
   sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
+  const locationWhere = scopedLocationWhere(user!);
+  const warehouseRelationWhere = user!.locationScopeId
+    ? { warehouse: { locationId: user!.locationScopeId } }
+    : {};
 
   const [warehouses, stocks, lots, consumptions] = await Promise.all([
     prisma.warehouse.findMany({
+      where: locationWhere,
       orderBy: [{ parentId: "asc" }, { name: "asc" }],
     }),
     prisma.stock.findMany({
-      where: { quantity: { gt: 0 } },
+      where: { quantity: { gt: 0 }, ...warehouseRelationWhere },
       include: { product: true },
     }),
     prisma.productLot.findMany({
-      where: { quantity: { gt: 0 } },
+      where: { quantity: { gt: 0 }, ...warehouseRelationWhere },
       select: { warehouseId: true, productId: true, expiryDate: true },
     }),
     prisma.consumption.findMany({
@@ -35,6 +40,7 @@ export async function GET() {
         createdAt: { gte: tenWeeksAgo },
         warehouseId: { not: null },
         kind: { in: [ConsumptionKind.APPOINTMENT, ConsumptionKind.SALE] },
+        ...warehouseRelationWhere,
       },
       select: { warehouseId: true, productId: true, quantity: true },
     }),
