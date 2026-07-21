@@ -40,7 +40,11 @@ export async function GET(req: Request) {
   const to = new Date(toRaw);
   to.setHours(23, 59, 59, 999);
   const specialistId = url.searchParams.get("specialistId") || null;
-  const locationId = url.searchParams.get("locationId") || null;
+  const requestedLocationId = url.searchParams.get("locationId");
+  if (user!.role !== "ADMIN" && requestedLocationId && requestedLocationId !== user!.locationId) {
+    return NextResponse.json({ ok: false, message: "Brak dostępu do tej lokalizacji" }, { status: 403 });
+  }
+  const locationId = requestedLocationId || user!.locationScopeId;
 
   // Poprzedni okres o tej samej długości (do porównań %)
   const rangeMs = to.getTime() - from.getTime();
@@ -50,18 +54,10 @@ export async function GET(req: Request) {
   const baseWhere = {
     deletedAt: null,
     ...(specialistId ? { specialistId } : {}),
-    ...(locationId
-      ? locationId === "grodzisk-mazowiecki"
-        ? { OR: [{ locationId }, { locationId: null }] }
-        : { locationId }
-      : {}),
+    ...(locationId ? { locationId } : {}),
   } as const;
 
-  const patientLocationWhere = locationId
-    ? locationId === "grodzisk-mazowiecki"
-      ? { appointments: { some: { OR: [{ locationId }, { locationId: null }] } } }
-      : { appointments: { some: { locationId } } }
-    : {};
+  const patientLocationWhere = locationId ? { locationId } : {};
 
   const [appointments, prevAppointments, specialists, newPatients, prevNewPatients] =
     await Promise.all([
@@ -104,7 +100,7 @@ export async function GET(req: Request) {
         take: 20000,
       }),
       prisma.user.findMany({
-        where: { role: "SPECIALIST" },
+        where: { role: "SPECIALIST", ...(locationId ? { locationId } : {}) },
         select: { id: true, name: true },
         orderBy: { name: "asc" },
       }),
