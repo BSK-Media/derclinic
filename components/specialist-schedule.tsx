@@ -646,10 +646,6 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
                     <span className="rounded bg-indigo-600 px-1 text-[10px] font-medium text-white">
                       wybrano
                     </span>
-                  ) : !selectingCustomDays && offDate === key ? (
-                    <span className="rounded bg-indigo-100 px-1 text-[10px] font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
-                      data wolnego
-                    </span>
                   ) : null}
                 </div>
                 <div className="mt-1 space-y-1">
