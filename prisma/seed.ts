@@ -659,6 +659,24 @@ function inferServiceDescription(name: string, price: number): string {
 
 
 async function main() {
+  // Stałe identyfikatory pozwalają bezpiecznie przypisywać wizyty do placówek.
+  // Warszawa startuje bez danych, a wszystkie dotychczasowe wizyty trafiają
+  // jednorazowo do Grodziska Mazowieckiego.
+  await prisma.location.upsert({
+    where: { id: "grodzisk-mazowiecki" },
+    update: { name: "Grodzisk Mazowiecki", isActive: true },
+    create: { id: "grodzisk-mazowiecki", name: "Grodzisk Mazowiecki" },
+  });
+  await prisma.location.upsert({
+    where: { id: "warszawa" },
+    update: { name: "Warszawa", isActive: true },
+    create: { id: "warszawa", name: "Warszawa" },
+  });
+  await prisma.appointment.updateMany({
+    where: { locationId: null },
+    data: { locationId: "grodzisk-mazowiecki" },
+  });
+
   const login = "admin";
   const existing = await prisma.user.findUnique({ where: { login } });
   if (!existing) {
