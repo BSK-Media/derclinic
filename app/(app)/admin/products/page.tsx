@@ -9,6 +9,7 @@ import {
   ArrowRightLeft,
   ArrowUp,
   ChevronsUpDown,
+  CircleHelp,
   Minus,
   PackagePlus,
   Plus,
@@ -718,38 +719,18 @@ export default function ProductsPage() {
 
       <Card className="hidden border-white/60 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 sm:block">
         <CardHeader className="pb-3">
-          <CardTitle className="text-xl">Lista produktów</CardTitle>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-xl">Lista produktów</CardTitle>
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Szukaj po nazwie, SKU, EAN, firmie..."
+              className="w-full rounded-2xl sm:max-w-sm"
+            />
+          </div>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="w-full lg:max-w-[420px]">
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Szukaj po nazwie, SKU, EAN, firmie..."
-                className="rounded-2xl"
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {manufacturers.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => setManufacturer(item)}
-                  className={
-                    "rounded-xl px-3 py-1 text-sm font-medium transition " +
-                    (manufacturer === item
-                      ? "bg-teal-100 text-teal-800 dark:bg-teal-500/15 dark:text-teal-200"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10")
-                  }
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200/70 dark:border-white/10">
+          <div className="overflow-hidden rounded-2xl border border-slate-200/70 dark:border-white/10">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -762,10 +743,16 @@ export default function ProductsPage() {
                   <SortableHead label="Cena zakupu" sortKey="purchasePrice" activeKey={sortKey} direction={sortDirection} onSort={handleSort} />
                   <SortableHead label="Cena sprzedaży" sortKey="salePrice" activeKey={sortKey} direction={sortDirection} onSort={handleSort} />
                   <SortableHead label="Termin ważności" sortKey="expiryDate" activeKey={sortKey} direction={sortDirection} onSort={handleSort} />
-                  <TableHead className="min-w-52 py-2">
-                    <span className="block">WOS</span>
-                    <span className="mt-0.5 block text-[10px] font-normal leading-tight text-slate-400 dark:text-slate-500">
-                      Przewidywany czas wystarczalności
+                  <TableHead className="w-20 whitespace-nowrap py-2">
+                    <span
+                      className="inline-flex items-center gap-1.5"
+                      title="Przewidywany czas wystarczalności"
+                    >
+                      WOS
+                      <CircleHelp
+                        className="h-3.5 w-3.5 cursor-help text-slate-400 dark:text-slate-500"
+                        aria-label="Przewidywany czas wystarczalności"
+                      />
                     </span>
                   </TableHead>
                   <SortableHead label="Status" sortKey="status" activeKey={sortKey} direction={sortDirection} onSort={handleSort} />
