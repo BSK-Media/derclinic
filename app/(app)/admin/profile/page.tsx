@@ -70,9 +70,49 @@ const secondaryBtnCls =
   "rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10";
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const isAdmin = user?.role === "ADMIN";
   const me = splitName(user?.name);
+  const [profileAvatar, setProfileAvatar] = React.useState<string | null>(null);
+  const [profileAvatarChanged, setProfileAvatarChanged] = React.useState(false);
+  const [savingProfileAvatar, setSavingProfileAvatar] = React.useState(false);
+
+  React.useEffect(() => {
+    setProfileAvatar(user?.avatarUrl ?? null);
+    setProfileAvatarChanged(false);
+  }, [user?.avatarUrl]);
+
+  async function onPickProfileAvatar(file: File | null) {
+    if (!file) return;
+    try {
+      setProfileAvatar(await fileToCompressedDataUrl(file));
+      setProfileAvatarChanged(true);
+    } catch (e: any) {
+      toast.error(e?.message || "Nie udało się wczytać zdjęcia.");
+    }
+  }
+
+  async function onSaveProfileAvatar() {
+    if (!profileAvatarChanged || !profileAvatar) return;
+    setSavingProfileAvatar(true);
+    try {
+      const res = await fetch("/api/me/avatar", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avatarUrl: profileAvatar }),
+      });
+      const data = await res.json().catch(() => ({ ok: false }));
+      if (!res.ok || !data?.ok) {
+        toast.error(data?.message || "Nie udało się zapisać zdjęcia.");
+        return;
+      }
+      setProfileAvatarChanged(false);
+      await refresh();
+      toast.success("Zdjęcie profilowe zostało zmienione.");
+    } finally {
+      setSavingProfileAvatar(false);
+    }
+  }
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
@@ -89,12 +129,35 @@ export default function ProfilePage() {
           <div className="flex items-center gap-4 sm:w-[220px] sm:flex-col sm:items-start">
             <div className="h-20 w-20 overflow-hidden rounded-full bg-slate-200 ring-1 ring-black/5 dark:bg-white/10 dark:ring-white/10">
               <img
-                src={user?.avatarUrl ?? "/demo-avatar-ewa.svg"}
+                src={profileAvatar ?? "/demo-avatar-ewa.svg"}
                 alt="Avatar"
                 className="h-full w-full object-cover"
               />
             </div>
             <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">Zdjęcie profilowe</div>
+            {isAdmin ? (
+              <div className="flex flex-wrap gap-2">
+                <label className="cursor-pointer rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10">
+                  Zmień zdjęcie
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(event) => onPickProfileAvatar(event.target.files?.[0] ?? null)}
+                  />
+                </label>
+                {profileAvatarChanged ? (
+                  <button
+                    type="button"
+                    onClick={onSaveProfileAvatar}
+                    disabled={savingProfileAvatar}
+                    className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {savingProfileAvatar ? "Zapisywanie…" : "Zapisz zdjęcie"}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="grid flex-1 gap-4">
@@ -111,7 +174,7 @@ export default function ProfilePage() {
 
             <div>
               <label className={fieldLabelCls}>Lokalizacja</label>
-              <div className={readOnlyCls}>{user?.location || "—"}</div>
+              <div className={readOnlyCls}>{isAdmin ? "—" : user?.location || "—"}</div>
             </div>
 
             <div>
