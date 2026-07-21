@@ -54,6 +54,7 @@ const NAV: NavItem[] = [
     permission: "services",
     icon: <span className="text-lg">🩺</span>,
   },
+  { label: "Lokalizacje", permission: "locations", icon: <span className="text-lg">📍</span> },
   { label: "Analityka", permission: "analytics", icon: <span className="text-lg">📈</span> },
   { label: "Ustawienia", permission: "settings", icon: <span className="text-lg">⚙️</span> },
 ];
