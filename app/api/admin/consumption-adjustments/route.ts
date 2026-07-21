@@ -9,7 +9,17 @@ export async function GET() {
   if (deny) return deny;
 
   const pending = await prisma.consumption.findMany({
-    where: { status: "PENDING" },
+    where: {
+      status: "PENDING",
+      ...(user!.locationScopeId
+        ? {
+            OR: [
+              { appointment: { locationId: user!.locationScopeId } },
+              { warehouse: { locationId: user!.locationScopeId } },
+            ],
+          }
+        : {}),
+    },
     orderBy: { createdAt: "desc" },
     include: {
       product: true,
