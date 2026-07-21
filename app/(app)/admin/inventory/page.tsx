@@ -10,6 +10,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth } from "@/components/auth-provider";
 
 async function fetcher(url: string) {
   const response = await fetch(url);
@@ -29,6 +31,11 @@ type WarehouseSummary = {
   shortExpiryCount: number;
 };
 
+type LocationOption = {
+  id: string;
+  name: string;
+};
+
 function money(value: number) {
   return new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN" }).format(value / 100);
 }
@@ -38,27 +45,38 @@ function quantity(value: number) {
 }
 
 export default function InventoryPage() {
+  const { user } = useAuth();
   const { data, error, isLoading, mutate } = useSWR("/api/admin/inventory", fetcher);
+  const { data: locationsData, isLoading: locationsLoading } = useSWR(
+    user?.role === "ADMIN" ? "/api/admin/locations" : null,
+    fetcher,
+  );
   const warehouses: WarehouseSummary[] = data?.warehouses ?? [];
+  const locations: LocationOption[] = locationsData?.locations ?? [];
   const [createOpen, setCreateOpen] = React.useState(false);
   const [name, setName] = React.useState("");
+  const [locationId, setLocationId] = React.useState("");
   const [saving, setSaving] = React.useState(false);
-  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [warehouseToDelete, setWarehouseToDelete] = React.useState<WarehouseSummary | null>(null);
+  const [adminPassword, setAdminPassword] = React.useState("");
+  const [deleting, setDeleting] = React.useState(false);
 
   async function createWarehouse() {
     if (name.trim().length < 2) return toast.error("Podaj nazwę magazynu");
+    if (!locationId) return toast.error("Wybierz lokalizację magazynu");
     setSaving(true);
     try {
       const response = await fetch("/api/admin/warehouses", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), parentId: null }),
+        body: JSON.stringify({ name: name.trim(), locationId, parentId: null }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result?.ok) throw new Error(result?.message || "Nie udało się dodać magazynu");
 
       toast.success("Magazyn został dodany");
       setName("");
+      setLocationId("");
       setCreateOpen(false);
       await mutate();
     } catch (error) {
@@ -68,25 +86,41 @@ export default function InventoryPage() {
     }
   }
 
-  async function deleteWarehouse(warehouse: WarehouseSummary) {
-    const confirmed = window.confirm(
-      `Czy na pewno usunąć magazyn „${warehouse.name}”? Zostaną również usunięte jego stany i partie produktów.`,
-    );
-    if (!confirmed) return;
+  function closeDeleteDialog() {
+    if (deleting) return;
+    setWarehouseToDelete(null);
+    setAdminPassword("");
+  }
 
-    setDeletingId(warehouse.id);
+  async function deleteWarehouse(event: React.FormEvent) {
+    event.preventDefault();
+    if (!warehouseToDelete || !adminPassword) return;
+
+    setDeleting(true);
     try {
-      const response = await fetch(`/api/admin/warehouses/${warehouse.id}`, { method: "DELETE" });
+      const response = await fetch(`/api/admin/warehouses/${warehouseToDelete.id}`, {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ password: adminPassword }),
+      });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result?.ok) throw new Error(result?.message || "Nie udało się usunąć magazynu");
 
       toast.success("Magazyn został usunięty");
+      setWarehouseToDelete(null);
+      setAdminPassword("");
       await mutate();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Nie udało się usunąć magazynu");
     } finally {
-      setDeletingId(null);
+      setDeleting(false);
     }
+  }
+
+  function openCreateDialog() {
+    setName("");
+    setLocationId("");
+    setCreateOpen(true);
   }
 
   return (
@@ -98,10 +132,12 @@ export default function InventoryPage() {
             Wybierz magazyn, aby sprawdzić jego stan i zarządzać produktami.
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)} className="gap-2 bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:text-white">
-          <Plus className="h-4 w-4" />
-          Dodaj magazyn
-        </Button>
+        {user?.role === "ADMIN" ? (
+          <Button onClick={openCreateDialog} className="gap-2 bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:text-white">
+            <Plus className="h-4 w-4" />
+            Dodaj magazyn
+          </Button>
+        ) : null}
       </div>
 
       {error ? (
@@ -141,17 +177,21 @@ export default function InventoryPage() {
                     Wartość zakupu: <span className="font-semibold text-slate-700 dark:text-slate-200">{money(warehouse.totalValue)}</span>
                   </div>
                 </Link>
-                <div className="border-t border-slate-100 px-5 py-3 dark:border-white/10">
-                  <button
-                    type="button"
-                    onClick={() => deleteWarehouse(warehouse)}
-                    disabled={deletingId === warehouse.id}
-                    className="inline-flex items-center gap-2 text-xs font-medium text-red-600 transition hover:text-red-700 disabled:opacity-50 dark:text-red-300"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    {deletingId === warehouse.id ? "Usuwanie..." : "Usuń magazyn"}
-                  </button>
-                </div>
+                {user?.role === "ADMIN" ? (
+                  <div className="border-t border-slate-100 px-5 py-3 dark:border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdminPassword("");
+                        setWarehouseToDelete(warehouse);
+                      }}
+                      className="inline-flex items-center gap-2 text-xs font-medium text-red-600 transition hover:text-red-700 dark:text-red-300"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Usuń magazyn
+                    </button>
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           ))}
@@ -168,30 +208,96 @@ export default function InventoryPage() {
         </div>
       )}
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          if (!saving) setCreateOpen(open);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Dodaj magazyn</DialogTitle>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="warehouse-name">Nazwa magazynu</Label>
-            <Input
-              id="warehouse-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") createWarehouse();
-              }}
-              placeholder="np. Magazyn Kraków"
-              autoFocus
-            />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="warehouse-name">Nazwa magazynu</Label>
+              <Input
+                id="warehouse-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && name.trim().length >= 2 && locationId) createWarehouse();
+                }}
+                placeholder="np. Magazyn Kraków"
+                autoFocus
+                disabled={saving}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Lokalizacja</Label>
+              <Select value={locationId} onValueChange={setLocationId} disabled={saving || locationsLoading}>
+                <SelectTrigger>
+                  <SelectValue placeholder={locationsLoading ? "Ładowanie lokalizacji..." : "Wybierz lokalizację"} />
+                </SelectTrigger>
+                <SelectContent disablePortal>
+                  {locations.map((location) => (
+                    <SelectItem key={location.id} value={location.id}>{location.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!locationsLoading && locations.length === 0 ? (
+                <p className="text-xs text-red-600 dark:text-red-300">Brak aktywnych lokalizacji. Najpierw dodaj lokalizację.</p>
+              ) : null}
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>Anuluj</Button>
-            <Button onClick={createWarehouse} disabled={saving || name.trim().length < 2} className="bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:text-white">
+            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={saving}>Anuluj</Button>
+            <Button onClick={createWarehouse} disabled={saving || name.trim().length < 2 || !locationId} className="bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:text-white">
               {saving ? "Dodawanie..." : "Dodaj magazyn"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(warehouseToDelete)}
+        onOpenChange={(open) => {
+          if (!open) closeDeleteDialog();
+        }}
+      >
+        <DialogContent>
+          <form onSubmit={deleteWarehouse}>
+            <DialogHeader>
+              <DialogTitle>Usuń magazyn</DialogTitle>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Aby usunąć magazyn <strong>{warehouseToDelete?.name}</strong>, wpisz hasło aktualnie
+                zalogowanego administratora. Zostaną również usunięte stany i partie produktów z tego magazynu.
+              </p>
+            </DialogHeader>
+
+            <div className="space-y-2">
+              <Label htmlFor="delete-warehouse-password">Hasło administratora</Label>
+              <Input
+                id="delete-warehouse-password"
+                type="password"
+                value={adminPassword}
+                onChange={(event) => setAdminPassword(event.target.value)}
+                placeholder="Wpisz hasło"
+                autoComplete="current-password"
+                autoFocus
+                disabled={deleting}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={closeDeleteDialog} disabled={deleting}>
+                Anuluj
+              </Button>
+              <Button type="submit" disabled={deleting || !adminPassword} className="bg-red-600 text-white hover:bg-red-700">
+                {deleting ? "Usuwanie..." : "Usuń magazyn"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
