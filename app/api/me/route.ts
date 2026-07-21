@@ -8,7 +8,10 @@ export async function GET() {
   if (!u) return NextResponse.json({ ok: false }, { status: 401 });
 
   // Refresh from DB (role changes etc.)
-  const dbu = await prisma.user.findUnique({ where: { id: u.id } });
+  const dbu = await prisma.user.findUnique({
+    where: { id: u.id },
+    include: { assignedLocation: { select: { id: true, name: true } } },
+  });
   if (!dbu) return NextResponse.json({ ok: false }, { status: 401 });
 
   const sidebarPermissions = normalizeSidebarPermissions(dbu.role, dbu.sidebarPermissions);
@@ -26,6 +29,6 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
-    user: { id: dbu.id, login: dbu.login, name: dbu.name, role: dbu.role, payoutPercent: dbu.payoutPercent, avatarUrl: dbu.avatarUrl, jobTitle: dbu.jobTitle, location: dbu.location, specialization: dbu.specialization, sidebarPermissions },
+    user: { id: dbu.id, login: dbu.login, name: dbu.name, role: dbu.role, payoutPercent: dbu.payoutPercent, avatarUrl: dbu.avatarUrl, jobTitle: dbu.jobTitle, location: dbu.assignedLocation.name, locationId: dbu.locationId, assignedLocation: dbu.assignedLocation, specialization: dbu.specialization, sidebarPermissions },
   });
 }
