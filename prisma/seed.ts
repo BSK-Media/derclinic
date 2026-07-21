@@ -672,10 +672,6 @@ async function main() {
     update: { name: "Warszawa", isActive: true },
     create: { id: "warszawa", name: "Warszawa" },
   });
-  await prisma.appointment.updateMany({
-    where: { locationId: null },
-    data: { locationId: "grodzisk-mazowiecki" },
-  });
 
   const login = "admin";
   const existing = await prisma.user.findUnique({ where: { login } });
@@ -686,6 +682,8 @@ async function main() {
         login,
         name: "Administrator",
         role: Role.ADMIN,
+        locationId: "grodzisk-mazowiecki",
+        location: "Grodzisk Mazowiecki",
         passwordHash,
         isVisible: true,
         isAvailable: true,
@@ -714,6 +712,7 @@ async function main() {
           isAvailable: specialist.isAvailable,
           avatarUrl: specialist.avatarUrl ?? null,
           jobTitle: specialist.jobTitle ?? null,
+          locationId: "grodzisk-mazowiecki",
           location: specialist.location ?? null,
           specialization: specialist.specialization ?? null,
           sourceProfileUrl: specialist.sourceProfileUrl ?? null,
@@ -761,13 +760,13 @@ async function main() {
 
   if (seedInitialInventory) {
     mainWh = await prisma.warehouse.create({
-      data: { id: "main-warehouse", name: "Magazyn Grodzisk Mazowiecki" },
+      data: { id: "main-warehouse", name: "Magazyn Grodzisk Mazowiecki", locationId: "grodzisk-mazowiecki" },
     });
     treatmentWh = await prisma.warehouse.create({
-      data: { id: "treatment-warehouse", name: "Recepcja Grodzisk Mazowiecki", parentId: mainWh.id },
+      data: { id: "treatment-warehouse", name: "Recepcja Grodzisk Mazowiecki", locationId: "grodzisk-mazowiecki", parentId: mainWh.id },
     });
     await prisma.warehouse.create({
-      data: { id: "warsaw-warehouse", name: "Magazyn Warszawa" },
+      data: { id: "warsaw-warehouse", name: "Magazyn Warszawa", locationId: "grodzisk-mazowiecki" },
     });
   } else if (hasLegacyWarehouseNames) {
     if (mainWh) {
@@ -784,7 +783,7 @@ async function main() {
     }
     if (!existingWarsaw) {
       await prisma.warehouse.create({
-        data: { id: "warsaw-warehouse", name: "Magazyn Warszawa" },
+        data: { id: "warsaw-warehouse", name: "Magazyn Warszawa", locationId: "grodzisk-mazowiecki" },
       });
     }
   }
