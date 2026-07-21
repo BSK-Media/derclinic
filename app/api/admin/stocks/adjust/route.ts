@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
 const NewProductSchema = z.object({
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const warehouse = await tx.warehouse.findUnique({ where: { id: warehouseId } });
+      const warehouse = await tx.warehouse.findFirst({ where: { id: warehouseId, ...scopedLocationWhere(user!) } });
       if (!warehouse) throw new Error("Nie znaleziono magazynu");
 
       const product = newProduct
