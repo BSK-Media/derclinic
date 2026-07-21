@@ -41,12 +41,13 @@ function serviceName(appointment: { customServiceName: string | null; service: {
   return appointment.customServiceName || appointment.service.name;
 }
 
-async function getSpecialistNotifications(specialistId: string) {
+async function getSpecialistNotifications(specialistId: string, locationId: string) {
   const notificationsFrom = new Date(Date.now() - NOTIFICATIONS_DAYS * 24 * 60 * 60 * 1000);
 
   const recentAppointments = await prisma.appointment.findMany({
     where: {
       specialistId,
+      locationId,
       deletedAt: null,
       OR: [{ createdAt: { gte: notificationsFrom } }, { updatedAt: { gte: notificationsFrom } }],
     },
@@ -188,7 +189,7 @@ export async function GET() {
     return NextResponse.json({ ok: true, notifications: [], unreadCount: 0 });
   }
 
-  const notifications = await getSpecialistNotifications(user!.id);
+  const notifications = await getSpecialistNotifications(user!.id, user!.locationId);
   const readRows = notifications.length
     ? await prisma.auditLog.findMany({
         where: {
