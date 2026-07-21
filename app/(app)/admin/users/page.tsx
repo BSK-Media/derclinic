@@ -8,10 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
+import { LocationSelect } from "@/components/location-select";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-type U = { id: string; login: string; name: string; role: string; email?: string | null; payoutPercent?: number };
+type U = { id: string; login: string; name: string; role: string; email?: string | null; payoutPercent?: number; location?: string | null; locationId: string };
 
 export default function AdminUsersPage() {
   const { data, mutate, isLoading } = useSWR("/api/admin/users", fetcher);
@@ -22,6 +23,7 @@ export default function AdminUsersPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [payoutPercent, setPayoutPercent] = useState("50");
+  const [locationId, setLocationId] = useState("grodzisk-mazowiecki");
   const [saving, setSaving] = useState(false);
 
   async function create() {
@@ -37,6 +39,7 @@ export default function AdminUsersPage() {
           email,
           password,
           payoutPercent: role === "SPECIALIST" ? Number(payoutPercent) : undefined,
+          locationId,
         }),
       });
       const out = await res.json().catch(() => ({}));
@@ -101,6 +104,10 @@ export default function AdminUsersPage() {
             <Label>% rozliczenia (specjalista)</Label>
             <Input value={payoutPercent} onChange={(e) => setPayoutPercent(e.target.value)} disabled={role !== "SPECIALIST"} />
           </div>
+          <div className="space-y-2">
+            <Label>Lokalizacja *</Label>
+            <LocationSelect value={locationId} onChange={setLocationId} />
+          </div>
         </div>
         <Button onClick={create} disabled={saving || !login || !name || !password}>
           {saving ? "Zapisywanie..." : "Dodaj"}
@@ -117,16 +124,17 @@ export default function AdminUsersPage() {
                 <th className="p-3">Nazwa</th>
                 <th className="p-3">Rola</th>
                 <th className="p-3">Email</th>
+                <th className="p-3">Lokalizacja</th>
                 <th className="p-3">% (specjalista)</th>
                 <th className="p-3"></th>
               </tr>
             </thead>
             <tbody>
               {isLoading && (
-                <tr><td className="p-3 text-zinc-500" colSpan={6}>Ładowanie...</td></tr>
+                <tr><td className="p-3 text-zinc-500" colSpan={7}>Ładowanie...</td></tr>
               )}
               {!isLoading && users.length === 0 && (
-                <tr><td className="p-3 text-zinc-500" colSpan={6}>Brak użytkowników.</td></tr>
+                <tr><td className="p-3 text-zinc-500" colSpan={7}>Brak użytkowników.</td></tr>
               )}
               {users.map((u) => (
                 <tr key={u.id} className="border-t">
@@ -134,6 +142,7 @@ export default function AdminUsersPage() {
                   <td className="p-3">{u.name}</td>
                   <td className="p-3">{u.role}</td>
                   <td className="p-3">{u.email ?? "—"}</td>
+                  <td className="p-3">{u.location ?? "—"}</td>
                   <td className="p-3">{u.role === "SPECIALIST" ? (u.payoutPercent ?? 0) + "%" : "—"}</td>
                   <td className="p-3 text-right">
                     <Button variant="destructive" size="sm" onClick={() => remove(u.id)}>Usuń</Button>
