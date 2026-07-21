@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { resolveSettlementRange } from "@/lib/settlement-range";
 
 export async function GET(req: Request) {
@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   }
 
   const specialists = await prisma.user.findMany({
-    where: { role: "SPECIALIST" },
+    where: { role: "SPECIALIST", ...scopedLocationWhere(user!) },
     orderBy: [{ specialistCode: "asc" }, { name: "asc" }],
     select: {
       id: true,
@@ -37,6 +37,7 @@ export async function GET(req: Request) {
       approvalStatus: "APPROVED",
       deletedAt: null,
       startsAt: { gte: period.start, lt: period.end },
+      ...scopedLocationWhere(user!),
     },
     select: {
       id: true,
