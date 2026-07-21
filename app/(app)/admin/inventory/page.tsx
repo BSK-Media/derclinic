@@ -214,7 +214,7 @@ export default function InventoryPage() {
           if (!saving) setCreateOpen(open);
         }}
       >
-        <DialogContent>
+        <DialogContent className="overflow-visible">
           <DialogHeader>
             <DialogTitle>Dodaj magazyn</DialogTitle>
           </DialogHeader>
@@ -239,7 +239,13 @@ export default function InventoryPage() {
                 <SelectTrigger>
                   <SelectValue placeholder={locationsLoading ? "Ładowanie lokalizacji..." : "Wybierz lokalizację"} />
                 </SelectTrigger>
-                <SelectContent disablePortal>
+                <SelectContent
+                  side="bottom"
+                  align="start"
+                  sideOffset={6}
+                  collisionPadding={16}
+                  className="pointer-events-auto z-[1100] max-h-[min(24rem,calc(100vh-2rem))]"
+                >
                   {locations.map((location) => (
                     <SelectItem key={location.id} value={location.id}>{location.name}</SelectItem>
                   ))}
