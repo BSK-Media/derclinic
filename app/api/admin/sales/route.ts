@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 
 function bad(message: string, status = 400) {
   return NextResponse.json({ ok: false, message }, { status });
@@ -14,9 +14,10 @@ export async function GET() {
 
   const [products, warehouses, patients, sales] = await Promise.all([
     prisma.product.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
-    prisma.warehouse.findMany({ orderBy: [{ parentId: "asc" }, { name: "asc" }] }),
-    prisma.patient.findMany({ orderBy: { name: "asc" }, take: 500 }),
+    prisma.warehouse.findMany({ where: scopedLocationWhere(user!), orderBy: [{ parentId: "asc" }, { name: "asc" }] }),
+    prisma.patient.findMany({ where: scopedLocationWhere(user!), orderBy: { name: "asc" }, take: 500 }),
     prisma.retailSale.findMany({
+      where: scopedLocationWhere(user!),
       orderBy: { createdAt: "desc" },
       include: { patient: true, items: { include: { product: true } }, payments: true },
       take: 50,
@@ -46,6 +47,19 @@ export async function POST(req: Request) {
   if (!warehouseId) return bad("Wybierz magazyn");
   if (!Array.isArray(items) || items.length === 0) return bad("Brak pozycji");
   if (!payment?.method || typeof payment.amount !== "number") return bad("Brak płatności");
+
+  const warehouse = await prisma.warehouse.findFirst({
+    where: { id: warehouseId, ...scopedLocationWhere(user!) },
+    select: { id: true, locationId: true },
+  });
+  if (!warehouse) return bad("Magazyn nie należy do wybranej lokalizacji", 403);
+  if (patientId) {
+    const patient = await prisma.patient.findFirst({
+      where: { id: patientId, locationId: warehouse.locationId },
+      select: { id: true },
+    });
+    if (!patient) return bad("Pacjent jest przypisany do innej lokalizacji");
+  }
 
   // Load products and validate
   const productIds = [...new Set(items.map((i) => i.productId))];
@@ -86,6 +100,7 @@ export async function POST(req: Request) {
       data: {
         patientId: patientId || null,
         soldById: user!.id,
+        locationId: warehouse.locationId,
         note: note || null,
         items: {
           create: items.map((it) => {
