@@ -78,20 +78,29 @@ function startOfMonthGrid(anchor: Date) {
   return start;
 }
 
+// Niedziela ostatniego tygodnia zawierającego dzień wybranego miesiąca.
+function endOfMonthGrid(anchor: Date) {
+  const last = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+  const daysUntilSunday = (7 - last.getDay()) % 7;
+  const end = new Date(last);
+  end.setDate(last.getDate() + daysUntilSunday);
+  end.setHours(0, 0, 0, 0);
+  return end;
+}
+
 export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
   const [anchor, setAnchor] = React.useState(() => new Date());
 
   const gridStart = React.useMemo(() => startOfMonthGrid(anchor), [anchor]);
+  const gridEnd = React.useMemo(() => endOfMonthGrid(anchor), [anchor]);
   const gridDays = React.useMemo(() => {
     const days: Date[] = [];
-    for (let i = 0; i < 42; i++) {
-      const d = new Date(gridStart);
-      d.setDate(gridStart.getDate() + i);
+    for (const current = new Date(gridStart); current <= gridEnd; current.setDate(current.getDate() + 1)) {
+      const d = new Date(current);
       days.push(d);
     }
     return days;
-  }, [gridStart]);
-  const gridEnd = gridDays[gridDays.length - 1];
+  }, [gridEnd, gridStart]);
 
   const { data, mutate, isLoading } = useSWR(
     `/api/admin/specialists/${specialistId}/schedule?from=${toDateInput(gridStart)}&to=${toDateInput(gridEnd)}`,
