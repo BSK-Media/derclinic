@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 
 function ymToRange(ym: string) {
   // ym: YYYY-MM
@@ -21,7 +21,7 @@ export async function GET(req: Request) {
   const { start, end } = ymToRange(ym);
 
   const specialists = await prisma.user.findMany({
-    where: { role: "SPECIALIST" },
+    where: { role: "SPECIALIST", ...scopedLocationWhere(user!) },
     orderBy: { name: "asc" },
   });
   const specialistIds = specialists.map((s) => s.id);
@@ -33,6 +33,7 @@ export async function GET(req: Request) {
       approvalStatus: "APPROVED",
       deletedAt: null,
       startsAt: { gte: start, lt: end },
+      ...scopedLocationWhere(user!),
     },
     include: { consumptions: { include: { product: true } } },
     take: 5000,
