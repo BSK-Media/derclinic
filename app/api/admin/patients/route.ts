@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
 export async function GET(req: Request) {
@@ -16,13 +16,14 @@ export async function GET(req: Request) {
   const patients = await prisma.patient.findMany({
     where: q
       ? {
+          ...scopedLocationWhere(user!),
           OR: [
             { name: { contains: q, mode: "insensitive" } },
             { phone: { contains: q, mode: "insensitive" } },
             { email: { contains: q, mode: "insensitive" } },
           ],
         }
-      : undefined,
+      : scopedLocationWhere(user!),
     orderBy: { createdAt: "desc" },
     take: 200,
   });
@@ -37,6 +38,7 @@ export async function GET(req: Request) {
       status: "COMPLETED",
       approvalStatus: "APPROVED",
       deletedAt: null,
+      ...scopedLocationWhere(user!),
     },
     select: {
       patientId: true,
@@ -84,12 +86,19 @@ export async function POST(req: Request) {
   if (!parsed.success)
     return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
+  if (!user!.locationScopeId) {
+    return NextResponse.json(
+      { ok: false, message: "Przed dodaniem pacjenta wybierz konkretną lokalizację" },
+      { status: 400 },
+    );
+  }
   const p = await prisma.patient.create({
     data: {
       name: parsed.data.name,
       phone: parsed.data.phone ? parsed.data.phone : null,
       email: parsed.data.email ? parsed.data.email : null,
       note: parsed.data.note ? parsed.data.note : null,
+      locationId: user!.locationScopeId,
     },
   });
 
