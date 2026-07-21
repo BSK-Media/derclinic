@@ -15,19 +15,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 type PatientDetails = {
   id: string;
   name: string;
   phone: string | null;
   email: string | null;
+  note: string | null;
 };
 
-type EditableField = "name" | "phone" | "email";
+type EditableField = "name" | "phone" | "email" | "note";
+type ContactField = Exclude<EditableField, "note">;
 
 const FIELD_DETAILS: Record<
   EditableField,
-  { label: string; emptyLabel: string; type: "text" | "tel" | "email"; maxLength: number }
+  { label: string; emptyLabel: string; type?: "text" | "tel" | "email"; maxLength: number }
 > = {
   name: {
     label: "Imię i nazwisko",
@@ -47,7 +50,14 @@ const FIELD_DETAILS: Record<
     type: "email",
     maxLength: 200,
   },
+  note: {
+    label: "Notatka",
+    emptyLabel: "Brak notatki",
+    maxLength: 1000,
+  },
 };
+
+const CONTACT_FIELDS: ContactField[] = ["name", "phone", "email"];
 
 export function PatientDetailsForm({
   patient,
@@ -61,6 +71,7 @@ export function PatientDetailsForm({
     name: patient.name,
     phone: patient.phone ?? "",
     email: patient.email ?? "",
+    note: patient.note ?? "",
   });
   const [confirmationField, setConfirmationField] = React.useState<EditableField | null>(null);
   const [editingField, setEditingField] = React.useState<EditableField | null>(null);
@@ -133,7 +144,7 @@ export function PatientDetailsForm({
       {children}
 
       <Card className="grid gap-3 p-4 md:grid-cols-3">
-        {(Object.keys(FIELD_DETAILS) as EditableField[]).map((field) => {
+        {CONTACT_FIELDS.map((field) => {
           const details = FIELD_DETAILS[field];
           const isEditing = editingField === field;
 
@@ -197,6 +208,52 @@ export function PatientDetailsForm({
             </div>
           );
         })}
+      </Card>
+
+      <Card className="p-4">
+        <div className="mb-2 text-base font-medium">Notatka</div>
+        {editingField === "note" ? (
+          <form onSubmit={saveField} className="space-y-3">
+            <Textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              maxLength={FIELD_DETAILS.note.maxLength}
+              autoFocus
+              disabled={saving}
+              className="min-h-28 resize-y"
+              placeholder="Wpisz notatkę o pacjencie"
+            />
+            <div className="flex justify-end gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={cancelEdit} disabled={saving}>
+                Anuluj
+              </Button>
+              <Button type="submit" size="sm" disabled={saving}>
+                {saving ? "Zapisywanie…" : "Zapisz"}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <div className="flex min-h-10 items-start justify-between gap-3">
+            <div
+              className={
+                values.note
+                  ? "whitespace-pre-wrap break-words text-sm text-zinc-700 dark:text-zinc-200"
+                  : "text-sm text-zinc-400"
+              }
+            >
+              {values.note || FIELD_DETAILS.note.emptyLabel}
+            </div>
+            <button
+              type="button"
+              onClick={() => requestEdit("note")}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
+              aria-label="Edytuj: Notatka"
+              title="Edytuj: Notatka"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </Card>
 
       <Dialog
