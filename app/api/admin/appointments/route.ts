@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole, requireStrictRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, requireStrictRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
 function parseRangeDate(value: string | null, fallback: Date, includeWholeDay = false) {
@@ -26,12 +26,14 @@ export async function GET(req: Request) {
 
   const fromDt = parseRangeDate(from, new Date(Date.now() - 1000 * 60 * 60 * 24 * 7));
   const toDt = parseRangeDate(to, new Date(Date.now() + 1000 * 60 * 60 * 24 * 14), true);
+  const locationWhere = scopedLocationWhere(user!);
 
   // Porządkujemy również starsze dane: akceptacja dotyczy wyłącznie wizyty zakończonej.
   // Dzięki temu zaplanowana, odwołana i nieobecność zawsze mają puste pole akceptacji.
   await prisma.appointment.updateMany({
     where: {
       status: { in: ["SCHEDULED", "CANCELED", "NO_SHOW"] },
+      ...locationWhere,
       OR: [
         { approvalStatus: { not: "PENDING" } },
         { approvedAt: { not: null } },
@@ -47,11 +49,11 @@ export async function GET(req: Request) {
     },
   });
 
-  const [appointments, patients, specialists, services] = await Promise.all([
+  const [appointments, patients, specialists, bookingSpecialists, services] = await Promise.all([
     prisma.appointment.findMany({
       where: deletedOnly
-        ? { deletedAt: { not: null } }
-        : { deletedAt: null, startsAt: { gte: fromDt, lt: toDt } },
+        ? { deletedAt: { not: null }, ...locationWhere }
+        : { deletedAt: null, startsAt: { gte: fromDt, lt: toDt }, ...locationWhere },
       orderBy: deletedOnly ? { deletedAt: "desc" } : { startsAt: "asc" },
       include: {
         patient: true,
@@ -60,31 +62,41 @@ export async function GET(req: Request) {
         deletedBy: { select: { id: true, name: true, login: true } },
         consumptions: { include: { product: true, warehouse: true } },
         payments: true,
+        location: { select: { id: true, name: true } },
       },
       take: 500,
     }),
-    prisma.patient.findMany({ orderBy: { name: "asc" }, take: 500 }),
+    prisma.patient.findMany({ where: locationWhere, orderBy: { name: "asc" }, take: 500 }),
     prisma.user.findMany({
-      where: { role: "SPECIALIST" },
+      where: { role: "SPECIALIST", ...locationWhere },
+      orderBy: { name: "asc" },
+      include: { assignedServices: { select: { serviceId: true } } },
+    }),
+    prisma.user.findMany({
+      where: { role: "SPECIALIST", ...(user!.role === "ADMIN" ? {} : locationWhere) },
       orderBy: { name: "asc" },
       include: { assignedServices: { select: { serviceId: true } } },
     }),
     prisma.service.findMany({ orderBy: { name: "asc" } }),
   ]);
 
-  const shapedSpecialists = specialists.map((s) => ({
+  const shapeSpecialist = (s: (typeof specialists)[number]) => ({
     id: s.id,
     name: s.name,
     login: s.login,
+    locationId: s.locationId,
     serviceIds: s.assignedServices.map((a) => a.serviceId),
-  }));
+  });
+  const shapedSpecialists = specialists.map(shapeSpecialist);
 
   return NextResponse.json({
     ok: true,
     appointments,
     patients,
     specialists: shapedSpecialists,
+    bookingSpecialists: bookingSpecialists.map(shapeSpecialist),
     services,
+    scopeLocationId: user!.locationScopeId,
   });
 }
 
@@ -108,6 +120,7 @@ const CreateSchema = z
     // Zgodność ze starszym formularzem — ta wartość również jest traktowana jako cena końcowa.
     priceEstimate: z.number().int().optional().nullable(),
     note: z.string().optional().or(z.literal("")),
+    locationId: z.string().min(1),
   })
   .superRefine((value, ctx) => {
     if (!value.patientId && !value.newPatient) {
@@ -137,6 +150,24 @@ export async function POST(req: Request) {
   if (!parsed.success)
     return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
+  const appointmentLocationId = user!.role === "ADMIN" ? parsed.data.locationId : user!.locationId;
+  if (user!.role !== "ADMIN" && parsed.data.locationId !== user!.locationId) {
+    return NextResponse.json({ ok: false, message: "Nie możesz dodać wizyty w innej lokalizacji" }, { status: 403 });
+  }
+  const [appointmentLocation, specialist] = await Promise.all([
+    prisma.location.findFirst({
+      where: { id: appointmentLocationId, isActive: true },
+      select: { id: true },
+    }),
+    prisma.user.findFirst({
+      where: { id: parsed.data.specialistId, role: "SPECIALIST", locationId: appointmentLocationId },
+      select: { id: true },
+    }),
+  ]);
+  if (!appointmentLocation || !specialist) {
+    return NextResponse.json({ ok: false, message: "Specjalista nie pracuje w wybranej lokalizacji" }, { status: 400 });
+  }
+
   const startsAt = new Date(parsed.data.startsAt);
   const endsAt = new Date(startsAt);
   endsAt.setMinutes(endsAt.getMinutes() + parsed.data.durationMin);
@@ -162,7 +193,7 @@ export async function POST(req: Request) {
 
     // Ten sam numer telefonu = ten sam klient — nie duplikujemy kartotek
     const existingPatient = await prisma.patient.findFirst({
-      where: { phone },
+      where: { phone, locationId: appointmentLocationId },
       orderBy: { updatedAt: "desc" },
       select: { id: true, email: true },
     });
@@ -173,7 +204,7 @@ export async function POST(req: Request) {
       }
     } else {
       const createdPatient = await prisma.patient.create({
-        data: { name: patientName, phone, email },
+        data: { name: patientName, phone, email, locationId: appointmentLocationId },
         select: { id: true },
       });
       patientId = createdPatient.id;
@@ -188,12 +219,22 @@ export async function POST(req: Request) {
   if (!patientId) {
     return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
   }
+  const patientInLocation = await prisma.patient.findFirst({
+    where: { id: patientId, locationId: appointmentLocationId },
+    select: { id: true },
+  });
+  if (!patientInLocation) {
+    return NextResponse.json(
+      { ok: false, message: "Wybrany pacjent jest przypisany do innej lokalizacji" },
+      { status: 400 },
+    );
+  }
 
   const appt = await prisma.appointment.create({
     data: {
       patientId,
       specialistId: parsed.data.specialistId,
-      locationId: "grodzisk-mazowiecki",
+      locationId: appointmentLocationId,
       serviceId: parsed.data.serviceId,
       startsAt,
       endsAt,
