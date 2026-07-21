@@ -1,7 +1,6 @@
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 
 export async function GET() {
   const { user, error } = await requireAuth();
@@ -10,7 +9,7 @@ export async function GET() {
   if (deny) return deny;
 
   const specialists = await prisma.user.findMany({
-    where: { OR: [{ role: "SPECIALIST" }, { role: "RECEPTION" }] },
+    where: { OR: [{ role: "SPECIALIST" }, { role: "RECEPTION" }], ...scopedLocationWhere(user!) },
     orderBy: [{ specialistCode: "asc" }, { name: "asc" }],
     select: {
       id: true,
@@ -25,11 +24,19 @@ export async function GET() {
       avatarUrl: true,
       jobTitle: true,
       location: true,
+      locationId: true,
+      assignedLocation: { select: { id: true, name: true } },
       specialization: true,
       sourceProfileUrl: true,
       createdAt: true,
     },
   });
 
-  return NextResponse.json({ ok: true, specialists });
+  return NextResponse.json({
+    ok: true,
+    specialists: specialists.map((specialist) => ({
+      ...specialist,
+      location: specialist.assignedLocation.name,
+    })),
+  });
 }
