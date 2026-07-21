@@ -19,12 +19,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
           include: { product: true },
         },
         specialistAssignments: {
+          where: user!.locationScopeId
+            ? { specialist: { locationId: user!.locationScopeId } }
+            : {},
           include: { specialist: { select: { id: true, name: true } } },
         },
       },
     }),
     prisma.user.findMany({
-      where: { role: "SPECIALIST" },
+      where: { role: "SPECIALIST", ...(user!.locationScopeId ? { locationId: user!.locationScopeId } : {}) },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
