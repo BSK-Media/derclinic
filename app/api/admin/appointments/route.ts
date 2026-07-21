@@ -193,6 +193,7 @@ export async function POST(req: Request) {
     data: {
       patientId,
       specialistId: parsed.data.specialistId,
+      locationId: "grodzisk-mazowiecki",
       serviceId: parsed.data.serviceId,
       startsAt,
       endsAt,
