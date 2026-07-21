@@ -80,7 +80,9 @@ function Avatar({ name, avatarUrl, large = false }: { name: string; avatarUrl?: 
 }
 
 export default function SpecialistsPage() {
-  const { data, mutate, isLoading } = useSWR("/api/admin/specialists", fetcher);
+  const { data, mutate, isLoading } = useSWR("/api/admin/specialists", fetcher, {
+    refreshInterval: 60_000,
+  });
   const specialists: Specialist[] = data?.specialists ?? [];
 
   const { user } = useAuth();
@@ -427,9 +429,11 @@ export default function SpecialistsPage() {
                           <Button size="sm" variant="outline" onClick={() => toggleField(s.id, { isVisible: !s.isVisible })}>
                             {s.isVisible ? "Ukryj" : "Pokaż"}
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => toggleField(s.id, { isAvailable: !s.isAvailable })}>
-                            {s.isAvailable ? "Oznacz niedostępny" : "Oznacz dostępny"}
-                          </Button>
+                          {s.role === "RECEPTION" ? (
+                            <Button size="sm" variant="outline" onClick={() => toggleField(s.id, { isAvailable: !s.isAvailable })}>
+                              {s.isAvailable ? "Oznacz niedostępny" : "Oznacz dostępny"}
+                            </Button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
