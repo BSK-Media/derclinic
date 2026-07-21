@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole, requireStrictRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, requireStrictRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
@@ -10,8 +10,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const deny = requireRole(user!.role, ["ADMIN", "RECEPTION", "SPECIALIST"]);
   if (deny) return deny;
 
-  const appt = await prisma.appointment.findUnique({
-    where: { id: params.id },
+  const appt = await prisma.appointment.findFirst({
+    where: {
+      id: params.id,
+      ...(user!.role === "SPECIALIST" ? { specialistId: user!.id } : scopedLocationWhere(user!)),
+    },
     include: {
       patient: true,
       specialist: { select: { id: true, name: true, login: true, payoutPercent: true } },
@@ -33,7 +36,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
   const [products, warehouses, services, specialistAssignments] = await Promise.all([
     prisma.product.findMany({ orderBy: { name: "asc" } }),
-    prisma.warehouse.findMany({ orderBy: { name: "asc" } }),
+    prisma.warehouse.findMany({ where: { locationId: appt.locationId }, orderBy: { name: "asc" } }),
     prisma.service.findMany({ orderBy: { name: "asc" } }),
     appt.specialistId
       ? prisma.specialistService.findMany({
@@ -80,8 +83,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!parsed.success)
     return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
-  const existing = await prisma.appointment.findUnique({
-    where: { id: params.id },
+  const existing = await prisma.appointment.findFirst({
+    where: { id: params.id, ...scopedLocationWhere(user!) },
     select: {
       id: true,
       specialistId: true,
@@ -199,8 +202,8 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     );
   }
 
-  const existing = await prisma.appointment.findUnique({
-    where: { id: params.id },
+  const existing = await prisma.appointment.findFirst({
+    where: { id: params.id, ...scopedLocationWhere(user!) },
     select: { id: true, deletedAt: true },
   });
   if (!existing) {
