@@ -1,7 +1,7 @@
 import { ConsumptionKind } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 
 const WOS_WEEKS = 10;
 const LOW_STOCK_DAYS = 14;
@@ -12,7 +12,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const deny = requireRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
-  const warehouse = await prisma.warehouse.findUnique({ where: { id: params.id } });
+  const warehouse = await prisma.warehouse.findFirst({ where: { id: params.id, ...scopedLocationWhere(user!) } });
   if (!warehouse) {
     return NextResponse.json({ ok: false, message: "Nie znaleziono magazynu" }, { status: 404 });
   }
@@ -41,7 +41,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       },
       select: { productId: true, quantity: true },
     }),
-    prisma.warehouse.findMany({ orderBy: { name: "asc" } }),
+    prisma.warehouse.findMany({ where: scopedLocationWhere(user!), orderBy: { name: "asc" } }),
     prisma.product.findMany({
       where: { isActive: true },
       select: {
