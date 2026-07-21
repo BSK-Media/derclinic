@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/components/auth-provider";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -19,6 +20,7 @@ type Location = {
 };
 
 export default function LocationsPage() {
+  const { user } = useAuth();
   const { data, error, isLoading, mutate } = useSWR("/api/admin/locations", fetcher);
   const locations: Location[] = data?.locations ?? [];
   const [formOpen, setFormOpen] = React.useState(false);
@@ -61,13 +63,15 @@ export default function LocationsPage() {
             Wybierz placówkę, aby zobaczyć jej pełną analitykę.
           </p>
         </div>
-        <Button onClick={() => setFormOpen((current) => !current)}>
-          {formOpen ? <X className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
-          {formOpen ? "Anuluj" : "Dodaj lokalizację"}
-        </Button>
+        {user?.role === "ADMIN" ? (
+          <Button onClick={() => setFormOpen((current) => !current)}>
+            {formOpen ? <X className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+            {formOpen ? "Anuluj" : "Dodaj lokalizację"}
+          </Button>
+        ) : null}
       </div>
 
-      {formOpen ? (
+      {formOpen && user?.role === "ADMIN" ? (
         <Card className="p-4 sm:p-5">
           <form className="flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={createLocation}>
             <div className="flex-1 space-y-2">
