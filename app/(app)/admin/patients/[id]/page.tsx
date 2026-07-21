@@ -31,19 +31,11 @@ export default async function AdminPatientDetailPage({ params }: { params: { id:
           name: patient.name,
           phone: patient.phone,
           email: patient.email,
+          note: patient.note,
         }}
       >
         <PatientStatistics patientId={patient.id} showSpending={isAdmin} />
       </PatientDetailsForm>
-
-      {patient.note && (
-        <div className="rounded-xl border bg-white p-4 shadow-sm dark:bg-zinc-950">
-          <div className="font-medium">Notatka</div>
-          <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-200">
-            {patient.note}
-          </div>
-        </div>
-      )}
 
       <div className="rounded-xl border bg-white shadow-sm dark:bg-zinc-950">
         <div className="border-b p-4 font-medium">Historia wizyt</div>
