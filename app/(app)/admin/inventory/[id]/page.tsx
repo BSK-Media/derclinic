@@ -10,6 +10,7 @@ import {
   ArrowRightLeft,
   ArrowUp,
   ChevronsUpDown,
+  CircleHelp,
   Minus,
   PackagePlus,
   Plus,
@@ -647,10 +648,16 @@ export default function WarehouseDetailsPage({ params }: { params: { id: string 
                   <SortableHead label="Cena zakupu" column="purchasePrice" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
                   <SortableHead label="Cena sprzedaży" column="salePrice" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
                   <SortableHead label="Termin ważności" column="expiryDate" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
-                  <TableHead className="min-w-52 py-2">
-                    <span className="block">WOS</span>
-                    <span className="mt-0.5 block text-[10px] font-normal leading-tight text-slate-400 dark:text-slate-500">
-                      Przewidywany czas wystarczalności
+                  <TableHead className="w-20 whitespace-nowrap py-2">
+                    <span
+                      className="inline-flex items-center gap-1.5"
+                      title="Przewidywany czas wystarczalności"
+                    >
+                      WOS
+                      <CircleHelp
+                        className="h-3.5 w-3.5 cursor-help text-slate-400 dark:text-slate-500"
+                        aria-label="Przewidywany czas wystarczalności"
+                      />
                     </span>
                   </TableHead>
                   <SortableHead label="Status" column="status" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
