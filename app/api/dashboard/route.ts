@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +58,10 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const period = url.searchParams.get("period") ?? "30d";
+  const locationWhere = scopedLocationWhere(user!);
+  const warehouseScope = user!.locationScopeId
+    ? { warehouse: { locationId: user!.locationScopeId } }
+    : {};
 
   const now = new Date();
   const todayStart = startOfDay(now);
@@ -89,7 +93,7 @@ export async function GET(req: Request) {
     expiringLots,
   ] = await Promise.all([
     prisma.appointment.findMany({
-      where: { deletedAt: null, startsAt: { gte: dataStart, lte: todayEnd } },
+      where: { deletedAt: null, startsAt: { gte: dataStart, lte: todayEnd }, ...locationWhere },
       select: {
         startsAt: true,
         status: true,
@@ -106,6 +110,7 @@ export async function GET(req: Request) {
         deletedAt: null,
         status: { not: "CANCELED" },
         startsAt: { gte: todayStart, lte: todayEnd },
+        ...locationWhere,
       },
     }),
     prisma.appointment.count({
@@ -113,16 +118,19 @@ export async function GET(req: Request) {
         deletedAt: null,
         status: { not: "CANCELED" },
         startsAt: { gte: yesterdayStart, lte: yesterdayEnd },
+        ...locationWhere,
       },
     }),
-    prisma.patient.count({ where: { createdAt: { gte: todayStart, lte: todayEnd } } }),
-    prisma.patient.count({ where: { createdAt: { gte: yesterdayStart, lte: yesterdayEnd } } }),
+    prisma.patient.count({ where: { createdAt: { gte: todayStart, lte: todayEnd }, ...locationWhere } }),
+    prisma.patient.count({ where: { createdAt: { gte: yesterdayStart, lte: yesterdayEnd }, ...locationWhere } }),
     prisma.stock.findMany({
+      where: warehouseScope,
       select: { productId: true, quantity: true },
       take: 20000,
     }),
     prisma.productLot.findMany({
       where: {
+        ...warehouseScope,
         quantity: { gt: 0 },
         expiryDate: {
           not: null,
@@ -233,6 +241,7 @@ export async function GET(req: Request) {
       deletedAt: null,
       status: "SCHEDULED",
       startsAt: { gte: now, lte: todayEnd },
+      ...locationWhere,
     },
     select: {
       id: true,
@@ -247,7 +256,7 @@ export async function GET(req: Request) {
 
   // ── Status magazynu: top zużywane preparaty (30 dni) + poziom zapasu ──
   const consumptions = await prisma.consumption.findMany({
-    where: { createdAt: { gte: last30Start }, status: "APPLIED" },
+    where: { createdAt: { gte: last30Start }, status: "APPLIED", ...warehouseScope },
     select: {
       productId: true,
       quantity: true,
