@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -11,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LocationSelect } from "@/components/location-select";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -31,6 +31,7 @@ type Specialist = {
   avatarUrl?: string | null;
   jobTitle?: string | null;
   location?: string | null;
+  locationId: string;
   specialization?: string | null;
   sourceProfileUrl?: string | null;
 };
@@ -852,7 +853,7 @@ function EditSpecialistDialog({
   const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [jobTitle, setJobTitle] = React.useState("");
-  const [location, setLocation] = React.useState("");
+  const [locationId, setLocationId] = React.useState("");
   const [specialization, setSpecialization] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [saving, setSaving] = React.useState(false);
@@ -864,7 +865,7 @@ function EditSpecialistDialog({
     setPhone(specialist.phone ?? "");
     setEmail(specialist.email ?? "");
     setJobTitle(specialist.jobTitle ?? "");
-    setLocation(specialist.location ?? "");
+    setLocationId(specialist.locationId ?? "");
     setSpecialization(specialist.specialization ?? "");
     setPassword("");
   }, [specialist]);
@@ -881,7 +882,7 @@ function EditSpecialistDialog({
         phone,
         email,
         jobTitle,
-        location,
+        locationId,
         specialization,
       };
       if (password) body.password = password;
@@ -934,7 +935,7 @@ function EditSpecialistDialog({
 
           <div className="grid gap-1.5">
             <Label>Lokalizacja</Label>
-            <Input value={location} onChange={(e) => setLocation(e.target.value)} />
+            <LocationSelect value={locationId} onChange={setLocationId} />
           </div>
 
           <div className="grid gap-1.5">
