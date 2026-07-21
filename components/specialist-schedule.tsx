@@ -7,6 +7,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -51,6 +58,8 @@ type TimeOff = {
   endTime?: string | null;
   note?: string | null;
 };
+type PendingDeletion =
+  { kind: "customWorkDay"; item: CustomWorkDay } | { kind: "timeOff"; item: TimeOff };
 
 function toDateInput(d: Date) {
   const year = d.getFullYear();
@@ -160,6 +169,7 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
   const [customEnd, setCustomEnd] = React.useState("16:00");
   const [savingCustomDays, setSavingCustomDays] = React.useState(false);
   const [deletingCustomId, setDeletingCustomId] = React.useState<string | null>(null);
+  const [pendingDeletion, setPendingDeletion] = React.useState<PendingDeletion | null>(null);
 
   function startSelectingCustomDays() {
     if (selectingCustomDays) {
@@ -220,11 +230,6 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
   }
 
   async function deleteCustomWorkDay(customWorkDay: CustomWorkDay) {
-    const dateLabel = new Date(`${customWorkDay.date.slice(0, 10)}T12:00:00`).toLocaleDateString(
-      "pl-PL",
-    );
-    if (!window.confirm(`Usunąć niestandardowe godziny pracy z dnia ${dateLabel}?`)) return;
-
     setDeletingCustomId(customWorkDay.id);
     try {
       const res = await fetch(
@@ -278,13 +283,6 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
   }
 
   async function deleteTimeOff(t: TimeOff) {
-    const label = t.allDay ? "cały dzień" : `${t.startTime}–${t.endTime}`;
-    if (
-      !window.confirm(
-        `Usunąć wolne (${label}) z dnia ${new Date(t.date).toLocaleDateString("pl-PL")}?`,
-      )
-    )
-      return;
     setDeletingOffId(t.id);
     try {
       const res = await fetch(
@@ -298,6 +296,18 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
     } finally {
       setDeletingOffId(null);
     }
+  }
+
+  async function confirmDeletion() {
+    if (!pendingDeletion) return;
+
+    const deletion = pendingDeletion;
+    if (deletion.kind === "customWorkDay") {
+      await deleteCustomWorkDay(deletion.item);
+    } else {
+      await deleteTimeOff(deletion.item);
+    }
+    setPendingDeletion(null);
   }
 
   // ==== Pomocnicze do kalendarza ====
@@ -671,12 +681,12 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
                         aria-label="Usuń niestandardowe godziny pracy"
                         onClick={(e) => {
                           e.stopPropagation();
-                          deleteCustomWorkDay(customWork);
+                          setPendingDeletion({ kind: "customWorkDay", item: customWork });
                         }}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.stopPropagation();
-                            deleteCustomWorkDay(customWork);
+                            setPendingDeletion({ kind: "customWorkDay", item: customWork });
                           }
                         }}
                         className={
@@ -708,12 +718,12 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
                         aria-label="Usuń wolne"
                         onClick={(e) => {
                           e.stopPropagation();
-                          deleteTimeOff(t);
+                          setPendingDeletion({ kind: "timeOff", item: t });
                         }}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.stopPropagation();
-                            deleteTimeOff(t);
+                            setPendingDeletion({ kind: "timeOff", item: t });
                           }
                         }}
                         className={
@@ -731,6 +741,73 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
           })}
         </div>
       </Card>
+
+      <Dialog
+        open={Boolean(pendingDeletion)}
+        onOpenChange={(open) => {
+          if (!open && !deletingCustomId && !deletingOffId) setPendingDeletion(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Usuń wpis z grafiku</DialogTitle>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              {pendingDeletion?.kind === "customWorkDay" ? (
+                <>
+                  Czy na pewno chcesz usunąć niestandardowe godziny pracy{" "}
+                  <strong className="text-slate-700 dark:text-slate-200">
+                    {pendingDeletion.item.startTime}–{pendingDeletion.item.endTime}
+                  </strong>{" "}
+                  z dnia{" "}
+                  <strong className="text-slate-700 dark:text-slate-200">
+                    {new Date(
+                      `${pendingDeletion.item.date.slice(0, 10)}T12:00:00`,
+                    ).toLocaleDateString("pl-PL")}
+                  </strong>
+                  ?
+                </>
+              ) : pendingDeletion?.kind === "timeOff" ? (
+                <>
+                  Czy na pewno chcesz usunąć{" "}
+                  <strong className="text-slate-700 dark:text-slate-200">
+                    {pendingDeletion.item.allDay
+                      ? "dzień wolny"
+                      : `wolne w godzinach ${pendingDeletion.item.startTime}–${pendingDeletion.item.endTime}`}
+                  </strong>{" "}
+                  z dnia{" "}
+                  <strong className="text-slate-700 dark:text-slate-200">
+                    {new Date(pendingDeletion.item.date).toLocaleDateString("pl-PL")}
+                  </strong>
+                  ?
+                </>
+              ) : null}
+            </p>
+          </DialogHeader>
+
+          <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+            Tej operacji nie można cofnąć.
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPendingDeletion(null)}
+              disabled={Boolean(deletingCustomId || deletingOffId)}
+            >
+              Anuluj
+            </Button>
+            <Button
+              type="button"
+              onClick={confirmDeletion}
+              disabled={Boolean(deletingCustomId || deletingOffId)}
+              className="bg-red-600 text-white hover:bg-red-700 dark:bg-red-600 dark:text-white dark:hover:bg-red-700"
+            >
+              {deletingCustomId || deletingOffId ? "Usuwanie…" : "Usuń"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
