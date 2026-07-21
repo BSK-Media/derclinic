@@ -20,9 +20,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
+import { useAuth } from "@/components/auth-provider";
+import { LocationSelect, useLocationOptions } from "@/components/location-select";
 
-type Patient = { id: string; name: string };
-type Specialist = { id: string; name: string; serviceIds?: string[] };
+type Patient = { id: string; name: string; locationId: string };
+type Specialist = { id: string; name: string; locationId: string; serviceIds?: string[] };
 type Service = {
   id: string;
   name: string;
@@ -168,6 +170,9 @@ export function AdminBookAppointmentDialog({
   defaultSpecialistId?: string;
   onCreated: () => void;
 }) {
+  const { user } = useAuth();
+  const { selectedLocationId } = useLocationOptions();
+  const [locationId, setLocationId] = React.useState("");
   const [patientId, setPatientId] = React.useState("");
   const [newFirstName, setNewFirstName] = React.useState("");
   const [newLastName, setNewLastName] = React.useState("");
@@ -202,7 +207,24 @@ export function AdminBookAppointmentDialog({
     setServiceId("");
     setPriceFinal("");
     setNote("");
-  }, [open, defaultDate, defaultSpecialistId]);
+    const defaultSpecialistLocation = specialists.find(
+      (specialist) => specialist.id === defaultSpecialistId,
+    )?.locationId;
+    setLocationId(
+      user?.role === "ADMIN"
+        ? (defaultSpecialistLocation ?? selectedLocationId ?? "")
+        : (user?.locationId ?? ""),
+    );
+  }, [open, defaultDate, defaultSpecialistId, selectedLocationId, specialists, user?.locationId, user?.role]);
+
+  const locationSpecialists = React.useMemo(
+    () => specialists.filter((specialist) => !locationId || specialist.locationId === locationId),
+    [locationId, specialists],
+  );
+  const locationPatients = React.useMemo(
+    () => patients.filter((patient) => !locationId || patient.locationId === locationId),
+    [locationId, patients],
+  );
 
   const selectedSpecialist = React.useMemo(
     () => specialists.find((s) => s.id === specialistId),
@@ -217,6 +239,14 @@ export function AdminBookAppointmentDialog({
 
   function selectSpecialist(value: string) {
     setSpecialistId(value);
+    setServiceId("");
+    setPriceFinal("");
+  }
+
+  function selectLocation(value: string) {
+    setLocationId(value);
+    setPatientId("");
+    setSpecialistId("");
     setServiceId("");
     setPriceFinal("");
   }
@@ -238,7 +268,7 @@ export function AdminBookAppointmentDialog({
   }
 
   async function create() {
-    if (!patientId || !specialistId || !serviceId || !startsAt) {
+    if (!locationId || !patientId || !specialistId || !serviceId || !startsAt) {
       toast.error("Uzupełnij wszystkie wymagane pola");
       return;
     }
@@ -274,6 +304,7 @@ export function AdminBookAppointmentDialog({
           durationMin,
           priceFinal: priceFinal ? parsePLNToGrosze(priceFinal) : null,
           note,
+          locationId,
         }),
       });
       const out = await res.json().catch(() => ({}));
@@ -294,9 +325,22 @@ export function AdminBookAppointmentDialog({
         </DialogHeader>
 
         <div className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-2 md:col-span-2">
+            <Label>Lokalizacja *</Label>
+            <LocationSelect
+              value={locationId}
+              onChange={selectLocation}
+              disabled={user?.role !== "ADMIN"}
+            />
+            {user?.role !== "ADMIN" ? (
+              <div className="text-xs text-zinc-500">
+                Lokalizacja jest przypisana do Twojego konta i nie można jej zmienić.
+              </div>
+            ) : null}
+          </div>
           <div className="space-y-2">
             <Label>Pacjent</Label>
-            <PatientCombobox patients={patients} value={patientId} onChange={setPatientId} />
+            <PatientCombobox patients={locationPatients} value={patientId} onChange={setPatientId} />
           </div>
           <div className="space-y-2">
             <Label>Specjalista</Label>
@@ -305,7 +349,7 @@ export function AdminBookAppointmentDialog({
                 <SelectValue placeholder="Wybierz" />
               </SelectTrigger>
               <SelectContent disablePortal>
-                {specialists.map((s) => (
+                {locationSpecialists.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
                     {s.name}
                   </SelectItem>
