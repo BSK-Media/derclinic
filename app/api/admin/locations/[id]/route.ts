@@ -9,6 +9,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
   if (deny) return deny;
+  if (user!.role !== "ADMIN" && params.id !== user!.locationId) {
+    return NextResponse.json({ ok: false, message: "Brak dostępu do tej lokalizacji" }, { status: 403 });
+  }
 
   const location = await prisma.location.findFirst({
     where: { id: params.id, isActive: true },
