@@ -123,6 +123,19 @@ model Patient {
   @@index([phone])
 }
 
+model Location {
+  id        String   @id
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  name     String  @unique
+  isActive Boolean @default(true)
+
+  appointments Appointment[]
+
+  @@index([name])
+}
+
 model Service {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -375,6 +388,11 @@ model Appointment {
   specialistId String
   specialist   User   @relation("AppointmentSpecialist", fields: [specialistId], references: [id], onDelete: Restrict)
 
+  // Lokalizacja jest zapisywana na wizycie, dzięki czemu historyczna analityka
+  // nie zmieni się po przeniesieniu pracownika do innej placówki.
+  locationId String?
+  location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
   serviceId         String
   service           Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
   customServiceName String?
@@ -414,6 +432,7 @@ model Appointment {
   payments     Payment[]
 
   @@index([specialistId, startsAt])
+  @@index([locationId, startsAt])
   @@index([patientId, startsAt])
   @@index([status])
   @@index([deletedAt])
