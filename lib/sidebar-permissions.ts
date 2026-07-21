@@ -7,6 +7,7 @@ export const SIDEBAR_PERMISSION_KEYS = [
   "inventory",
   "products",
   "services",
+  "locations",
   "analytics",
   "settings",
 ] as const;
@@ -25,6 +26,7 @@ export const SIDEBAR_PERMISSION_OPTIONS: ReadonlyArray<{
   { key: "inventory", label: "Magazyn" },
   { key: "products", label: "Produkty" },
   { key: "services", label: "Zabiegi i Procedury" },
+  { key: "locations", label: "Lokalizacje" },
   { key: "analytics", label: "Analityka" },
   { key: "settings", label: "Ustawienia" },
 ];
@@ -34,13 +36,19 @@ const ALL_PERMISSIONS = [...SIDEBAR_PERMISSION_KEYS];
 // Dotychczasowy zakres menu dla pracowników, z wyłączeniem sekcji zastrzeżonych
 // domyślnie dla administratora.
 const DEFAULT_NON_ADMIN_PERMISSIONS: SidebarPermission[] = SIDEBAR_PERMISSION_KEYS.filter(
-  (key) => key !== "analytics" && key !== "specialists",
+  (key) => key !== "analytics" && key !== "specialists" && key !== "locations",
 );
 
 export function normalizeSidebarPermissions(role: string, value: unknown): SidebarPermission[] {
   if (role === "ADMIN") return [...ALL_PERMISSIONS];
 
-  if (!Array.isArray(value)) return [...DEFAULT_NON_ADMIN_PERMISSIONS];
+  if (!Array.isArray(value)) {
+    return role === "RECEPTION"
+      ? SIDEBAR_PERMISSION_KEYS.filter(
+          (key) => key === "locations" || DEFAULT_NON_ADMIN_PERMISSIONS.includes(key),
+        )
+      : [...DEFAULT_NON_ADMIN_PERMISSIONS];
+  }
 
   const allowed = new Set<SidebarPermission>(SIDEBAR_PERMISSION_KEYS);
   return SIDEBAR_PERMISSION_KEYS.filter((key) => value.includes(key) && allowed.has(key));
@@ -118,6 +126,12 @@ export function sidebarPermissionForPath(pathname: string): SidebarPermission | 
     return "services";
   }
   if (
+    path.startsWith("/admin/locations") ||
+    path.startsWith("/api/admin/locations")
+  ) {
+    return "locations";
+  }
+  if (
     path.startsWith("/admin/analytics") ||
     path.startsWith("/admin/revenue") ||
     path.startsWith("/admin/sales") ||
@@ -154,6 +168,7 @@ export function sidebarHref(permission: SidebarPermission, role: string) {
     inventory: "/admin/inventory",
     products: "/admin/products",
     services: "/admin/services",
+    locations: "/admin/locations",
     analytics: "/admin/analytics",
     settings: "/admin/settings",
   };
