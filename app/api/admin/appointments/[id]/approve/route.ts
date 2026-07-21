@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
+import { requireAuth, requireStrictRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
 const BodySchema = z
@@ -39,8 +39,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const target = parsed.data.action === "REJECT" ? "REJECTED" : "APPROVED";
 
-  const appt = await prisma.appointment.findUnique({
-    where: { id: params.id },
+  const appt = await prisma.appointment.findFirst({
+    where: { id: params.id, ...scopedLocationWhere(user!) },
     select: { id: true, status: true, approvalStatus: true, deletedAt: true },
   });
   if (!appt || appt.deletedAt)
