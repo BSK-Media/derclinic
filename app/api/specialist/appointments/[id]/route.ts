@@ -10,8 +10,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const deny = requireRole(user!.role, ["SPECIALIST", "RECEPTION", "ADMIN"]);
   if (deny) return deny;
 
-  const appt = await prisma.appointment.findUnique({
-    where: { id: params.id },
+  const appt = await prisma.appointment.findFirst({
+    where: { id: params.id, locationId: user!.locationId },
     include: {
       patient: true,
       service: { include: { suggestedProducts: { include: { product: true } } } },
@@ -50,8 +50,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!parsed.success)
     return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
-  const existing = await prisma.appointment.findUnique({
-    where: { id: params.id },
+  const existing = await prisma.appointment.findFirst({
+    where: { id: params.id, locationId: user!.locationId },
     select: { id: true, specialistId: true, startsAt: true, status: true, deletedAt: true },
   });
   if (!existing || existing.deletedAt)
