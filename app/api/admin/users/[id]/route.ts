@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
 const PatchSchema = z.object({
@@ -21,7 +21,7 @@ const PatchSchema = z.object({
     .or(z.literal(""))
     .optional(),
   jobTitle: z.string().optional().or(z.literal("")).optional(),
-  location: z.string().optional().or(z.literal("")).optional(),
+  locationId: z.string().min(1).optional(),
   specialization: z.string().optional().or(z.literal("")).optional(),
   sourceProfileUrl: z.string().url().optional().or(z.literal("")).optional(),
   password: z.string().min(4).optional(),
@@ -30,7 +30,7 @@ const PatchSchema = z.object({
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);
@@ -48,7 +48,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (parsed.data.isAvailable !== undefined) data.isAvailable = parsed.data.isAvailable;
   if (parsed.data.avatarUrl !== undefined) data.avatarUrl = parsed.data.avatarUrl || null;
   if (parsed.data.jobTitle !== undefined) data.jobTitle = parsed.data.jobTitle || null;
-  if (parsed.data.location !== undefined) data.location = parsed.data.location || null;
+  if (parsed.data.locationId !== undefined) {
+    const assignedLocation = await prisma.location.findFirst({
+      where: { id: parsed.data.locationId, isActive: true },
+      select: { id: true, name: true },
+    });
+    if (!assignedLocation) {
+      return NextResponse.json({ ok: false, message: "Wybierz prawidłową lokalizację" }, { status: 400 });
+    }
+    data.locationId = assignedLocation.id;
+    data.location = assignedLocation.name;
+  }
   if (parsed.data.specialization !== undefined) data.specialization = parsed.data.specialization || null;
   if (parsed.data.sourceProfileUrl !== undefined) data.sourceProfileUrl = parsed.data.sourceProfileUrl || null;
   if (parsed.data.password) data.passwordHash = await bcrypt.hash(parsed.data.password, 10);
@@ -56,8 +66,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const updated = await prisma.user.update({
     where: { id: params.id },
     data,
-    select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true, location: true, specialization: true },
+    select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true, location: true, locationId: true, assignedLocation: { select: { id: true, name: true } }, specialization: true },
   });
+
+  if (data.locationId) {
+    await prisma.specialistWarehouse.deleteMany({
+      where: {
+        specialistId: params.id,
+        warehouse: { locationId: { not: data.locationId } },
+      },
+    });
+  }
 
   await logAudit({ actorId: user!.id, action: "UPDATE", entity: "User", entityId: updated.id, data: { ...data, ...(data.avatarUrl ? { avatarUrl: "[image]" } : {}), ...(data.passwordHash ? { passwordHash: "[hidden]" } : {}) } });
 
@@ -67,7 +86,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
   if (params.id === user!.id) return NextResponse.json({ ok: false, message: "Nie możesz usunąć własnego konta." }, { status: 400 });
