@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
 export async function GET() {
@@ -11,6 +11,7 @@ export async function GET() {
   if (deny) return deny;
 
   const warehouses = await prisma.warehouse.findMany({
+    where: scopedLocationWhere(user!),
     orderBy: [{ parentId: "asc" }, { name: "asc" }],
   });
 
@@ -32,6 +33,10 @@ export async function POST(req: Request) {
   const parsed = CreateSchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
+  if (!user!.locationScopeId) {
+    return NextResponse.json({ ok: false, message: "Przed dodaniem magazynu wybierz konkretną lokalizację" }, { status: 400 });
+  }
+
   const duplicate = await prisma.warehouse.findFirst({
     where: { name: { equals: parsed.data.name, mode: "insensitive" } },
   });
@@ -40,7 +45,7 @@ export async function POST(req: Request) {
   }
 
   const wh = await prisma.warehouse.create({
-    data: { name: parsed.data.name, parentId: parsed.data.parentId ?? null },
+    data: { name: parsed.data.name, parentId: parsed.data.parentId ?? null, locationId: user!.locationScopeId },
   });
 
   await logAudit({ actorId: user!.id, action: "CREATE", entity: "Warehouse", entityId: wh.id });
