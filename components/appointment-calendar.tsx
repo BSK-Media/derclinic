@@ -41,6 +41,14 @@ function startOfGrid(d: Date) {
   grid.setHours(0, 0, 0, 0);
   return grid;
 }
+function endOfGrid(d: Date) {
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  const daysUntilSunday = (7 - last.getDay()) % 7;
+  const grid = new Date(last);
+  grid.setDate(grid.getDate() + daysUntilSunday);
+  grid.setHours(0, 0, 0, 0);
+  return grid;
+}
 function startOfWeek(d: Date) {
   const day = (d.getDay() + 6) % 7; // Monday = 0
   const start = new Date(d);
@@ -160,6 +168,7 @@ export function AppointmentCalendar({
   const mobileWeekWasSwiped = React.useRef(false);
   const mobileWeekAnimationTimer = React.useRef<number | null>(null);
   const gridStart = React.useMemo(() => startOfGrid(anchor), [anchor]);
+  const gridEnd = React.useMemo(() => endOfGrid(anchor), [anchor]);
 
   React.useEffect(() => {
     const timer = window.setInterval(() => setClock(new Date()), 30_000);
@@ -177,15 +186,14 @@ export function AppointmentCalendar({
 
   const weeks = React.useMemo(() => {
     const cells: Date[] = [];
-    for (let i = 0; i < 42; i++) {
-      const d = new Date(gridStart);
-      d.setDate(d.getDate() + i);
+    for (const current = new Date(gridStart); current <= gridEnd; current.setDate(current.getDate() + 1)) {
+      const d = new Date(current);
       cells.push(d);
     }
     const rows: Date[][] = [];
     for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
     return rows;
-  }, [gridStart]);
+  }, [gridEnd, gridStart]);
 
   const byDay = React.useMemo(() => {
     const map = new Map<string, CalendarAppointment[]>();
