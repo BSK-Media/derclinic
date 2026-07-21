@@ -3,6 +3,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth-provider";
+import { LocationSelect } from "@/components/location-select";
 
 type RoleT = "ADMIN" | "RECEPTION" | "SPECIALIST";
 
@@ -12,6 +13,7 @@ type EmployeeRow = {
   name: string;
   role: RoleT;
   location: string | null;
+  locationId: string;
   specialization: string | null;
   avatarUrl: string | null;
 };
@@ -135,7 +137,7 @@ function AdminEmployeeEditor({ myId }: { myId: string }) {
 
   const [firstName, setFirstName] = React.useState("");
   const [lastName, setLastName] = React.useState("");
-  const [location, setLocation] = React.useState("");
+  const [locationId, setLocationId] = React.useState("");
   const [specialization, setSpecialization] = React.useState("");
   const [avatar, setAvatar] = React.useState<string | null>(null); // aktualne lub nowo wybrane zdjęcie
   const [avatarChanged, setAvatarChanged] = React.useState(false);
@@ -160,7 +162,7 @@ function AdminEmployeeEditor({ myId }: { myId: string }) {
     const n = splitName(emp?.name);
     setFirstName(n.firstName);
     setLastName(n.lastName);
-    setLocation(emp?.location ?? "");
+    setLocationId(emp?.locationId ?? "");
     setSpecialization(emp?.specialization ?? "");
     setAvatar(emp?.avatarUrl ?? null);
     setAvatarChanged(false);
@@ -192,7 +194,8 @@ function AdminEmployeeEditor({ myId }: { myId: string }) {
     }
     setSaving(true);
     try {
-      const body: Record<string, unknown> = { name, location, specialization };
+      if (!locationId) return toast.error("Wybierz lokalizację pracownika.");
+      const body: Record<string, unknown> = { name, locationId, specialization };
       if (avatarChanged) body.avatarUrl = avatar ?? "";
       const res = await fetch(`/api/admin/users/${selectedId}`, {
         method: "PATCH",
@@ -204,7 +207,7 @@ function AdminEmployeeEditor({ myId }: { myId: string }) {
         toast.success("Zapisano zmiany pracownika.");
         setAvatarChanged(false);
         setEmployees((prev) =>
-          prev.map((e) => (e.id === selectedId ? { ...e, name, location, specialization, avatarUrl: avatar } : e))
+          prev.map((e) => (e.id === selectedId ? { ...e, ...data.user, name, specialization, avatarUrl: avatar } : e))
         );
       } else {
         toast.error(data?.message || "Nie udało się zapisać zmian.");
@@ -330,7 +333,7 @@ function AdminEmployeeEditor({ myId }: { myId: string }) {
 
               <div>
                 <label className={fieldLabelCls}>Lokalizacja</label>
-                <input value={location} onChange={(e) => setLocation(e.target.value)} className={inputCls} />
+                <LocationSelect value={locationId} onChange={setLocationId} className={inputCls} />
               </div>
 
               <div>
@@ -364,7 +367,7 @@ function CreateEmployeeForm({ onCreated }: { onCreated: (emp: EmployeeRow) => vo
   const [login, setLogin] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [role, setRole] = React.useState<RoleT>("SPECIALIST");
-  const [location, setLocation] = React.useState("DerClinic Grodzisk Mazowiecki");
+  const [locationId, setLocationId] = React.useState("grodzisk-mazowiecki");
   const [specialization, setSpecialization] = React.useState("");
   const [avatar, setAvatar] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
@@ -394,7 +397,7 @@ function CreateEmployeeForm({ onCreated }: { onCreated: (emp: EmployeeRow) => vo
           name,
           role,
           password,
-          location,
+          locationId,
           specialization,
           avatarUrl: avatar ?? "",
         }),
@@ -481,7 +484,7 @@ function CreateEmployeeForm({ onCreated }: { onCreated: (emp: EmployeeRow) => vo
 
       <div>
         <label className={fieldLabelCls}>Lokalizacja</label>
-        <input value={location} onChange={(e) => setLocation(e.target.value)} className={inputCls} />
+        <LocationSelect value={locationId} onChange={setLocationId} className={inputCls} />
       </div>
 
       <div>
