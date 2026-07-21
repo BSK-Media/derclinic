@@ -345,18 +345,18 @@ export function AnalyticsDashboard({
                         </span>
                       }
                     />
+                    <MobileMetric title="Zapłacono" value={formatPLNFromGrosze(kpi.paid)} />
+                    <MobileMetric
+                      title="Zaległości"
+                      value={formatPLNFromGrosze(kpi.outstanding)}
+                      valueClassName={
+                        kpi.outstanding > 0 ? "text-amber-600 dark:text-amber-400" : ""
+                      }
+                    />
                   </div>
 
                   {showAllIndicators ? (
                     <div className="grid grid-cols-2 gap-3">
-                      <MobileMetric title="Zapłacono" value={formatPLNFromGrosze(kpi.paid)} />
-                      <MobileMetric
-                        title="Zaległości"
-                        value={formatPLNFromGrosze(kpi.outstanding)}
-                        valueClassName={
-                          kpi.outstanding > 0 ? "text-amber-600 dark:text-amber-400" : ""
-                        }
-                      />
                       <MobileMetric title="Nowi pacjenci" value={kpi.newPatients} />
                       <MobileMetric
                         title="Odwołania / no-show"
@@ -379,25 +379,7 @@ export function AnalyticsDashboard({
                         }
                       />
                     </div>
-                  ) : (
-                    <div className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-1">
-                      <div className="w-[45%] min-w-[145px] shrink-0 snap-start">
-                        <MobileMetric title="Zapłacono" value={formatPLNFromGrosze(kpi.paid)} />
-                      </div>
-                      <div className="w-[45%] min-w-[145px] shrink-0 snap-start">
-                        <MobileMetric
-                          title="Zaległości"
-                          value={formatPLNFromGrosze(kpi.outstanding)}
-                          valueClassName={
-                            kpi.outstanding > 0 ? "text-amber-600 dark:text-amber-400" : ""
-                          }
-                        />
-                      </div>
-                      <div className="w-[45%] min-w-[145px] shrink-0 snap-start">
-                        <MobileMetric title="Nowi pacjenci" value={kpi.newPatients} />
-                      </div>
-                    </div>
-                  )}
+                  ) : null}
 
                   <button
                     type="button"
