@@ -111,9 +111,29 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
   const [savingField, setSavingField] = React.useState<EditableField | null>(null);
   const [savingSpecialist, setSavingSpecialist] = React.useState<string | null>(null);
   const [selectedProductId, setSelectedProductId] = React.useState("");
+  const [productQuery, setProductQuery] = React.useState("");
+  const [productSearchOpen, setProductSearchOpen] = React.useState(false);
   const [quantity, setQuantity] = React.useState("1");
   const [savingProduct, setSavingProduct] = React.useState(false);
   const selectedProduct = products.find((product) => product.id === selectedProductId);
+  const assignedProductIds = React.useMemo(
+    () => new Set(service?.suggestedProducts.map((suggestion) => suggestion.productId) ?? []),
+    [service?.suggestedProducts],
+  );
+  const productSuggestions = React.useMemo(() => {
+    const query = productQuery.trim().toLowerCase();
+    const availableProducts = products.filter((product) => !assignedProductIds.has(product.id));
+    if (query.length < 2) return availableProducts.slice(0, 8);
+
+    const startsWith = availableProducts.filter((product) =>
+      product.name.toLowerCase().startsWith(query),
+    );
+    const contains = availableProducts.filter(
+      (product) =>
+        !product.name.toLowerCase().startsWith(query) && product.name.toLowerCase().includes(query),
+    );
+    return [...startsWith, ...contains].slice(0, 8);
+  }, [products, assignedProductIds, productQuery]);
 
   function beginEditing() {
     if (!service || !confirmField) return;
@@ -218,6 +238,8 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
         return;
       }
       setSelectedProductId("");
+      setProductQuery("");
+      setProductSearchOpen(false);
       setQuantity("1");
       await mutate();
       toast.success("Preparat został przypisany do usługi.");
@@ -435,18 +457,51 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
           <div className="mt-4 grid gap-3 border-t pt-4 md:grid-cols-[minmax(220px,1fr)_140px_180px_auto] md:items-end">
             <div className="space-y-2">
               <Label>Preparat</Label>
-              <Select value={selectedProductId} onValueChange={setSelectedProductId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Wybierz preparat" />
-                </SelectTrigger>
-                <SelectContent>
-                  {products.map((product) => (
-                    <SelectItem key={product.id} value={product.id}>
-                      {product.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="relative">
+                <Input
+                  value={selectedProduct ? selectedProduct.name : productQuery}
+                  onChange={(event) => {
+                    setSelectedProductId("");
+                    setProductQuery(event.target.value);
+                    setProductSearchOpen(true);
+                  }}
+                  onFocus={() => setProductSearchOpen(true)}
+                  onBlur={() => setTimeout(() => setProductSearchOpen(false), 150)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") setProductSearchOpen(false);
+                  }}
+                  placeholder="Zacznij pisać, aby wyszukać preparat..."
+                />
+                {productSearchOpen && !selectedProduct ? (
+                  <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
+                    {productSuggestions.length > 0 ? (
+                      productSuggestions.map((product) => (
+                        <button
+                          key={product.id}
+                          type="button"
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            setSelectedProductId(product.id);
+                            setProductQuery("");
+                            setProductSearchOpen(false);
+                          }}
+                          className="block w-full px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                        >
+                          <div className="truncate">{product.name}</div>
+                          <div className="truncate text-xs text-zinc-500">
+                            {UNIT_OPTIONS.find((option) => option.value === product.unit)?.label ??
+                              product.unit}
+                          </div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2 text-sm text-zinc-500">
+                        Brak pasujących preparatów.
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Ilość</Label>
