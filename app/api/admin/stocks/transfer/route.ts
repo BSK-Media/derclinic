@@ -41,6 +41,9 @@ export async function POST(req: Request) {
       ]);
 
       if (!fromWarehouse || !toWarehouse) throw new Error("Nie znaleziono wybranego magazynu");
+      if (user!.locationScopeId && (fromWarehouse.locationId !== user!.locationScopeId || toWarehouse.locationId !== user!.locationScopeId)) {
+        throw new Error("Magazyn nie należy do wybranej lokalizacji");
+      }
 
       const available = Number(fromStock?.quantity ?? 0);
       if (available < quantity) throw new Error(`Brak stanu. Dostępne: ${available}`);
