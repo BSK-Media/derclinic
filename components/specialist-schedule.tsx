@@ -176,6 +176,8 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
       setSelectingCustomDays(false);
       return;
     }
+    setSelectingTimeOffDays(false);
+    setSelectedTimeOffDates([]);
     setSelectingCustomDays(true);
     window.setTimeout(() => {
       document
@@ -252,7 +254,34 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
   const [offEnd, setOffEnd] = React.useState("13:00");
   const [offNote, setOffNote] = React.useState("");
   const [savingOff, setSavingOff] = React.useState(false);
+  const [selectingTimeOffDays, setSelectingTimeOffDays] = React.useState(false);
+  const [selectedTimeOffDates, setSelectedTimeOffDates] = React.useState<string[]>([]);
+  const [savingTimeOffDays, setSavingTimeOffDays] = React.useState(false);
   const [deletingOffId, setDeletingOffId] = React.useState<string | null>(null);
+
+  function startSelectingTimeOffDays() {
+    setSelectingCustomDays(false);
+    setSelectingTimeOffDays(true);
+    setOffAllDay(true);
+    window.setTimeout(() => {
+      document
+        .getElementById("specialist-schedule-calendar")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
+  function cancelSelectingTimeOffDays() {
+    setSelectingTimeOffDays(false);
+    setSelectedTimeOffDates([]);
+  }
+
+  function toggleTimeOffDate(date: string) {
+    setSelectedTimeOffDates((current) =>
+      current.includes(date)
+        ? current.filter((selectedDate) => selectedDate !== date)
+        : [...current, date].sort(),
+    );
+  }
 
   async function addTimeOff() {
     if (!offDate) return toast.error("Wybierz datę");
@@ -279,6 +308,46 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
       mutate();
     } finally {
       setSavingOff(false);
+    }
+  }
+
+  async function addSelectedTimeOffDays() {
+    if (selectedTimeOffDates.length === 0) {
+      return toast.error("Wybierz co najmniej jeden dzień w kalendarzu");
+    }
+
+    setSavingTimeOffDays(true);
+    try {
+      const res = await fetch(`/api/admin/specialists/${specialistId}/schedule`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "CREATE_TIME_OFF_DAYS",
+          dates: selectedTimeOffDates,
+          note: offNote.trim() || null,
+        }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) {
+        return toast.error(out?.message || "Nie udało się dodać wybranych dni wolnych");
+      }
+
+      const addedCount = Number(out.addedCount ?? selectedTimeOffDates.length);
+      const skippedCount = Number(out.skippedCount ?? 0);
+      if (addedCount === 0 && skippedCount > 0) {
+        toast.info("Wszystkie wybrane dni były już zapisane jako wolne");
+      } else if (skippedCount > 0) {
+        toast.success(`Dodano ${addedCount} dni wolnych, pominięto ${skippedCount} już zapisanych`);
+      } else {
+        toast.success(addedCount === 1 ? "Dodano dzień wolny" : `Dodano ${addedCount} dni wolnych`);
+      }
+
+      setOffNote("");
+      setSelectedTimeOffDates([]);
+      setSelectingTimeOffDays(false);
+      mutate();
+    } finally {
+      setSavingTimeOffDays(false);
     }
   }
 
@@ -536,7 +605,53 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
           <Button onClick={addTimeOff} disabled={savingOff}>
             {savingOff ? "Dodawanie…" : "Dodaj wolne"}
           </Button>
+          <Button
+            type="button"
+            variant={selectingTimeOffDays ? "default" : "outline"}
+            onClick={startSelectingTimeOffDays}
+            disabled={savingTimeOffDays}
+          >
+            {selectingTimeOffDays ? "Tryb wyboru aktywny" : "Zaznacz dni wolne"}
+          </Button>
         </div>
+
+        {selectingTimeOffDays ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-3 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+            <div className="min-w-[240px] flex-1">
+              <div className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
+                Zaznacz dni wolne w kalendarzu
+              </div>
+              <div className="mt-0.5 text-xs text-emerald-800/80 dark:text-emerald-200/80">
+                Klikaj kolejne daty. Ponowne kliknięcie usuwa datę z wyboru. Wybrane dni będą
+                zapisane jako całodniowe wolne.
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
+                Wybrano: {selectedTimeOffDates.length}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={cancelSelectingTimeOffDays}
+                disabled={savingTimeOffDays}
+              >
+                Anuluj
+              </Button>
+              <Button
+                type="button"
+                onClick={addSelectedTimeOffDays}
+                disabled={savingTimeOffDays || selectedTimeOffDates.length === 0}
+              >
+                {savingTimeOffDays
+                  ? "Dodawanie…"
+                  : `Dodaj zaznaczone dni${
+                      selectedTimeOffDates.length ? ` (${selectedTimeOffDates.length})` : ""
+                    }`}
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </Card>
 
       {/* Kalendarz dostępności */}
@@ -571,6 +686,13 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
           <div className="border-b border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-800 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-200">
             Tryb wyboru dni jest aktywny — klikaj daty, które mają mieć godziny {customStart}–
             {customEnd}. Ponowne kliknięcie usuwa dzień z wyboru.
+          </div>
+        ) : null}
+
+        {selectingTimeOffDays ? (
+          <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+            Tryb wyboru dni wolnych jest aktywny — kliknij wszystkie daty, które chcesz dodać.
+            Ponowne kliknięcie usuwa datę z wyboru.
           </div>
         ) : null}
 
@@ -615,6 +737,9 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
             const dayOffs = timeOffsByDate.get(key) ?? [];
             const fullDayOff = dayOffs.some((t) => t.allDay);
             const selectedForCustomWork = selectedCustomDates.includes(key);
+            const selectedForTimeOff = selectedTimeOffDates.includes(key);
+            const selectedSingleDate =
+              !selectingCustomDays && !selectingTimeOffDays && offDate === key;
 
             const bg = fullDayOff
               ? "bg-red-50 dark:bg-red-500/10"
@@ -628,16 +753,29 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
               <button
                 key={key}
                 type="button"
-                onClick={() => (selectingCustomDays ? toggleCustomDate(key) : setOffDate(key))}
+                onClick={() => {
+                  if (selectingCustomDays) {
+                    toggleCustomDate(key);
+                  } else if (selectingTimeOffDays) {
+                    toggleTimeOffDate(key);
+                  } else {
+                    setOffDate(key);
+                  }
+                }}
                 title={
                   selectingCustomDays
                     ? "Kliknij, aby dodać lub usunąć dzień z niestandardowego grafiku"
-                    : "Kliknij, aby podstawić datę w formularzu wolnego"
+                    : selectingTimeOffDays
+                      ? "Kliknij, aby dodać lub usunąć dzień z wyboru dni wolnych"
+                      : "Kliknij, aby podstawić datę w formularzu wolnego"
                 }
                 className={
-                  "min-h-24 border-b border-r p-1.5 text-left align-top transition hover:ring-2 hover:ring-inset hover:ring-emerald-300 " +
+                  "min-h-24 border-b border-r p-1.5 text-left align-top transition " +
                   bg +
                   (selectedForCustomWork ? " ring-2 ring-inset ring-indigo-500" : "") +
+                  (selectedForTimeOff || selectedSingleDate
+                    ? " ring-2 ring-inset ring-emerald-500"
+                    : "") +
                   (inMonth ? "" : " opacity-45")
                 }
               >
@@ -654,6 +792,10 @@ export function SpecialistSchedule({ specialistId }: { specialistId: string }) {
                   </span>
                   {selectedForCustomWork ? (
                     <span className="rounded bg-indigo-600 px-1 text-[10px] font-medium text-white">
+                      wybrano
+                    </span>
+                  ) : selectedForTimeOff ? (
+                    <span className="rounded bg-emerald-600 px-1 text-[10px] font-medium text-white">
                       wybrano
                     </span>
                   ) : null}
