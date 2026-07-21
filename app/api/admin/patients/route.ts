@@ -28,41 +28,56 @@ export async function GET(req: Request) {
     take: 200,
   });
 
-  if (user!.role !== "ADMIN" || patients.length === 0) {
+  if (patients.length === 0) {
     return NextResponse.json({ ok: true, viewerRole: user!.role, patients });
   }
 
-  const completedAppointments = await prisma.appointment.findMany({
+  const pastAppointments = await prisma.appointment.findMany({
     where: {
       patientId: { in: patients.map((patient) => patient.id) },
-      status: "COMPLETED",
-      approvalStatus: "APPROVED",
       deletedAt: null,
+      startsAt: { lte: new Date() },
       ...scopedLocationWhere(user!),
     },
     select: {
       patientId: true,
+      startsAt: true,
+      status: true,
+      approvalStatus: true,
       priceFinal: true,
       priceEstimate: true,
     },
+    orderBy: { startsAt: "desc" },
     take: 20000,
   });
 
-  const totalsByPatient = new Map<string, { totalSpent: number; completedVisits: number }>();
-  for (const appointment of completedAppointments) {
+  const totalsByPatient = new Map<
+    string,
+    { totalSpent: number; completedVisits: number; lastVisitAt: Date | null }
+  >();
+  for (const appointment of pastAppointments) {
     const totals = totalsByPatient.get(appointment.patientId) ?? {
       totalSpent: 0,
       completedVisits: 0,
+      lastVisitAt: null,
     };
-    totals.totalSpent += appointment.priceFinal ?? appointment.priceEstimate ?? 0;
-    totals.completedVisits += 1;
+    if (!totals.lastVisitAt) totals.lastVisitAt = appointment.startsAt;
+    if (appointment.status === "COMPLETED" && appointment.approvalStatus === "APPROVED") {
+      totals.completedVisits += 1;
+      if (user!.role === "ADMIN") {
+        totals.totalSpent += appointment.priceFinal ?? appointment.priceEstimate ?? 0;
+      }
+    }
     totalsByPatient.set(appointment.patientId, totals);
   }
 
   const patientsWithStats = patients.map((patient) => ({
     ...patient,
-    totalSpent: totalsByPatient.get(patient.id)?.totalSpent ?? 0,
+    ...(user!.role === "ADMIN"
+      ? { totalSpent: totalsByPatient.get(patient.id)?.totalSpent ?? 0 }
+      : {}),
     completedVisits: totalsByPatient.get(patient.id)?.completedVisits ?? 0,
+    lastVisitAt: totalsByPatient.get(patient.id)?.lastVisitAt ?? null,
   }));
 
   return NextResponse.json({ ok: true, viewerRole: user!.role, patients: patientsWithStats });
