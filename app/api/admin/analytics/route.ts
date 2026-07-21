@@ -40,6 +40,7 @@ export async function GET(req: Request) {
   const to = new Date(toRaw);
   to.setHours(23, 59, 59, 999);
   const specialistId = url.searchParams.get("specialistId") || null;
+  const locationId = url.searchParams.get("locationId") || null;
 
   // Poprzedni okres o tej samej długości (do porównań %)
   const rangeMs = to.getTime() - from.getTime();
@@ -49,7 +50,18 @@ export async function GET(req: Request) {
   const baseWhere = {
     deletedAt: null,
     ...(specialistId ? { specialistId } : {}),
+    ...(locationId
+      ? locationId === "grodzisk-mazowiecki"
+        ? { OR: [{ locationId }, { locationId: null }] }
+        : { locationId }
+      : {}),
   } as const;
+
+  const patientLocationWhere = locationId
+    ? locationId === "grodzisk-mazowiecki"
+      ? { appointments: { some: { OR: [{ locationId }, { locationId: null }] } } }
+      : { appointments: { some: { locationId } } }
+    : {};
 
   const [appointments, prevAppointments, specialists, newPatients, prevNewPatients] =
     await Promise.all([
@@ -96,8 +108,12 @@ export async function GET(req: Request) {
         select: { id: true, name: true },
         orderBy: { name: "asc" },
       }),
-      prisma.patient.count({ where: { createdAt: { gte: from, lte: to } } }),
-      prisma.patient.count({ where: { createdAt: { gte: prevFrom, lte: prevTo } } }),
+      prisma.patient.count({
+        where: { createdAt: { gte: from, lte: to }, ...patientLocationWhere },
+      }),
+      prisma.patient.count({
+        where: { createdAt: { gte: prevFrom, lte: prevTo }, ...patientLocationWhere },
+      }),
     ]);
 
   const apptPrice = (a: {
@@ -306,6 +322,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     ok: true,
     range: { from: from.toISOString(), to: to.toISOString() },
+    locationId,
     kpi: {
       revenue,
       prevRevenue,
