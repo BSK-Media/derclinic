@@ -36,6 +36,15 @@ const CustomWorkDaysSchema = z.object({
   endTime: z.string().regex(TIME_REGEX, "Niepoprawna godzina zakończenia"),
 });
 
+const TimeOffDaysSchema = z.object({
+  action: z.literal("CREATE_TIME_OFF_DAYS"),
+  dates: z
+    .array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Niepoprawna data"))
+    .min(1, "Wybierz co najmniej jeden dzień")
+    .max(366),
+  note: z.string().trim().max(300).optional().nullable(),
+});
+
 async function ensureSpecialist(id: string, locationScopeId: string | null) {
   const specialist = await prisma.user.findFirst({
     where: { id, ...(locationScopeId ? { locationId: locationScopeId } : {}) },
@@ -210,6 +219,63 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     });
 
     return NextResponse.json({ ok: true, customWorkDays });
+  }
+
+  if (json?.action === "CREATE_TIME_OFF_DAYS") {
+    const parsed = TimeOffDaysSchema.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { ok: false, message: parsed.error.issues[0]?.message || "Niepoprawne dane" },
+        { status: 400 },
+      );
+    }
+
+    const dates = [...new Set(parsed.data.dates)];
+    const normalizedDates = dates.map((date) => new Date(`${date}T00:00:00`));
+    const existingDays = await prisma.specialistTimeOff.findMany({
+      where: {
+        specialistId: params.id,
+        allDay: true,
+        date: { in: normalizedDates },
+      },
+      select: { date: true },
+    });
+    const existingDateKeys = new Set(
+      existingDays.map((day) => day.date.toISOString().slice(0, 10)),
+    );
+    const datesToCreate = dates.filter((date) => !existingDateKeys.has(date));
+
+    if (datesToCreate.length > 0) {
+      await prisma.specialistTimeOff.createMany({
+        data: datesToCreate.map((date) => ({
+          specialistId: params.id,
+          date: new Date(`${date}T00:00:00`),
+          allDay: true,
+          startTime: null,
+          endTime: null,
+          note: parsed.data.note || null,
+        })),
+      });
+
+      await logAudit({
+        actorId: user!.id,
+        action: "CREATE",
+        entity: "SpecialistTimeOff",
+        entityId: params.id,
+        data: {
+          specialistId: params.id,
+          dates: datesToCreate,
+          allDay: true,
+          note: parsed.data.note || null,
+        },
+      });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      addedCount: datesToCreate.length,
+      skippedCount: dates.length - datesToCreate.length,
+    });
   }
 
   const parsed = TimeOffSchema.safeParse(json);
