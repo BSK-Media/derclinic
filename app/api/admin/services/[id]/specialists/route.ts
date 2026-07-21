@@ -61,6 +61,85 @@ const PatchSchema = z
   })
   .strict();
 
+const AssignmentSchema = z
+  .object({
+    specialistId: z.string().min(1),
+    assigned: z.boolean(),
+  })
+  .strict();
+
+export async function PUT(req: Request, { params }: { params: { id: string } }) {
+  const { user, error } = await requireAuth();
+  if (error) return error;
+  const deny = requireStrictRole(user!.role, ["ADMIN"]);
+  if (deny) return deny;
+
+  const json = await req.json().catch(() => null);
+  const parsed = AssignmentSchema.safeParse(json);
+  if (!parsed.success) {
+    return NextResponse.json({ ok: false, message: "Niepoprawne dane przypisania" }, { status: 400 });
+  }
+
+  const { specialistId, assigned } = parsed.data;
+  const [service, specialist] = await Promise.all([
+    prisma.service.findUnique({
+      where: { id: params.id },
+      select: { id: true },
+    }),
+    prisma.user.findFirst({
+      where: {
+        id: specialistId,
+        role: "SPECIALIST",
+        ...(user!.locationScopeId ? { locationId: user!.locationScopeId } : {}),
+      },
+      select: { id: true },
+    }),
+  ]);
+
+  if (!service) {
+    return NextResponse.json({ ok: false, message: "Nie znaleziono usługi" }, { status: 404 });
+  }
+  if (!specialist) {
+    return NextResponse.json(
+      { ok: false, message: "Nie znaleziono specjalisty w wybranej lokalizacji" },
+      { status: 404 },
+    );
+  }
+
+  if (assigned) {
+    await prisma.specialistService.upsert({
+      where: {
+        specialistId_serviceId: {
+          specialistId,
+          serviceId: params.id,
+        },
+      },
+      update: {},
+      create: {
+        specialistId,
+        serviceId: params.id,
+      },
+    });
+  } else {
+    await prisma.specialistService.deleteMany({
+      where: {
+        specialistId,
+        serviceId: params.id,
+      },
+    });
+  }
+
+  await logAudit({
+    actorId: user!.id,
+    action: assigned ? "CREATE" : "DELETE",
+    entity: "SpecialistService",
+    entityId: `${specialistId}:${params.id}`,
+    data: { specialistId, serviceId: params.id, assigned },
+  });
+
+  return NextResponse.json({ ok: true, assigned });
+}
+
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
   if (error) return error;
