@@ -21,7 +21,19 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!parsed.success)
     return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
-  const consumption = await prisma.consumption.findUnique({ where: { id: params.id } });
+  const consumption = await prisma.consumption.findFirst({
+    where: {
+      id: params.id,
+      ...(user!.locationScopeId
+        ? {
+            OR: [
+              { appointment: { locationId: user!.locationScopeId } },
+              { warehouse: { locationId: user!.locationScopeId } },
+            ],
+          }
+        : {}),
+    },
+  });
   if (!consumption)
     return NextResponse.json({ ok: false, message: "Nie znaleziono zgłoszenia" }, { status: 404 });
   if (consumption.status !== "PENDING") {
