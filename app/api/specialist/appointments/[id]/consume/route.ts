@@ -11,10 +11,10 @@ const BodySchema = z.object({
   note: z.string().optional().or(z.literal("")),
 });
 
-async function loadActiveAppointment(appointmentId: string) {
-  const appointment = await prisma.appointment.findUnique({
-    where: { id: appointmentId },
-    select: { id: true, specialistId: true, deletedAt: true },
+async function loadActiveAppointment(appointmentId: string, locationScopeId: string | null) {
+  const appointment = await prisma.appointment.findFirst({
+    where: { id: appointmentId, ...(locationScopeId ? { locationId: locationScopeId } : {}) },
+    select: { id: true, specialistId: true, locationId: true, deletedAt: true },
   });
   if (!appointment || appointment.deletedAt) {
     return {
@@ -35,12 +35,19 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!parsed.success)
     return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
-  const { appointment: appt, error: appointmentError } = await loadActiveAppointment(params.id);
+  const { appointment: appt, error: appointmentError } = await loadActiveAppointment(params.id, user!.locationScopeId);
   if (appointmentError) return appointmentError;
 
   const warehouseId = parsed.data.warehouseId ? parsed.data.warehouseId : null;
   if (!warehouseId)
     return NextResponse.json({ ok: false, message: "Wybierz magazyn" }, { status: 400 });
+  const warehouse = await prisma.warehouse.findFirst({
+    where: { id: warehouseId, locationId: appt!.locationId },
+    select: { id: true },
+  });
+  if (!warehouse) {
+    return NextResponse.json({ ok: false, message: "Magazyn nie należy do lokalizacji wizyty" }, { status: 400 });
+  }
 
   const product = await prisma.product.findUnique({
     where: { id: parsed.data.productId },
@@ -98,7 +105,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const deny = requireStrictRole(user!.role, ["RECEPTION", "ADMIN"]);
   if (deny) return deny;
 
-  const { error: appointmentError } = await loadActiveAppointment(params.id);
+  const { error: appointmentError } = await loadActiveAppointment(params.id, user!.locationScopeId);
   if (appointmentError) return appointmentError;
 
   const json = await req.json().catch(() => null);
@@ -149,7 +156,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   const deny = requireStrictRole(user!.role, ["RECEPTION", "ADMIN"]);
   if (deny) return deny;
 
-  const { error: appointmentError } = await loadActiveAppointment(params.id);
+  const { error: appointmentError } = await loadActiveAppointment(params.id, user!.locationScopeId);
   if (appointmentError) return appointmentError;
 
   const url = new URL(req.url);
