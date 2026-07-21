@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
+import { requireAuth, requireStrictRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { resolveSettlementRange } from "@/lib/settlement-range";
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
@@ -28,8 +28,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     startsAt = { gte: resolved.start, lt: resolved.end };
   }
 
-  const patient = await prisma.patient.findUnique({
-    where: { id: params.id },
+  const patient = await prisma.patient.findFirst({
+    where: { id: params.id, ...scopedLocationWhere(user!) },
     select: { id: true },
   });
   if (!patient) {
@@ -43,6 +43,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       approvalStatus: "APPROVED",
       deletedAt: null,
       startsAt,
+      ...scopedLocationWhere(user!),
     },
     orderBy: { startsAt: "desc" },
     select: {
