@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
+import { requireAuth, requireStrictRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
 const BodySchema = z.object({
@@ -20,8 +20,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!parsed.success)
     return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
-  const appointment = await prisma.appointment.findUnique({
-    where: { id: params.id },
+  const appointment = await prisma.appointment.findFirst({
+    where: { id: params.id, ...scopedLocationWhere(user!) },
     select: {
       id: true,
       deletedAt: true,
