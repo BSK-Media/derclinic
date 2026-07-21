@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth } from "@/lib/api-helpers";
+import { requireAuth, scopedLocationWhere } from "@/lib/api-helpers";
 import {
   hasSidebarPermission,
   type SidebarPermission,
@@ -32,6 +32,7 @@ export async function GET(req: Request) {
     hasSidebarPermission(user!.role, user!.sidebarPermissions, permission);
 
   const groups: SearchGroup[] = [];
+  const locationWhere = scopedLocationWhere(user!);
 
   // ── SPECJALISTA: wyszukiwanie tylko własnych wizyt ─────────────────────
   if (user!.role === "SPECIALIST") {
@@ -78,7 +79,7 @@ export async function GET(req: Request) {
     await Promise.all([
       can("patients")
         ? prisma.patient.findMany({
-            where: { OR: [{ name: contains }, { phone: contains }, { email: contains }] },
+            where: { ...locationWhere, OR: [{ name: contains }, { phone: contains }, { email: contains }] },
             select: { id: true, name: true, phone: true, email: true },
             orderBy: { name: "asc" },
             take: LIMIT,
@@ -88,6 +89,7 @@ export async function GET(req: Request) {
         ? prisma.appointment.findMany({
             where: {
               deletedAt: null,
+              ...locationWhere,
               OR: [
                 { patient: { name: contains } },
                 { service: { name: contains } },
@@ -111,6 +113,7 @@ export async function GET(req: Request) {
         ? prisma.user.findMany({
             where: {
               role: "SPECIALIST",
+              ...locationWhere,
               OR: [{ name: contains }, { email: contains }],
             },
             select: { id: true, name: true, email: true },
@@ -143,7 +146,7 @@ export async function GET(req: Request) {
         : Promise.resolve([]),
       can("inventory")
         ? prisma.warehouse.findMany({
-            where: { name: contains },
+            where: { ...locationWhere, name: contains },
             select: { id: true, name: true, parent: { select: { name: true } } },
             orderBy: { name: "asc" },
             take: LIMIT,
@@ -151,7 +154,7 @@ export async function GET(req: Request) {
         : Promise.resolve([]),
       can("locations")
         ? prisma.location.findMany({
-            where: { isActive: true, name: contains },
+            where: { isActive: true, name: contains, ...(user!.role === "ADMIN" ? {} : { id: user!.locationId }) },
             select: { id: true, name: true },
             orderBy: { name: "asc" },
             take: LIMIT,
