@@ -20,6 +20,7 @@ export async function GET() {
 
 const CreateSchema = z.object({
   name: z.string().trim().min(2),
+  locationId: z.string().min(1),
   parentId: z.string().optional().nullable(),
 });
 
@@ -33,19 +34,36 @@ export async function POST(req: Request) {
   const parsed = CreateSchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
-  if (!user!.locationScopeId) {
-    return NextResponse.json({ ok: false, message: "Przed dodaniem magazynu wybierz konkretną lokalizację" }, { status: 400 });
+  const location = await prisma.location.findFirst({
+    where: { id: parsed.data.locationId, isActive: true },
+    select: { id: true },
+  });
+  if (!location) {
+    return NextResponse.json({ ok: false, message: "Wybrana lokalizacja nie istnieje lub jest nieaktywna" }, { status: 400 });
+  }
+
+  if (parsed.data.parentId) {
+    const parentWarehouse = await prisma.warehouse.findFirst({
+      where: { id: parsed.data.parentId, locationId: location.id },
+      select: { id: true },
+    });
+    if (!parentWarehouse) {
+      return NextResponse.json({ ok: false, message: "Magazyn nadrzędny musi należeć do tej samej lokalizacji" }, { status: 400 });
+    }
   }
 
   const duplicate = await prisma.warehouse.findFirst({
-    where: { name: { equals: parsed.data.name, mode: "insensitive" } },
+    where: {
+      locationId: location.id,
+      name: { equals: parsed.data.name, mode: "insensitive" },
+    },
   });
   if (duplicate) {
-    return NextResponse.json({ ok: false, message: "Magazyn o tej nazwie już istnieje" }, { status: 409 });
+    return NextResponse.json({ ok: false, message: "Magazyn o tej nazwie już istnieje w wybranej lokalizacji" }, { status: 409 });
   }
 
   const wh = await prisma.warehouse.create({
-    data: { name: parsed.data.name, parentId: parsed.data.parentId ?? null, locationId: user!.locationScopeId },
+    data: { name: parsed.data.name, parentId: parsed.data.parentId ?? null, locationId: location.id },
   });
 
   await logAudit({ actorId: user!.id, action: "CREATE", entity: "Warehouse", entityId: wh.id });
