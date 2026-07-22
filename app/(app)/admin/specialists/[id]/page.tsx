@@ -4,12 +4,20 @@ import * as React from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/components/auth-provider";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
@@ -67,6 +75,11 @@ export default function SpecialistDetailPage() {
     fetcher,
   );
   const [decidingId, setDecidingId] = React.useState<string | null>(null);
+  const [appointmentQuery, setAppointmentQuery] = React.useState("");
+  const [appointmentDateFrom, setAppointmentDateFrom] = React.useState("");
+  const [appointmentDateTo, setAppointmentDateTo] = React.useState("");
+  const [appointmentService, setAppointmentService] = React.useState("ALL");
+  const [mobileAppointmentFiltersOpen, setMobileAppointmentFiltersOpen] = React.useState(false);
 
   async function decide(appointmentId: string, action: "APPROVE" | "REJECT") {
     setDecidingId(appointmentId);
@@ -87,6 +100,47 @@ export default function SpecialistDetailPage() {
   const specialist = data?.specialist;
   const stats = data?.stats;
   const appointments: any[] = data?.appointments ?? [];
+  const appointmentServices = React.useMemo(
+    () =>
+      Array.from(
+        new Set(
+          appointments
+            .map((appointment) => appointment.customServiceName || appointment.service?.name)
+            .filter(Boolean) as string[],
+        ),
+      ).sort((first, second) => first.localeCompare(second, "pl", { sensitivity: "base" })),
+    [appointments],
+  );
+  const mobileAppointments = React.useMemo(() => {
+    const normalizedQuery = appointmentQuery.trim().toLocaleLowerCase("pl");
+
+    return appointments.filter((appointment) => {
+      const startsAt = new Date(appointment.startsAt);
+      const appointmentDate = toDateInput(startsAt);
+      const serviceName = appointment.customServiceName || appointment.service?.name || "—";
+      const searchableText = [
+        appointment.patient?.name,
+        serviceName,
+        appointmentStatusLabel(appointment.status, appointment.startsAt),
+        startsAt.toLocaleDateString("pl-PL"),
+        ...(appointment.materials?.map((material: any) => material.productName) ?? []),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase("pl");
+
+      const matchesQuery = !normalizedQuery || searchableText.includes(normalizedQuery);
+      const matchesService = appointmentService === "ALL" || serviceName === appointmentService;
+      const matchesDateFrom = !appointmentDateFrom || appointmentDate >= appointmentDateFrom;
+      const matchesDateTo = !appointmentDateTo || appointmentDate <= appointmentDateTo;
+
+      return matchesQuery && matchesService && matchesDateFrom && matchesDateTo;
+    });
+  }, [appointmentDateFrom, appointmentDateTo, appointmentQuery, appointmentService, appointments]);
+  const activeMobileAppointmentFilters =
+    Number(Boolean(appointmentDateFrom)) +
+    Number(Boolean(appointmentDateTo)) +
+    Number(appointmentService !== "ALL");
 
   return (
     <div className="space-y-6">
@@ -296,6 +350,110 @@ export default function SpecialistDetailPage() {
                   : "Do statystyk liczą się tylko wizyty zakończone i zaakceptowane."}
               </div>
             </div>
+            <div className="space-y-3 border-b p-4 md:hidden">
+              <div className="flex items-stretch gap-2">
+                <Input
+                  value={appointmentQuery}
+                  onChange={(event) => setAppointmentQuery(event.target.value)}
+                  placeholder="Szukaj pacjenta lub zabiegu..."
+                  className="min-w-0 flex-1 rounded-xl"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="relative h-10 w-11 shrink-0 px-0"
+                  onClick={() => setMobileAppointmentFiltersOpen((open) => !open)}
+                  aria-label="Pokaż filtry historii wizyt"
+                  aria-expanded={mobileAppointmentFiltersOpen}
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                  {activeMobileAppointmentFilters > 0 ? (
+                    <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-semibold text-white">
+                      {activeMobileAppointmentFilters}
+                    </span>
+                  ) : null}
+                </Button>
+              </div>
+
+              {mobileAppointmentFiltersOpen ? (
+                <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-lg dark:border-white/10 dark:bg-[#0b1220]">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="min-w-0 space-y-2">
+                      <Label htmlFor="appointment-date-from">Data od</Label>
+                      <Input
+                        id="appointment-date-from"
+                        type="date"
+                        value={appointmentDateFrom}
+                        onChange={(event) => setAppointmentDateFrom(event.target.value)}
+                        max={appointmentDateTo || undefined}
+                        className="min-w-0"
+                      />
+                    </div>
+                    <div className="min-w-0 space-y-2">
+                      <Label htmlFor="appointment-date-to">Data do</Label>
+                      <Input
+                        id="appointment-date-to"
+                        type="date"
+                        value={appointmentDateTo}
+                        onChange={(event) => setAppointmentDateTo(event.target.value)}
+                        min={appointmentDateFrom || undefined}
+                        className="min-w-0"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Zabieg</Label>
+                    <Select value={appointmentService} onValueChange={setAppointmentService}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Wszystkie zabiegi" />
+                      </SelectTrigger>
+                      <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-2rem)] !bg-white dark:!bg-[#0b1220]">
+                        <SelectItem value="ALL">Wszystkie zabiegi</SelectItem>
+                        {appointmentServices.map((serviceName) => (
+                          <SelectItem
+                            key={serviceName}
+                            value={serviceName}
+                            className="min-w-0 whitespace-normal break-words [&>span]:whitespace-normal [&>span]:break-words"
+                          >
+                            {serviceName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setAppointmentDateFrom("");
+                        setAppointmentDateTo("");
+                        setAppointmentService("ALL");
+                      }}
+                      disabled={activeMobileAppointmentFilters === 0}
+                    >
+                      Wyczyść filtry
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setMobileAppointmentFiltersOpen(false)}
+                    >
+                      Pokaż wyniki
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              {!isLoading ? (
+                <div className="text-xs text-slate-500">
+                  Liczba wizyt: {mobileAppointments.length}
+                </div>
+              ) : null}
+            </div>
             <div className="space-y-3 p-4 md:hidden">
               {isLoading ? (
                 <div className="rounded-2xl border bg-white p-5 text-center text-sm text-slate-500 dark:bg-[#0b1220]">
@@ -307,7 +465,12 @@ export default function SpecialistDetailPage() {
                   Brak wizyt w wybranym okresie.
                 </div>
               ) : null}
-              {appointments.map((a) => {
+              {!isLoading && appointments.length > 0 && mobileAppointments.length === 0 ? (
+                <div className="rounded-2xl border bg-white p-5 text-center text-sm text-slate-500 dark:bg-[#0b1220]">
+                  Brak wizyt pasujących do wyszukiwania lub wybranych filtrów.
+                </div>
+              ) : null}
+              {mobileAppointments.map((a) => {
                 const startsAt = new Date(a.startsAt);
 
                 return (
@@ -399,20 +562,28 @@ export default function SpecialistDetailPage() {
                     </div>
 
                     {isAdmin ? (
-                      <div className="mt-3 grid grid-cols-2 overflow-hidden rounded-xl border text-sm">
-                        <div className="border-b border-r p-3">
+                      <div className="relative mt-3 grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 text-sm dark:border-white">
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-y-0 left-1/2 z-10 w-px -translate-x-1/2 bg-slate-200 dark:bg-white"
+                        />
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-x-0 top-1/2 z-10 h-px -translate-y-1/2 bg-slate-200 dark:bg-white"
+                        />
+                        <div className="p-3">
                           <div className="text-xs text-slate-500">Przychód</div>
                           <div className="mt-1 font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
                             {formatPLNFromGrosze(a.revenue)}
                           </div>
                         </div>
-                        <div className="border-b p-3 text-right">
+                        <div className="p-3 text-right">
                           <div className="text-xs text-slate-500">Materiały</div>
                           <div className="mt-1 font-semibold tabular-nums">
                             {formatPLNFromGrosze(a.materialCost)}
                           </div>
                         </div>
-                        <div className="border-r p-3">
+                        <div className="p-3">
                           <div className="text-xs text-slate-500">Baza</div>
                           <div className="mt-1 font-semibold tabular-nums">
                             {formatPLNFromGrosze(a.base)}
