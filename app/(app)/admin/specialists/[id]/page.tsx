@@ -380,25 +380,29 @@ export default function SpecialistDetailPage() {
                   <div className="w-full min-w-0 space-y-4">
                     <div className="w-full min-w-0 max-w-full space-y-2 overflow-hidden">
                       <Label htmlFor="appointment-date-from">Data od</Label>
-                      <Input
-                        id="appointment-date-from"
-                        type="date"
-                        value={appointmentDateFrom}
-                        onChange={(event) => setAppointmentDateFrom(event.target.value)}
-                        max={appointmentDateTo || undefined}
-                        className="block w-full min-w-0 max-w-full text-base"
-                      />
+                      <div className="w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-zinc-200 bg-white focus-within:ring-2 focus-within:ring-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:focus-within:ring-zinc-700">
+                        <Input
+                          id="appointment-date-from"
+                          type="date"
+                          value={appointmentDateFrom}
+                          onChange={(event) => setAppointmentDateFrom(event.target.value)}
+                          max={appointmentDateTo || undefined}
+                          className="block w-full min-w-0 max-w-full rounded-none border-0 bg-transparent text-base focus:ring-0"
+                        />
+                      </div>
                     </div>
                     <div className="w-full min-w-0 max-w-full space-y-2 overflow-hidden">
                       <Label htmlFor="appointment-date-to">Data do</Label>
-                      <Input
-                        id="appointment-date-to"
-                        type="date"
-                        value={appointmentDateTo}
-                        onChange={(event) => setAppointmentDateTo(event.target.value)}
-                        min={appointmentDateFrom || undefined}
-                        className="block w-full min-w-0 max-w-full text-base"
-                      />
+                      <div className="w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-zinc-200 bg-white focus-within:ring-2 focus-within:ring-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:focus-within:ring-zinc-700">
+                        <Input
+                          id="appointment-date-to"
+                          type="date"
+                          value={appointmentDateTo}
+                          onChange={(event) => setAppointmentDateTo(event.target.value)}
+                          min={appointmentDateFrom || undefined}
+                          className="block w-full min-w-0 max-w-full rounded-none border-0 bg-transparent text-base focus:ring-0"
+                        />
+                      </div>
                     </div>
                   </div>
 
