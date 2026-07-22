@@ -320,7 +320,7 @@ export default function SpecialistsPage() {
                           type="button"
                           onClick={() => setEditing(specialist)}
                           aria-label={`Edytuj: ${specialist.name}`}
-                          className="flex h-8 w-8 items-center justify-center rounded-xl border text-slate-500"
+                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-zinc-200 text-slate-500 dark:border-zinc-800"
                         >
                           <MoreHorizontal className="h-4 w-4" />
                         </button>
