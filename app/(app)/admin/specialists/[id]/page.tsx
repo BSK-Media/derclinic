@@ -356,7 +356,7 @@ export default function SpecialistDetailPage() {
                   value={appointmentQuery}
                   onChange={(event) => setAppointmentQuery(event.target.value)}
                   placeholder="Szukaj pacjenta lub zabiegu..."
-                  className="min-w-0 flex-1 rounded-xl"
+                  className="min-w-0 flex-1 rounded-xl text-base"
                 />
                 <Button
                   type="button"
@@ -376,9 +376,9 @@ export default function SpecialistDetailPage() {
               </div>
 
               {mobileAppointmentFiltersOpen ? (
-                <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-lg dark:border-white/10 dark:bg-[#0b1220]">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="min-w-0 space-y-2">
+                <div className="w-full min-w-0 max-w-full space-y-4 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-lg dark:border-white/10 dark:bg-[#0b1220]">
+                  <div className="w-full min-w-0 space-y-4">
+                    <div className="w-full min-w-0 max-w-full space-y-2 overflow-hidden">
                       <Label htmlFor="appointment-date-from">Data od</Label>
                       <Input
                         id="appointment-date-from"
@@ -386,10 +386,10 @@ export default function SpecialistDetailPage() {
                         value={appointmentDateFrom}
                         onChange={(event) => setAppointmentDateFrom(event.target.value)}
                         max={appointmentDateTo || undefined}
-                        className="min-w-0"
+                        className="block w-full min-w-0 max-w-full text-base"
                       />
                     </div>
-                    <div className="min-w-0 space-y-2">
+                    <div className="w-full min-w-0 max-w-full space-y-2 overflow-hidden">
                       <Label htmlFor="appointment-date-to">Data do</Label>
                       <Input
                         id="appointment-date-to"
@@ -397,7 +397,7 @@ export default function SpecialistDetailPage() {
                         value={appointmentDateTo}
                         onChange={(event) => setAppointmentDateTo(event.target.value)}
                         min={appointmentDateFrom || undefined}
-                        className="min-w-0"
+                        className="block w-full min-w-0 max-w-full text-base"
                       />
                     </div>
                   </div>
