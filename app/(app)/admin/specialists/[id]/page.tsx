@@ -4,6 +4,7 @@ import * as React from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -148,259 +149,271 @@ export default function SpecialistDetailPage() {
       {tab === "schedule" ? (
         <SpecialistSchedule specialistId={id} />
       ) : (
-      <>
-
-      {user?.role === "ADMIN" ? (
-        <SidebarPermissionsSection
-          specialistId={id}
-          permissions={specialist?.sidebarPermissions}
-          loading={isLoading}
-          onSaved={() => mutate()}
-        />
-      ) : null}
-
-      {/* Filtr zakresu — te same opcje co na liście rozliczeń specjalistów */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="inline-flex flex-wrap rounded-2xl border border-white/60 bg-white/70 p-1 text-sm shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55">
-          {(
-            [
-              { k: "today", label: "Dziś" },
-              { k: "7d", label: "7 dni" },
-              { k: "30d", label: "30 dni" },
-              { k: "month", label: "Ten miesiąc" },
-              { k: "custom", label: "Niestandardowe" },
-            ] as const
-          ).map((x) => (
-            <button
-              key={x.k}
-              onClick={() => setRange(x.k)}
-              className={
-                "rounded-2xl px-4 py-1.5 font-medium " +
-                (range === x.k
-                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200"
-                  : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white")
-              }
-            >
-              {x.label}
-            </button>
-          ))}
-        </div>
-
-        {range === "custom" ? (
-          <>
-            <div>
-              <div className="text-xs text-slate-500">Od</div>
-              <Input
-                type="date"
-                value={from}
-                onChange={(event) => setFrom(event.target.value)}
-                className="mt-1 w-44"
-              />
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Do</div>
-              <Input
-                type="date"
-                value={to}
-                onChange={(event) => setTo(event.target.value)}
-                className="mt-1 w-44"
-              />
-            </div>
-          </>
-        ) : null}
-      </div>
-
-      {customRangeInvalid ? (
-        <div className="text-sm text-red-600">Wybierz poprawny zakres dat.</div>
-      ) : null}
-
-      {/* Statystyki (z wizyt zakończonych) */}
-      <div className={"grid gap-4 md:grid-cols-2 " + (isAdmin ? "xl:grid-cols-5" : "xl:grid-cols-2")}>
-        <Card className="p-4">
-          <div className="text-sm text-slate-500">Wizyty zakończone</div>
-          <div className="mt-2 text-3xl font-semibold">{stats?.appointmentsCompleted ?? "—"}</div>
-          <div className="mt-1 text-xs text-slate-500">
-            wszystkie w okresie: {stats?.appointmentsTotal ?? "—"}
-          </div>
-        </Card>
-        {isAdmin ? (
         <>
-        <Card className="p-4">
-          <div className="text-sm text-slate-500">Przychód dla kliniki</div>
-          <div className="mt-2 text-3xl font-semibold">
-            {stats ? formatPLNFromGrosze(stats.revenue) : "—"}
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-sm text-slate-500">Koszt materiałów</div>
-          <div className="mt-2 text-3xl font-semibold">
-            {stats ? formatPLNFromGrosze(stats.materialCost) : "—"}
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-sm text-slate-500">Wynagrodzenie pracownika</div>
-          <div className="mt-2 text-3xl font-semibold">
-            {stats ? formatPLNFromGrosze(stats.payout) : "—"}
-          </div>
-          <div className="mt-1 text-xs text-slate-500">
-            {stats ? `${stats.percent}% × (przychód − materiały)` : "% × (przychód − materiały)"}
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-sm text-slate-500">Zysk kliniki</div>
-          <div className="mt-2 text-3xl font-semibold">
-            {stats ? formatPLNFromGrosze(stats.profit) : "—"}
-          </div>
-          <div className="mt-1 text-xs text-slate-500">przychód − materiały − wynagrodzenie</div>
-        </Card>
-        </>
-        ) : null}
-      </div>
+          {user?.role === "ADMIN" ? (
+            <SidebarPermissionsSection
+              specialistId={id}
+              permissions={specialist?.sidebarPermissions}
+              loading={isLoading}
+              onSaved={() => mutate()}
+            />
+          ) : null}
 
-      {user?.role === "ADMIN" ? (
-        <>
-          <WarehousesSection
-            specialistId={id}
-            assignedLocationId={specialist?.assignedLocation?.id}
-          />
-          <LocationsSection
-            specialistId={id}
-            assignedLocationId={specialist?.assignedLocation?.id}
-            onSaved={() => mutate()}
-          />
-          <PayoutPercentSection
-            specialistId={id}
-            percent={stats?.percent}
-            onSaved={() => mutate()}
-          />
-        </>
-      ) : null}
+          {/* Filtr zakresu — te same opcje co na liście rozliczeń specjalistów */}
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="inline-flex flex-wrap rounded-2xl border border-white/60 bg-white/70 p-1 text-sm shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55">
+              {(
+                [
+                  { k: "today", label: "Dziś" },
+                  { k: "7d", label: "7 dni" },
+                  { k: "30d", label: "30 dni" },
+                  { k: "month", label: "Ten miesiąc" },
+                  { k: "custom", label: "Niestandardowe" },
+                ] as const
+              ).map((x) => (
+                <button
+                  key={x.k}
+                  onClick={() => setRange(x.k)}
+                  className={
+                    "rounded-2xl px-4 py-1.5 font-medium " +
+                    (range === x.k
+                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200"
+                      : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white")
+                  }
+                >
+                  {x.label}
+                </button>
+              ))}
+            </div>
 
-      {/* Historia wizyt */}
-      <Card className="overflow-hidden">
-        <div className="border-b p-4">
-          <div className="font-medium">Historia wizyt</div>
-          <div className="mt-1 text-xs text-slate-500">
-            {isAdmin
-              ? "Kwoty: przychód (cena wizyty), materiały (koszt zakupu zużytych produktów), wypłata = (przychód − materiały) × procent pracownika. Do statystyk i wypłaty liczą się tylko wizyty zakończone i zaakceptowane."
-              : "Do statystyk liczą się tylko wizyty zakończone i zaakceptowane."}
+            {range === "custom" ? (
+              <>
+                <div>
+                  <div className="text-xs text-slate-500">Od</div>
+                  <Input
+                    type="date"
+                    value={from}
+                    onChange={(event) => setFrom(event.target.value)}
+                    className="mt-1 w-44"
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">Do</div>
+                  <Input
+                    type="date"
+                    value={to}
+                    onChange={(event) => setTo(event.target.value)}
+                    className="mt-1 w-44"
+                  />
+                </div>
+              </>
+            ) : null}
           </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-slate-500 dark:bg-white/5">
-              <tr>
-                <th className="p-3">Data</th>
-                <th className="p-3">Pacjent</th>
-                <th className="p-3">Zabieg</th>
-                <th className="p-3">Status</th>
-                {isAdmin ? (
-                  <>
-                    <th className="p-3 text-right">Przychód</th>
-                    <th className="p-3 text-right">Materiały</th>
-                    <th className="p-3 text-right">Baza (przychód − materiały)</th>
-                    <th className="p-3 text-right">Wypłata</th>
-                  </>
-                ) : null}
-                <th className="w-32 p-3 text-right">Akcje</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && (
-                <tr>
-                  <td className="p-4 text-slate-500" colSpan={isAdmin ? 9 : 5}>
-                    Ładowanie...
-                  </td>
-                </tr>
-              )}
-              {!isLoading && appointments.length === 0 && (
-                <tr>
-                  <td className="p-4 text-slate-500" colSpan={isAdmin ? 9 : 5}>
-                    Brak wizyt w wybranym okresie.
-                  </td>
-                </tr>
-              )}
-              {appointments.map((a) => (
-                <tr key={a.id} className="border-t align-top">
-                  <td className="whitespace-nowrap p-3">
-                    {new Date(a.startsAt).toLocaleString("pl-PL", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
-                  </td>
-                  <td className="p-3">{a.patient?.name ?? "—"}</td>
-                  <td className="p-3">
-                    <div>{a.customServiceName || a.service?.name || "—"}</div>
-                    {a.materials?.length ? (
-                      <div className="mt-1 text-xs text-slate-500">
-                        {a.materials.map((m: any) => `${m.productName} × ${m.quantity}`).join(", ")}
-                      </div>
+
+          {customRangeInvalid ? (
+            <div className="text-sm text-red-600">Wybierz poprawny zakres dat.</div>
+          ) : null}
+
+          {/* Statystyki (z wizyt zakończonych) */}
+          <div
+            className={
+              "grid gap-4 md:grid-cols-2 " + (isAdmin ? "xl:grid-cols-5" : "xl:grid-cols-2")
+            }
+          >
+            <Card className="p-4">
+              <div className="text-sm text-slate-500">Wizyty zakończone</div>
+              <div className="mt-2 text-3xl font-semibold">
+                {stats?.appointmentsCompleted ?? "—"}
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                wszystkie w okresie: {stats?.appointmentsTotal ?? "—"}
+              </div>
+            </Card>
+            {isAdmin ? (
+              <>
+                <Card className="p-4">
+                  <div className="text-sm text-slate-500">Przychód dla kliniki</div>
+                  <div className="mt-2 text-3xl font-semibold">
+                    {stats ? formatPLNFromGrosze(stats.revenue) : "—"}
+                  </div>
+                </Card>
+                <Card className="p-4">
+                  <div className="text-sm text-slate-500">Koszt materiałów</div>
+                  <div className="mt-2 text-3xl font-semibold">
+                    {stats ? formatPLNFromGrosze(stats.materialCost) : "—"}
+                  </div>
+                </Card>
+                <Card className="p-4">
+                  <div className="text-sm text-slate-500">Wynagrodzenie pracownika</div>
+                  <div className="mt-2 text-3xl font-semibold">
+                    {stats ? formatPLNFromGrosze(stats.payout) : "—"}
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {stats
+                      ? `${stats.percent}% × (przychód − materiały)`
+                      : "% × (przychód − materiały)"}
+                  </div>
+                </Card>
+                <Card className="p-4">
+                  <div className="text-sm text-slate-500">Zysk kliniki</div>
+                  <div className="mt-2 text-3xl font-semibold">
+                    {stats ? formatPLNFromGrosze(stats.profit) : "—"}
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    przychód − materiały − wynagrodzenie
+                  </div>
+                </Card>
+              </>
+            ) : null}
+          </div>
+
+          {user?.role === "ADMIN" ? (
+            <>
+              <WarehousesSection
+                specialistId={id}
+                assignedLocationId={specialist?.assignedLocation?.id}
+              />
+              <LocationsSection
+                specialistId={id}
+                assignedLocationId={specialist?.assignedLocation?.id}
+                onSaved={() => mutate()}
+              />
+              <PayoutPercentSection
+                specialistId={id}
+                percent={stats?.percent}
+                onSaved={() => mutate()}
+              />
+            </>
+          ) : null}
+
+          {/* Historia wizyt */}
+          <Card className="overflow-hidden">
+            <div className="border-b p-4">
+              <div className="font-medium">Historia wizyt</div>
+              <div className="mt-1 text-xs text-slate-500">
+                {isAdmin
+                  ? "Kwoty: przychód (cena wizyty), materiały (koszt zakupu zużytych produktów), wypłata = (przychód − materiały) × procent pracownika. Do statystyk i wypłaty liczą się tylko wizyty zakończone i zaakceptowane."
+                  : "Do statystyk liczą się tylko wizyty zakończone i zaakceptowane."}
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-left text-slate-500 dark:bg-white/5">
+                  <tr>
+                    <th className="p-3">Data</th>
+                    <th className="p-3">Pacjent</th>
+                    <th className="p-3">Zabieg</th>
+                    <th className="p-3">Status</th>
+                    {isAdmin ? (
+                      <>
+                        <th className="p-3 text-right">Przychód</th>
+                        <th className="p-3 text-right">Materiały</th>
+                        <th className="p-3 text-right">Baza (przychód − materiały)</th>
+                        <th className="p-3 text-right">Wypłata</th>
+                      </>
                     ) : null}
-                  </td>
-                  <td className="p-3">
-                    <StatusBadge status={a.status} />
-                    {a.status === "COMPLETED" && a.approvalStatus === "PENDING" ? (
-                      <div className="mt-1 text-xs text-amber-600">do akceptacji</div>
-                    ) : null}
-                    {a.status === "COMPLETED" && a.approvalStatus === "REJECTED" ? (
-                      <div className="mt-1 text-xs text-red-600">odrzucona</div>
-                    ) : null}
-                  </td>
-                  {isAdmin ? (
-                    <>
-                      <td className="p-3 text-right tabular-nums">
-                        {formatPLNFromGrosze(a.revenue)}
+                    <th className="w-32 p-3 text-right">Akcje</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isLoading && (
+                    <tr>
+                      <td className="p-4 text-slate-500" colSpan={isAdmin ? 9 : 5}>
+                        Ładowanie...
                       </td>
-                      <td className="p-3 text-right tabular-nums">
-                        {formatPLNFromGrosze(a.materialCost)}
+                    </tr>
+                  )}
+                  {!isLoading && appointments.length === 0 && (
+                    <tr>
+                      <td className="p-4 text-slate-500" colSpan={isAdmin ? 9 : 5}>
+                        Brak wizyt w wybranym okresie.
                       </td>
-                      <td className="p-3 text-right tabular-nums">{formatPLNFromGrosze(a.base)}</td>
-                      <td className="p-3 text-right font-medium tabular-nums">
-                        {formatPLNFromGrosze(a.payout)}
+                    </tr>
+                  )}
+                  {appointments.map((a) => (
+                    <tr key={a.id} className="border-t align-top">
+                      <td className="whitespace-nowrap p-3">
+                        {new Date(a.startsAt).toLocaleString("pl-PL", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
                       </td>
-                    </>
-                  ) : null}
-                  <td className="p-3">
-                    <div className="flex items-center justify-end gap-1">
-                      {a.status === "COMPLETED" && a.approvalStatus === "PENDING" ? (
+                      <td className="p-3">{a.patient?.name ?? "—"}</td>
+                      <td className="p-3">
+                        <div>{a.customServiceName || a.service?.name || "—"}</div>
+                        {a.materials?.length ? (
+                          <div className="mt-1 text-xs text-slate-500">
+                            {a.materials
+                              .map((m: any) => `${m.productName} × ${m.quantity}`)
+                              .join(", ")}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="p-3">
+                        <StatusBadge status={a.status} />
+                        {a.status === "COMPLETED" && a.approvalStatus === "PENDING" ? (
+                          <div className="mt-1 text-xs text-amber-600">do akceptacji</div>
+                        ) : null}
+                        {a.status === "COMPLETED" && a.approvalStatus === "REJECTED" ? (
+                          <div className="mt-1 text-xs text-red-600">odrzucona</div>
+                        ) : null}
+                      </td>
+                      {isAdmin ? (
                         <>
-                          <button
-                            type="button"
-                            title="Zaakceptuj wizytę"
-                            onClick={() => decide(a.id, "APPROVE")}
-                            disabled={decidingId === a.id}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
-                          >
-                            ✓
-                          </button>
-                          <button
-                            type="button"
-                            title="Odrzuć wizytę"
-                            onClick={() => decide(a.id, "REJECT")}
-                            disabled={decidingId === a.id}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
-                          >
-                            ✕
-                          </button>
+                          <td className="p-3 text-right tabular-nums">
+                            {formatPLNFromGrosze(a.revenue)}
+                          </td>
+                          <td className="p-3 text-right tabular-nums">
+                            {formatPLNFromGrosze(a.materialCost)}
+                          </td>
+                          <td className="p-3 text-right tabular-nums">
+                            {formatPLNFromGrosze(a.base)}
+                          </td>
+                          <td className="p-3 text-right font-medium tabular-nums">
+                            {formatPLNFromGrosze(a.payout)}
+                          </td>
                         </>
                       ) : null}
-                      <Link
-                        href={`/admin/appointments/${a.id}`}
-                        title="Szczegóły wizyty"
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-                      >
-                        👁
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      </>
+                      <td className="p-3">
+                        <div className="flex items-center justify-end gap-1">
+                          {a.status === "COMPLETED" && a.approvalStatus === "PENDING" ? (
+                            <>
+                              <button
+                                type="button"
+                                title="Zaakceptuj wizytę"
+                                onClick={() => decide(a.id, "APPROVE")}
+                                disabled={decidingId === a.id}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                type="button"
+                                title="Odrzuć wizytę"
+                                onClick={() => decide(a.id, "REJECT")}
+                                disabled={decidingId === a.id}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
+                              >
+                                ✕
+                              </button>
+                            </>
+                          ) : null}
+                          <Link
+                            href={`/admin/appointments/${a.id}`}
+                            title="Szczegóły wizyty"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+                          >
+                            👁
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
       )}
     </div>
   );
@@ -572,11 +585,16 @@ function SidebarPermissionsSection({
 }) {
   const [selected, setSelected] = React.useState<SidebarPermission[]>([]);
   const [saving, setSaving] = React.useState(false);
+  const [mobileExpanded, setMobileExpanded] = React.useState(false);
   const ready = permissions !== undefined;
 
   React.useEffect(() => {
     if (permissions) setSelected(permissions);
   }, [permissions]);
+
+  React.useEffect(() => {
+    setMobileExpanded(false);
+  }, [specialistId]);
 
   function toggle(permission: SidebarPermission) {
     setSelected((current) =>
@@ -613,7 +631,24 @@ function SidebarPermissionsSection({
 
   return (
     <Card className="overflow-hidden">
-      <div className="border-b p-4">
+      <button
+        type="button"
+        aria-expanded={mobileExpanded}
+        aria-controls="sidebar-permissions-content"
+        onClick={() => setMobileExpanded((current) => !current)}
+        className="flex w-full items-center justify-between gap-4 p-4 text-left md:hidden"
+      >
+        <span className="font-medium">Dostęp do lewego panelu</span>
+        <ChevronDown
+          aria-hidden="true"
+          className={
+            "h-5 w-5 shrink-0 text-slate-500 transition-transform duration-200 " +
+            (mobileExpanded ? "rotate-180" : "")
+          }
+        />
+      </button>
+
+      <div className="hidden border-b p-4 md:block">
         <div className="font-medium">Dostęp do lewego panelu</div>
         <div className="mt-1 text-xs text-slate-500">
           Zaznacz sekcje, które ten pracownik może widzieć i otwierać. Administrator zawsze ma
@@ -621,7 +656,16 @@ function SidebarPermissionsSection({
         </div>
       </div>
 
-      <div className="space-y-4 p-4">
+      <div
+        id="sidebar-permissions-content"
+        className={
+          (mobileExpanded ? "block" : "hidden") + " space-y-4 border-t p-4 md:block md:border-t-0"
+        }
+      >
+        <div className="text-xs text-slate-500 md:hidden">
+          Zaznacz sekcje, które ten pracownik może widzieć i otwierać. Administrator zawsze ma
+          dostęp do wszystkich sekcji.
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {SIDEBAR_PERMISSION_OPTIONS.map((item) => {
             const checked = selected.includes(item.key);
