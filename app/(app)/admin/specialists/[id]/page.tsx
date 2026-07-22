@@ -4,7 +4,7 @@ import * as React from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -296,7 +296,142 @@ export default function SpecialistDetailPage() {
                   : "Do statystyk liczą się tylko wizyty zakończone i zaakceptowane."}
               </div>
             </div>
-            <div className="overflow-x-auto">
+            <div className="space-y-3 p-4 md:hidden">
+              {isLoading ? (
+                <div className="rounded-2xl border bg-white p-5 text-center text-sm text-slate-500 dark:bg-[#0b1220]">
+                  Ładowanie...
+                </div>
+              ) : null}
+              {!isLoading && appointments.length === 0 ? (
+                <div className="rounded-2xl border bg-white p-5 text-center text-sm text-slate-500 dark:bg-[#0b1220]">
+                  Brak wizyt w wybranym okresie.
+                </div>
+              ) : null}
+              {appointments.map((a) => {
+                const startsAt = new Date(a.startsAt);
+
+                return (
+                  <div
+                    key={a.id}
+                    className="rounded-2xl border bg-white p-4 shadow-sm dark:bg-[#0b1220]"
+                  >
+                    <div className="flex min-w-0 items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-base font-semibold text-slate-950 dark:text-slate-50">
+                          {a.patient?.name ?? "—"}
+                        </div>
+                        <div className="mt-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                          Zabieg
+                        </div>
+                        <div className="mt-0.5 break-words text-sm leading-5 text-slate-700 dark:text-slate-200">
+                          {a.customServiceName || a.service?.name || "—"}
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 flex-col items-end gap-2 text-right">
+                        <div className="whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
+                          <div>
+                            {startsAt.toLocaleDateString("pl-PL", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                            })}
+                          </div>
+                          <div className="mt-0.5">
+                            {startsAt.toLocaleTimeString("pl-PL", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </div>
+                        </div>
+                        <Link
+                          href={`/admin/appointments/${a.id}`}
+                          title="Szczegóły wizyty"
+                          aria-label="Szczegóły wizyty"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border text-slate-500 transition hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-white/5"
+                        >
+                          <ChevronRight className="h-5 w-5" />
+                        </Link>
+                      </div>
+                    </div>
+
+                    {a.materials?.length ? (
+                      <div className="mt-3 border-t pt-3 text-xs leading-5 text-slate-500">
+                        {a.materials.map((m: any) => `${m.productName} × ${m.quantity}`).join(", ")}
+                      </div>
+                    ) : null}
+
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+                      <div>
+                        <StatusBadge status={a.status} />
+                        {a.status === "COMPLETED" && a.approvalStatus === "PENDING" ? (
+                          <div className="mt-1 text-xs text-amber-600">do akceptacji</div>
+                        ) : null}
+                        {a.status === "COMPLETED" && a.approvalStatus === "REJECTED" ? (
+                          <div className="mt-1 text-xs text-red-600">odrzucona</div>
+                        ) : null}
+                      </div>
+
+                      {a.status === "COMPLETED" && a.approvalStatus === "PENDING" ? (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            title="Zaakceptuj wizytę"
+                            aria-label="Zaakceptuj wizytę"
+                            onClick={() => decide(a.id, "APPROVE")}
+                            disabled={decidingId === a.id}
+                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            type="button"
+                            title="Odrzuć wizytę"
+                            aria-label="Odrzuć wizytę"
+                            onClick={() => decide(a.id, "REJECT")}
+                            disabled={decidingId === a.id}
+                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {isAdmin ? (
+                      <div className="mt-3 grid grid-cols-2 overflow-hidden rounded-xl border text-sm">
+                        <div className="border-b border-r p-3">
+                          <div className="text-xs text-slate-500">Przychód</div>
+                          <div className="mt-1 font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
+                            {formatPLNFromGrosze(a.revenue)}
+                          </div>
+                        </div>
+                        <div className="border-b p-3 text-right">
+                          <div className="text-xs text-slate-500">Materiały</div>
+                          <div className="mt-1 font-semibold tabular-nums">
+                            {formatPLNFromGrosze(a.materialCost)}
+                          </div>
+                        </div>
+                        <div className="border-r p-3">
+                          <div className="text-xs text-slate-500">Baza</div>
+                          <div className="mt-1 font-semibold tabular-nums">
+                            {formatPLNFromGrosze(a.base)}
+                          </div>
+                        </div>
+                        <div className="p-3 text-right">
+                          <div className="text-xs text-slate-500">Wypłata</div>
+                          <div className="mt-1 font-semibold tabular-nums">
+                            {formatPLNFromGrosze(a.payout)}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-left text-slate-500 dark:bg-white/5">
                   <tr>
