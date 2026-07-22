@@ -35,6 +35,19 @@ function toDateInput(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function formatMobileDate(value: string) {
+  if (!value) return "";
+
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return "";
+
+  return new Intl.DateTimeFormat("pl-PL", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(year, month - 1, day));
+}
+
 function StatusBadge({ status }: { status: string }) {
   const cls =
     status === "COMPLETED"
@@ -380,27 +393,39 @@ export default function SpecialistDetailPage() {
                   <div className="w-full min-w-0 space-y-4">
                     <div className="w-full min-w-0 max-w-full space-y-2 overflow-hidden">
                       <Label htmlFor="appointment-date-from">Data od</Label>
-                      <div className="w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-zinc-200 bg-white focus-within:ring-2 focus-within:ring-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:focus-within:ring-zinc-700">
+                      <div className="relative h-12 w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-zinc-200 bg-white focus-within:ring-2 focus-within:ring-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:focus-within:ring-zinc-700">
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-0 flex items-center justify-center px-10 text-center text-base text-zinc-950 dark:text-zinc-50"
+                        >
+                          {formatMobileDate(appointmentDateFrom)}
+                        </span>
                         <Input
                           id="appointment-date-from"
                           type="date"
                           value={appointmentDateFrom}
                           onChange={(event) => setAppointmentDateFrom(event.target.value)}
                           max={appointmentDateTo || undefined}
-                          className="block w-full min-w-0 max-w-full rounded-none border-0 bg-transparent text-base focus:ring-0"
+                          className="absolute inset-0 h-full w-full cursor-pointer rounded-none border-0 bg-transparent p-0 opacity-0 focus:ring-0"
                         />
                       </div>
                     </div>
                     <div className="w-full min-w-0 max-w-full space-y-2 overflow-hidden">
                       <Label htmlFor="appointment-date-to">Data do</Label>
-                      <div className="w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-zinc-200 bg-white focus-within:ring-2 focus-within:ring-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:focus-within:ring-zinc-700">
+                      <div className="relative h-12 w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-zinc-200 bg-white focus-within:ring-2 focus-within:ring-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:focus-within:ring-zinc-700">
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-0 flex items-center justify-center px-10 text-center text-base text-zinc-950 dark:text-zinc-50"
+                        >
+                          {formatMobileDate(appointmentDateTo)}
+                        </span>
                         <Input
                           id="appointment-date-to"
                           type="date"
                           value={appointmentDateTo}
                           onChange={(event) => setAppointmentDateTo(event.target.value)}
                           min={appointmentDateFrom || undefined}
-                          className="block w-full min-w-0 max-w-full rounded-none border-0 bg-transparent text-base focus:ring-0"
+                          className="absolute inset-0 h-full w-full cursor-pointer rounded-none border-0 bg-transparent p-0 opacity-0 focus:ring-0"
                         />
                       </div>
                     </div>
