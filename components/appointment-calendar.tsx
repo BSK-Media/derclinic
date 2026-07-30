@@ -161,6 +161,7 @@ export function AppointmentCalendar({
 }) {
   const [clock, setClock] = React.useState(() => new Date());
   const [mode, setMode] = React.useState<CalendarViewMode>("month");
+  const [miniMonth, setMiniMonth] = React.useState(() => startOfMonth(anchor));
   const [mobileWeekAnimation, setMobileWeekAnimation] = React.useState<
     "next" | "previous" | null
   >(null);
@@ -174,6 +175,10 @@ export function AppointmentCalendar({
     const timer = window.setInterval(() => setClock(new Date()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  React.useEffect(() => {
+    setMiniMonth(startOfMonth(anchor));
+  }, [anchor]);
 
   React.useEffect(
     () => () => {
@@ -297,6 +302,138 @@ export function AppointmentCalendar({
       return day;
     });
   }, [anchor]);
+
+  const miniMonthWeeks = React.useMemo(() => {
+    const start = startOfGrid(miniMonth);
+    return Array.from({ length: 42 }, (_, index) => {
+      const day = new Date(start);
+      day.setDate(day.getDate() + index);
+      return day;
+    });
+  }, [miniMonth]);
+
+  function openDay(day: Date) {
+    onAnchorChange(startOfDay(day));
+    setMode("day");
+  }
+
+  function moveByWeeks(weeksToAdd: number) {
+    const target = startOfDay(anchor);
+    target.setDate(target.getDate() + weeksToAdd * 7);
+    onAnchorChange(target);
+    setMode("day");
+  }
+
+  function renderWeekShortcuts(compact = false) {
+    return (
+      <div className={compact ? "grid grid-cols-5 gap-1.5" : "grid grid-cols-5 gap-2"}>
+        {[1, 2, 3, 4, 5].map((weeksToAdd) => {
+          const target = new Date(anchor);
+          target.setDate(target.getDate() + weeksToAdd * 7);
+          return (
+            <button
+              key={weeksToAdd}
+              type="button"
+              onClick={() => moveByWeeks(weeksToAdd)}
+              className={
+                "rounded-lg border font-medium text-zinc-700 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 dark:text-zinc-200 dark:hover:border-indigo-500/50 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-200 " +
+                (compact ? "px-1 py-2 text-[11px]" : "px-1 py-2 text-xs")
+              }
+              title={`Przejdź do ${target.toLocaleDateString("pl-PL")}`}
+            >
+              +{weeksToAdd} tyg.
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function renderMiniMonth() {
+    return (
+      <aside className="w-[260px] shrink-0 rounded-xl border bg-zinc-50/70 p-3 dark:bg-zinc-900/40">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            aria-label="Poprzedni miesiąc w małym kalendarzu"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border bg-white text-lg hover:bg-zinc-50 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+            onClick={() =>
+              setMiniMonth(
+                new Date(miniMonth.getFullYear(), miniMonth.getMonth() - 1, 1),
+              )
+            }
+          >
+            ‹
+          </button>
+          <div className="text-sm font-semibold capitalize">
+            {miniMonth.toLocaleDateString("pl-PL", {
+              month: "long",
+              year: "numeric",
+            })}
+          </div>
+          <button
+            type="button"
+            aria-label="Następny miesiąc w małym kalendarzu"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border bg-white text-lg hover:bg-zinc-50 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+            onClick={() =>
+              setMiniMonth(
+                new Date(miniMonth.getFullYear(), miniMonth.getMonth() + 1, 1),
+              )
+            }
+          >
+            ›
+          </button>
+        </div>
+
+        <div className="grid grid-cols-7 text-center text-[10px] font-semibold text-zinc-400">
+          {WEEKDAYS.map((weekday) => (
+            <div key={weekday} className="py-1">
+              {weekday}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-y-1">
+          {miniMonthWeeks.map((day) => {
+            const inMonth = day.getMonth() === miniMonth.getMonth();
+            const isSelected = sameDay(day, anchor);
+            const isToday = sameDay(day, today);
+            const hasAppointments = (byDay.get(dateKey(day))?.length ?? 0) > 0;
+
+            return (
+              <button
+                key={dateKey(day)}
+                type="button"
+                onClick={() => openDay(day)}
+                className={
+                  "relative mx-auto flex h-7 w-7 items-center justify-center rounded-full text-xs transition " +
+                  (isSelected
+                    ? "bg-indigo-600 font-semibold text-white"
+                    : isToday
+                      ? "ring-1 ring-indigo-500 text-indigo-600 dark:text-indigo-300"
+                      : inMonth
+                        ? "text-zinc-800 hover:bg-white dark:text-zinc-200 dark:hover:bg-zinc-800"
+                        : "text-zinc-400 hover:bg-white dark:text-zinc-600 dark:hover:bg-zinc-800")
+                }
+                aria-label={`Otwórz ${day.toLocaleDateString("pl-PL")}`}
+              >
+                {day.getDate()}
+                {hasAppointments && !isSelected ? (
+                  <span className="absolute bottom-0.5 h-1 w-1 rounded-full bg-indigo-500" />
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 border-t pt-3">
+          <div className="mb-2 text-xs font-medium text-zinc-500">
+            Przejdź od wybranego dnia
+          </div>
+          {renderWeekShortcuts(true)}
+        </div>
+      </aside>
+    );
+  }
 
   function handleMobileWeekTouchStart(event: React.TouchEvent<HTMLDivElement>) {
     mobileWeekTouchStartX.current = event.touches[0]?.clientX ?? null;
@@ -809,6 +946,12 @@ export function AppointmentCalendar({
                 })}
               </div>
               </div>
+              <div className="mt-3 border-t pt-3">
+                <div className="mb-2 text-xs font-medium text-zinc-500">
+                  Przejdź od wybranego dnia
+                </div>
+                {renderWeekShortcuts(true)}
+              </div>
             </div>
 
             <div className="border-b px-4 py-3 text-center">
@@ -966,7 +1109,12 @@ export function AppointmentCalendar({
           </div>
         </>
       ) : (
-        renderTimeGrid(visibleDays)
+        <div className="flex items-start gap-4 p-4">
+          <div className="min-w-0 flex-1 overflow-hidden rounded-xl border">
+            {renderTimeGrid(visibleDays)}
+          </div>
+          {renderMiniMonth()}
+        </div>
       )}
       </div>
       <style jsx global>{`
