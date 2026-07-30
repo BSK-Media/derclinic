@@ -255,15 +255,27 @@ export default function AdminVisitsPage({
       const res = await fetch(`/api/admin/appointments/${deleteTarget.id}`, {
         method: "DELETE",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify(
+          deleteTarget.isReservation ? {} : { reason },
+        ),
       });
       const out = await res.json().catch(() => ({}));
       if (!res.ok || !out?.ok) {
-        toast.error(out?.message || "Nie udało się usunąć wizyty");
+        toast.error(
+          out?.message ||
+            (deleteTarget.isReservation
+              ? "Nie udało się usunąć rezerwacji czasu"
+              : "Nie udało się usunąć wizyty"),
+        );
         return;
       }
+      const wasReservation = Boolean(deleteTarget.isReservation);
       setDeleteTarget(null);
-      toast.success("Wizyta została przeniesiona do usuniętych");
+      toast.success(
+        wasReservation
+          ? "Rezerwacja czasu została usunięta"
+          : "Wizyta została przeniesiona do usuniętych",
+      );
       mutate();
     } finally {
       setDeletingId(null);
@@ -576,6 +588,7 @@ export default function AdminVisitsPage({
           onAdd={openSlotChoice}
           showAddButton={false}
           onOpenAppointment={(id) => router.push(`/admin/appointments/${id}`)}
+          onDeleteAppointment={setDeleteTarget}
           onMoveAppointment={moveAppointment}
           showSpecialist={specialistFilter === ALL_SPECIALISTS}
         />
@@ -859,29 +872,79 @@ export default function AdminVisitsPage({
         }
       />
 
-      <DeleteAppointmentDialog
-        open={deleteTarget !== null}
-        onOpenChange={(open) => {
-          if (!open && !deletingId) setDeleteTarget(null);
-        }}
-        onConfirm={confirmDelete}
-        saving={deletingId !== null}
-        contextLabel={
-          deleteTarget
-            ? `${new Date(deleteTarget.startsAt).toLocaleString("pl-PL", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })} • ${deleteTarget.patient?.name ?? ""} • ${
-                deleteTarget.customServiceName ||
-                deleteTarget.service?.name ||
-                ""
-              }`
-            : null
-        }
-      />
+      {deleteTarget?.isReservation ? (
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open && !deletingId) setDeleteTarget(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Usuń rezerwację czasu</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <p className="text-sm text-zinc-600 dark:text-zinc-300">
+                {new Date(deleteTarget.startsAt).toLocaleString("pl-PL", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+                {deleteTarget.specialist?.name
+                  ? ` • ${deleteTarget.specialist.name}`
+                  : ""}
+              </p>
+              <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                Czy na pewno chcesz usunąć tę rezerwację czasu? Zniknie ona
+                trwale i nie trafi do zakładki „Usunięte wizyty”.
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deletingId !== null}
+              >
+                Anuluj
+              </Button>
+              <Button
+                variant="outline"
+                className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-500/40 dark:hover:bg-red-500/10"
+                onClick={() => confirmDelete("")}
+                disabled={deletingId !== null}
+              >
+                {deletingId ? "Usuwanie…" : "Tak, usuń rezerwację"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <DeleteAppointmentDialog
+          open={deleteTarget !== null}
+          onOpenChange={(open) => {
+            if (!open && !deletingId) setDeleteTarget(null);
+          }}
+          onConfirm={confirmDelete}
+          saving={deletingId !== null}
+          contextLabel={
+            deleteTarget
+              ? `${new Date(deleteTarget.startsAt).toLocaleString("pl-PL", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })} • ${deleteTarget.patient?.name ?? ""} • ${
+                  deleteTarget.customServiceName ||
+                  deleteTarget.service?.name ||
+                  ""
+                }`
+              : null
+          }
+        />
+      )}
 
       <AdminBookAppointmentDialog
         open={dialogOpen}
