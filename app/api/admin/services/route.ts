@@ -232,7 +232,7 @@ export async function PATCH(req: Request) {
   const { id, ...changes } = parsed.data;
   const existing = await prisma.service.findUnique({
     where: { id },
-    select: { id: true, category: true },
+    select: { id: true, category: true, categoryColor: true },
   });
   if (!existing) {
     return NextResponse.json(
@@ -241,20 +241,29 @@ export async function PATCH(req: Request) {
     );
   }
 
-  const service = await prisma.$transaction(async (tx) => {
-    const updated = await tx.service.update({ where: { id }, data: changes });
-    const targetCategory =
-      changes.category === undefined ? existing.category : changes.category;
-    if (changes.categoryColor !== undefined && targetCategory) {
-      await tx.service.updateMany({
-        where: {
-          category: targetCategory,
-          name: { not: RESERVATION_SERVICE_NAME },
-        },
-        data: { categoryColor: changes.categoryColor },
-      });
-    }
-    return updated;
+  if (
+    changes.category !== undefined &&
+    changes.category !== existing.category &&
+    changes.categoryColor === undefined
+  ) {
+    const categoryTemplate = changes.category
+      ? await prisma.service.findFirst({
+          where: {
+            id: { not: id },
+            category: changes.category,
+            categoryColor: { not: null },
+            name: { not: RESERVATION_SERVICE_NAME },
+          },
+          orderBy: { updatedAt: "desc" },
+          select: { categoryColor: true },
+        })
+      : null;
+    changes.categoryColor = categoryTemplate?.categoryColor ?? null;
+  }
+
+  const service = await prisma.service.update({
+    where: { id },
+    data: changes,
   });
   await logAudit({
     actorId: user!.id,
@@ -295,23 +304,30 @@ export async function POST(req: Request) {
       { status: 400 },
     );
 
+  const categoryTemplate =
+    parsed.data.category && parsed.data.categoryColor === undefined
+      ? await prisma.service.findFirst({
+          where: {
+            category: parsed.data.category,
+            categoryColor: { not: null },
+            name: { not: RESERVATION_SERVICE_NAME },
+          },
+          orderBy: { updatedAt: "desc" },
+          select: { categoryColor: true },
+        })
+      : null;
+
   const s = await prisma.service.create({
     data: {
       name: parsed.data.name,
       category: parsed.data.category ? parsed.data.category : null,
-      categoryColor: parsed.data.categoryColor ?? null,
+      categoryColor:
+        parsed.data.categoryColor ?? categoryTemplate?.categoryColor ?? null,
       description: parsed.data.description ? parsed.data.description : null,
       durationMin: parsed.data.durationMin ?? 30,
       price: parsed.data.price ?? null,
     },
   });
-  if (s.category && s.categoryColor) {
-    await prisma.service.updateMany({
-      where: { category: s.category, name: { not: RESERVATION_SERVICE_NAME } },
-      data: { categoryColor: s.categoryColor },
-    });
-  }
-
   // Przypisanie usługi wskazanym specjalistom (tylko istniejącym, rola SPECIALIST)
   const specialistIds = [...new Set(parsed.data.specialistIds ?? [])];
   if (specialistIds.length > 0) {
