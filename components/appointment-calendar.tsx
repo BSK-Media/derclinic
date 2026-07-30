@@ -11,12 +11,30 @@ export type CalendarAppointment = {
   status: string;
   approvalStatus?: string;
   customServiceName?: string | null;
+  isReservation?: boolean;
   patient: { name: string };
-  service: { name: string };
-  specialist?: { name: string } | null;
+  service: {
+    name: string;
+    category?: string | null;
+    categoryColor?: string | null;
+  };
+  specialist?: { id: string; name: string } | null;
 };
 
 type CalendarViewMode = "day" | "week" | "month";
+
+export type CalendarSpecialist = {
+  id: string;
+  name: string;
+  workDays?: Array<{ weekday: number; startTime: string; endTime: string }>;
+  customWorkDays?: Array<{ date: string; startTime: string; endTime: string }>;
+  timeOffs?: Array<{
+    date: string;
+    allDay: boolean;
+    startTime?: string | null;
+    endTime?: string | null;
+  }>;
+};
 
 const WEEKDAYS = ["PON", "WT", "ŚR", "CZW", "PT", "SOB", "NDZ"];
 
@@ -29,6 +47,24 @@ const HOUR_HEIGHT = 64;
 // Domyślny zakres godzin — rozszerzany automatycznie, gdy wizyty wykraczają poza
 const DEFAULT_START_HOUR = 7;
 const DEFAULT_END_HOUR = 21;
+const CATEGORY_COLORS = [
+  { bg: "#ede9fe", border: "#8b5cf6", text: "#4c1d95" },
+  { bg: "#dbeafe", border: "#3b82f6", text: "#1e3a8a" },
+  { bg: "#dcfce7", border: "#22c55e", text: "#14532d" },
+  { bg: "#fef3c7", border: "#f59e0b", text: "#78350f" },
+  { bg: "#fce7f3", border: "#ec4899", text: "#831843" },
+  { bg: "#cffafe", border: "#06b6d4", text: "#164e63" },
+  { bg: "#ffedd5", border: "#f97316", text: "#7c2d12" },
+] as const;
+
+function categoryColor(category?: string | null) {
+  const value = category?.trim() || "Bez kategorii";
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return CATEGORY_COLORS[hash % CATEGORY_COLORS.length];
+}
 
 function startOfMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -100,7 +136,9 @@ type PositionedEvent = {
 
 // Układa nakładające się wizyty w kolumnach obok siebie (jak w Amelii)
 function layoutOverlaps(list: CalendarAppointment[]): PositionedEvent[] {
-  const sorted = [...list].sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
+  const sorted = [...list].sort(
+    (a, b) => +new Date(a.startsAt) - +new Date(b.startsAt),
+  );
   const positioned: PositionedEvent[] = [];
 
   let cluster: CalendarAppointment[] = [];
@@ -121,7 +159,8 @@ function layoutOverlaps(list: CalendarAppointment[]): PositionedEvent[] {
       }
       return { appointment, col };
     });
-    for (const item of items) positioned.push({ ...item, cols: colEnds.length });
+    for (const item of items)
+      positioned.push({ ...item, cols: colEnds.length });
     cluster = [];
   };
 
@@ -147,6 +186,8 @@ export function AppointmentCalendar({
   isLoading,
   onAdd,
   onOpenAppointment,
+  onMoveAppointment,
+  specialists = [],
   showSpecialist = false,
   showAddButton = true,
 }: {
@@ -156,11 +197,18 @@ export function AppointmentCalendar({
   isLoading?: boolean;
   onAdd?: (date?: Date) => void;
   onOpenAppointment: (id: string) => void;
+  onMoveAppointment?: (
+    appointment: CalendarAppointment,
+    startsAt: Date,
+    endsAt: Date,
+    specialistId?: string,
+  ) => Promise<void> | void;
+  specialists?: CalendarSpecialist[];
   showSpecialist?: boolean;
   showAddButton?: boolean;
 }) {
   const [clock, setClock] = React.useState(() => new Date());
-  const [mode, setMode] = React.useState<CalendarViewMode>("month");
+  const [mode, setMode] = React.useState<CalendarViewMode>("day");
   const [miniMonth, setMiniMonth] = React.useState(() => startOfMonth(anchor));
   const [mobileWeekAnimation, setMobileWeekAnimation] = React.useState<
     "next" | "previous" | null
@@ -168,6 +216,9 @@ export function AppointmentCalendar({
   const mobileWeekTouchStartX = React.useRef<number | null>(null);
   const mobileWeekWasSwiped = React.useRef(false);
   const mobileWeekAnimationTimer = React.useRef<number | null>(null);
+  const [draggedAppointmentId, setDraggedAppointmentId] = React.useState<
+    string | null
+  >(null);
   const gridStart = React.useMemo(() => startOfGrid(anchor), [anchor]);
   const gridEnd = React.useMemo(() => endOfGrid(anchor), [anchor]);
 
@@ -191,7 +242,11 @@ export function AppointmentCalendar({
 
   const weeks = React.useMemo(() => {
     const cells: Date[] = [];
-    for (const current = new Date(gridStart); current <= gridEnd; current.setDate(current.getDate() + 1)) {
+    for (
+      const current = new Date(gridStart);
+      current <= gridEnd;
+      current.setDate(current.getDate() + 1)
+    ) {
       const d = new Date(current);
       cells.push(d);
     }
@@ -257,7 +312,9 @@ export function AppointmentCalendar({
 
   function shift(direction: -1 | 1) {
     if (mode === "month") {
-      onAnchorChange(new Date(anchor.getFullYear(), anchor.getMonth() + direction, 1));
+      onAnchorChange(
+        new Date(anchor.getFullYear(), anchor.getMonth() + direction, 1),
+      );
       return;
     }
     const next = new Date(anchor);
@@ -267,13 +324,19 @@ export function AppointmentCalendar({
 
   const rangeLabel = React.useMemo(() => {
     if (mode === "month") {
-      return anchor.toLocaleDateString("pl-PL", { month: "long", year: "numeric" });
+      return anchor.toLocaleDateString("pl-PL", {
+        month: "long",
+        year: "numeric",
+      });
     }
     if (mode === "week") {
       const start = startOfWeek(anchor);
       const end = new Date(start);
       end.setDate(end.getDate() + 6);
-      const startLabel = start.toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit" });
+      const startLabel = start.toLocaleDateString("pl-PL", {
+        day: "2-digit",
+        month: "2-digit",
+      });
       const endLabel = end.toLocaleDateString("pl-PL", {
         day: "2-digit",
         month: "2-digit",
@@ -290,9 +353,17 @@ export function AppointmentCalendar({
   }, [mode, anchor]);
 
   const prevAriaLabel =
-    mode === "month" ? "Poprzedni miesiąc" : mode === "week" ? "Poprzedni tydzień" : "Poprzedni dzień";
+    mode === "month"
+      ? "Poprzedni miesiąc"
+      : mode === "week"
+        ? "Poprzedni tydzień"
+        : "Poprzedni dzień";
   const nextAriaLabel =
-    mode === "month" ? "Następny miesiąc" : mode === "week" ? "Następny tydzień" : "Następny dzień";
+    mode === "month"
+      ? "Następny miesiąc"
+      : mode === "week"
+        ? "Następny tydzień"
+        : "Następny dzień";
 
   const mobileWeek = React.useMemo(() => {
     const start = startOfWeek(anchor);
@@ -326,7 +397,11 @@ export function AppointmentCalendar({
 
   function renderWeekShortcuts(compact = false) {
     return (
-      <div className={compact ? "grid grid-cols-5 gap-1.5" : "grid grid-cols-5 gap-2"}>
+      <div
+        className={
+          compact ? "grid grid-cols-5 gap-1.5" : "grid grid-cols-5 gap-2"
+        }
+      >
         {[1, 2, 3, 4, 5].map((weeksToAdd) => {
           const target = new Date(anchor);
           target.setDate(target.getDate() + weeksToAdd * 7);
@@ -475,6 +550,9 @@ export function AppointmentCalendar({
   }
 
   function renderTimeGrid(days: Date[]) {
+    if (days.length === 1 && specialists.length > 0) {
+      return renderSpecialistDayGrid(days[0]);
+    }
     const gridHeight = hours.length * HOUR_HEIGHT;
     const nowOffset =
       (clock.getHours() - hourRange.startHour) * HOUR_HEIGHT +
@@ -485,12 +563,20 @@ export function AppointmentCalendar({
       <div className="overflow-auto">
         <div className="min-w-[640px]">
           {days.length > 1 ? (
-            <div className="grid border-b" style={{ gridTemplateColumns: `56px repeat(${days.length}, 1fr)` }}>
+            <div
+              className="grid border-b"
+              style={{
+                gridTemplateColumns: `56px repeat(${days.length}, 1fr)`,
+              }}
+            >
               <div />
               {days.map((day) => {
                 const isToday = sameDay(day, today);
                 return (
-                  <div key={dateKey(day)} className="calendar-vertical-line border-l px-2 py-2 text-center">
+                  <div
+                    key={dateKey(day)}
+                    className="calendar-vertical-line border-l px-2 py-2 text-center"
+                  >
                     <div className="text-xs uppercase text-zinc-500">
                       {weekdayLabel(day)}
                     </div>
@@ -510,7 +596,10 @@ export function AppointmentCalendar({
             </div>
           ) : null}
 
-          <div className="grid" style={{ gridTemplateColumns: `56px repeat(${days.length}, 1fr)` }}>
+          <div
+            className="grid"
+            style={{ gridTemplateColumns: `56px repeat(${days.length}, 1fr)` }}
+          >
             {/* Oś godzin */}
             <div className="relative" style={{ height: gridHeight }}>
               {hours.map((hour, index) => (
@@ -541,7 +630,9 @@ export function AppointmentCalendar({
                       key={hour}
                       className={
                         "absolute inset-x-0 border-t border-zinc-100 dark:border-zinc-800 " +
-                        (onAdd ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/40" : "")
+                        (onAdd
+                          ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/40"
+                          : "")
                       }
                       style={{ top: index * HOUR_HEIGHT, height: HOUR_HEIGHT }}
                       onClick={
@@ -573,15 +664,23 @@ export function AppointmentCalendar({
                     const start = new Date(a.startsAt);
                     const end = new Date(a.endsAt);
                     const startMinutes =
-                      (start.getHours() - hourRange.startHour) * 60 + start.getMinutes();
+                      (start.getHours() - hourRange.startHour) * 60 +
+                      start.getMinutes();
                     const rawDuration = Math.max(15, (+end - +start) / 60_000);
                     const top = (startMinutes / 60) * HOUR_HEIGHT;
-                    const height = Math.max(26, (rawDuration / 60) * HOUR_HEIGHT - 2);
+                    const height = Math.max(
+                      26,
+                      (rawDuration / 60) * HOUR_HEIGHT - 2,
+                    );
                     const widthPct = 100 / cols;
                     const effectiveStatus =
                       a.approvalStatus === "REJECTED"
                         ? a.status
-                        : effectiveAppointmentStatus(a.status, a.startsAt, clock);
+                        : effectiveAppointmentStatus(
+                            a.status,
+                            a.startsAt,
+                            clock,
+                          );
                     const blockTone =
                       STATUS_BLOCK[effectiveStatus ?? ""] ??
                       "border-zinc-300 bg-zinc-50 text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100";
@@ -614,9 +713,311 @@ export function AppointmentCalendar({
                         </div>
                         <div className="truncate">
                           {a.patient.name}
-                          {showSpecialist && a.specialist ? ` • ${a.specialist.name}` : ""}
+                          {showSpecialist && a.specialist
+                            ? ` • ${a.specialist.name}`
+                            : ""}
                         </div>
                       </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function specialistWorkRange(specialist: CalendarSpecialist, day: Date) {
+    const key = dateKey(day);
+    const custom = specialist.customWorkDays?.find(
+      (item) => dateKey(new Date(item.date)) === key,
+    );
+    const weekday = (day.getDay() + 6) % 7;
+    const regular = specialist.workDays?.find(
+      (item) => item.weekday === weekday,
+    );
+    const work = custom ?? regular;
+    const dayOffs =
+      specialist.timeOffs?.filter(
+        (item) => dateKey(new Date(item.date)) === key,
+      ) ?? [];
+    if (!work || dayOffs.some((item) => item.allDay)) return null;
+    return {
+      startTime: work.startTime,
+      endTime: work.endTime,
+      timeOffs: dayOffs,
+    };
+  }
+
+  function timeToMinutes(value: string) {
+    const [hoursValue, minutesValue] = value.split(":").map(Number);
+    return hoursValue * 60 + minutesValue;
+  }
+
+  function renderSpecialistDayGrid(day: Date) {
+    const gridHeight = hours.length * HOUR_HEIGHT;
+    const isToday = sameDay(day, today);
+    const nowOffset =
+      (clock.getHours() - hourRange.startHour) * HOUR_HEIGHT +
+      (clock.getMinutes() / 60) * HOUR_HEIGHT;
+    const nowVisible = nowOffset >= 0 && nowOffset <= gridHeight;
+
+    return (
+      <div className="overflow-auto">
+        <div style={{ minWidth: Math.max(760, specialists.length * 220 + 58) }}>
+          <div
+            className="sticky top-0 z-30 grid border-b bg-white dark:bg-zinc-950"
+            style={{
+              gridTemplateColumns: `58px repeat(${specialists.length}, minmax(210px, 1fr))`,
+            }}
+          >
+            <div className="border-r" />
+            {specialists.map((specialist) => {
+              const work = specialistWorkRange(specialist, day);
+              return (
+                <div
+                  key={specialist.id}
+                  className="border-r px-3 py-3 text-center last:border-r-0"
+                >
+                  <div className="truncate text-sm font-semibold">
+                    {specialist.name}
+                  </div>
+                  <div
+                    className={
+                      work
+                        ? "mt-0.5 text-xs text-emerald-600"
+                        : "mt-0.5 text-xs text-zinc-400"
+                    }
+                  >
+                    {work ? `${work.startTime}–${work.endTime}` : "Nie pracuje"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div
+            className="grid"
+            style={{
+              gridTemplateColumns: `58px repeat(${specialists.length}, minmax(210px, 1fr))`,
+            }}
+          >
+            <div className="relative border-r" style={{ height: gridHeight }}>
+              {hours.map((hour, index) => (
+                <div
+                  key={hour}
+                  className="absolute right-2 -translate-y-1/2 text-[11px] tabular-nums text-zinc-400"
+                  style={{ top: index * HOUR_HEIGHT }}
+                >
+                  {index === 0 ? "" : `${String(hour).padStart(2, "0")}:00`}
+                </div>
+              ))}
+            </div>
+
+            {specialists.map((specialist) => {
+              const work = specialistWorkRange(specialist, day);
+              const list = appointments.filter(
+                (appointment) =>
+                  appointment.specialist?.id === specialist.id &&
+                  sameDay(new Date(appointment.startsAt), day),
+              );
+              const positioned = layoutOverlaps(list);
+              const workStart = work ? timeToMinutes(work.startTime) : 0;
+              const workEnd = work ? timeToMinutes(work.endTime) : 0;
+
+              return (
+                <div
+                  key={specialist.id}
+                  className="calendar-vertical-line relative border-r last:border-r-0"
+                  style={{ height: gridHeight }}
+                  onDragOver={(event) => {
+                    if (onMoveAppointment) event.preventDefault();
+                  }}
+                  onDrop={(event) => {
+                    if (!onMoveAppointment || !draggedAppointmentId) return;
+                    event.preventDefault();
+                    const appointment = appointments.find(
+                      (item) => item.id === draggedAppointmentId,
+                    );
+                    if (!appointment) return;
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    const y = Math.max(
+                      0,
+                      Math.min(gridHeight, event.clientY - rect.top),
+                    );
+                    const minutesFromStart =
+                      Math.round(((y / HOUR_HEIGHT) * 60) / 5) * 5;
+                    const startsAt = new Date(day);
+                    startsAt.setHours(
+                      hourRange.startHour,
+                      minutesFromStart,
+                      0,
+                      0,
+                    );
+                    const duration = Math.max(
+                      5,
+                      (+new Date(appointment.endsAt) -
+                        +new Date(appointment.startsAt)) /
+                        60_000,
+                    );
+                    const endsAt = new Date(+startsAt + duration * 60_000);
+                    void onMoveAppointment(
+                      appointment,
+                      startsAt,
+                      endsAt,
+                      specialist.id,
+                    );
+                    setDraggedAppointmentId(null);
+                  }}
+                >
+                  {hours.map((hour, index) => (
+                    <div
+                      key={hour}
+                      className={
+                        "absolute inset-x-0 border-t border-zinc-100 dark:border-zinc-800 " +
+                        (onAdd
+                          ? "cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-500/5"
+                          : "")
+                      }
+                      style={{ top: index * HOUR_HEIGHT, height: HOUR_HEIGHT }}
+                      onClick={
+                        onAdd
+                          ? () => {
+                              const slot = new Date(day);
+                              slot.setHours(hour, 0, 0, 0);
+                              onAdd(slot);
+                            }
+                          : undefined
+                      }
+                    />
+                  ))}
+
+                  <div
+                    className="pointer-events-none absolute inset-x-0 z-[1]"
+                    style={{
+                      insetBlock: 0,
+                      background: work
+                        ? `linear-gradient(to bottom,
+                            rgba(113,113,122,.09) 0,
+                            rgba(113,113,122,.09) ${Math.max(0, ((workStart - hourRange.startHour * 60) / 60) * HOUR_HEIGHT)}px,
+                            transparent ${Math.max(0, ((workStart - hourRange.startHour * 60) / 60) * HOUR_HEIGHT)}px,
+                            transparent ${Math.max(0, ((workEnd - hourRange.startHour * 60) / 60) * HOUR_HEIGHT)}px,
+                            rgba(113,113,122,.09) ${Math.max(0, ((workEnd - hourRange.startHour * 60) / 60) * HOUR_HEIGHT)}px)`
+                        : "repeating-linear-gradient(135deg, rgba(113,113,122,.10) 0 5px, rgba(113,113,122,.03) 5px 10px)",
+                    }}
+                  />
+
+                  {work?.timeOffs
+                    .filter(
+                      (item) => !item.allDay && item.startTime && item.endTime,
+                    )
+                    .map((item, index) => {
+                      const top =
+                        ((timeToMinutes(item.startTime!) -
+                          hourRange.startHour * 60) /
+                          60) *
+                        HOUR_HEIGHT;
+                      const height =
+                        ((timeToMinutes(item.endTime!) -
+                          timeToMinutes(item.startTime!)) /
+                          60) *
+                        HOUR_HEIGHT;
+                      return (
+                        <div
+                          key={`${item.startTime}-${index}`}
+                          className="pointer-events-none absolute inset-x-0 z-[2] flex items-center justify-center bg-zinc-200/70 text-xs text-zinc-500 dark:bg-zinc-800/70"
+                          style={{ top, height }}
+                        >
+                          Nieobecność
+                        </div>
+                      );
+                    })}
+
+                  {isToday && nowVisible ? (
+                    <div
+                      className="pointer-events-none absolute inset-x-0 z-20"
+                      style={{ top: nowOffset }}
+                    >
+                      <div className="relative border-t-2 border-red-500">
+                        <span className="absolute -left-1 -top-[5px] h-2 w-2 rounded-full bg-red-500" />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {positioned.map(({ appointment, col, cols }) => {
+                    const start = new Date(appointment.startsAt);
+                    const end = new Date(appointment.endsAt);
+                    const top =
+                      (((start.getHours() - hourRange.startHour) * 60 +
+                        start.getMinutes()) /
+                        60) *
+                      HOUR_HEIGHT;
+                    const duration = Math.max(15, (+end - +start) / 60_000);
+                    const height = Math.max(
+                      30,
+                      (duration / 60) * HOUR_HEIGHT - 2,
+                    );
+                    const width = 100 / cols;
+                    const color = appointment.isReservation
+                      ? { bg: "#f4f4f5", border: "#71717a", text: "#27272a" }
+                      : categoryColor(appointment.service.category);
+                    const assignedCategoryColor =
+                      appointment.service.categoryColor;
+                    const time = `${start.toLocaleTimeString("pl-PL", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}–${end.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}`;
+
+                    return (
+                      <button
+                        key={appointment.id}
+                        type="button"
+                        draggable={Boolean(onMoveAppointment)}
+                        onDragStart={(event) => {
+                          setDraggedAppointmentId(appointment.id);
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData(
+                            "text/plain",
+                            appointment.id,
+                          );
+                        }}
+                        onDragEnd={() => setDraggedAppointmentId(null)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (!appointment.isReservation)
+                            onOpenAppointment(appointment.id);
+                        }}
+                        className="absolute z-10 cursor-grab overflow-hidden rounded-lg border-l-4 px-2 py-1 text-left text-[11px] leading-tight shadow-sm transition hover:brightness-[.98] active:cursor-grabbing"
+                        style={{
+                          top,
+                          height,
+                          left: `calc(${col * width}% + 2px)`,
+                          width: `calc(${width}% - 4px)`,
+                          backgroundColor: assignedCategoryColor
+                            ? `${assignedCategoryColor}20`
+                            : color.bg,
+                          borderColor: assignedCategoryColor || color.border,
+                          color: color.text,
+                          opacity:
+                            draggedAppointmentId === appointment.id ? 0.55 : 1,
+                        }}
+                        title="Przeciągnij, aby zmienić godzinę lub specjalistę"
+                      >
+                        <div className="font-semibold">{time}</div>
+                        <div className="truncate font-semibold">
+                          {appointment.isReservation
+                            ? "REZERWACJA"
+                            : appointment.customServiceName ||
+                              appointment.service.name}
+                        </div>
+                        {!appointment.isReservation ? (
+                          <div className="truncate">
+                            {appointment.patient.name}
+                          </div>
+                        ) : null}
+                      </button>
                     );
                   })}
                 </div>
@@ -667,7 +1068,10 @@ export function AppointmentCalendar({
                   ? "cursor-pointer active:bg-zinc-50 dark:active:bg-zinc-900/40"
                   : "")
               }
-              style={{ top: index * HOUR_HEIGHT, height: index < mobileHours.length - 1 ? HOUR_HEIGHT : 0 }}
+              style={{
+                top: index * HOUR_HEIGHT,
+                height: index < mobileHours.length - 1 ? HOUR_HEIGHT : 0,
+              }}
               onClick={
                 onAdd && index < mobileHours.length - 1
                   ? () => {
@@ -681,7 +1085,10 @@ export function AppointmentCalendar({
           ))}
 
           {isToday && nowVisible ? (
-            <div className="pointer-events-none absolute inset-x-0 z-20" style={{ top: nowOffset }}>
+            <div
+              className="pointer-events-none absolute inset-x-0 z-20"
+              style={{ top: nowOffset }}
+            >
               <div className="relative border-t-2 border-red-500">
                 <span className="absolute -left-1 -top-[5px] h-2 w-2 rounded-full bg-red-500" />
               </div>
@@ -700,7 +1107,11 @@ export function AppointmentCalendar({
             const effectiveStatus =
               appointment.approvalStatus === "REJECTED"
                 ? appointment.status
-                : effectiveAppointmentStatus(appointment.status, appointment.startsAt, clock);
+                : effectiveAppointmentStatus(
+                    appointment.status,
+                    appointment.startsAt,
+                    clock,
+                  );
             const blockTone =
               STATUS_BLOCK[effectiveStatus ?? ""] ??
               "border-zinc-300 bg-zinc-50 text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100";
@@ -726,11 +1137,14 @@ export function AppointmentCalendar({
                 }}
               >
                 <div className="font-semibold">
-                  {timeLabel} • {appointment.customServiceName || appointment.service.name}
+                  {timeLabel} •{" "}
+                  {appointment.customServiceName || appointment.service.name}
                 </div>
                 <div className="mt-0.5 truncate">
                   {appointment.patient.name}
-                  {showSpecialist && appointment.specialist ? ` • ${appointment.specialist.name}` : ""}
+                  {showSpecialist && appointment.specialist
+                    ? ` • ${appointment.specialist.name}`
+                    : ""}
                 </div>
               </button>
             );
@@ -750,7 +1164,9 @@ export function AppointmentCalendar({
                 <div className="text-xl font-semibold capitalize text-zinc-950 dark:text-zinc-50">
                   {anchor.toLocaleDateString("pl-PL", { month: "long" })}
                 </div>
-                <div className="text-sm text-zinc-500">{anchor.getFullYear()}</div>
+                <div className="text-sm text-zinc-500">
+                  {anchor.getFullYear()}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -766,7 +1182,13 @@ export function AppointmentCalendar({
                     aria-label="Poprzedni miesiąc"
                     className="flex h-9 w-9 items-center justify-center border-r text-xl"
                     onClick={() =>
-                      onAnchorChange(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1))
+                      onAnchorChange(
+                        new Date(
+                          anchor.getFullYear(),
+                          anchor.getMonth() - 1,
+                          1,
+                        ),
+                      )
                     }
                   >
                     ‹
@@ -776,7 +1198,13 @@ export function AppointmentCalendar({
                     aria-label="Następny miesiąc"
                     className="flex h-9 w-9 items-center justify-center text-xl"
                     onClick={() =>
-                      onAnchorChange(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1))
+                      onAnchorChange(
+                        new Date(
+                          anchor.getFullYear(),
+                          anchor.getMonth() + 1,
+                          1,
+                        ),
+                      )
                     }
                   >
                     ›
@@ -793,7 +1221,10 @@ export function AppointmentCalendar({
 
             <div>
               {weeks.map((row, rowIndex) => (
-                <div key={rowIndex} className="grid grid-cols-7 border-b last:border-b-0">
+                <div
+                  key={rowIndex}
+                  className="grid grid-cols-7 border-b last:border-b-0"
+                >
                   {row.map((day) => {
                     const inMonth = day.getMonth() === anchor.getMonth();
                     const isToday = sameDay(day, today);
@@ -839,7 +1270,8 @@ export function AppointmentCalendar({
                                 key={appointment.id}
                                 className={
                                   "h-1.5 w-1.5 shrink-0 rounded-full " +
-                                  (STATUS_DOT[effectiveStatus ?? ""] ?? "bg-zinc-400")
+                                  (STATUS_DOT[effectiveStatus ?? ""] ??
+                                    "bg-zinc-400")
                                 }
                               />
                             );
@@ -852,7 +1284,9 @@ export function AppointmentCalendar({
               ))}
             </div>
             {isLoading ? (
-              <div className="border-t px-4 py-2 text-center text-xs text-zinc-500">Ładowanie…</div>
+              <div className="border-t px-4 py-2 text-center text-xs text-zinc-500">
+                Ładowanie…
+              </div>
             ) : null}
           </>
         ) : (
@@ -877,74 +1311,75 @@ export function AppointmentCalendar({
               </div>
 
               <div className="overflow-hidden">
-              <div
-                key={dateKey(mobileWeek[0])}
-                className={
-                  "grid touch-pan-y grid-cols-7 gap-1 " +
-                  (mobileWeekAnimation === "next"
-                    ? "mobile-calendar-week-in-next"
-                    : mobileWeekAnimation === "previous"
-                      ? "mobile-calendar-week-in-previous"
-                      : "")
-                }
-                onTouchStart={handleMobileWeekTouchStart}
-                onTouchMove={handleMobileWeekTouchMove}
-                onTouchEnd={handleMobileWeekTouchEnd}
-              >
-                {mobileWeek.map((day) => {
-                  const isSelected = sameDay(day, anchor);
-                  const isToday = sameDay(day, today);
-                  const dayAppointments = byDay.get(dateKey(day)) ?? [];
-                  return (
-                    <button
-                      key={dateKey(day)}
-                      type="button"
-                      className="flex min-w-0 flex-col items-center rounded-xl py-1.5"
-                      onClick={() => {
-                        if (mobileWeekWasSwiped.current) return;
-                        onAnchorChange(startOfDay(day));
-                      }}
-                    >
-                      <span className="text-[10px] font-semibold text-zinc-500">
-                        {weekdayLabel(day)}
-                      </span>
-                      <span
-                        className={
-                          "mt-1 flex h-9 min-w-9 items-center justify-center rounded-full px-1 text-sm font-semibold " +
-                          (isSelected
-                            ? "bg-indigo-600 text-white"
-                            : isToday
-                              ? "ring-2 ring-indigo-500 text-indigo-600 dark:text-indigo-300"
-                              : "text-zinc-900 dark:text-zinc-100")
-                        }
+                <div
+                  key={dateKey(mobileWeek[0])}
+                  className={
+                    "grid touch-pan-y grid-cols-7 gap-1 " +
+                    (mobileWeekAnimation === "next"
+                      ? "mobile-calendar-week-in-next"
+                      : mobileWeekAnimation === "previous"
+                        ? "mobile-calendar-week-in-previous"
+                        : "")
+                  }
+                  onTouchStart={handleMobileWeekTouchStart}
+                  onTouchMove={handleMobileWeekTouchMove}
+                  onTouchEnd={handleMobileWeekTouchEnd}
+                >
+                  {mobileWeek.map((day) => {
+                    const isSelected = sameDay(day, anchor);
+                    const isToday = sameDay(day, today);
+                    const dayAppointments = byDay.get(dateKey(day)) ?? [];
+                    return (
+                      <button
+                        key={dateKey(day)}
+                        type="button"
+                        className="flex min-w-0 flex-col items-center rounded-xl py-1.5"
+                        onClick={() => {
+                          if (mobileWeekWasSwiped.current) return;
+                          onAnchorChange(startOfDay(day));
+                        }}
                       >
-                        {day.getDate()}
-                      </span>
-                      <span className="mt-1 flex h-1.5 items-center justify-center gap-0.5">
-                        {dayAppointments.slice(0, 3).map((appointment) => {
-                          const effectiveStatus =
-                            appointment.approvalStatus === "REJECTED"
-                              ? appointment.status
-                              : effectiveAppointmentStatus(
-                                  appointment.status,
-                                  appointment.startsAt,
-                                  clock,
-                                );
-                          return (
-                            <span
-                              key={appointment.id}
-                              className={
-                                "h-1 w-1 rounded-full " +
-                                (STATUS_DOT[effectiveStatus ?? ""] ?? "bg-zinc-400")
-                              }
-                            />
-                          );
-                        })}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+                        <span className="text-[10px] font-semibold text-zinc-500">
+                          {weekdayLabel(day)}
+                        </span>
+                        <span
+                          className={
+                            "mt-1 flex h-9 min-w-9 items-center justify-center rounded-full px-1 text-sm font-semibold " +
+                            (isSelected
+                              ? "bg-indigo-600 text-white"
+                              : isToday
+                                ? "ring-2 ring-indigo-500 text-indigo-600 dark:text-indigo-300"
+                                : "text-zinc-900 dark:text-zinc-100")
+                          }
+                        >
+                          {day.getDate()}
+                        </span>
+                        <span className="mt-1 flex h-1.5 items-center justify-center gap-0.5">
+                          {dayAppointments.slice(0, 3).map((appointment) => {
+                            const effectiveStatus =
+                              appointment.approvalStatus === "REJECTED"
+                                ? appointment.status
+                                : effectiveAppointmentStatus(
+                                    appointment.status,
+                                    appointment.startsAt,
+                                    clock,
+                                  );
+                            return (
+                              <span
+                                key={appointment.id}
+                                className={
+                                  "h-1 w-1 rounded-full " +
+                                  (STATUS_DOT[effectiveStatus ?? ""] ??
+                                    "bg-zinc-400")
+                                }
+                              />
+                            );
+                          })}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               <div className="mt-3 border-t pt-3">
                 <div className="mb-2 text-xs font-medium text-zinc-500">
@@ -963,159 +1398,185 @@ export function AppointmentCalendar({
                   year: "numeric",
                 })}
               </div>
-              {isLoading ? <div className="mt-1 text-xs text-zinc-500">Ładowanie…</div> : null}
+              {isLoading ? (
+                <div className="mt-1 text-xs text-zinc-500">Ładowanie…</div>
+              ) : null}
             </div>
-            <div className="overflow-x-hidden">{renderMobileDay(startOfDay(anchor))}</div>
+            <div className="overflow-x-hidden">
+              {renderMobileDay(startOfDay(anchor))}
+            </div>
           </>
         )}
       </div>
 
       <div className="hidden sm:block">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" onClick={() => onAnchorChange(new Date())}>
-            Dzisiaj
-          </Button>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              aria-label={prevAriaLabel}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border hover:bg-zinc-50 dark:hover:bg-zinc-900"
-              onClick={() => shift(-1)}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={() => onAnchorChange(new Date())}
             >
-              ‹
-            </button>
-            <button
-              type="button"
-              aria-label={nextAriaLabel}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border hover:bg-zinc-50 dark:hover:bg-zinc-900"
-              onClick={() => shift(1)}
-            >
-              ›
-            </button>
-          </div>
-          <div className="text-lg font-semibold capitalize">{rangeLabel}</div>
-          {isLoading ? <div className="text-xs text-zinc-500">Ładowanie…</div> : null}
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="inline-flex rounded-xl border bg-white p-1 text-sm shadow-sm dark:bg-zinc-950">
-            {(
-              [
-                { key: "day", label: "Dzień" },
-                { key: "week", label: "Tydzień" },
-                { key: "month", label: "Miesiąc" },
-              ] as const
-            ).map((option) => (
+              Dzisiaj
+            </Button>
+            <div className="flex items-center gap-1">
               <button
-                key={option.key}
                 type="button"
-                onClick={() => setMode(option.key)}
-                className={
-                  "rounded-lg px-3 py-1.5 font-medium transition " +
-                  (mode === option.key
-                    ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-                    : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white")
-                }
+                aria-label={prevAriaLabel}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                onClick={() => shift(-1)}
               >
-                {option.label}
+                ‹
               </button>
-            ))}
+              <button
+                type="button"
+                aria-label={nextAriaLabel}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                onClick={() => shift(1)}
+              >
+                ›
+              </button>
+            </div>
+            <div className="text-lg font-semibold capitalize">{rangeLabel}</div>
+            {isLoading ? (
+              <div className="text-xs text-zinc-500">Ładowanie…</div>
+            ) : null}
           </div>
-          {showAddButton && onAdd ? <Button onClick={() => onAdd()}>+ Dodaj</Button> : null}
+          <div className="flex items-center gap-3">
+            <div className="inline-flex rounded-xl border bg-white p-1 text-sm shadow-sm dark:bg-zinc-950">
+              {(
+                [
+                  { key: "day", label: "Dzień" },
+                  { key: "week", label: "Tydzień" },
+                  { key: "month", label: "Miesiąc" },
+                ] as const
+              ).map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setMode(option.key)}
+                  className={
+                    "rounded-lg px-3 py-1.5 font-medium transition " +
+                    (mode === option.key
+                      ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
+                      : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white")
+                  }
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            {showAddButton && onAdd ? (
+              <Button onClick={() => onAdd()}>+ Dodaj</Button>
+            ) : null}
+          </div>
         </div>
-      </div>
 
-      {mode === "month" ? (
-        <>
-          <div className="grid grid-cols-7 border-b text-xs font-medium text-zinc-500">
-            {WEEKDAYS.map((w) => (
-              <div key={w} className="px-3 py-2">
-                {w}
-              </div>
-            ))}
-          </div>
+        {mode === "month" ? (
+          <>
+            <div className="grid grid-cols-7 border-b text-xs font-medium text-zinc-500">
+              {WEEKDAYS.map((w) => (
+                <div key={w} className="px-3 py-2">
+                  {w}
+                </div>
+              ))}
+            </div>
 
-          <div>
-            {weeks.map((row, ri) => (
-              <div key={ri} className="grid grid-cols-7 border-b last:border-b-0">
-                {row.map((d) => {
-                  const inMonth = d.getMonth() === anchor.getMonth();
-                  const isToday = sameDay(d, today);
-                  const list = byDay.get(dateKey(d)) ?? [];
-                  return (
-                    <div
-                      key={dateKey(d)}
-                      className={
-                        "calendar-vertical-line min-h-[110px] border-r p-2 align-top last:border-r-0 " +
-                        (onAdd ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/40" : "")
-                      }
-                      onClick={onAdd ? () => onAdd(d) : undefined}
-                    >
+            <div>
+              {weeks.map((row, ri) => (
+                <div
+                  key={ri}
+                  className="grid grid-cols-7 border-b last:border-b-0"
+                >
+                  {row.map((d) => {
+                    const inMonth = d.getMonth() === anchor.getMonth();
+                    const isToday = sameDay(d, today);
+                    const list = byDay.get(dateKey(d)) ?? [];
+                    return (
                       <div
+                        key={dateKey(d)}
                         className={
-                          "mb-1 inline-flex h-6 min-w-6 items-center justify-center rounded-lg px-1 text-sm " +
-                          (isToday
-                            ? "bg-indigo-600 font-semibold text-white"
-                            : inMonth
-                              ? "text-zinc-800 dark:text-zinc-200"
-                              : "text-zinc-400 dark:text-zinc-600")
+                          "calendar-vertical-line min-h-[110px] border-r p-2 align-top last:border-r-0 " +
+                          (onAdd
+                            ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/40"
+                            : "")
                         }
+                        onClick={onAdd ? () => onAdd(d) : undefined}
                       >
-                        {d.getDate()}
-                      </div>
-                      <div className="space-y-1">
-                        {list.slice(0, 3).map((a) => {
-                          const effectiveStatus =
-                            a.approvalStatus === "REJECTED"
-                              ? a.status
-                              : effectiveAppointmentStatus(a.status, a.startsAt, clock);
-                          return (
-                            <div
-                              key={a.id}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onOpenAppointment(a.id);
-                              }}
-                              className="truncate rounded-md px-1 py-0.5 text-[11px] leading-tight hover:bg-white dark:hover:bg-zinc-800"
-                              title={`${a.patient.name} • ${a.customServiceName || a.service.name}`}
-                            >
-                              <span
-                                className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOT[effectiveStatus ?? ""] ?? "bg-zinc-400"}`}
-                              />
-                              {new Date(a.startsAt).toLocaleTimeString("pl-PL", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}{" "}
-                              <span className="font-medium">
-                                {a.customServiceName || a.service.name}
-                              </span>
-                              {showSpecialist && a.specialist ? (
-                                <span className="text-zinc-500"> • {a.specialist.name}</span>
-                              ) : null}
+                        <div
+                          className={
+                            "mb-1 inline-flex h-6 min-w-6 items-center justify-center rounded-lg px-1 text-sm " +
+                            (isToday
+                              ? "bg-indigo-600 font-semibold text-white"
+                              : inMonth
+                                ? "text-zinc-800 dark:text-zinc-200"
+                                : "text-zinc-400 dark:text-zinc-600")
+                          }
+                        >
+                          {d.getDate()}
+                        </div>
+                        <div className="space-y-1">
+                          {list.slice(0, 3).map((a) => {
+                            const effectiveStatus =
+                              a.approvalStatus === "REJECTED"
+                                ? a.status
+                                : effectiveAppointmentStatus(
+                                    a.status,
+                                    a.startsAt,
+                                    clock,
+                                  );
+                            return (
+                              <div
+                                key={a.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenAppointment(a.id);
+                                }}
+                                className="truncate rounded-md px-1 py-0.5 text-[11px] leading-tight hover:bg-white dark:hover:bg-zinc-800"
+                                title={`${a.patient.name} • ${a.customServiceName || a.service.name}`}
+                              >
+                                <span
+                                  className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOT[effectiveStatus ?? ""] ?? "bg-zinc-400"}`}
+                                />
+                                {new Date(a.startsAt).toLocaleTimeString(
+                                  "pl-PL",
+                                  {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  },
+                                )}{" "}
+                                <span className="font-medium">
+                                  {a.customServiceName || a.service.name}
+                                </span>
+                                {showSpecialist && a.specialist ? (
+                                  <span className="text-zinc-500">
+                                    {" "}
+                                    • {a.specialist.name}
+                                  </span>
+                                ) : null}
+                              </div>
+                            );
+                          })}
+                          {list.length > 3 ? (
+                            <div className="px-1 text-[11px] text-zinc-500">
+                              +{list.length - 3} więcej
                             </div>
-                          );
-                        })}
-                        {list.length > 3 ? (
-                          <div className="px-1 text-[11px] text-zinc-500">
-                            +{list.length - 3} więcej
-                          </div>
-                        ) : null}
+                          ) : null}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="flex items-start gap-4 p-4">
+            <div className="min-w-0 flex-1 overflow-hidden rounded-xl border">
+              {renderTimeGrid(visibleDays)}
+            </div>
+            {renderMiniMonth()}
           </div>
-        </>
-      ) : (
-        <div className="flex items-start gap-4 p-4">
-          <div className="min-w-0 flex-1 overflow-hidden rounded-xl border">
-            {renderTimeGrid(visibleDays)}
-          </div>
-          {renderMiniMonth()}
-        </div>
-      )}
+        )}
       </div>
       <style jsx global>{`
         @keyframes mobile-calendar-week-next {
