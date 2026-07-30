@@ -678,7 +678,7 @@ export function AppointmentCalendar({
                 gridTemplateColumns: `56px repeat(${days.length}, 1fr)`,
               }}
             >
-              <div />
+              <div className="sticky left-0 z-30 border-r bg-white shadow-[4px_0_8px_-8px_rgba(0,0,0,0.45)] dark:bg-zinc-950" />
               {days.map((day) => {
                 const isToday = sameDay(day, today);
                 return (
@@ -710,7 +710,10 @@ export function AppointmentCalendar({
             style={{ gridTemplateColumns: `56px repeat(${days.length}, 1fr)` }}
           >
             {/* Oś godzin */}
-            <div className="relative" style={{ height: gridHeight }}>
+            <div
+              className="sticky left-0 z-30 border-r bg-white shadow-[4px_0_8px_-8px_rgba(0,0,0,0.45)] dark:bg-zinc-950"
+              style={{ height: gridHeight }}
+            >
               {hours.map((hour, index) => (
                 <div
                   key={hour}
@@ -905,7 +908,7 @@ export function AppointmentCalendar({
               gridTemplateColumns: `58px repeat(${specialists.length}, minmax(210px, 1fr))`,
             }}
           >
-            <div className="border-r" />
+            <div className="sticky left-0 z-40 border-r bg-white shadow-[4px_0_8px_-8px_rgba(0,0,0,0.45)] dark:bg-zinc-950" />
             {specialists.map((specialist) => {
               const work = specialistWorkRange(specialist, day);
               return (
@@ -936,7 +939,10 @@ export function AppointmentCalendar({
               gridTemplateColumns: `58px repeat(${specialists.length}, minmax(210px, 1fr))`,
             }}
           >
-            <div className="relative border-r" style={{ height: gridHeight }}>
+            <div
+              className="sticky left-0 z-30 border-r bg-white shadow-[4px_0_8px_-8px_rgba(0,0,0,0.45)] dark:bg-zinc-950"
+              style={{ height: gridHeight }}
+            >
               {hours.map((hour, index) => (
                 <div
                   key={hour}
