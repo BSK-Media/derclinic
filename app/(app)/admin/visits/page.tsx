@@ -114,6 +114,12 @@ export default function AdminVisitsPage({
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [defaultDate, setDefaultDate] = React.useState<Date | null>(null);
+  const [defaultSpecialistId, setDefaultSpecialistId] =
+    React.useState<string>();
+  const [slotChoice, setSlotChoice] = React.useState<{
+    date: Date;
+    specialistId?: string;
+  } | null>(null);
   const [decidingId, setDecidingId] = React.useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = React.useState<any | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<any | null>(null);
@@ -275,12 +281,20 @@ export default function AdminVisitsPage({
     mutate();
   }
 
-  function openAdd(date?: Date) {
+  function openAdd(date?: Date, specialistId?: string) {
     setDefaultDate(date ?? null);
+    setDefaultSpecialistId(specialistId);
     setDialogOpen(true);
   }
 
-  function openReservation(date?: Date) {
+  function openSlotChoice(date?: Date, specialistId?: string) {
+    setSlotChoice({
+      date: date ?? anchor,
+      specialistId,
+    });
+  }
+
+  function openReservation(date?: Date, specialistId?: string) {
     const value = date ?? anchor;
     setReservationDate(toDateInput(value));
     setReservationStart(
@@ -293,9 +307,10 @@ export default function AdminVisitsPage({
       `${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`,
     );
     setReservationSpecialistId(
-      specialistFilter !== ALL_SPECIALISTS
-        ? specialistFilter
-        : (specialists[0]?.id ?? ""),
+      specialistId ??
+        (specialistFilter !== ALL_SPECIALISTS
+          ? specialistFilter
+          : (specialists[0]?.id ?? "")),
     );
     setReservationOpen(true);
   }
@@ -558,7 +573,7 @@ export default function AdminVisitsPage({
                 )
           }
           isLoading={isLoading}
-          onAdd={openAdd}
+          onAdd={openSlotChoice}
           showAddButton={false}
           onOpenAppointment={(id) => router.push(`/admin/appointments/${id}`)}
           onMoveAppointment={moveAppointment}
@@ -875,8 +890,59 @@ export default function AdminVisitsPage({
         specialists={bookingSpecialists}
         services={services}
         defaultDate={defaultDate}
+        defaultSpecialistId={defaultSpecialistId}
         onCreated={() => mutate()}
       />
+
+      <Dialog
+        open={slotChoice !== null}
+        onOpenChange={(open) => {
+          if (!open) setSlotChoice(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Co chcesz dodać?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            Wybierz wizytę z danymi klienta albo zarezerwuj sam czas w
+            kalendarzu.
+          </p>
+          <div className="grid gap-3 py-2 sm:grid-cols-2">
+            <Button
+              type="button"
+              className="h-auto min-h-20 flex-col gap-1 py-4"
+              onClick={() => {
+                if (!slotChoice) return;
+                const choice = slotChoice;
+                setSlotChoice(null);
+                openAdd(choice.date, choice.specialistId);
+              }}
+            >
+              <span className="text-base">Dodaj wizytę</span>
+              <span className="text-xs font-normal opacity-75">
+                Klient i zabieg
+              </span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-auto min-h-20 flex-col gap-1 py-4"
+              onClick={() => {
+                if (!slotChoice) return;
+                const choice = slotChoice;
+                setSlotChoice(null);
+                openReservation(choice.date, choice.specialistId);
+              }}
+            >
+              <span className="text-base">Rezerwacja czasu</span>
+              <span className="text-xs font-normal text-zinc-500 dark:text-zinc-400">
+                Bez klienta i zabiegu
+              </span>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={reservationOpen} onOpenChange={setReservationOpen}>
         <DialogContent>
