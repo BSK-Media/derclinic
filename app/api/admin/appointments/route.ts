@@ -1,10 +1,22 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAuth, requireRole, requireStrictRole, scopedLocationWhere } from "@/lib/api-helpers";
+import {
+  requireAuth,
+  requireRole,
+  requireStrictRole,
+  scopedLocationWhere,
+} from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
-function parseRangeDate(value: string | null, fallback: Date, includeWholeDay = false) {
+const RESERVATION_SERVICE_NAME = "__DERCLINIC_REZERWACJA_CZASU__";
+const RESERVATION_PATIENT_NAME = "__DERCLINIC_REZERWACJA_CZASU__";
+
+function parseRangeDate(
+  value: string | null,
+  fallback: Date,
+  includeWholeDay = false,
+) {
   if (!value) return fallback;
   const date = new Date(value);
   if (includeWholeDay && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -24,8 +36,15 @@ export async function GET(req: Request) {
   const to = url.searchParams.get("to");
   const deletedOnly = url.searchParams.get("deleted") === "only";
 
-  const fromDt = parseRangeDate(from, new Date(Date.now() - 1000 * 60 * 60 * 24 * 7));
-  const toDt = parseRangeDate(to, new Date(Date.now() + 1000 * 60 * 60 * 24 * 14), true);
+  const fromDt = parseRangeDate(
+    from,
+    new Date(Date.now() - 1000 * 60 * 60 * 24 * 7),
+  );
+  const toDt = parseRangeDate(
+    to,
+    new Date(Date.now() + 1000 * 60 * 60 * 24 * 14),
+    true,
+  );
   const locationWhere = scopedLocationWhere(user!);
 
   // Porządkujemy również starsze dane: akceptacja dotyczy wyłącznie wizyty zakończonej.
@@ -49,36 +68,78 @@ export async function GET(req: Request) {
     },
   });
 
-  const [appointments, patients, specialists, bookingSpecialists, services] = await Promise.all([
-    prisma.appointment.findMany({
-      where: deletedOnly
-        ? { deletedAt: { not: null }, ...locationWhere }
-        : { deletedAt: null, startsAt: { gte: fromDt, lt: toDt }, ...locationWhere },
-      orderBy: deletedOnly ? { deletedAt: "desc" } : { startsAt: "asc" },
-      include: {
-        patient: true,
-        specialist: { select: { id: true, name: true, login: true } },
-        service: true,
-        deletedBy: { select: { id: true, name: true, login: true } },
-        consumptions: { include: { product: true, warehouse: true } },
-        payments: true,
-        location: { select: { id: true, name: true } },
-      },
-      take: 500,
-    }),
-    prisma.patient.findMany({ where: locationWhere, orderBy: { name: "asc" }, take: 500 }),
-    prisma.user.findMany({
-      where: { role: "SPECIALIST", ...locationWhere },
-      orderBy: { name: "asc" },
-      include: { assignedServices: { select: { serviceId: true } } },
-    }),
-    prisma.user.findMany({
-      where: { role: "SPECIALIST", ...(user!.role === "ADMIN" ? {} : locationWhere) },
-      orderBy: { name: "asc" },
-      include: { assignedServices: { select: { serviceId: true } } },
-    }),
-    prisma.service.findMany({ orderBy: { name: "asc" } }),
-  ]);
+  const [rawAppointments, patients, specialists, bookingSpecialists, services] =
+    await Promise.all([
+      prisma.appointment.findMany({
+        where: deletedOnly
+          ? { deletedAt: { not: null }, ...locationWhere }
+          : {
+              deletedAt: null,
+              startsAt: { gte: fromDt, lt: toDt },
+              ...locationWhere,
+            },
+        orderBy: deletedOnly ? { deletedAt: "desc" } : { startsAt: "asc" },
+        include: {
+          patient: true,
+          specialist: { select: { id: true, name: true, login: true } },
+          service: true,
+          deletedBy: { select: { id: true, name: true, login: true } },
+          consumptions: { include: { product: true, warehouse: true } },
+          payments: true,
+          location: { select: { id: true, name: true } },
+        },
+        take: 500,
+      }),
+      prisma.patient.findMany({
+        where: { ...locationWhere, name: { not: RESERVATION_PATIENT_NAME } },
+        orderBy: { name: "asc" },
+        take: 500,
+      }),
+      prisma.user.findMany({
+        where: { role: "SPECIALIST", ...locationWhere },
+        orderBy: { name: "asc" },
+        include: {
+          assignedServices: { select: { serviceId: true } },
+          workDays: true,
+          customWorkDays: { where: { date: { gte: fromDt, lt: toDt } } },
+          timeOffs: { where: { date: { gte: fromDt, lt: toDt } } },
+        },
+      }),
+      prisma.user.findMany({
+        where: {
+          role: "SPECIALIST",
+          ...(user!.role === "ADMIN" ? {} : locationWhere),
+        },
+        orderBy: { name: "asc" },
+        include: {
+          assignedServices: { select: { serviceId: true } },
+          workDays: true,
+          customWorkDays: { where: { date: { gte: fromDt, lt: toDt } } },
+          timeOffs: { where: { date: { gte: fromDt, lt: toDt } } },
+        },
+      }),
+      prisma.service.findMany({
+        where: { name: { not: RESERVATION_SERVICE_NAME } },
+        orderBy: { name: "asc" },
+      }),
+    ]);
+  const appointments = rawAppointments.map((appointment) => {
+    const isReservation = appointment.service.name === RESERVATION_SERVICE_NAME;
+    return {
+      ...appointment,
+      isReservation,
+      patient: isReservation
+        ? { ...appointment.patient, name: "—" }
+        : appointment.patient,
+      service: isReservation
+        ? {
+            ...appointment.service,
+            name: "REZERWACJA",
+            category: "Rezerwacja czasu",
+          }
+        : appointment.service,
+    };
+  });
 
   const shapeSpecialist = (s: (typeof specialists)[number]) => ({
     id: s.id,
@@ -86,6 +147,9 @@ export async function GET(req: Request) {
     login: s.login,
     locationId: s.locationId,
     serviceIds: s.assignedServices.map((a) => a.serviceId),
+    workDays: s.workDays,
+    customWorkDays: s.customWorkDays,
+    timeOffs: s.timeOffs,
   });
   const shapedSpecialists = specialists.map(shapeSpecialist);
 
@@ -113,7 +177,8 @@ const CreateSchema = z
     // Nowy klient zakładany bezpośrednio z formularza rezerwacji (admin/recepcja)
     newPatient: NewPatientSchema.optional().nullable(),
     specialistId: z.string().min(1),
-    serviceId: z.string().min(1),
+    serviceId: z.string().min(1).optional().nullable(),
+    reservation: z.boolean().optional(),
     startsAt: z.string().min(1),
     durationMin: z.number().int().min(5).max(480),
     priceFinal: z.number().int().optional().nullable(),
@@ -123,11 +188,18 @@ const CreateSchema = z
     locationId: z.string().min(1),
   })
   .superRefine((value, ctx) => {
-    if (!value.patientId && !value.newPatient) {
+    if (!value.reservation && !value.patientId && !value.newPatient) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["patientId"],
         message: "Wybierz pacjenta lub podaj dane nowego klienta",
+      });
+    }
+    if (!value.reservation && !value.serviceId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["serviceId"],
+        message: "Wybierz usługę",
       });
     }
   });
@@ -148,11 +220,18 @@ export async function POST(req: Request) {
   const json = await req.json().catch(() => null);
   const parsed = CreateSchema.safeParse(json);
   if (!parsed.success)
-    return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, message: "Niepoprawne dane" },
+      { status: 400 },
+    );
 
-  const appointmentLocationId = user!.role === "ADMIN" ? parsed.data.locationId : user!.locationId;
+  const appointmentLocationId =
+    user!.role === "ADMIN" ? parsed.data.locationId : user!.locationId;
   if (user!.role !== "ADMIN" && parsed.data.locationId !== user!.locationId) {
-    return NextResponse.json({ ok: false, message: "Nie możesz dodać wizyty w innej lokalizacji" }, { status: 403 });
+    return NextResponse.json(
+      { ok: false, message: "Nie możesz dodać wizyty w innej lokalizacji" },
+      { status: 403 },
+    );
   }
   const [appointmentLocation, specialist] = await Promise.all([
     prisma.location.findFirst({
@@ -160,29 +239,73 @@ export async function POST(req: Request) {
       select: { id: true },
     }),
     prisma.user.findFirst({
-      where: { id: parsed.data.specialistId, role: "SPECIALIST", locationId: appointmentLocationId },
+      where: {
+        id: parsed.data.specialistId,
+        role: "SPECIALIST",
+        locationId: appointmentLocationId,
+      },
       select: { id: true },
     }),
   ]);
   if (!appointmentLocation || !specialist) {
-    return NextResponse.json({ ok: false, message: "Specjalista nie pracuje w wybranej lokalizacji" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, message: "Specjalista nie pracuje w wybranej lokalizacji" },
+      { status: 400 },
+    );
   }
 
   const startsAt = new Date(parsed.data.startsAt);
   const endsAt = new Date(startsAt);
   endsAt.setMinutes(endsAt.getMinutes() + parsed.data.durationMin);
 
-  const service = await prisma.service.findUnique({
-    where: { id: parsed.data.serviceId },
-    select: { price: true },
-  });
+  const service = parsed.data.reservation
+    ? await prisma.service.upsert({
+        where: { id: "derclinic-calendar-reservation" },
+        update: {},
+        create: {
+          id: "derclinic-calendar-reservation",
+          name: RESERVATION_SERVICE_NAME,
+          category: "Rezerwacja czasu",
+          durationMin: parsed.data.durationMin,
+          price: 0,
+        },
+        select: { id: true, price: true },
+      })
+    : await prisma.service.findUnique({
+        where: { id: parsed.data.serviceId! },
+        select: { id: true, price: true },
+      });
   if (!service) {
-    return NextResponse.json({ ok: false, message: "Nie znaleziono usługi" }, { status: 404 });
+    return NextResponse.json(
+      { ok: false, message: "Nie znaleziono usługi" },
+      { status: 404 },
+    );
   }
   const standardPrice = service.price;
-  const finalPrice = parsed.data.priceFinal ?? parsed.data.priceEstimate ?? standardPrice;
+  const finalPrice =
+    parsed.data.priceFinal ?? parsed.data.priceEstimate ?? standardPrice;
 
   let patientId = parsed.data.patientId ?? null;
+  if (parsed.data.reservation) {
+    const placeholder = await prisma.patient.findFirst({
+      where: {
+        name: RESERVATION_PATIENT_NAME,
+        locationId: appointmentLocationId,
+      },
+      select: { id: true },
+    });
+    patientId =
+      placeholder?.id ??
+      (
+        await prisma.patient.create({
+          data: {
+            name: RESERVATION_PATIENT_NAME,
+            locationId: appointmentLocationId,
+          },
+          select: { id: true },
+        })
+      ).id;
+  }
   if (!patientId && parsed.data.newPatient) {
     const newPatient = parsed.data.newPatient;
     const patientName = `${newPatient.firstName} ${newPatient.lastName}`
@@ -200,11 +323,19 @@ export async function POST(req: Request) {
     if (existingPatient) {
       patientId = existingPatient.id;
       if (email && !existingPatient.email) {
-        await prisma.patient.update({ where: { id: existingPatient.id }, data: { email } });
+        await prisma.patient.update({
+          where: { id: existingPatient.id },
+          data: { email },
+        });
       }
     } else {
       const createdPatient = await prisma.patient.create({
-        data: { name: patientName, phone, email, locationId: appointmentLocationId },
+        data: {
+          name: patientName,
+          phone,
+          email,
+          locationId: appointmentLocationId,
+        },
         select: { id: true },
       });
       patientId = createdPatient.id;
@@ -217,7 +348,10 @@ export async function POST(req: Request) {
     }
   }
   if (!patientId) {
-    return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, message: "Niepoprawne dane" },
+      { status: 400 },
+    );
   }
   const patientInLocation = await prisma.patient.findFirst({
     where: { id: patientId, locationId: appointmentLocationId },
@@ -225,7 +359,10 @@ export async function POST(req: Request) {
   });
   if (!patientInLocation) {
     return NextResponse.json(
-      { ok: false, message: "Wybrany pacjent jest przypisany do innej lokalizacji" },
+      {
+        ok: false,
+        message: "Wybrany pacjent jest przypisany do innej lokalizacji",
+      },
       { status: 400 },
     );
   }
@@ -235,18 +372,24 @@ export async function POST(req: Request) {
       patientId,
       specialistId: parsed.data.specialistId,
       locationId: appointmentLocationId,
-      serviceId: parsed.data.serviceId,
+      serviceId: service.id,
       startsAt,
       endsAt,
       approvalStatus: "PENDING",
       // priceEstimate przechowuje cenę standardową z chwili rezerwacji, priceFinal jej ewentualną zmianę.
       priceEstimate: standardPrice,
-      priceFinal: finalPrice,
+      priceFinal: parsed.data.reservation ? 0 : finalPrice,
+      customServiceName: parsed.data.reservation ? "REZERWACJA" : null,
       note: parsed.data.note ? parsed.data.note : null,
     },
   });
 
-  await logAudit({ actorId: user!.id, action: "CREATE", entity: "Appointment", entityId: appt.id });
+  await logAudit({
+    actorId: user!.id,
+    action: "CREATE",
+    entity: "Appointment",
+    entityId: appt.id,
+  });
 
   return NextResponse.json({ ok: true, appointment: appt });
 }
