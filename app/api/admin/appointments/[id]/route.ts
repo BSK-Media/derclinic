@@ -93,7 +93,7 @@ const PatchSchema = z.object({
 });
 
 const DeleteSchema = z.object({
-  reason: z.string().trim().min(3, "Podaj powód usunięcia wizyty").max(500),
+  reason: z.string().trim().max(500).optional().default(""),
 });
 
 export async function PATCH(
@@ -274,13 +274,12 @@ export async function DELETE(
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);
-  const parsed = DeleteSchema.safeParse(json);
+  const parsed = DeleteSchema.safeParse(json ?? {});
   if (!parsed.success) {
     return NextResponse.json(
       {
         ok: false,
-        message:
-          parsed.error.issues[0]?.message ?? "Podaj powód usunięcia wizyty",
+        message: parsed.error.issues[0]?.message ?? "Niepoprawne dane",
       },
       { status: 400 },
     );
@@ -288,7 +287,11 @@ export async function DELETE(
 
   const existing = await prisma.appointment.findFirst({
     where: { id: params.id, ...scopedLocationWhere(user!) },
-    select: { id: true, deletedAt: true },
+    select: {
+      id: true,
+      deletedAt: true,
+      service: { select: { name: true } },
+    },
   });
   if (!existing) {
     return NextResponse.json(
@@ -300,6 +303,30 @@ export async function DELETE(
     return NextResponse.json(
       { ok: false, message: "Ta wizyta znajduje się już w usuniętych" },
       { status: 409 },
+    );
+  }
+
+  const isReservation =
+    existing.service.name === "__DERCLINIC_REZERWACJA_CZASU__";
+
+  if (isReservation) {
+    await prisma.appointment.delete({ where: { id: existing.id } });
+
+    await logAudit({
+      actorId: user!.id,
+      action: "DELETE",
+      entity: "Appointment",
+      entityId: existing.id,
+      data: { permanent: true, reservation: true },
+    });
+
+    return NextResponse.json({ ok: true, permanentlyDeleted: true });
+  }
+
+  if (parsed.data.reason.length < 3) {
+    return NextResponse.json(
+      { ok: false, message: "Podaj powód usunięcia wizyty" },
+      { status: 400 },
     );
   }
 
