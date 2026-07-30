@@ -71,7 +71,7 @@ type ServiceResponse = {
 const FIELD_LABELS: Record<EditableField, string> = {
   name: "Nazwa usługi",
   category: "Kategoria",
-  categoryColor: "Kolor kategorii",
+  categoryColor: "Kolor zabiegu",
   description: "Opis usługi",
   durationMin: "Czas trwania",
   price: "Cena",
@@ -118,6 +118,17 @@ export default function ServiceDetailsPage({
   const specialists = data?.specialists ?? [];
   const products = data?.products ?? [];
   const isAdmin = data?.viewerRole === "ADMIN";
+  const categories = React.useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (data?.services ?? [])
+            .map((item) => item.category?.trim())
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ).sort((first, second) => first.localeCompare(second, "pl")),
+    [data?.services],
+  );
 
   const [confirmField, setConfirmField] = React.useState<EditableField | null>(
     null,
@@ -390,6 +401,19 @@ export default function ServiceDetailsPage({
                         rows={4}
                         className="w-full rounded-xl border border-zinc-200 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-800"
                       />
+                    ) : field === "category" ? (
+                      <Select value={draft} onValueChange={setDraft}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Wybierz kategorię" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map((category) => (
+                            <SelectItem key={category} value={category}>
+                              {category}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     ) : (
                       <Input
                         autoFocus
@@ -404,6 +428,17 @@ export default function ServiceDetailsPage({
                         onChange={(event) => setDraft(event.target.value)}
                       />
                     )}
+                    {field === "category" ? (
+                      <p className="text-xs text-zinc-500">
+                        Po zmianie kategorii zabieg otrzyma jej kolor domyślny.
+                      </p>
+                    ) : null}
+                    {field === "categoryColor" ? (
+                      <p className="text-xs text-zinc-500">
+                        Możesz pozostawić kolor kategorii albo ustawić własny
+                        kolor tylko dla tego zabiegu.
+                      </p>
+                    ) : null}
                     <div className="flex justify-end gap-2">
                       <Button
                         type="button"
