@@ -123,6 +123,28 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
   const { data, mutate, isLoading } = useSWR("/api/admin/services", fetcher);
   const services: Service[] = data?.services ?? [];
   const specialists: Specialist[] = data?.specialists ?? [];
+  const categoryColors = useMemo(() => {
+    const colors = new Map<string, string>();
+    for (const service of services) {
+      const categoryName = service.category?.trim();
+      if (categoryName && service.categoryColor && !colors.has(categoryName)) {
+        colors.set(categoryName, service.categoryColor);
+      }
+    }
+    return colors;
+  }, [services]);
+  const selectableCategories = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...SERVICE_CATEGORIES,
+          ...services
+            .map((service) => service.category?.trim())
+            .filter((value): value is string => Boolean(value)),
+        ]),
+      ),
+    [services],
+  );
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState<string>(SERVICE_CATEGORIES[0]);
@@ -133,6 +155,20 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
     [],
   );
   const [saving, setSaving] = useState(false);
+  const initialCategoryColorSet = useRef(false);
+
+  useEffect(() => {
+    if (initialCategoryColorSet.current || services.length === 0) return;
+    setCategoryColorValue(
+      categoryColors.get(category) ?? categoryColor(category),
+    );
+    initialCategoryColorSet.current = true;
+  }, [category, categoryColors, services.length]);
+
+  function selectNewServiceCategory(value: string) {
+    setCategory(value);
+    setCategoryColorValue(categoryColors.get(value) ?? categoryColor(value));
+  }
 
   function toggleNewServiceSpecialist(id: string) {
     setNewServiceSpecialists((current) =>
@@ -160,7 +196,10 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
       toast.success("Usługa dodana");
       setName("");
       setCategory(SERVICE_CATEGORIES[0]);
-      setCategoryColorValue("#8b5cf6");
+      setCategoryColorValue(
+        categoryColors.get(SERVICE_CATEGORIES[0]) ??
+          categoryColor(SERVICE_CATEGORIES[0]),
+      );
       setDurationMin("30");
       setPrice("");
       setNewServiceSpecialists([]);
@@ -323,12 +362,12 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
 
           <div className="space-y-2">
             <Label>Kategoria</Label>
-            <Select value={category} onValueChange={setCategory}>
+            <Select value={category} onValueChange={selectNewServiceCategory}>
               <SelectTrigger>
                 <SelectValue placeholder="Wybierz kategorię" />
               </SelectTrigger>
               <SelectContent>
-                {SERVICE_CATEGORIES.map((item) => (
+                {selectableCategories.map((item) => (
                   <SelectItem key={item} value={item}>
                     {item}
                   </SelectItem>
@@ -344,7 +383,7 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label>Kolor kategorii</Label>
+            <Label>Kolor zabiegu</Label>
             <div className="flex h-10 items-center gap-3 rounded-xl border px-3">
               <input
                 type="color"
@@ -356,6 +395,9 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
                 {categoryColorValue}
               </span>
             </div>
+            <p className="text-xs text-zinc-500">
+              Ustawiany z kategorii, ale możesz wybrać dowolny.
+            </p>
           </div>
           <div className="space-y-2">
             <Label>Cena (PLN)</Label>
