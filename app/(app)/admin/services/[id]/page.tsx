@@ -27,7 +27,13 @@ import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
 
 const fetcher = (url: string) => fetch(url).then((response) => response.json());
 
-type EditableField = "name" | "category" | "description" | "durationMin" | "price";
+type EditableField =
+  | "name"
+  | "category"
+  | "categoryColor"
+  | "description"
+  | "durationMin"
+  | "price";
 
 type Product = { id: string; name: string; unit: string };
 type Specialist = { id: string; name: string };
@@ -35,6 +41,7 @@ type Service = {
   id: string;
   name: string;
   category: string | null;
+  categoryColor: string | null;
   description: string | null;
   durationMin: number;
   price: number | null;
@@ -64,6 +71,7 @@ type ServiceResponse = {
 const FIELD_LABELS: Record<EditableField, string> = {
   name: "Nazwa usługi",
   category: "Kategoria",
+  categoryColor: "Kolor kategorii",
   description: "Opis usługi",
   durationMin: "Czas trwania",
   price: "Cena",
@@ -81,7 +89,9 @@ const UNIT_OPTIONS = [
 function fieldDraft(service: Service, field: EditableField) {
   const value = service[field];
   if (field === "price") {
-    return typeof value === "number" ? (value / 100).toFixed(2).replace(".", ",") : "";
+    return typeof value === "number"
+      ? (value / 100).toFixed(2).replace(".", ",")
+      : "";
   }
   return value === null ? "" : String(value);
 }
@@ -95,7 +105,11 @@ function fieldValue(service: Service, field: EditableField) {
   return value || "—";
 }
 
-export default function ServiceDetailsPage({ params }: { params: { id: string } }) {
+export default function ServiceDetailsPage({
+  params,
+}: {
+  params: { id: string };
+}) {
   const { data, error, isLoading, mutate } = useSWR<ServiceResponse>(
     "/api/admin/services",
     fetcher,
@@ -105,24 +119,40 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
   const products = data?.products ?? [];
   const isAdmin = data?.viewerRole === "ADMIN";
 
-  const [confirmField, setConfirmField] = React.useState<EditableField | null>(null);
-  const [editingField, setEditingField] = React.useState<EditableField | null>(null);
+  const [confirmField, setConfirmField] = React.useState<EditableField | null>(
+    null,
+  );
+  const [editingField, setEditingField] = React.useState<EditableField | null>(
+    null,
+  );
   const [draft, setDraft] = React.useState("");
-  const [savingField, setSavingField] = React.useState<EditableField | null>(null);
-  const [savingSpecialist, setSavingSpecialist] = React.useState<string | null>(null);
+  const [savingField, setSavingField] = React.useState<EditableField | null>(
+    null,
+  );
+  const [savingSpecialist, setSavingSpecialist] = React.useState<string | null>(
+    null,
+  );
   const [selectedProductId, setSelectedProductId] = React.useState("");
   const [productQuery, setProductQuery] = React.useState("");
   const [productSearchOpen, setProductSearchOpen] = React.useState(false);
   const [quantity, setQuantity] = React.useState("1");
   const [savingProduct, setSavingProduct] = React.useState(false);
-  const selectedProduct = products.find((product) => product.id === selectedProductId);
+  const selectedProduct = products.find(
+    (product) => product.id === selectedProductId,
+  );
   const assignedProductIds = React.useMemo(
-    () => new Set(service?.suggestedProducts.map((suggestion) => suggestion.productId) ?? []),
+    () =>
+      new Set(
+        service?.suggestedProducts.map((suggestion) => suggestion.productId) ??
+          [],
+      ),
     [service?.suggestedProducts],
   );
   const productSuggestions = React.useMemo(() => {
     const query = productQuery.trim().toLowerCase();
-    const availableProducts = products.filter((product) => !assignedProductIds.has(product.id));
+    const availableProducts = products.filter(
+      (product) => !assignedProductIds.has(product.id),
+    );
     if (query.length < 2) return availableProducts.slice(0, 8);
 
     const startsWith = availableProducts.filter((product) =>
@@ -130,7 +160,8 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
     );
     const contains = availableProducts.filter(
       (product) =>
-        !product.name.toLowerCase().startsWith(query) && product.name.toLowerCase().includes(query),
+        !product.name.toLowerCase().startsWith(query) &&
+        product.name.toLowerCase().includes(query),
     );
     return [...startsWith, ...contains].slice(0, 8);
   }, [products, assignedProductIds, productQuery]);
@@ -155,7 +186,13 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
       toast.error("Nazwa usługi musi mieć co najmniej 2 znaki.");
       return;
     }
-    if (field === "category" || field === "description") value = value || null;
+    if (
+      field === "category" ||
+      field === "description" ||
+      field === "categoryColor"
+    ) {
+      value = value || null;
+    }
     if (field === "durationMin") {
       const duration = Number(value);
       if (!Number.isInteger(duration) || duration < 5 || duration > 480) {
@@ -201,18 +238,25 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
     if (!service) return;
     setSavingSpecialist(specialistId);
     try {
-      const response = await fetch(`/api/admin/services/${service.id}/specialists`, {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ specialistId, assigned }),
-      });
+      const response = await fetch(
+        `/api/admin/services/${service.id}/specialists`,
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ specialistId, assigned }),
+        },
+      );
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result?.ok) {
         toast.error(result?.message || "Nie udało się zmienić przypisania.");
         return;
       }
       await mutate();
-      toast.success(assigned ? "Przypisano specjalistę." : "Usunięto przypisanie specjalisty.");
+      toast.success(
+        assigned
+          ? "Przypisano specjalistę."
+          : "Usunięto przypisanie specjalisty.",
+      );
     } finally {
       setSavingSpecialist(null);
     }
@@ -227,11 +271,17 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
     }
     setSavingProduct(true);
     try {
-      const response = await fetch(`/api/admin/services/${service.id}/suggestions`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ productId: selectedProductId, quantity: parsedQuantity }),
-      });
+      const response = await fetch(
+        `/api/admin/services/${service.id}/suggestions`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            productId: selectedProductId,
+            quantity: parsedQuantity,
+          }),
+        },
+      );
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result?.ok) {
         toast.error(result?.message || "Nie udało się przypisać preparatu.");
@@ -263,7 +313,8 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
     toast.success("Preparat został odłączony od usługi.");
   }
 
-  if (isLoading) return <div className="text-sm text-zinc-500">Ładowanie usługi...</div>;
+  if (isLoading)
+    return <div className="text-sm text-zinc-500">Ładowanie usługi...</div>;
   if (error || !data?.ok) {
     return (
       <div className="space-y-4">
@@ -293,6 +344,7 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
   const editableFields: EditableField[] = [
     "name",
     "category",
+    "categoryColor",
     "durationMin",
     "price",
     "description",
@@ -305,7 +357,10 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
           <div className="text-sm text-zinc-500">Karta usługi</div>
           <h1 className="text-2xl font-semibold">{service.name}</h1>
         </div>
-        <Link href="/admin/services" className="text-sm underline underline-offset-2">
+        <Link
+          href="/admin/services"
+          className="text-sm underline underline-offset-2"
+        >
           Wróć do listy usług
         </Link>
       </div>
@@ -319,7 +374,8 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
               <div
                 key={field}
                 className={
-                  "rounded-xl border p-3 " + (isDescription ? "md:col-span-2 xl:col-span-3" : "")
+                  "rounded-xl border p-3 " +
+                  (isDescription ? "md:col-span-2 xl:col-span-3" : "")
                 }
               >
                 <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
@@ -337,13 +393,24 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
                     ) : (
                       <Input
                         autoFocus
-                        type={field === "durationMin" ? "number" : "text"}
+                        type={
+                          field === "durationMin"
+                            ? "number"
+                            : field === "categoryColor"
+                              ? "color"
+                              : "text"
+                        }
                         value={draft}
                         onChange={(event) => setDraft(event.target.value)}
                       />
                     )}
                     <div className="flex justify-end gap-2">
-                      <Button type="button" variant="outline" size="sm" onClick={cancelEditing}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={cancelEditing}
+                      >
                         Anuluj
                       </Button>
                       <Button
@@ -358,7 +425,13 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
                   </div>
                 ) : (
                   <div className="mt-2 flex items-start justify-between gap-3">
-                    <div className="whitespace-pre-wrap text-sm font-medium">
+                    <div className="flex items-center gap-2 whitespace-pre-wrap text-sm font-medium">
+                      {field === "categoryColor" && service.categoryColor ? (
+                        <span
+                          className="h-5 w-5 rounded-full border"
+                          style={{ backgroundColor: service.categoryColor }}
+                        />
+                      ) : null}
                       {fieldValue(service, field)}
                     </div>
                     {isAdmin ? (
@@ -433,8 +506,9 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
             >
               <span>
                 {suggestion.product.name} • {suggestion.quantity}{" "}
-                {UNIT_OPTIONS.find((option) => option.value === suggestion.product.unit)?.label ??
-                  suggestion.product.unit}
+                {UNIT_OPTIONS.find(
+                  (option) => option.value === suggestion.product.unit,
+                )?.label ?? suggestion.product.unit}
               </span>
               {isAdmin ? (
                 <button
@@ -449,7 +523,9 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
             </div>
           ))}
           {service.suggestedProducts.length === 0 ? (
-            <span className="text-sm text-zinc-500">Brak przypisanych preparatów.</span>
+            <span className="text-sm text-zinc-500">
+              Brak przypisanych preparatów.
+            </span>
           ) : null}
         </div>
 
@@ -466,7 +542,9 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
                     setProductSearchOpen(true);
                   }}
                   onFocus={() => setProductSearchOpen(true)}
-                  onBlur={() => setTimeout(() => setProductSearchOpen(false), 150)}
+                  onBlur={() =>
+                    setTimeout(() => setProductSearchOpen(false), 150)
+                  }
                   onKeyDown={(event) => {
                     if (event.key === "Escape") setProductSearchOpen(false);
                   }}
@@ -489,8 +567,9 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
                         >
                           <div className="truncate">{product.name}</div>
                           <div className="truncate text-xs text-zinc-500">
-                            {UNIT_OPTIONS.find((option) => option.value === product.unit)?.label ??
-                              product.unit}
+                            {UNIT_OPTIONS.find(
+                              (option) => option.value === product.unit,
+                            )?.label ?? product.unit}
                           </div>
                         </button>
                       ))
@@ -505,7 +584,10 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
             </div>
             <div className="space-y-2">
               <Label>Ilość</Label>
-              <Input value={quantity} onChange={(event) => setQuantity(event.target.value)} />
+              <Input
+                value={quantity}
+                onChange={(event) => setQuantity(event.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label>Jednostka</Label>
@@ -536,16 +618,24 @@ export default function ServiceDetailsPage({ params }: { params: { id: string } 
 
       <ServicePatientsTable serviceId={service.id} />
 
-      <Dialog open={confirmField !== null} onOpenChange={(open) => !open && setConfirmField(null)}>
+      <Dialog
+        open={confirmField !== null}
+        onOpenChange={(open) => !open && setConfirmField(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Czy na pewno chcesz edytować?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-zinc-600 dark:text-zinc-300">
-            Zamierzasz zmienić pole „{confirmField ? FIELD_LABELS[confirmField] : ""}”.
+            Zamierzasz zmienić pole „
+            {confirmField ? FIELD_LABELS[confirmField] : ""}”.
           </p>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setConfirmField(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmField(null)}
+            >
               Anuluj
             </Button>
             <Button type="button" onClick={beginEditing}>
