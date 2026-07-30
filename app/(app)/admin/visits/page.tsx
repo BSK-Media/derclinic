@@ -6,6 +6,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,7 +35,10 @@ import {
   RejectReasonDialog,
 } from "@/components/appointment-approval";
 import { toast } from "sonner";
-import { AppointmentCalendar, startOfGrid } from "@/components/appointment-calendar";
+import {
+  AppointmentCalendar,
+  startOfGrid,
+} from "@/components/appointment-calendar";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -47,7 +58,9 @@ type AdminVisitsPageProps = {
   };
 };
 
-export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) {
+export default function AdminVisitsPage({
+  searchParams,
+}: AdminVisitsPageProps) {
   const router = useRouter();
   const requestedView = Array.isArray(searchParams?.view)
     ? searchParams?.view[0]
@@ -55,12 +68,20 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
   // Domyślnym widokiem po wejściu w "Wizyty" (admin i recepcja) jest kalendarz.
   // Lista i usunięte wizyty pozostają dostępne po jawnym wybraniu (?view=list / ?view=deleted).
   const normalizedRequestedView =
-    requestedView === "list" || requestedView === "deleted" ? requestedView : "calendar";
-  const [view, setView] = React.useState<"list" | "calendar" | "deleted">(normalizedRequestedView);
+    requestedView === "list" || requestedView === "deleted"
+      ? requestedView
+      : "calendar";
+  const [view, setView] = React.useState<"list" | "calendar" | "deleted">(
+    normalizedRequestedView,
+  );
   const [anchor, setAnchor] = React.useState(() => new Date());
 
   React.useEffect(() => {
-    setView(requestedView === "list" || requestedView === "deleted" ? requestedView : "calendar");
+    setView(
+      requestedView === "list" || requestedView === "deleted"
+        ? requestedView
+        : "calendar",
+    );
   }, [requestedView]);
 
   const changeView = React.useCallback(
@@ -84,9 +105,12 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
   const [from, setFrom] = React.useState(toDateInput(fromDefault));
   const [to, setTo] = React.useState(toDateInput(toDefault));
   const [search, setSearch] = React.useState("");
-  const [specialistFilter, setSpecialistFilter] = React.useState<string>(ALL_SPECIALISTS);
+  const [specialistFilter, setSpecialistFilter] =
+    React.useState<string>(ALL_SPECIALISTS);
   // Filtr usług — wielokrotny wybór. Pusty zbiór oznacza "Wszystkie usługi".
-  const [serviceFilter, setServiceFilter] = React.useState<Set<string>>(new Set());
+  const [serviceFilter, setServiceFilter] = React.useState<Set<string>>(
+    new Set(),
+  );
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [defaultDate, setDefaultDate] = React.useState<Date | null>(null);
@@ -94,6 +118,16 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
   const [rejectTarget, setRejectTarget] = React.useState<any | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<any | null>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [reservationOpen, setReservationOpen] = React.useState(false);
+  const [reservationSpecialistId, setReservationSpecialistId] =
+    React.useState("");
+  const [reservationDate, setReservationDate] = React.useState(
+    toDateInput(new Date()),
+  );
+  const [reservationStart, setReservationStart] = React.useState("09:00");
+  const [reservationEnd, setReservationEnd] = React.useState("09:30");
+  const [reservationNote, setReservationNote] = React.useState("");
+  const [savingReservation, setSavingReservation] = React.useState(false);
 
   // Zakres danych dla widoku kalendarza (siatka 6 tygodni)
   const calendarRange = React.useMemo(() => {
@@ -121,13 +155,17 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
   // Filtr po specjaliście — wspólny dla listy i kalendarza
   const bySpecialist = React.useMemo(() => {
     if (specialistFilter === ALL_SPECIALISTS) return appointments;
-    return appointments.filter((a: any) => a.specialist?.id === specialistFilter);
+    return appointments.filter(
+      (a: any) => a.specialist?.id === specialistFilter,
+    );
   }, [appointments, specialistFilter]);
 
   // Filtr po usługach — wielokrotny wybór, wspólny dla listy i kalendarza
   const byService = React.useMemo(() => {
     if (serviceFilter.size === 0) return bySpecialist;
-    return bySpecialist.filter((a: any) => a.service?.id && serviceFilter.has(a.service.id));
+    return bySpecialist.filter(
+      (a: any) => a.service?.id && serviceFilter.has(a.service.id),
+    );
   }, [bySpecialist, serviceFilter]);
 
   function toggleServiceFilter(id: string) {
@@ -143,7 +181,11 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
     const q = search.trim().toLowerCase();
     if (!q) return byService;
     return byService.filter((a: any) => {
-      const serviceName = (a.customServiceName || a.service?.name || "").toLowerCase();
+      const serviceName = (
+        a.customServiceName ||
+        a.service?.name ||
+        ""
+      ).toLowerCase();
       return (
         a.patient?.name?.toLowerCase().includes(q) ||
         a.specialist?.name?.toLowerCase().includes(q) ||
@@ -167,7 +209,11 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
     });
   }
 
-  async function decide(id: string, action: "APPROVE" | "REJECT", reason?: string) {
+  async function decide(
+    id: string,
+    action: "APPROVE" | "REJECT",
+    reason?: string,
+  ) {
     setDecidingId(id);
     try {
       const res = await fetch(`/api/admin/appointments/${id}/approve`, {
@@ -180,7 +226,9 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
         toast.error(out?.message || "Nie udało się zapisać decyzji");
         return false;
       }
-      toast.success(action === "APPROVE" ? "Wizyta zaakceptowana" : "Wizyta odrzucona");
+      toast.success(
+        action === "APPROVE" ? "Wizyta zaakceptowana" : "Wizyta odrzucona",
+      );
       mutate();
       return true;
     } finally {
@@ -230,6 +278,109 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
   function openAdd(date?: Date) {
     setDefaultDate(date ?? null);
     setDialogOpen(true);
+  }
+
+  function openReservation(date?: Date) {
+    const value = date ?? anchor;
+    setReservationDate(toDateInput(value));
+    setReservationStart(
+      `${String(value.getHours() || 9).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`,
+    );
+    const startForEnd = new Date(value);
+    startForEnd.setHours(value.getHours() || 9, value.getMinutes(), 0, 0);
+    const end = new Date(+startForEnd + 30 * 60_000);
+    setReservationEnd(
+      `${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`,
+    );
+    setReservationSpecialistId(
+      specialistFilter !== ALL_SPECIALISTS
+        ? specialistFilter
+        : (specialists[0]?.id ?? ""),
+    );
+    setReservationOpen(true);
+  }
+
+  async function createTimeReservation() {
+    const specialist = bookingSpecialists.find(
+      (item: any) => item.id === reservationSpecialistId,
+    );
+    if (!specialist) return toast.error("Wybierz specjalistę.");
+    const startsAt = new Date(`${reservationDate}T${reservationStart}:00`);
+    const endsAt = new Date(`${reservationDate}T${reservationEnd}:00`);
+    const durationMin = Math.round((+endsAt - +startsAt) / 60_000);
+    if (durationMin < 5)
+      return toast.error("Godzina zakończenia musi być późniejsza.");
+    setSavingReservation(true);
+    try {
+      const response = await fetch("/api/admin/appointments", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          reservation: true,
+          specialistId: specialist.id,
+          locationId: specialist.locationId,
+          startsAt: startsAt.toISOString(),
+          durationMin,
+          note: reservationNote,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.ok) {
+        toast.error(result?.message || "Nie udało się zarezerwować czasu.");
+        return;
+      }
+      setReservationOpen(false);
+      setReservationNote("");
+      await mutate();
+      toast.success("Czas został zarezerwowany.");
+    } finally {
+      setSavingReservation(false);
+    }
+  }
+
+  async function moveAppointment(
+    appointment: any,
+    startsAt: Date,
+    endsAt: Date,
+    specialistId?: string,
+  ) {
+    const previous = appointments;
+    mutate(
+      {
+        ...data,
+        appointments: appointments.map((item: any) =>
+          item.id === appointment.id
+            ? {
+                ...item,
+                startsAt: startsAt.toISOString(),
+                endsAt: endsAt.toISOString(),
+                specialist:
+                  specialists.find(
+                    (specialist: any) => specialist.id === specialistId,
+                  ) ?? item.specialist,
+              }
+            : item,
+        ),
+      },
+      false,
+    );
+    const response = await fetch(`/api/admin/appointments/${appointment.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString(),
+        specialistId,
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result?.ok) {
+      mutate({ ...data, appointments: previous }, false);
+      toast.error(result?.message || "Nie udało się przesunąć wizyty.");
+      return;
+    }
+    await mutate();
+    toast.success("Termin wizyty został zmieniony.");
   }
 
   return (
@@ -283,7 +434,9 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
               <SelectValue placeholder="Specjalista" />
             </SelectTrigger>
             <SelectContent className="admin-visits-specialist-menu">
-              <SelectItem value={ALL_SPECIALISTS}>Wszyscy specjaliści</SelectItem>
+              <SelectItem value={ALL_SPECIALISTS}>
+                Wszyscy specjaliści
+              </SelectItem>
               {specialists.map((s: any) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.name}
@@ -382,7 +535,14 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
         ) : (
           <div className="flex-1" />
         )}
-        {view !== "deleted" ? <Button onClick={() => openAdd()}>Dodaj rezerwację</Button> : null}
+        {view !== "deleted" ? (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => openReservation()}>
+              Zarezerwuj czas
+            </Button>
+            <Button onClick={() => openAdd()}>Dodaj wizytę</Button>
+          </div>
+        ) : null}
       </div>
 
       {view === "calendar" ? (
@@ -390,17 +550,25 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
           anchor={anchor}
           onAnchorChange={setAnchor}
           appointments={byService}
+          specialists={
+            specialistFilter === ALL_SPECIALISTS
+              ? specialists
+              : specialists.filter(
+                  (specialist: any) => specialist.id === specialistFilter,
+                )
+          }
           isLoading={isLoading}
           onAdd={openAdd}
           showAddButton={false}
           onOpenAppointment={(id) => router.push(`/admin/appointments/${id}`)}
+          onMoveAppointment={moveAppointment}
           showSpecialist={specialistFilter === ALL_SPECIALISTS}
         />
       ) : view === "deleted" ? (
         <div className="overflow-hidden rounded-2xl border bg-white shadow-sm dark:bg-zinc-950">
           <div className="border-b px-4 py-3 text-sm text-zinc-500">
-            W tym miejscu przechowywane są wizyty usunięte przez administratora lub recepcję. Dane
-            wizyty pozostają zachowane w systemie.
+            W tym miejscu przechowywane są wizyty usunięte przez administratora
+            lub recepcję. Dane wizyty pozostają zachowane w systemie.
           </div>
           <div className="overflow-auto">
             <table className="w-full text-sm">
@@ -426,22 +594,35 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                   </tr>
                 ) : null}
                 {filtered.map((a: any) => (
-                  <tr key={a.id} className="border-t bg-zinc-50/70 dark:bg-white/[0.03]">
-                    <td className="p-3">{new Date(a.startsAt).toLocaleDateString("pl-PL")}</td>
+                  <tr
+                    key={a.id}
+                    className="border-t bg-zinc-50/70 dark:bg-white/[0.03]"
+                  >
+                    <td className="p-3">
+                      {new Date(a.startsAt).toLocaleDateString("pl-PL")}
+                    </td>
                     <td className="p-3">
                       {new Date(a.startsAt).toLocaleTimeString("pl-PL", {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
                     </td>
-                    <td className="p-3 font-medium">{a.patient?.name ?? "—"}</td>
+                    <td className="p-3 font-medium">
+                      {a.patient?.name ?? "—"}
+                    </td>
                     <td className="p-3">{a.specialist?.name ?? "—"}</td>
-                    <td className="p-3">{a.customServiceName || a.service?.name || "—"}</td>
+                    <td className="p-3">
+                      {a.customServiceName || a.service?.name || "—"}
+                    </td>
                     <td className="p-3">{appointmentStatusLabel(a.status)}</td>
                     <td className="p-3">
-                      {a.deletedAt ? new Date(a.deletedAt).toLocaleString("pl-PL") : "—"}
+                      {a.deletedAt
+                        ? new Date(a.deletedAt).toLocaleString("pl-PL")
+                        : "—"}
                     </td>
-                    <td className="p-3">{a.deletedBy?.name || a.deletedBy?.login || "—"}</td>
+                    <td className="p-3">
+                      {a.deletedBy?.name || a.deletedBy?.login || "—"}
+                    </td>
                     <td className="whitespace-pre-wrap p-3 text-zinc-700 dark:text-zinc-200">
                       {a.deletionReason || "—"}
                     </td>
@@ -460,7 +641,9 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                   <th className="w-10 p-3">
                     <input
                       type="checkbox"
-                      checked={filtered.length > 0 && selected.size === filtered.length}
+                      checked={
+                        filtered.length > 0 && selected.size === filtered.length
+                      }
                       onChange={toggleAll}
                     />
                   </th>
@@ -486,7 +669,8 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                   </tr>
                 )}
                 {filtered.map((a: any, index: number) => {
-                  const isHistorical = toDateInput(new Date(a.startsAt)) < toDateInput(today);
+                  const isHistorical =
+                    toDateInput(new Date(a.startsAt)) < toDateInput(today);
                   return (
                     <tr
                       key={a.id}
@@ -504,8 +688,12 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                           onChange={() => toggleOne(a.id)}
                         />
                       </td>
-                      <td className="p-3 text-zinc-500">{filtered.length - index}</td>
-                      <td className="p-3">{new Date(a.startsAt).toLocaleDateString("pl-PL")}</td>
+                      <td className="p-3 text-zinc-500">
+                        {filtered.length - index}
+                      </td>
+                      <td className="p-3">
+                        {new Date(a.startsAt).toLocaleDateString("pl-PL")}
+                      </td>
                       <td className="p-3">
                         {new Date(a.startsAt).toLocaleTimeString("pl-PL", {
                           hour: "2-digit",
@@ -548,12 +736,19 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                           a.customServiceName || a.service?.name
                         )}
                       </td>
-                      <td className="p-3 text-zinc-500">Pojedyncza rezerwacja</td>
-                      <td className="p-3">{appointmentStatusLabel(a.status)}</td>
+                      <td className="p-3 text-zinc-500">
+                        Pojedyncza rezerwacja
+                      </td>
+                      <td className="p-3">
+                        {appointmentStatusLabel(a.status)}
+                      </td>
                       <td className="p-3">
                         {a.status === "COMPLETED" ? (
                           <div className="flex flex-wrap items-center gap-2">
-                            <ApprovalBadge status={a.approvalStatus} reason={a.rejectionReason} />
+                            <ApprovalBadge
+                              status={a.approvalStatus}
+                              reason={a.rejectionReason}
+                            />
                             {a.approvalStatus === "PENDING" ? (
                               <div className="flex items-center gap-1">
                                 <Button
@@ -596,10 +791,14 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem asChild>
-                              <Link href={`/admin/appointments/${a.id}`}>Szczegóły</Link>
+                              <Link href={`/admin/appointments/${a.id}`}>
+                                Szczegóły
+                              </Link>
                             </DropdownMenuItem>
                             {a.status === "SCHEDULED" && (
-                              <DropdownMenuItem onSelect={() => cancelAppointment(a.id)}>
+                              <DropdownMenuItem
+                                onSelect={() => cancelAppointment(a.id)}
+                              >
                                 Anuluj wizytę
                               </DropdownMenuItem>
                             )}
@@ -637,7 +836,9 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                 hour: "2-digit",
                 minute: "2-digit",
               })} • ${rejectTarget.patient?.name ?? ""} • ${
-                rejectTarget.customServiceName || rejectTarget.service?.name || ""
+                rejectTarget.customServiceName ||
+                rejectTarget.service?.name ||
+                ""
               }`
             : null
         }
@@ -659,7 +860,9 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
                 hour: "2-digit",
                 minute: "2-digit",
               })} • ${deleteTarget.patient?.name ?? ""} • ${
-                deleteTarget.customServiceName || deleteTarget.service?.name || ""
+                deleteTarget.customServiceName ||
+                deleteTarget.service?.name ||
+                ""
               }`
             : null
         }
@@ -674,6 +877,81 @@ export default function AdminVisitsPage({ searchParams }: AdminVisitsPageProps) 
         defaultDate={defaultDate}
         onCreated={() => mutate()}
       />
+
+      <Dialog open={reservationOpen} onOpenChange={setReservationOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Zarezerwuj czas</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2">
+              <Label>Specjalista</Label>
+              <Select
+                value={reservationSpecialistId}
+                onValueChange={setReservationSpecialistId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Wybierz specjalistę" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bookingSpecialists.map((specialist: any) => (
+                    <SelectItem key={specialist.id} value={specialist.id}>
+                      {specialist.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Data</Label>
+                <Input
+                  type="date"
+                  value={reservationDate}
+                  onChange={(event) => setReservationDate(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Od</Label>
+                <Input
+                  type="time"
+                  step={300}
+                  value={reservationStart}
+                  onChange={(event) => setReservationStart(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Do</Label>
+                <Input
+                  type="time"
+                  step={300}
+                  value={reservationEnd}
+                  onChange={(event) => setReservationEnd(event.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Notatka (opcjonalnie)</Label>
+              <Input
+                value={reservationNote}
+                onChange={(event) => setReservationNote(event.target.value)}
+                placeholder="np. przerwa, szkolenie, rezerwacja prywatna"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReservationOpen(false)}>
+              Anuluj
+            </Button>
+            <Button
+              onClick={createTimeReservation}
+              disabled={savingReservation}
+            >
+              {savingReservation ? "Zapisywanie..." : "Zarezerwuj"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <style jsx global>{`
         .admin-visits-specialist-menu.admin-visits-specialist-menu {
