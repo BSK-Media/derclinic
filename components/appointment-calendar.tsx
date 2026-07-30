@@ -203,7 +203,7 @@ export function AppointmentCalendar({
   onAnchorChange: (d: Date) => void;
   appointments: CalendarAppointment[];
   isLoading?: boolean;
-  onAdd?: (date?: Date) => void;
+  onAdd?: (date?: Date, specialistId?: string) => void;
   onOpenAppointment: (id: string) => void;
   onMoveAppointment?: (
     appointment: CalendarAppointment,
@@ -994,7 +994,7 @@ export function AppointmentCalendar({
                           ? () => {
                               const slot = new Date(day);
                               slot.setHours(hour, 0, 0, 0);
-                              onAdd(slot);
+                              onAdd(slot, specialist.id);
                             }
                           : undefined
                       }
@@ -1227,7 +1227,12 @@ export function AppointmentCalendar({
                   ? () => {
                       const slot = new Date(day);
                       slot.setHours(hour, 0, 0, 0);
-                      onAdd(slot);
+                      onAdd(
+                        slot,
+                        specialists.length === 1
+                          ? specialists[0]?.id
+                          : undefined,
+                      );
                     }
                   : undefined
               }
