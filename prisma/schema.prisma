@@ -152,10 +152,11 @@ model Service {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  name        String
-  category    String?
-  description String?
-  durationMin Int     @default(30)
+  name          String
+  category      String?
+  categoryColor String?
+  description   String?
+  durationMin   Int     @default(30)
 
   // Jedna obowiązująca cena usługi (grosze). Pole korzysta z istniejącej
   // kolumny priceSuggested, aby zachować dane podczas wdrożenia.
