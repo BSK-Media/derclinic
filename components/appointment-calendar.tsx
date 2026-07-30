@@ -134,6 +134,14 @@ type PositionedEvent = {
   cols: number;
 };
 
+type AppointmentResizeState = {
+  appointment: CalendarAppointment;
+  pointerId: number;
+  startClientY: number;
+  originalEndMs: number;
+  previewEndMs: number;
+};
+
 // Układa nakładające się wizyty w kolumnach obok siebie (jak w Amelii)
 function layoutOverlaps(list: CalendarAppointment[]): PositionedEvent[] {
   const sorted = [...list].sort(
@@ -219,6 +227,10 @@ export function AppointmentCalendar({
   const [draggedAppointmentId, setDraggedAppointmentId] = React.useState<
     string | null
   >(null);
+  const [resizeState, setResizeState] =
+    React.useState<AppointmentResizeState | null>(null);
+  const resizeStateRef = React.useRef<AppointmentResizeState | null>(null);
+  const suppressAppointmentClickRef = React.useRef<string | null>(null);
   const gridStart = React.useMemo(() => startOfGrid(anchor), [anchor]);
   const gridEnd = React.useMemo(() => endOfGrid(anchor), [anchor]);
 
@@ -239,6 +251,101 @@ export function AppointmentCalendar({
     },
     [],
   );
+
+  React.useEffect(() => {
+    function handleResizeMove(event: PointerEvent) {
+      const current = resizeStateRef.current;
+      if (!current || event.pointerId !== current.pointerId) return;
+      event.preventDefault();
+
+      const deltaMinutes =
+        Math.round(
+          (((event.clientY - current.startClientY) / HOUR_HEIGHT) * 60) / 5,
+        ) * 5;
+      const startsAtMs = +new Date(current.appointment.startsAt);
+      const startOfAppointmentDay = startOfDay(
+        new Date(current.appointment.startsAt),
+      );
+      const endOfAppointmentDayMs =
+        +startOfAppointmentDay + 24 * 60 * 60_000;
+      const previewEndMs = Math.min(
+        endOfAppointmentDayMs,
+        Math.max(
+          startsAtMs + 5 * 60_000,
+          current.originalEndMs + deltaMinutes * 60_000,
+        ),
+      );
+      const next = { ...current, previewEndMs };
+      resizeStateRef.current = next;
+      setResizeState(next);
+    }
+
+    function finishResize(event: PointerEvent, save: boolean) {
+      const current = resizeStateRef.current;
+      if (!current || event.pointerId !== current.pointerId) return;
+      event.preventDefault();
+
+      resizeStateRef.current = null;
+      setResizeState(null);
+      suppressAppointmentClickRef.current = current.appointment.id;
+      window.setTimeout(() => {
+        if (suppressAppointmentClickRef.current === current.appointment.id) {
+          suppressAppointmentClickRef.current = null;
+        }
+      }, 0);
+
+      if (save && onMoveAppointment) {
+        void onMoveAppointment(
+          current.appointment,
+          new Date(current.appointment.startsAt),
+          new Date(current.previewEndMs),
+          current.appointment.specialist?.id,
+        );
+      }
+    }
+
+    function handleResizeEnd(event: PointerEvent) {
+      finishResize(event, true);
+    }
+
+    function handleResizeCancel(event: PointerEvent) {
+      finishResize(event, false);
+    }
+
+    window.addEventListener("pointermove", handleResizeMove, {
+      passive: false,
+    });
+    window.addEventListener("pointerup", handleResizeEnd, { passive: false });
+    window.addEventListener("pointercancel", handleResizeCancel, {
+      passive: false,
+    });
+    return () => {
+      window.removeEventListener("pointermove", handleResizeMove);
+      window.removeEventListener("pointerup", handleResizeEnd);
+      window.removeEventListener("pointercancel", handleResizeCancel);
+    };
+  }, [onMoveAppointment]);
+
+  function beginAppointmentResize(
+    event: React.PointerEvent<HTMLElement>,
+    appointment: CalendarAppointment,
+  ) {
+    if (!onMoveAppointment) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setDraggedAppointmentId(null);
+    suppressAppointmentClickRef.current = appointment.id;
+
+    const state: AppointmentResizeState = {
+      appointment,
+      pointerId: event.pointerId,
+      startClientY: event.clientY,
+      originalEndMs: +new Date(appointment.endsAt),
+      previewEndMs: +new Date(appointment.endsAt),
+    };
+    resizeStateRef.current = state;
+    setResizeState(state);
+  }
 
   const weeks = React.useMemo(() => {
     const cells: Date[] = [];
@@ -948,7 +1055,13 @@ export function AppointmentCalendar({
 
                   {positioned.map(({ appointment, col, cols }) => {
                     const start = new Date(appointment.startsAt);
-                    const end = new Date(appointment.endsAt);
+                    const isResizing =
+                      resizeState?.appointment.id === appointment.id;
+                    const end = new Date(
+                      isResizing
+                        ? resizeState.previewEndMs
+                        : appointment.endsAt,
+                    );
                     const top =
                       (((start.getHours() - hourRange.startHour) * 60 +
                         start.getMinutes()) /
@@ -976,6 +1089,13 @@ export function AppointmentCalendar({
                         type="button"
                         draggable={Boolean(onMoveAppointment)}
                         onDragStart={(event) => {
+                          if (
+                            resizeStateRef.current?.appointment.id ===
+                            appointment.id
+                          ) {
+                            event.preventDefault();
+                            return;
+                          }
                           setDraggedAppointmentId(appointment.id);
                           event.dataTransfer.effectAllowed = "move";
                           event.dataTransfer.setData(
@@ -986,10 +1106,17 @@ export function AppointmentCalendar({
                         onDragEnd={() => setDraggedAppointmentId(null)}
                         onClick={(event) => {
                           event.stopPropagation();
+                          if (
+                            suppressAppointmentClickRef.current ===
+                            appointment.id
+                          ) {
+                            suppressAppointmentClickRef.current = null;
+                            return;
+                          }
                           if (!appointment.isReservation)
                             onOpenAppointment(appointment.id);
                         }}
-                        className="absolute z-10 cursor-grab overflow-hidden rounded-lg border-l-4 px-2 py-1 text-left text-[11px] leading-tight shadow-sm transition hover:brightness-[.98] active:cursor-grabbing"
+                        className="group absolute z-10 cursor-grab overflow-hidden rounded-lg border-l-4 px-2 py-1 pb-2 text-left text-[11px] leading-tight shadow-sm transition hover:brightness-[.98] active:cursor-grabbing"
                         style={{
                           top,
                           height,
@@ -1002,8 +1129,9 @@ export function AppointmentCalendar({
                           color: color.text,
                           opacity:
                             draggedAppointmentId === appointment.id ? 0.55 : 1,
+                          userSelect: isResizing ? "none" : undefined,
                         }}
-                        title="Przeciągnij, aby zmienić godzinę lub specjalistę"
+                        title="Przeciągnij kafelek, aby zmienić godzinę lub specjalistę. Przeciągnij dolny uchwyt, aby zmienić długość."
                       >
                         <div className="font-semibold">{time}</div>
                         <div className="truncate font-semibold">
@@ -1016,6 +1144,28 @@ export function AppointmentCalendar({
                           <div className="truncate">
                             {appointment.patient.name}
                           </div>
+                        ) : null}
+                        {onMoveAppointment ? (
+                          <span
+                            role="slider"
+                            aria-label="Zmień długość wizyty"
+                            aria-valuemin={5}
+                            aria-valuenow={Math.round(
+                              (+end - +start) / 60_000,
+                            )}
+                            draggable={false}
+                            onPointerDown={(event) =>
+                              beginAppointmentResize(event, appointment)
+                            }
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                            }}
+                            className="absolute inset-x-0 bottom-0 flex h-2.5 cursor-ns-resize touch-none items-center justify-center bg-black/[0.03] opacity-70 transition-opacity hover:bg-black/[0.08] hover:opacity-100 group-hover:opacity-100"
+                            title="Przeciągnij, aby wydłużyć lub skrócić wizytę"
+                          >
+                            <span className="h-0.5 w-8 rounded-full bg-current opacity-50" />
+                          </span>
                         ) : null}
                       </button>
                     );
