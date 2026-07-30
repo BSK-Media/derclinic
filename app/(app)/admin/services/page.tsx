@@ -74,12 +74,31 @@ const CATEGORY_ORDER = [
 
 const ALL_CATEGORIES = "__all__";
 const ALL_SPECIALISTS = "__all_specialists__";
+const CATEGORY_COLORS = [
+  "#8b5cf6",
+  "#3b82f6",
+  "#22c55e",
+  "#f59e0b",
+  "#ec4899",
+  "#06b6d4",
+  "#f97316",
+] as const;
+
+function categoryColor(category?: string | null) {
+  const value = category?.trim() || "Bez kategorii";
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return CATEGORY_COLORS[hash % CATEGORY_COLORS.length];
+}
 
 type Specialist = { id: string; name: string };
 type Service = {
   id: string;
   name: string;
   category?: string | null;
+  categoryColor?: string | null;
   description?: string | null;
   durationMin: number;
   price?: number | null;
@@ -107,9 +126,12 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState<string>(SERVICE_CATEGORIES[0]);
+  const [categoryColorValue, setCategoryColorValue] = useState("#8b5cf6");
   const [durationMin, setDurationMin] = useState("30");
   const [price, setPrice] = useState("");
-  const [newServiceSpecialists, setNewServiceSpecialists] = useState<string[]>([]);
+  const [newServiceSpecialists, setNewServiceSpecialists] = useState<string[]>(
+    [],
+  );
   const [saving, setSaving] = useState(false);
 
   function toggleNewServiceSpecialist(id: string) {
@@ -127,6 +149,7 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
         body: JSON.stringify({
           name,
           category,
+          categoryColor: categoryColorValue,
           durationMin: Number(durationMin),
           price: price ? parsePLNToGrosze(price) : null,
           specialistIds: newServiceSpecialists,
@@ -137,6 +160,7 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
       toast.success("Usługa dodana");
       setName("");
       setCategory(SERVICE_CATEGORIES[0]);
+      setCategoryColorValue("#8b5cf6");
       setDurationMin("30");
       setPrice("");
       setNewServiceSpecialists([]);
@@ -159,9 +183,13 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
   const suggestions = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (q.length < 2) return [];
-    const startsWith = services.filter((sv) => sv.name.toLowerCase().startsWith(q));
+    const startsWith = services.filter((sv) =>
+      sv.name.toLowerCase().startsWith(q),
+    );
     const contains = services.filter(
-      (sv) => !sv.name.toLowerCase().startsWith(q) && sv.name.toLowerCase().includes(q),
+      (sv) =>
+        !sv.name.toLowerCase().startsWith(q) &&
+        sv.name.toLowerCase().includes(q),
     );
     return [...startsWith, ...contains].slice(0, 8);
   }, [services, query]);
@@ -173,7 +201,8 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
   }
 
   useEffect(() => {
-    if (!requestedServiceId || handledServiceId.current === requestedServiceId) return;
+    if (!requestedServiceId || handledServiceId.current === requestedServiceId)
+      return;
     const service = services.find((item) => item.id === requestedServiceId);
     if (!service) return;
 
@@ -210,7 +239,8 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
     return [...counts.entries()]
       .map(([name, count]) => ({ name, count }))
       .sort((first, second) => {
-        const orderDifference = orderIndex(first.name) - orderIndex(second.name);
+        const orderDifference =
+          orderIndex(first.name) - orderIndex(second.name);
         return orderDifference !== 0
           ? orderDifference
           : first.name.localeCompare(second.name, "pl");
@@ -230,7 +260,10 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
     return services
       .filter((service) => {
         const serviceCategory = service.category?.trim() || "Bez kategorii";
-        if (selectedCategory !== ALL_CATEGORIES && serviceCategory !== selectedCategory) {
+        if (
+          selectedCategory !== ALL_CATEGORIES &&
+          serviceCategory !== selectedCategory
+        ) {
           return false;
         }
         if (
@@ -264,7 +297,9 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Usługi i zabiegi</h1>
-          <div className="mt-1 text-sm text-zinc-500 sm:hidden">{services.length} usług</div>
+          <div className="mt-1 text-sm text-zinc-500 sm:hidden">
+            {services.length} usług
+          </div>
         </div>
         <Button
           type="button"
@@ -276,7 +311,9 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
         </Button>
       </div>
 
-      <Card className={`${mobileCreateOpen ? "block" : "hidden"} space-y-4 p-4 sm:block`}>
+      <Card
+        className={`${mobileCreateOpen ? "block" : "hidden"} space-y-4 p-4 sm:block`}
+      >
         <div className="font-medium">Dodaj usługę</div>
         <div className="grid gap-3 md:grid-cols-4">
           <div className="space-y-2 md:col-span-2">
@@ -301,11 +338,32 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
           </div>
           <div className="space-y-2">
             <Label>Czas trwania (min)</Label>
-            <Input value={durationMin} onChange={(e) => setDurationMin(e.target.value)} />
+            <Input
+              value={durationMin}
+              onChange={(e) => setDurationMin(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Kolor kategorii</Label>
+            <div className="flex h-10 items-center gap-3 rounded-xl border px-3">
+              <input
+                type="color"
+                value={categoryColorValue}
+                onChange={(event) => setCategoryColorValue(event.target.value)}
+                className="h-7 w-10 cursor-pointer border-0 bg-transparent p-0"
+              />
+              <span className="text-xs uppercase text-zinc-500">
+                {categoryColorValue}
+              </span>
+            </div>
           </div>
           <div className="space-y-2">
             <Label>Cena (PLN)</Label>
-            <Input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="np. 800" />
+            <Input
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="np. 800"
+            />
           </div>
         </div>
         {isAdmin ? (
@@ -332,11 +390,14 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
                 );
               })}
               {specialists.length === 0 ? (
-                <span className="text-xs text-zinc-500">Brak specjalistów.</span>
+                <span className="text-xs text-zinc-500">
+                  Brak specjalistów.
+                </span>
               ) : null}
             </div>
             <div className="text-xs text-zinc-500">
-              Usługa będzie widoczna na liście zabiegów tylko u przypisanych specjalistów.
+              Usługa będzie widoczna na liście zabiegów tylko u przypisanych
+              specjalistów.
             </div>
           </div>
         ) : null}
@@ -367,7 +428,10 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
           <Card className="space-y-4 p-4">
             <div className="space-y-2">
               <Label>Kategoria</Label>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <Select
+                value={selectedCategory}
+                onValueChange={setSelectedCategory}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -392,7 +456,10 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
             </div>
             <div className="space-y-2">
               <Label>Specjalista</Label>
-              <Select value={selectedSpecialist} onValueChange={setSelectedSpecialist}>
+              <Select
+                value={selectedSpecialist}
+                onValueChange={setSelectedSpecialist}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -428,7 +495,11 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
               >
                 Wyczyść filtry
               </Button>
-              <Button type="button" size="sm" onClick={() => setMobileFiltersOpen(false)}>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setMobileFiltersOpen(false)}
+              >
                 Pokaż wyniki
               </Button>
             </div>
@@ -437,7 +508,9 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
 
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">
-            <div className="truncate text-lg font-semibold">{selectedCategoryLabel}</div>
+            <div className="truncate text-lg font-semibold">
+              {selectedCategoryLabel}
+            </div>
             <div className="mt-0.5 text-xs text-zinc-500">
               {visibleServices.length}{" "}
               {visibleServices.length === 1
@@ -449,7 +522,11 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
           </div>
           {selectedSpecialist !== ALL_SPECIALISTS ? (
             <div className="max-w-[45%] truncate rounded-full border bg-white px-2.5 py-1 text-xs text-zinc-600 dark:bg-zinc-950 dark:text-zinc-300">
-              {specialists.find((specialist) => specialist.id === selectedSpecialist)?.name}
+              {
+                specialists.find(
+                  (specialist) => specialist.id === selectedSpecialist,
+                )?.name
+              }
             </div>
           ) : null}
         </div>
@@ -473,8 +550,17 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
                     <div className="font-semibold leading-5 text-zinc-900 dark:text-zinc-100">
                       {service.name}
                     </div>
-                    <div className="mt-1 text-xs text-zinc-500">
-                      {service.category || "Bez kategorii"} • {service.durationMin} min
+                    <div className="mt-1 flex items-center gap-1.5 text-xs text-zinc-500">
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{
+                          backgroundColor:
+                            service.categoryColor ||
+                            categoryColor(service.category),
+                        }}
+                      />
+                      {service.category || "Bez kategorii"} •{" "}
+                      {service.durationMin} min
                     </div>
                   </div>
                   <div className="shrink-0 whitespace-nowrap font-semibold">
@@ -485,17 +571,21 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
                 <div className="mt-3 flex items-end justify-between gap-3">
                   <div className="flex min-w-0 flex-wrap gap-1.5">
                     {service.suggestedProducts.length === 0 ? (
-                      <span className="text-xs text-zinc-400">Brak przypisanych preparatów</span>
+                      <span className="text-xs text-zinc-400">
+                        Brak przypisanych preparatów
+                      </span>
                     ) : (
                       <>
-                        {service.suggestedProducts.slice(0, 2).map((suggestion) => (
-                          <span
-                            key={suggestion.id}
-                            className="max-w-44 truncate rounded-lg bg-zinc-100 px-2.5 py-1 text-xs text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
-                          >
-                            {suggestion.product.name}
-                          </span>
-                        ))}
+                        {service.suggestedProducts
+                          .slice(0, 2)
+                          .map((suggestion) => (
+                            <span
+                              key={suggestion.id}
+                              className="max-w-44 truncate rounded-lg bg-zinc-100 px-2.5 py-1 text-xs text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                            >
+                              {suggestion.product.name}
+                            </span>
+                          ))}
                         {service.suggestedProducts.length > 2 ? (
                           <span className="rounded-lg bg-zinc-100 px-2.5 py-1 text-xs text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
                             +{service.suggestedProducts.length - 2}
@@ -533,7 +623,8 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
               onBlur={() => setTimeout(() => setSuggestionsOpen(false), 150)}
               onKeyDown={(event) => {
                 if (event.key === "Escape") setSuggestionsOpen(false);
-                if (event.key === "Enter" && suggestions.length > 0) goToService(suggestions[0]);
+                if (event.key === "Enter" && suggestions.length > 0)
+                  goToService(suggestions[0]);
               }}
               placeholder="Szukaj usługi, kategorii lub preparatu..."
             />
@@ -599,7 +690,9 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
                 }
               >
                 <span className="min-w-0 leading-5">{item.name}</span>
-                <span className="shrink-0 text-xs text-zinc-500">{item.count}</span>
+                <span className="shrink-0 text-xs text-zinc-500">
+                  {item.count}
+                </span>
               </button>
             ))}
             {visibleCategories.length === 0 ? (
@@ -624,7 +717,11 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
               </div>
             </div>
             {selectedCategory !== ALL_CATEGORIES ? (
-              <Button variant="outline" size="sm" onClick={() => setSelectedCategory(ALL_CATEGORIES)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedCategory(ALL_CATEGORIES)}
+              >
                 Pokaż wszystkie
               </Button>
             ) : null}
@@ -673,7 +770,15 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
                           </div>
                         ) : null}
                       </div>
-                      <div className="text-sm text-zinc-600 dark:text-zinc-300">
+                      <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
+                        <span
+                          className="h-3 w-3 shrink-0 rounded-full"
+                          style={{
+                            backgroundColor:
+                              service.categoryColor ||
+                              categoryColor(service.category),
+                          }}
+                        />
                         {service.category || "Bez kategorii"}
                       </div>
                       <div className="whitespace-nowrap text-sm text-zinc-600 dark:text-zinc-300">
@@ -687,15 +792,17 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
                           <span className="text-sm text-zinc-400">—</span>
                         ) : (
                           <>
-                            {service.suggestedProducts.slice(0, 2).map((suggestion) => (
-                              <span
-                                key={suggestion.id}
-                                className="max-w-40 truncate rounded-full border bg-zinc-50 px-2.5 py-1 text-xs dark:bg-zinc-900"
-                                title={`${suggestion.product.name} • ${suggestion.quantity} ${suggestion.product.unit}`}
-                              >
-                                {suggestion.product.name}
-                              </span>
-                            ))}
+                            {service.suggestedProducts
+                              .slice(0, 2)
+                              .map((suggestion) => (
+                                <span
+                                  key={suggestion.id}
+                                  className="max-w-40 truncate rounded-full border bg-zinc-50 px-2.5 py-1 text-xs dark:bg-zinc-900"
+                                  title={`${suggestion.product.name} • ${suggestion.quantity} ${suggestion.product.unit}`}
+                                >
+                                  {suggestion.product.name}
+                                </span>
+                              ))}
                             {service.suggestedProducts.length > 2 ? (
                               <span className="rounded-full border bg-zinc-50 px-2.5 py-1 text-xs dark:bg-zinc-900">
                                 +{service.suggestedProducts.length - 2}
@@ -709,7 +816,7 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
                           href={`/admin/services/${service.id}`}
                           className="inline-flex h-9 items-center justify-center rounded-xl border border-zinc-200 px-3 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
                         >
-                          Otwórz usługę
+                          Edytuj usługę
                         </Link>
                       </div>
                     </div>
