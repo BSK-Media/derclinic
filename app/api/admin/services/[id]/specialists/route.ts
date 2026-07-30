@@ -4,7 +4,10 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(
+  _req: Request,
+  { params }: { params: { id: string } },
+) {
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireRole(user!.role, ["ADMIN", "RECEPTION"]);
@@ -27,7 +30,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       },
     }),
     prisma.user.findMany({
-      where: { role: "SPECIALIST", ...(user!.locationScopeId ? { locationId: user!.locationScopeId } : {}) },
+      where: {
+        role: "SPECIALIST",
+        ...(user!.locationScopeId ? { locationId: user!.locationScopeId } : {}),
+      },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
@@ -39,7 +45,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   ]);
 
   if (!service) {
-    return NextResponse.json({ ok: false, message: "Nie znaleziono usługi" }, { status: 404 });
+    return NextResponse.json(
+      { ok: false, message: "Nie znaleziono usługi" },
+      { status: 404 },
+    );
   }
 
   return NextResponse.json({
@@ -55,6 +64,11 @@ const PatchSchema = z
   .object({
     name: z.string().trim().min(2, "Podaj nazwę usługi").max(200).optional(),
     category: z.string().trim().max(120).nullable().optional(),
+    categoryColor: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/)
+      .nullable()
+      .optional(),
     description: z.string().trim().max(2000).nullable().optional(),
     durationMin: z.number().int().min(5).max(480).optional(),
     price: z.number().int().min(0).nullable().optional(),
@@ -68,7 +82,10 @@ const AssignmentSchema = z
   })
   .strict();
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(
+  req: Request,
+  { params }: { params: { id: string } },
+) {
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN"]);
@@ -77,7 +94,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   const json = await req.json().catch(() => null);
   const parsed = AssignmentSchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, message: "Niepoprawne dane przypisania" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, message: "Niepoprawne dane przypisania" },
+      { status: 400 },
+    );
   }
 
   const { specialistId, assigned } = parsed.data;
@@ -97,11 +117,17 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   ]);
 
   if (!service) {
-    return NextResponse.json({ ok: false, message: "Nie znaleziono usługi" }, { status: 404 });
+    return NextResponse.json(
+      { ok: false, message: "Nie znaleziono usługi" },
+      { status: 404 },
+    );
   }
   if (!specialist) {
     return NextResponse.json(
-      { ok: false, message: "Nie znaleziono specjalisty w wybranej lokalizacji" },
+      {
+        ok: false,
+        message: "Nie znaleziono specjalisty w wybranej lokalizacji",
+      },
       { status: 404 },
     );
   }
@@ -140,7 +166,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   return NextResponse.json({ ok: true, assigned });
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(
+  req: Request,
+  { params }: { params: { id: string } },
+) {
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN"]);
@@ -150,7 +179,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const parsed = PatchSchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, message: parsed.error.issues[0]?.message ?? "Niepoprawne dane" },
+      {
+        ok: false,
+        message: parsed.error.issues[0]?.message ?? "Niepoprawne dane",
+      },
       { status: 400 },
     );
   }
@@ -160,7 +192,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     select: { id: true },
   });
   if (!existing) {
-    return NextResponse.json({ ok: false, message: "Nie znaleziono usługi" }, { status: 404 });
+    return NextResponse.json(
+      { ok: false, message: "Nie znaleziono usługi" },
+      { status: 404 },
+    );
   }
 
   const service = await prisma.service.update({
