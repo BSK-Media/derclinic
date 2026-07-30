@@ -194,6 +194,7 @@ export function AppointmentCalendar({
   isLoading,
   onAdd,
   onOpenAppointment,
+  onDeleteAppointment,
   onMoveAppointment,
   specialists = [],
   showSpecialist = false,
@@ -205,6 +206,7 @@ export function AppointmentCalendar({
   isLoading?: boolean;
   onAdd?: (date?: Date, specialistId?: string) => void;
   onOpenAppointment: (id: string) => void;
+  onDeleteAppointment?: (appointment: CalendarAppointment) => void;
   onMoveAppointment?: (
     appointment: CalendarAppointment,
     startsAt: Date,
@@ -803,7 +805,7 @@ export function AppointmentCalendar({
                           onOpenAppointment(a.id);
                         }}
                         className={
-                          "absolute z-10 cursor-pointer overflow-hidden rounded-lg border px-1.5 py-1 text-[11px] leading-tight shadow-sm transition hover:shadow " +
+                          "group absolute z-10 cursor-pointer overflow-hidden rounded-lg border px-1.5 py-1 pr-7 text-[11px] leading-tight shadow-sm transition hover:shadow " +
                           blockTone
                         }
                         style={{
@@ -814,6 +816,29 @@ export function AppointmentCalendar({
                         }}
                         title={`${timeLabel} • ${a.patient.name} • ${a.customServiceName || a.service.name}`}
                       >
+                        {onDeleteAppointment ? (
+                          <button
+                            type="button"
+                            aria-label={
+                              a.isReservation
+                                ? "Usuń rezerwację czasu"
+                                : "Usuń wizytę"
+                            }
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              onDeleteAppointment(a);
+                            }}
+                            className="absolute right-1 top-1 z-30 flex h-5 w-5 items-center justify-center rounded-md bg-white/90 text-base font-semibold leading-none text-zinc-500 opacity-0 shadow-sm transition hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover:opacity-100 dark:bg-zinc-900/90 dark:text-zinc-300 dark:hover:bg-red-950/70 dark:hover:text-red-300"
+                            title={
+                              a.isReservation
+                                ? "Usuń rezerwację czasu"
+                                : "Usuń wizytę"
+                            }
+                          >
+                            ×
+                          </button>
+                        ) : null}
                         <div className="font-semibold">{timeLabel}</div>
                         <div className="truncate font-medium">
                           {a.customServiceName || a.service.name}
@@ -1116,7 +1141,7 @@ export function AppointmentCalendar({
                           if (!appointment.isReservation)
                             onOpenAppointment(appointment.id);
                         }}
-                        className="group absolute z-10 cursor-grab overflow-hidden rounded-lg border-l-4 px-2 py-1 pb-2 text-left text-[11px] leading-tight shadow-sm transition hover:brightness-[.98] active:cursor-grabbing"
+                        className="group absolute z-10 cursor-grab overflow-hidden rounded-lg border-l-4 px-2 py-1 pb-2 pr-7 text-left text-[11px] leading-tight shadow-sm transition hover:brightness-[.98] active:cursor-grabbing"
                         style={{
                           top,
                           height,
@@ -1133,6 +1158,42 @@ export function AppointmentCalendar({
                         }}
                         title="Przeciągnij kafelek, aby zmienić godzinę lub specjalistę. Przeciągnij dolny uchwyt, aby zmienić długość."
                       >
+                        {onDeleteAppointment ? (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            aria-label={
+                              appointment.isReservation
+                                ? "Usuń rezerwację czasu"
+                                : "Usuń wizytę"
+                            }
+                            draggable={false}
+                            onPointerDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                            }}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              onDeleteAppointment(appointment);
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key !== "Enter" && event.key !== " ")
+                                return;
+                              event.preventDefault();
+                              event.stopPropagation();
+                              onDeleteAppointment(appointment);
+                            }}
+                            className="absolute right-1 top-1 z-30 flex h-5 w-5 cursor-pointer items-center justify-center rounded-md bg-white/90 text-base font-semibold leading-none text-zinc-500 opacity-0 shadow-sm transition hover:bg-red-50 hover:text-red-600 focus:opacity-100 focus:outline-none group-hover:opacity-100 dark:bg-zinc-900/90 dark:text-zinc-300 dark:hover:bg-red-950/70 dark:hover:text-red-300"
+                            title={
+                              appointment.isReservation
+                                ? "Usuń rezerwację czasu"
+                                : "Usuń wizytę"
+                            }
+                          >
+                            ×
+                          </span>
+                        ) : null}
                         <div className="font-semibold">{time}</div>
                         <div className="truncate font-semibold">
                           {appointment.isReservation
@@ -1281,7 +1342,7 @@ export function AppointmentCalendar({
                 type="button"
                 onClick={() => onOpenAppointment(appointment.id)}
                 className={
-                  "absolute z-10 overflow-hidden rounded-lg border px-2 py-1 text-left text-[11px] leading-tight shadow-sm " +
+                  "group absolute z-10 overflow-hidden rounded-lg border px-2 py-1 pr-7 text-left text-[11px] leading-tight shadow-sm " +
                   blockTone
                 }
                 style={{
@@ -1291,6 +1352,36 @@ export function AppointmentCalendar({
                   width: `calc(${width}% - 4px)`,
                 }}
               >
+                {onDeleteAppointment ? (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    aria-label={
+                      appointment.isReservation
+                        ? "Usuń rezerwację czasu"
+                        : "Usuń wizytę"
+                    }
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onDeleteAppointment(appointment);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onDeleteAppointment(appointment);
+                    }}
+                    className="absolute right-1 top-1 z-30 flex h-5 w-5 cursor-pointer items-center justify-center rounded-md bg-white/90 text-base font-semibold leading-none text-zinc-500 shadow-sm sm:opacity-0 sm:transition sm:hover:bg-red-50 sm:hover:text-red-600 sm:focus:opacity-100 sm:group-hover:opacity-100 dark:bg-zinc-900/90 dark:text-zinc-300 dark:hover:bg-red-950/70 dark:hover:text-red-300"
+                    title={
+                      appointment.isReservation
+                        ? "Usuń rezerwację czasu"
+                        : "Usuń wizytę"
+                    }
+                  >
+                    ×
+                  </span>
+                ) : null}
                 <div className="font-semibold">
                   {timeLabel} •{" "}
                   {appointment.customServiceName || appointment.service.name}
