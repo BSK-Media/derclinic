@@ -130,6 +130,11 @@ model Patient {
   email String?
   note  String?
 
+  // Hasło konta pacjenta (opcjonalne — ustawiane, gdy klient zakłada konto przy
+  // rezerwacji online zamiast kontynuować jako gość). Panel logowania klienta
+  // to osobny, przyszły etap; na razie tylko zapisujemy dane konta.
+  passwordHash String?
+
   locationId String   @default("grodzisk-mazowiecki")
   location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
 
