@@ -469,7 +469,7 @@ export default function PublicBookingPage() {
 
   return (
     <BookingShell wide bare>
-      <div className={"grid gap-6 md:grid-cols-[240px_1fr] " + (step === 1 ? "xl:grid-cols-[240px_1fr_260px]" : "")}>
+      <div className={"grid gap-6 md:grid-cols-[240px_1fr] " + (step === 1 ? "xl:grid-cols-[240px_1fr_440px]" : "")}>
         <SummarySidebar items={summaryItems} />
         <div className="min-w-0">
           <MobileSummaryBar items={summaryItems} />
@@ -870,7 +870,7 @@ function BookingShell({
           <Image src="/derclinic-logo.webp" alt="DerClinic" width={160} height={40} priority />
         </div>
       </header>
-      <main className={"mx-auto px-4 py-8 " + (wide ? "max-w-6xl" : "max-w-3xl")}>
+      <main className={"mx-auto px-4 py-8 " + (wide ? "max-w-7xl" : "max-w-3xl")}>
         {bare ? children : <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">{children}</div>}
       </main>
       <footer className="py-6 text-center text-xs text-zinc-400">
