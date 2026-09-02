@@ -149,9 +149,13 @@ export default function PublicBookingPage() {
   const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [note, setNote] = React.useState("");
+  const [accountMode, setAccountMode] = React.useState<"guest" | "register">("guest");
+  const [password, setPassword] = React.useState("");
+  const [passwordConfirm, setPasswordConfirm] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const [submitError, setSubmitError] = React.useState("");
   const [confirmedAt, setConfirmedAt] = React.useState<string | null>(null);
+  const [accountCreated, setAccountCreated] = React.useState(false);
 
   // Jedna lokalizacja — pomijamy krok wyboru.
   React.useEffect(() => {
@@ -371,6 +375,16 @@ export default function PublicBookingPage() {
       setSubmitError("Niepoprawny adres e-mail");
       return;
     }
+    if (accountMode === "register") {
+      if (password.length < 6) {
+        setSubmitError("Hasło musi mieć co najmniej 6 znaków");
+        return;
+      }
+      if (password !== passwordConfirm) {
+        setSubmitError("Podane hasła różnią się od siebie");
+        return;
+      }
+    }
     const finalSpecialistId = isAnySpecialist ? pickedSpecialist?.id : specialistId;
     if (!finalSpecialistId) {
       setSubmitError("Wybierz termin ponownie");
@@ -393,6 +407,7 @@ export default function PublicBookingPage() {
           phone: phone.trim(),
           email: email.trim() || undefined,
           note: note.trim() || undefined,
+          password: accountMode === "register" ? password : undefined,
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -400,6 +415,7 @@ export default function PublicBookingPage() {
         setSubmitError(result?.message || "Nie udało się zapisać wizyty. Spróbuj ponownie.");
         return;
       }
+      setAccountCreated(Boolean(result.accountCreated));
       setConfirmedAt(result.startsAt);
     } finally {
       setSubmitting(false);
@@ -429,6 +445,12 @@ export default function PublicBookingPage() {
             Potwierdzenie zostało zapisane w systemie kliniki. Skontaktujemy się, jeśli będą potrzebne
             dodatkowe informacje.
           </p>
+          {accountCreated ? (
+            <p className="max-w-md rounded-xl bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+              Konto zostało założone na numer telefonu {phone.trim()}. Panel klienta z historią wizyt
+              pojawi się wkrótce — o uruchomieniu poinformujemy Cię osobno.
+            </p>
+          ) : null}
         </div>
       </BookingShell>
     );
@@ -787,6 +809,35 @@ export default function PublicBookingPage() {
             </div>
           </div>
 
+          <div className="mb-4 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setAccountMode("guest")}
+              className={
+                "rounded-xl border px-3 py-2.5 text-left text-sm transition " +
+                (accountMode === "guest"
+                  ? "border-emerald-500 bg-emerald-50"
+                  : "border-zinc-200 hover:bg-zinc-50")
+              }
+            >
+              <div className="font-medium text-zinc-900">Kontynuuj jako gość</div>
+              <div className="text-xs text-zinc-500">Bez zakładania konta</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAccountMode("register")}
+              className={
+                "rounded-xl border px-3 py-2.5 text-left text-sm transition " +
+                (accountMode === "register"
+                  ? "border-emerald-500 bg-emerald-50"
+                  : "border-zinc-200 hover:bg-zinc-50")
+              }
+            >
+              <div className="font-medium text-zinc-900">Zarejestruj się</div>
+              <div className="text-xs text-zinc-500">Załóż konto z hasłem</div>
+            </button>
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Imię *">
               <input className="input" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
@@ -800,6 +851,27 @@ export default function PublicBookingPage() {
             <Field label="E-mail">
               <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             </Field>
+            {accountMode === "register" ? (
+              <>
+                <Field label="Hasło *">
+                  <input
+                    className="input"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="min. 6 znaków"
+                  />
+                </Field>
+                <Field label="Powtórz hasło *">
+                  <input
+                    className="input"
+                    type="password"
+                    value={passwordConfirm}
+                    onChange={(e) => setPasswordConfirm(e.target.value)}
+                  />
+                </Field>
+              </>
+            ) : null}
             <div className="sm:col-span-2">
               <Field label="Uwagi dla specjalisty (opcjonalnie)">
                 <textarea
