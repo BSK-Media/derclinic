@@ -36,31 +36,45 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     return NextResponse.json({ ok: false, message: "Nie znaleziono pacjenta" }, { status: 404 });
   }
 
-  const appointments = await prisma.appointment.findMany({
-    where: {
-      patientId: params.id,
-      status: "COMPLETED",
-      approvalStatus: "APPROVED",
-      deletedAt: null,
-      startsAt,
-      ...scopedLocationWhere(user!),
-    },
-    orderBy: { startsAt: "desc" },
-    select: {
-      startsAt: true,
-      priceFinal: true,
-      priceEstimate: true,
-      serviceId: true,
-      customServiceName: true,
-      service: { select: { name: true } },
-    },
-    take: 5000,
-  });
+  const [appointments, retailSales] = await Promise.all([
+    prisma.appointment.findMany({
+      where: {
+        patientId: params.id,
+        status: "COMPLETED",
+        approvalStatus: "APPROVED",
+        deletedAt: null,
+        startsAt,
+        ...scopedLocationWhere(user!),
+      },
+      orderBy: { startsAt: "desc" },
+      select: {
+        startsAt: true,
+        priceFinal: true,
+        priceEstimate: true,
+        serviceId: true,
+        customServiceName: true,
+        service: { select: { name: true } },
+      },
+      take: 5000,
+    }),
+    prisma.retailSale.findMany({
+      where: {
+        patientId: params.id,
+        status: "COMPLETED",
+        createdAt: startsAt,
+        ...scopedLocationWhere(user!),
+      },
+      select: { total: true },
+      take: 5000,
+    }),
+  ]);
 
-  const totalSpent = appointments.reduce(
+  const appointmentsSpent = appointments.reduce(
     (sum, appointment) => sum + (appointment.priceFinal ?? appointment.priceEstimate ?? 0),
     0,
   );
+  const purchasesSpent = retailSales.reduce((sum, sale) => sum + sale.total, 0);
+  const totalSpent = appointmentsSpent + purchasesSpent;
 
   const latestByService = new Map<
     string,
