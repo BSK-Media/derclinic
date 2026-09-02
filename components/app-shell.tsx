@@ -106,6 +106,7 @@ const NAV: NavItem[] = [
   { label: "Wizyty", permission: "appointments", icon: <span className="text-lg">📅</span> },
   { label: "Specjaliści", permission: "specialists", icon: <span className="text-lg">👩‍⚕️</span> },
   { label: "Pacjenci", permission: "patients", icon: <span className="text-lg">👥</span> },
+  { label: "POS - Sprzedaż", permission: "pos", icon: <span className="text-lg">🛒</span> },
   { label: "Magazyn", permission: "inventory", icon: <span className="text-lg">📦</span> },
   { label: "Produkty", permission: "products", icon: <span className="text-lg">🧴</span> },
   {
