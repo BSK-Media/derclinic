@@ -12,14 +12,32 @@ export async function GET() {
   const deny = requireRole(user!.role, ["ADMIN", "RECEPTION"]);
   if (deny) return deny;
 
+  const warehouseRelationWhere = user!.locationScopeId
+    ? { warehouse: { locationId: user!.locationScopeId } }
+    : {};
+
   const [products, warehouses, patients, sales] = await Promise.all([
-    prisma.product.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
+    prisma.product.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+      include: {
+        stocks: {
+          where: warehouseRelationWhere,
+          select: { warehouseId: true, quantity: true },
+        },
+      },
+    }),
     prisma.warehouse.findMany({ where: scopedLocationWhere(user!), orderBy: [{ parentId: "asc" }, { name: "asc" }] }),
     prisma.patient.findMany({ where: scopedLocationWhere(user!), orderBy: { name: "asc" }, take: 500 }),
     prisma.retailSale.findMany({
       where: scopedLocationWhere(user!),
       orderBy: { createdAt: "desc" },
-      include: { patient: true, items: { include: { product: true } }, payments: true },
+      include: {
+        patient: true,
+        soldBy: { select: { id: true, name: true } },
+        items: { include: { product: true } },
+        payments: true,
+      },
       take: 50,
     }),
   ]);
