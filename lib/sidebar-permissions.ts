@@ -4,6 +4,7 @@ export const SIDEBAR_PERMISSION_KEYS = [
   "appointments",
   "specialists",
   "patients",
+  "pos",
   "inventory",
   "products",
   "services",
@@ -23,6 +24,7 @@ export const SIDEBAR_PERMISSION_OPTIONS: ReadonlyArray<{
   { key: "appointments", label: "Wizyty" },
   { key: "specialists", label: "Specjaliści" },
   { key: "patients", label: "Pacjenci" },
+  { key: "pos", label: "POS - Sprzedaż" },
   { key: "inventory", label: "Magazyn" },
   { key: "products", label: "Produkty" },
   { key: "services", label: "Zabiegi i Procedury" },
@@ -36,7 +38,7 @@ const ALL_PERMISSIONS = [...SIDEBAR_PERMISSION_KEYS];
 // Dotychczasowy zakres menu dla pracowników, z wyłączeniem sekcji zastrzeżonych
 // domyślnie dla administratora.
 const DEFAULT_NON_ADMIN_PERMISSIONS: SidebarPermission[] = SIDEBAR_PERMISSION_KEYS.filter(
-  (key) => key !== "analytics" && key !== "specialists" && key !== "locations",
+  (key) => key !== "analytics" && key !== "specialists" && key !== "locations" && key !== "pos",
 );
 
 export function normalizeSidebarPermissions(role: string, value: unknown): SidebarPermission[] {
@@ -45,7 +47,8 @@ export function normalizeSidebarPermissions(role: string, value: unknown): Sideb
   if (!Array.isArray(value)) {
     return role === "RECEPTION"
       ? SIDEBAR_PERMISSION_KEYS.filter(
-          (key) => key === "locations" || DEFAULT_NON_ADMIN_PERMISSIONS.includes(key),
+          (key) =>
+            key === "locations" || key === "pos" || DEFAULT_NON_ADMIN_PERMISSIONS.includes(key),
         )
       : [...DEFAULT_NON_ADMIN_PERMISSIONS];
   }
@@ -104,6 +107,9 @@ export function sidebarPermissionForPath(pathname: string): SidebarPermission | 
   ) {
     return "patients";
   }
+  if (path.startsWith("/admin/pos") || path.startsWith("/api/admin/sales")) {
+    return "pos";
+  }
   if (
     path.startsWith("/admin/inventory") ||
     path.startsWith("/admin/warehouses") ||
@@ -134,9 +140,7 @@ export function sidebarPermissionForPath(pathname: string): SidebarPermission | 
   if (
     path.startsWith("/admin/analytics") ||
     path.startsWith("/admin/revenue") ||
-    path.startsWith("/admin/sales") ||
     path.startsWith("/admin/settlements") ||
-    path.startsWith("/api/admin/sales") ||
     path.startsWith("/api/admin/settlements")
   ) {
     return "analytics";
@@ -165,6 +169,7 @@ export function sidebarHref(permission: SidebarPermission, role: string) {
   > = {
     specialists: "/admin/specialists",
     patients: "/admin/patients",
+    pos: "/admin/pos",
     inventory: "/admin/inventory",
     products: "/admin/products",
     services: "/admin/services",
