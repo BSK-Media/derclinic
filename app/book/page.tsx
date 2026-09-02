@@ -3,7 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import useSWR from "swr";
-import { CheckCircle2, ChevronLeft, Loader2 } from "lucide-react";
+import { CheckCircle2, ChevronLeft, Loader2, Sparkles } from "lucide-react";
 import { formatPLNFromGrosze } from "@/lib/money";
 
 async function fetcher(url: string) {
@@ -32,8 +32,10 @@ type Service = {
   durationMin: number;
   price: number | null;
 };
+type MultiSlot = { time: string; specialistId: string; specialistName: string };
 
-const STEP_LABELS = ["Lokalizacja", "Specjalista", "Zabieg", "Termin", "Dane kontaktowe"];
+const ANY_SPECIALIST = "__ANY__";
+const STEP_LABELS = ["Lokalizacja", "Zabieg", "Specjalista", "Termin", "Dane kontaktowe"];
 
 function warsawTodayInput() {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -102,10 +104,12 @@ export default function PublicBookingPage() {
 
   const [step, setStep] = React.useState(0);
   const [locationId, setLocationId] = React.useState("");
-  const [specialistId, setSpecialistId] = React.useState("");
   const [serviceId, setServiceId] = React.useState("");
+  const [specialistId, setSpecialistId] = React.useState(""); // konkretne id albo ANY_SPECIALIST
+  const [serviceQuery, setServiceQuery] = React.useState("");
   const [date, setDate] = React.useState(() => warsawTodayInput());
   const [time, setTime] = React.useState("");
+  const [pickedSpecialist, setPickedSpecialist] = React.useState<{ id: string; name: string } | null>(null);
 
   const [firstName, setFirstName] = React.useState("");
   const [lastName, setLastName] = React.useState("");
@@ -121,25 +125,56 @@ export default function PublicBookingPage() {
     if (locations.length === 1 && !locationId) setLocationId(locations[0].id);
   }, [locations, locationId]);
 
-  const locationSpecialists = React.useMemo(
-    () => specialists.filter((s) => !locationId || s.locationId === locationId),
-    [specialists, locationId],
-  );
-  const selectedSpecialist = specialists.find((s) => s.id === specialistId) ?? null;
-  const specialistServices = React.useMemo(() => {
-    if (!selectedSpecialist) return [];
-    const allowed = new Set(selectedSpecialist.serviceIds);
-    return services.filter((s) => allowed.has(s.id));
-  }, [services, selectedSpecialist]);
+  const filteredServices = React.useMemo(() => {
+    const q = serviceQuery.trim().toLowerCase();
+    if (!q) return services;
+    return services.filter((s) => s.name.toLowerCase().includes(q) || (s.category ?? "").toLowerCase().includes(q));
+  }, [services, serviceQuery]);
+
+  const servicesByCategory = React.useMemo(() => {
+    const groups = new Map<string, Service[]>();
+    for (const service of filteredServices) {
+      const key = service.category || "Pozostałe zabiegi";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(service);
+    }
+    return [...groups.entries()];
+  }, [filteredServices]);
+
   const selectedService = services.find((s) => s.id === serviceId) ?? null;
 
-  const { data: availabilityData, isLoading: loadingSlots } = useSWR(
-    specialistId && serviceId && date
+  // Specjaliści wykonujący wybrany zabieg w wybranej lokalizacji.
+  const qualifyingSpecialists = React.useMemo(() => {
+    if (!serviceId) return [];
+    return specialists.filter((s) => (!locationId || s.locationId === locationId) && s.serviceIds.includes(serviceId));
+  }, [specialists, serviceId, locationId]);
+
+  const selectedSpecialist =
+    specialistId && specialistId !== ANY_SPECIALIST ? specialists.find((s) => s.id === specialistId) ?? null : null;
+  const isAnySpecialist = specialistId === ANY_SPECIALIST;
+
+  const displaySpecialistName = isAnySpecialist
+    ? pickedSpecialist?.name ?? null
+    : selectedSpecialist?.name ?? null;
+
+  // Dostępność dla konkretnego, wybranego specjalisty.
+  const { data: singleAvailability, isLoading: loadingSingleSlots } = useSWR(
+    !isAnySpecialist && specialistId && serviceId && date
       ? `/api/public/availability?specialistId=${specialistId}&serviceId=${serviceId}&date=${date}`
       : null,
     fetcher,
   );
-  const slots: string[] = availabilityData?.slots ?? [];
+  // Zbiorcza dostępność, gdy klient nie wybiera konkretnego specjalisty.
+  const { data: multiAvailability, isLoading: loadingMultiSlots } = useSWR(
+    isAnySpecialist && serviceId && date
+      ? `/api/public/availability-multi?serviceId=${serviceId}&locationId=${locationId}&date=${date}`
+      : null,
+    fetcher,
+  );
+
+  const singleSlots: string[] = singleAvailability?.slots ?? [];
+  const multiSlots: MultiSlot[] = multiAvailability?.slots ?? [];
+  const loadingSlots = isAnySpecialist ? loadingMultiSlots : loadingSingleSlots;
 
   function goToStep(target: number) {
     setStep(target);
@@ -147,27 +182,53 @@ export default function PublicBookingPage() {
 
   function selectLocation(id: string) {
     setLocationId(id);
-    setSpecialistId("");
     setServiceId("");
+    setSpecialistId("");
+    setPickedSpecialist(null);
     setTime("");
     goToStep(1);
   }
 
-  function selectSpecialist(id: string) {
-    setSpecialistId(id);
-    setServiceId("");
-    setTime("");
-    goToStep(2);
-  }
-
   function selectService(id: string) {
     setServiceId(id);
+    setSpecialistId("");
+    setPickedSpecialist(null);
+    setTime("");
+
+    const qualifying = specialists.filter(
+      (s) => (!locationId || s.locationId === locationId) && s.serviceIds.includes(id),
+    );
+    if (qualifying.length === 1) {
+      // Tylko jeden specjalista wykonuje ten zabieg — nie ma czego wybierać.
+      setSpecialistId(qualifying[0].id);
+      goToStep(3);
+    } else {
+      goToStep(2);
+    }
+  }
+
+  function selectSpecialist(id: string) {
+    setSpecialistId(id);
+    setPickedSpecialist(null);
     setTime("");
     goToStep(3);
   }
 
-  function selectTime(value: string) {
-    setTime(value);
+  function selectAnySpecialist() {
+    setSpecialistId(ANY_SPECIALIST);
+    setPickedSpecialist(null);
+    setTime("");
+    goToStep(3);
+  }
+
+  function selectSingleTime(slot: string) {
+    setTime(slot);
+    goToStep(4);
+  }
+
+  function selectMultiTime(slot: MultiSlot) {
+    setTime(slot.time);
+    setPickedSpecialist({ id: slot.specialistId, name: slot.specialistName });
     goToStep(4);
   }
 
@@ -184,6 +245,12 @@ export default function PublicBookingPage() {
       setSubmitError("Niepoprawny adres e-mail");
       return;
     }
+    const finalSpecialistId = isAnySpecialist ? pickedSpecialist?.id : specialistId;
+    if (!finalSpecialistId) {
+      setSubmitError("Wybierz termin ponownie");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const response = await fetch("/api/public/appointments", {
@@ -191,7 +258,7 @@ export default function PublicBookingPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           locationId,
-          specialistId,
+          specialistId: finalSpecialistId,
           serviceId,
           date,
           time,
@@ -222,7 +289,7 @@ export default function PublicBookingPage() {
           </div>
           <h1 className="text-2xl font-semibold text-zinc-900">Wizyta zarezerwowana!</h1>
           <p className="max-w-md text-sm text-zinc-500">
-            {selectedSpecialist?.name} — {selectedService?.name}
+            {displaySpecialistName} — {selectedService?.name}
             <br />
             {new Date(confirmedAt).toLocaleString("pl-PL", {
               weekday: "long",
@@ -274,12 +341,70 @@ export default function PublicBookingPage() {
       ) : null}
 
       {!isLoading && step === 1 ? (
-        <StepCard title="Wybierz specjalistę" onBack={locations.length > 1 ? () => goToStep(0) : undefined}>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {locationSpecialists.length === 0 ? (
-              <div className="text-sm text-zinc-500">Brak dostępnych specjalistów w tej lokalizacji.</div>
+        <StepCard title="Wybierz zabieg" onBack={locations.length > 1 ? () => goToStep(0) : undefined}>
+          <input
+            value={serviceQuery}
+            onChange={(e) => setServiceQuery(e.target.value)}
+            placeholder="Szukaj zabiegu…"
+            className="input mb-4"
+          />
+          <div className="max-h-[26rem] space-y-5 overflow-y-auto pr-1">
+            {servicesByCategory.length === 0 ? (
+              <div className="text-sm text-zinc-500">Brak zabiegów pasujących do wyszukiwania.</div>
             ) : null}
-            {locationSpecialists.map((s) => (
+            {servicesByCategory.map(([category, items]) => (
+              <div key={category}>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                  {category}
+                </div>
+                <div className="grid gap-3">
+                  {items.map((service) => (
+                    <OptionCard
+                      key={service.id}
+                      selected={serviceId === service.id}
+                      onClick={() => selectService(service.id)}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="font-medium">{service.name}</div>
+                          <div className="text-xs text-zinc-500">{service.durationMin} min</div>
+                        </div>
+                        <div className="shrink-0 font-semibold text-emerald-700">
+                          {formatPLNFromGrosze(service.price)}
+                        </div>
+                      </div>
+                    </OptionCard>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </StepCard>
+      ) : null}
+
+      {!isLoading && step === 2 ? (
+        <StepCard title="Wybierz specjalistę" onBack={() => goToStep(1)}>
+          <button
+            type="button"
+            onClick={selectAnySpecialist}
+            className="mb-4 flex w-full items-center gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-left text-sm transition hover:bg-emerald-100"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
+              <Sparkles className="h-5 w-5" />
+            </span>
+            <span>
+              <span className="block font-medium text-emerald-900">Dowolny specjalista</span>
+              <span className="block text-xs text-emerald-700">Pokażemy najbliższy wolny termin</span>
+            </span>
+          </button>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {qualifyingSpecialists.length === 0 ? (
+              <div className="text-sm text-zinc-500 sm:col-span-2">
+                Brak specjalistów wykonujących ten zabieg w wybranej lokalizacji.
+              </div>
+            ) : null}
+            {qualifyingSpecialists.map((s) => (
               <OptionCard key={s.id} selected={specialistId === s.id} onClick={() => selectSpecialist(s.id)}>
                 <div className="flex items-center gap-3">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-100 text-sm font-semibold text-zinc-500">
@@ -301,31 +426,11 @@ export default function PublicBookingPage() {
         </StepCard>
       ) : null}
 
-      {!isLoading && step === 2 ? (
-        <StepCard title="Wybierz zabieg" onBack={() => goToStep(1)}>
-          <div className="grid gap-3">
-            {specialistServices.length === 0 ? (
-              <div className="text-sm text-zinc-500">Ten specjalista nie ma jeszcze przypisanych usług.</div>
-            ) : null}
-            {specialistServices.map((service) => (
-              <OptionCard key={service.id} selected={serviceId === service.id} onClick={() => selectService(service.id)}>
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="font-medium">{service.name}</div>
-                    <div className="text-xs text-zinc-500">{service.durationMin} min</div>
-                  </div>
-                  <div className="shrink-0 font-semibold text-emerald-700">
-                    {formatPLNFromGrosze(service.price)}
-                  </div>
-                </div>
-              </OptionCard>
-            ))}
-          </div>
-        </StepCard>
-      ) : null}
-
       {!isLoading && step === 3 ? (
-        <StepCard title="Wybierz termin" onBack={() => goToStep(2)}>
+        <StepCard
+          title="Wybierz termin"
+          onBack={() => goToStep(qualifyingSpecialists.length <= 1 ? 1 : 2)}
+        >
           <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-1">
             {Array.from({ length: 14 }).map((_, i) => {
               const value = addDaysToInput(today, i);
@@ -366,17 +471,48 @@ export default function PublicBookingPage() {
             <div className="flex justify-center py-8 text-zinc-400">
               <Loader2 className="h-5 w-5 animate-spin" />
             </div>
-          ) : slots.length === 0 ? (
+          ) : isAnySpecialist ? (
+            multiSlots.length === 0 ? (
+              <div className="rounded-xl border border-dashed p-6 text-center text-sm text-zinc-500">
+                Brak wolnych terminów tego dnia u żadnego specjalisty. Wybierz inny dzień.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {multiSlots.map((slot) => (
+                  <button
+                    key={slot.time + slot.specialistId}
+                    type="button"
+                    onClick={() => selectMultiTime(slot)}
+                    className={
+                      "rounded-xl border px-3 py-2 text-left text-sm font-medium transition " +
+                      (time === slot.time
+                        ? "border-emerald-500 bg-emerald-600 text-white"
+                        : "border-zinc-200 text-zinc-700 hover:border-emerald-300 hover:bg-emerald-50")
+                    }
+                  >
+                    <div>{slot.time}</div>
+                    <div
+                      className={
+                        "text-[11px] font-normal " + (time === slot.time ? "text-emerald-50" : "text-zinc-400")
+                      }
+                    >
+                      {slot.specialistName}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )
+          ) : singleSlots.length === 0 ? (
             <div className="rounded-xl border border-dashed p-6 text-center text-sm text-zinc-500">
               Brak wolnych terminów tego dnia. Wybierz inny dzień.
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-              {slots.map((slot) => (
+              {singleSlots.map((slot) => (
                 <button
                   key={slot}
                   type="button"
-                  onClick={() => selectTime(slot)}
+                  onClick={() => selectSingleTime(slot)}
                   className={
                     "rounded-xl border px-2 py-2.5 text-sm font-medium transition " +
                     (time === slot
@@ -397,7 +533,7 @@ export default function PublicBookingPage() {
           <div className="mb-4 rounded-xl bg-zinc-50 p-3 text-sm">
             <div className="font-medium">{selectedService?.name}</div>
             <div className="text-zinc-500">
-              {selectedSpecialist?.name} • {formatDateLabel(date)}, {time}
+              {displaySpecialistName} • {formatDateLabel(date)}, {time}
             </div>
             <div className="mt-1 font-semibold text-emerald-700">
               {formatPLNFromGrosze(selectedService?.price ?? null)}
