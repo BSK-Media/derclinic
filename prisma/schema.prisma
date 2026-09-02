@@ -63,6 +63,11 @@ enum RetailSaleStatus {
   CANCELED
 }
 
+enum DiscountType {
+  AMOUNT
+  PERCENT
+}
+
 model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -99,6 +104,7 @@ model User {
   specialistConsumptions Consumption[]             @relation("ConsumptionSpecialist")
   reviewedConsumptions   Consumption[]             @relation("ConsumptionReviewer")
   retailSales            RetailSale[]              @relation("RetailSaleSeller")
+  discountApprovals      RetailSale[]              @relation("RetailSaleDiscountApprover")
   auditLogs              AuditLog[]
   serviceRates           SpecialistServiceRate[]
   warehouseAssignments   SpecialistWarehouse[]
@@ -516,6 +522,21 @@ model RetailSale {
 
   status RetailSaleStatus @default(COMPLETED)
   note   String?
+
+  // Suma pozycji przed zniżką (grosze)
+  subtotal Int @default(0)
+
+  // Zniżka: typ i wpisana wartość (AMOUNT: grosze, PERCENT: całe procenty 0-100)
+  discountType  DiscountType?
+  discountValue Int?
+  // Rzeczywista kwota zniżki zastosowana do sprzedaży (grosze)
+  discountAmount Int @default(0)
+
+  // Kwota do zapłaty po zniżce (grosze) — suma płatności musi się z nią zgadzać
+  total Int @default(0)
+
+  discountApprovedById String?
+  discountApprovedBy   User?   @relation("RetailSaleDiscountApprover", fields: [discountApprovedById], references: [id], onDelete: SetNull)
 
   @@index([soldById, createdAt])
   @@index([locationId, createdAt])
