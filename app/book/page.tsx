@@ -137,6 +137,7 @@ export default function PublicBookingPage() {
   const [serviceId, setServiceId] = React.useState("");
   const [specialistId, setSpecialistId] = React.useState(""); // konkretne id albo ANY_SPECIALIST
   const [serviceQuery, setServiceQuery] = React.useState("");
+  const [excludedCategories, setExcludedCategories] = React.useState<Set<string>>(new Set());
   const [date, setDate] = React.useState(() => warsawTodayInput());
   const [weekStart, setWeekStart] = React.useState(() => warsawTodayInput());
   const [calendarOpen, setCalendarOpen] = React.useState(false);
@@ -178,11 +179,41 @@ export default function PublicBookingPage() {
     };
   }, [calendarOpen, date]);
 
+  const allCategories = React.useMemo(() => {
+    const seen = new Set<string>();
+    const ordered: string[] = [];
+    for (const service of services) {
+      const category = service.category || "Pozostałe zabiegi";
+      if (!seen.has(category)) {
+        seen.add(category);
+        ordered.push(category);
+      }
+    }
+    return ordered;
+  }, [services]);
+
+  function toggleCategory(category: string) {
+    setExcludedCategories((current) => {
+      const next = new Set(current);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
+  }
+
+  function toggleAllCategories() {
+    setExcludedCategories((current) => (current.size === 0 ? new Set(allCategories) : new Set()));
+  }
+
   const filteredServices = React.useMemo(() => {
     const q = serviceQuery.trim().toLowerCase();
-    if (!q) return services;
-    return services.filter((s) => s.name.toLowerCase().includes(q) || (s.category ?? "").toLowerCase().includes(q));
-  }, [services, serviceQuery]);
+    return services.filter((service) => {
+      const category = service.category || "Pozostałe zabiegi";
+      if (excludedCategories.has(category)) return false;
+      if (!q) return true;
+      return service.name.toLowerCase().includes(q) || category.toLowerCase().includes(q);
+    });
+  }, [services, serviceQuery, excludedCategories]);
 
   const servicesByCategory = React.useMemo(() => {
     const groups = new Map<string, Service[]>();
@@ -465,42 +496,76 @@ export default function PublicBookingPage() {
 
       {!isLoading && step === 1 ? (
         <StepCard title="Wybierz zabieg" onBack={locations.length > 1 ? () => goToStep(0) : undefined}>
-          <input
-            value={serviceQuery}
-            onChange={(e) => setServiceQuery(e.target.value)}
-            placeholder="Szukaj zabiegu…"
-            className="input mb-4"
-          />
-          <div className="max-h-[26rem] space-y-5 overflow-y-auto pr-1">
-            {servicesByCategory.length === 0 ? (
-              <div className="text-sm text-zinc-500">Brak zabiegów pasujących do wyszukiwania.</div>
-            ) : null}
-            {servicesByCategory.map(([category, items]) => (
-              <div key={category}>
-                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                  {category}
-                </div>
-                <div className="grid gap-3">
-                  {items.map((service) => (
-                    <OptionCard
-                      key={service.id}
-                      selected={serviceId === service.id}
-                      onClick={() => selectService(service.id)}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <div className="font-medium">{service.name}</div>
-                          <div className="text-xs text-zinc-500">{service.durationMin} min</div>
-                        </div>
-                        <div className="shrink-0 font-semibold text-emerald-700">
-                          {formatPLNFromGrosze(service.price)}
-                        </div>
-                      </div>
-                    </OptionCard>
-                  ))}
-                </div>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+            <div className="min-w-0 flex-1">
+              <input
+                value={serviceQuery}
+                onChange={(e) => setServiceQuery(e.target.value)}
+                placeholder="Szukaj zabiegu…"
+                className="input mb-4"
+              />
+              <div className="max-h-[26rem] space-y-5 overflow-y-auto pr-1">
+                {servicesByCategory.length === 0 ? (
+                  <div className="text-sm text-zinc-500">Brak zabiegów pasujących do wyszukiwania.</div>
+                ) : null}
+                {servicesByCategory.map(([category, items]) => (
+                  <div key={category}>
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                      {category}
+                    </div>
+                    <div className="grid gap-3">
+                      {items.map((service) => (
+                        <OptionCard
+                          key={service.id}
+                          selected={serviceId === service.id}
+                          onClick={() => selectService(service.id)}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <div className="font-medium">{service.name}</div>
+                              <div className="text-xs text-zinc-500">{service.durationMin} min</div>
+                            </div>
+                            <div className="shrink-0 font-semibold text-emerald-700">
+                              {formatPLNFromGrosze(service.price)}
+                            </div>
+                          </div>
+                        </OptionCard>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+
+            <div className="w-full shrink-0 rounded-xl border border-zinc-200 p-3 lg:w-56">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Kategorie</div>
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1.5 text-sm hover:bg-zinc-50">
+                <input
+                  type="checkbox"
+                  checked={excludedCategories.size === 0}
+                  onChange={toggleAllCategories}
+                  className="h-4 w-4 shrink-0 accent-emerald-600"
+                />
+                <span className="font-medium">Wszystkie</span>
+              </label>
+              <div className="my-1.5 border-t border-zinc-100" />
+              <div className="max-h-64 space-y-0.5 overflow-y-auto pr-1 lg:max-h-none">
+                {allCategories.map((category) => (
+                  <label
+                    key={category}
+                    className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1.5 text-sm hover:bg-zinc-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!excludedCategories.has(category)}
+                      onChange={() => toggleCategory(category)}
+                      className="h-4 w-4 shrink-0 accent-emerald-600"
+                    />
+                    <span className="truncate text-zinc-700">{category}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
         </StepCard>
       ) : null}
