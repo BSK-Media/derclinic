@@ -309,7 +309,8 @@ export default function PublicBookingPage() {
 
   function pickDate(value: string) {
     setDate(value);
-    setWeekStart(value);
+    const idealStart = addDaysToInput(value, -3);
+    setWeekStart(idealStart < today ? today : idealStart);
     setTime("");
   }
 
