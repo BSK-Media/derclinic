@@ -3,7 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import useSWR from "swr";
-import { CheckCircle2, ChevronLeft, Loader2, Sparkles } from "lucide-react";
+import { CheckCircle2, ChevronLeft, Loader2, Sparkles, Check } from "lucide-react";
 import { formatPLNFromGrosze } from "@/lib/money";
 
 async function fetcher(url: string) {
@@ -318,8 +318,36 @@ export default function PublicBookingPage() {
     );
   }
 
+  const summaryItems = [
+    {
+      label: "Lokalizacja",
+      value: locations.find((l) => l.id === locationId)?.name ?? null,
+      onClick: locationId && locations.length > 1 ? () => goToStep(0) : undefined,
+    },
+    {
+      label: "Zabieg",
+      value: selectedService?.name ?? null,
+      onClick: serviceId ? () => goToStep(1) : undefined,
+    },
+    {
+      label: "Specjalista",
+      value: isAnySpecialist ? (pickedSpecialist?.name ?? "Dowolny specjalista") : (selectedSpecialist?.name ?? null),
+      onClick: specialistId ? () => goToStep(qualifyingSpecialists.length <= 1 ? 1 : 2) : undefined,
+    },
+    {
+      label: "Termin",
+      value: time ? `${formatDateLabel(date)}, ${time}` : null,
+      onClick: time ? () => goToStep(3) : undefined,
+    },
+  ];
+
   return (
-    <BookingShell>
+    <BookingShell wide bare>
+      <div className="grid gap-6 md:grid-cols-[240px_1fr]">
+        <SummarySidebar items={summaryItems} />
+        <div>
+          <MobileSummaryBar items={summaryItems} />
+          <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
       <StepProgress step={step} />
 
       {isLoading ? (
@@ -591,11 +619,22 @@ export default function PublicBookingPage() {
           box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
         }
       `}</style>
+          </div>
+        </div>
+      </div>
     </BookingShell>
   );
 }
 
-function BookingShell({ children }: { children: React.ReactNode }) {
+function BookingShell({
+  children,
+  wide = false,
+  bare = false,
+}: {
+  children: React.ReactNode;
+  wide?: boolean;
+  bare?: boolean;
+}) {
   return (
     <div className="min-h-screen bg-zinc-50">
       <header className="border-b bg-white">
@@ -603,8 +642,8 @@ function BookingShell({ children }: { children: React.ReactNode }) {
           <Image src="/derclinic-logo.webp" alt="DerClinic" width={160} height={40} priority />
         </div>
       </header>
-      <main className="mx-auto max-w-3xl px-4 py-8">
-        <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">{children}</div>
+      <main className={"mx-auto px-4 py-8 " + (wide ? "max-w-5xl" : "max-w-3xl")}>
+        {bare ? children : <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">{children}</div>}
       </main>
       <footer className="py-6 text-center text-xs text-zinc-400">
         © {new Date().getFullYear()} DerClinic. Rezerwacja online.
@@ -638,6 +677,78 @@ function StepCard({
         <h2 className="text-lg font-semibold text-zinc-900">{title}</h2>
       </div>
       {children}
+    </div>
+  );
+}
+
+type SummaryItem = { label: string; value: string | null; onClick?: () => void };
+
+function SummarySidebar({ items }: { items: SummaryItem[] }) {
+  return (
+    <div className="hidden self-start rounded-2xl border bg-white p-4 shadow-sm md:sticky md:top-8 md:block">
+      <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">Twój wybór</div>
+      <div className="space-y-3">
+        {items.map((item) => (
+          <SummaryRow key={item.label} {...item} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value, onClick }: SummaryItem) {
+  const filled = Boolean(value);
+  const content = (
+    <div className="flex items-start gap-2.5">
+      <span
+        className={
+          "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full " +
+          (filled ? "bg-emerald-500 text-white" : "border border-zinc-300")
+        }
+      >
+        {filled ? <Check className="h-2.5 w-2.5" /> : null}
+      </span>
+      <div className="min-w-0">
+        <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">{label}</div>
+        <div className={"break-words text-sm " + (filled ? "font-medium text-zinc-900" : "text-zinc-400")}>
+          {value ?? "—"}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="-m-1.5 block w-full rounded-lg p-1.5 text-left transition hover:bg-zinc-50"
+      >
+        {content}
+      </button>
+    );
+  }
+  return <div className="-m-1.5 p-1.5">{content}</div>;
+}
+
+function MobileSummaryBar({ items }: { items: SummaryItem[] }) {
+  const filledItems = items.filter((item) => item.value);
+  if (filledItems.length === 0) return null;
+
+  return (
+    <div className="mb-4 flex flex-wrap gap-2 md:hidden">
+      {filledItems.map((item) => (
+        <button
+          key={item.label}
+          type="button"
+          onClick={item.onClick}
+          disabled={!item.onClick}
+          className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-left text-xs font-medium text-zinc-600 disabled:opacity-70"
+        >
+          <span className="text-zinc-400">{item.label}: </span>
+          {item.value}
+        </button>
+      ))}
     </div>
   );
 }
