@@ -210,6 +210,11 @@ export default function PublicBookingPage() {
     ? pickedSpecialist?.name ?? null
     : selectedSpecialist?.name ?? null;
 
+  const weekDays = React.useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDaysToInput(weekStart, i)),
+    [weekStart],
+  );
+
   // Dostępność dla konkretnego, wybranego specjalisty.
   const { data: singleAvailability, isLoading: loadingSingleSlots } = useSWR(
     !isAnySpecialist && specialistId && serviceId && date
@@ -224,6 +229,16 @@ export default function PublicBookingPage() {
       : null,
     fetcher,
   );
+  // Zbiorcze "czy dzień ma jakikolwiek wolny termin" dla całego widocznego tygodnia —
+  // pozwala wyszarzyć puste dni na pasku bez odpytywania osobno za każdy dzień.
+  const { data: weekAvailability } = useSWR(
+    serviceId && (specialistId === ANY_SPECIALIST ? locationId : specialistId)
+      ? `/api/public/availability-days?serviceId=${serviceId}&dates=${weekDays.join(",")}` +
+        (isAnySpecialist ? `&locationId=${locationId}` : `&specialistId=${specialistId}`)
+      : null,
+    fetcher,
+  );
+  const dayHasSlots: Record<string, boolean> = weekAvailability?.days ?? {};
 
   const singleSlots: string[] = singleAvailability?.slots ?? [];
   const multiSlots: MultiSlot[] = multiAvailability?.slots ?? [];
@@ -288,10 +303,6 @@ export default function PublicBookingPage() {
   const today = warsawTodayInput();
   const maxDate = addDaysToInput(today, 60);
 
-  const weekDays = React.useMemo(
-    () => Array.from({ length: 7 }, (_, i) => addDaysToInput(weekStart, i)),
-    [weekStart],
-  );
   const canGoPrevWeek = weekStart > today;
   const canGoNextWeek = addDaysToInput(weekStart, 7) <= maxDate;
 
@@ -557,7 +568,9 @@ export default function PublicBookingPage() {
             <div className="grid min-w-0 flex-1 grid-cols-7 gap-1.5 sm:gap-2">
               {weekDays.map((value) => {
                 const active = value === date;
-                const disabled = value > maxDate;
+                const beyondRange = value > maxDate;
+                const noSlots = !beyondRange && dayHasSlots[value] === false;
+                const disabled = beyondRange || noSlots;
                 return (
                   <button
                     key={value}
@@ -565,10 +578,14 @@ export default function PublicBookingPage() {
                     onClick={() => pickDate(value)}
                     disabled={disabled}
                     className={
-                      "flex flex-col items-center rounded-xl border py-2 text-xs font-medium capitalize transition disabled:cursor-not-allowed disabled:opacity-30 " +
+                      "flex flex-col items-center rounded-xl border py-2 text-xs font-medium capitalize transition disabled:cursor-not-allowed " +
                       (active
                         ? "border-emerald-500 bg-emerald-600 text-white"
-                        : "border-zinc-200 text-zinc-600 hover:bg-zinc-50")
+                        : noSlots
+                          ? "border-zinc-200 bg-[repeating-linear-gradient(135deg,#f4f4f5,#f4f4f5_5px,#e4e4e7_5px,#e4e4e7_6px)] text-zinc-400"
+                          : beyondRange
+                            ? "border-zinc-200 text-zinc-600 opacity-30"
+                            : "border-zinc-200 text-zinc-600 hover:bg-zinc-50")
                     }
                   >
                     <span className={active ? "text-emerald-50" : "text-zinc-400"}>{formatWeekdayShort(value)}</span>
