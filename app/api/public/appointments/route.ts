@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { parseDateInput, warsawWallTimeToUtc } from "@/lib/warsaw-time";
 import { busyRangesForWarsawDay, computeFreeSlots, slotToUtc } from "@/lib/public-booking";
@@ -28,6 +29,8 @@ const BodySchema = z.object({
   phone: z.string().trim().min(3).max(40),
   email: z.string().trim().email().max(200).optional().or(z.literal("")),
   note: z.string().trim().max(500).optional().or(z.literal("")),
+  // Podane tylko, gdy klient wybrał "Zarejestruj się" zamiast kontynuacji jako gość.
+  password: z.string().min(6).max(100).optional(),
 });
 
 export async function POST(req: Request) {
@@ -35,7 +38,7 @@ export async function POST(req: Request) {
   const parsed = BodySchema.safeParse(json);
   if (!parsed.success) return bad("Uzupełnij poprawnie wszystkie wymagane pola");
 
-  const { locationId, specialistId, serviceId, date, time, firstName, lastName, phone, email, note } =
+  const { locationId, specialistId, serviceId, date, time, firstName, lastName, phone, email, note, password } =
     parsed.data;
 
   const dateParam = parseDateInput(date);
@@ -117,25 +120,42 @@ export async function POST(req: Request) {
       const normalizedPhone = normalizePhone(phone);
       const patientName = `${firstName} ${lastName}`.replace(/\s+/g, " ").trim();
       const normalizedEmail = email?.trim() || null;
+      const passwordHash = password ? await bcrypt.hash(password, 10) : null;
 
       const existingPatient = await tx.patient.findFirst({
         where: { phone: normalizedPhone, locationId },
         orderBy: { updatedAt: "desc" },
-        select: { id: true, email: true },
+        select: { id: true, email: true, passwordHash: true },
       });
 
+      let accountCreated = false;
       let patientId: string;
       if (existingPatient) {
         patientId = existingPatient.id;
-        if (normalizedEmail && !existingPatient.email) {
-          await tx.patient.update({ where: { id: existingPatient.id }, data: { email: normalizedEmail } });
+        const patientUpdate: { email?: string; passwordHash?: string } = {};
+        if (normalizedEmail && !existingPatient.email) patientUpdate.email = normalizedEmail;
+        // Nie nadpisujemy hasła istniejącego konta — tylko "dorejestrowanie"
+        // dotychczasowego, jeszcze niezarejestrowanego pacjenta.
+        if (passwordHash && !existingPatient.passwordHash) {
+          patientUpdate.passwordHash = passwordHash;
+          accountCreated = true;
+        }
+        if (Object.keys(patientUpdate).length > 0) {
+          await tx.patient.update({ where: { id: existingPatient.id }, data: patientUpdate });
         }
       } else {
         const createdPatient = await tx.patient.create({
-          data: { name: patientName, phone: normalizedPhone, email: normalizedEmail, locationId },
+          data: {
+            name: patientName,
+            phone: normalizedPhone,
+            email: normalizedEmail,
+            locationId,
+            passwordHash,
+          },
           select: { id: true },
         });
         patientId = createdPatient.id;
+        accountCreated = Boolean(passwordHash);
       }
 
       const created = await tx.appointment.create({
@@ -152,10 +172,15 @@ export async function POST(req: Request) {
         },
       });
 
-      return created;
+      return { ...created, accountCreated };
     });
 
-    return NextResponse.json({ ok: true, appointmentId: appointment.id, startsAt: appointment.startsAt });
+    return NextResponse.json({
+      ok: true,
+      appointmentId: appointment.id,
+      startsAt: appointment.startsAt,
+      accountCreated: appointment.accountCreated,
+    });
   } catch (e: any) {
     return bad(typeof e?.message === "string" ? e.message : "Nie udało się zapisać wizyty", 409);
   }
