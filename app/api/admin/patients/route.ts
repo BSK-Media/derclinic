@@ -51,6 +51,25 @@ export async function GET(req: Request) {
     take: 20000,
   });
 
+  const retailSales =
+    user!.role === "ADMIN"
+      ? await prisma.retailSale.findMany({
+          where: {
+            patientId: { in: patients.map((patient) => patient.id) },
+            status: "COMPLETED",
+            ...scopedLocationWhere(user!),
+          },
+          select: { patientId: true, total: true },
+          take: 20000,
+        })
+      : [];
+
+  const purchasesByPatient = new Map<string, number>();
+  for (const sale of retailSales) {
+    if (!sale.patientId) continue;
+    purchasesByPatient.set(sale.patientId, (purchasesByPatient.get(sale.patientId) ?? 0) + sale.total);
+  }
+
   const totalsByPatient = new Map<
     string,
     { totalSpent: number; completedVisits: number; lastVisitAt: Date | null }
@@ -69,6 +88,17 @@ export async function GET(req: Request) {
       }
     }
     totalsByPatient.set(appointment.patientId, totals);
+  }
+  if (user!.role === "ADMIN") {
+    for (const [patientId, purchasesTotal] of purchasesByPatient) {
+      const totals = totalsByPatient.get(patientId) ?? {
+        totalSpent: 0,
+        completedVisits: 0,
+        lastVisitAt: null,
+      };
+      totals.totalSpent += purchasesTotal;
+      totalsByPatient.set(patientId, totals);
+    }
   }
 
   const patientsWithStats = patients.map((patient) => ({
