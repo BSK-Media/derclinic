@@ -58,6 +58,11 @@ enum ConsumptionStatus {
   REJECTED
 }
 
+enum RetailSaleStatus {
+  COMPLETED
+  CANCELED
+}
+
 model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -509,7 +514,8 @@ model RetailSale {
   items    RetailSaleItem[]
   payments Payment[]
 
-  note String?
+  status RetailSaleStatus @default(COMPLETED)
+  note   String?
 
   @@index([soldById, createdAt])
   @@index([locationId, createdAt])
