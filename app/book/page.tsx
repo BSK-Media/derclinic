@@ -3,7 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import useSWR from "swr";
-import { CheckCircle2, ChevronLeft, Loader2, Sparkles, Check } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, Check, Calendar as CalendarIcon } from "lucide-react";
 import { formatPLNFromGrosze } from "@/lib/money";
 
 async function fetcher(url: string) {
@@ -60,6 +60,36 @@ function formatDateLabel(value: string) {
   );
 }
 
+function formatWeekdayShort(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("pl-PL", { weekday: "short" }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+function dayOfMonth(value: string) {
+  return Number(value.split("-")[2]);
+}
+
+function pad2(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function monthLabel(year: number, month: number) {
+  return new Intl.DateTimeFormat("pl-PL", { month: "long", year: "numeric" }).format(
+    new Date(Date.UTC(year, month - 1, 1)),
+  );
+}
+
+// Siatka miesiąca (poniedziałek jako pierwszy dzień tygodnia); puste komórki na dni spoza miesiąca.
+function buildMonthGrid(year: number, month: number) {
+  const firstOfMonth = new Date(Date.UTC(year, month - 1, 1));
+  const startWeekday = (firstOfMonth.getUTCDay() + 6) % 7;
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const cells: (string | null)[] = [];
+  for (let i = 0; i < startWeekday; i += 1) cells.push(null);
+  for (let day = 1; day <= daysInMonth; day += 1) cells.push(`${year}-${pad2(month)}-${pad2(day)}`);
+  return cells;
+}
+
 function StepProgress({ step }: { step: number }) {
   return (
     <div className="mb-8 flex items-center justify-center gap-2">
@@ -108,6 +138,8 @@ export default function PublicBookingPage() {
   const [specialistId, setSpecialistId] = React.useState(""); // konkretne id albo ANY_SPECIALIST
   const [serviceQuery, setServiceQuery] = React.useState("");
   const [date, setDate] = React.useState(() => warsawTodayInput());
+  const [weekStart, setWeekStart] = React.useState(() => warsawTodayInput());
+  const [calendarOpen, setCalendarOpen] = React.useState(false);
   const [time, setTime] = React.useState("");
   const [pickedSpecialist, setPickedSpecialist] = React.useState<{ id: string; name: string } | null>(null);
 
@@ -124,6 +156,27 @@ export default function PublicBookingPage() {
   React.useEffect(() => {
     if (locations.length === 1 && !locationId) setLocationId(locations[0].id);
   }, [locations, locationId]);
+
+  const calendarRef = React.useRef<HTMLDivElement | null>(null);
+  const [calendarMonth, setCalendarMonth] = React.useState(() => {
+    const [y, m] = date.split("-").map(Number);
+    return { year: y, month: m };
+  });
+
+  React.useEffect(() => {
+    if (!calendarOpen) return;
+    const [y, m] = date.split("-").map(Number);
+    setCalendarMonth({ year: y, month: m });
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      if (calendarRef.current && !calendarRef.current.contains(event.target as Node)) setCalendarOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+    };
+  }, [calendarOpen, date]);
 
   const filteredServices = React.useMemo(() => {
     const q = serviceQuery.trim().toLowerCase();
@@ -235,6 +288,36 @@ export default function PublicBookingPage() {
   const today = warsawTodayInput();
   const maxDate = addDaysToInput(today, 60);
 
+  const weekDays = React.useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDaysToInput(weekStart, i)),
+    [weekStart],
+  );
+  const canGoPrevWeek = weekStart > today;
+  const canGoNextWeek = addDaysToInput(weekStart, 7) <= maxDate;
+
+  function goPrevWeek() {
+    setWeekStart((current) => {
+      const candidate = addDaysToInput(current, -7);
+      return candidate < today ? today : candidate;
+    });
+  }
+
+  function goNextWeek() {
+    if (!canGoNextWeek) return;
+    setWeekStart((current) => addDaysToInput(current, 7));
+  }
+
+  function pickDate(value: string) {
+    setDate(value);
+    setWeekStart(value);
+    setTime("");
+  }
+
+  function pickDateFromCalendar(value: string) {
+    pickDate(value);
+    setCalendarOpen(false);
+  }
+
   async function submitBooking() {
     setSubmitError("");
     if (!firstName.trim() || !lastName.trim() || !phone.trim()) {
@@ -345,9 +428,9 @@ export default function PublicBookingPage() {
     <BookingShell wide bare>
       <div className="grid gap-6 md:grid-cols-[240px_1fr]">
         <SummarySidebar items={summaryItems} />
-        <div>
+        <div className="min-w-0">
           <MobileSummaryBar items={summaryItems} />
-          <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
+          <div className="min-w-0 rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
       <StepProgress step={step} />
 
       {isLoading ? (
@@ -459,40 +542,127 @@ export default function PublicBookingPage() {
           title="Wybierz termin"
           onBack={() => goToStep(qualifyingSpecialists.length <= 1 ? 1 : 2)}
         >
-          <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-1">
-            {Array.from({ length: 14 }).map((_, i) => {
-              const value = addDaysToInput(today, i);
-              const active = value === date;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => {
-                    setDate(value);
-                    setTime("");
-                  }}
-                  className={
-                    "shrink-0 rounded-xl border px-3 py-2 text-xs font-medium capitalize transition " +
-                    (active
-                      ? "border-emerald-500 bg-emerald-50 text-emerald-800"
-                      : "border-zinc-200 text-zinc-600 hover:bg-zinc-50")
-                  }
-                >
-                  {formatDateLabel(value)}
-                </button>
-              );
-            })}
-            <input
-              type="date"
-              value={date}
-              min={today}
-              max={maxDate}
-              onChange={(e) => {
-                setDate(e.target.value);
-                setTime("");
-              }}
-              className="shrink-0 rounded-xl border border-zinc-200 px-3 py-2 text-xs"
-            />
+          <div className="relative mb-4 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={goPrevWeek}
+              disabled={!canGoPrevWeek}
+              aria-label="Poprzedni tydzień"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-zinc-200 text-zinc-500 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+
+            <div className="grid min-w-0 flex-1 grid-cols-7 gap-1.5 sm:gap-2">
+              {weekDays.map((value) => {
+                const active = value === date;
+                const disabled = value > maxDate;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => pickDate(value)}
+                    disabled={disabled}
+                    className={
+                      "flex flex-col items-center rounded-xl border py-2 text-xs font-medium capitalize transition disabled:cursor-not-allowed disabled:opacity-30 " +
+                      (active
+                        ? "border-emerald-500 bg-emerald-600 text-white"
+                        : "border-zinc-200 text-zinc-600 hover:bg-zinc-50")
+                    }
+                  >
+                    <span className={active ? "text-emerald-50" : "text-zinc-400"}>{formatWeekdayShort(value)}</span>
+                    <span className="text-base font-semibold">{dayOfMonth(value)}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={goNextWeek}
+              disabled={!canGoNextWeek}
+              aria-label="Następny tydzień"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-zinc-200 text-zinc-500 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+
+            <div className="relative shrink-0" ref={calendarRef}>
+              <button
+                type="button"
+                onClick={() => setCalendarOpen((open) => !open)}
+                aria-label="Otwórz pełny kalendarz"
+                className={
+                  "flex h-9 w-9 items-center justify-center rounded-xl border transition " +
+                  (calendarOpen
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                    : "border-zinc-200 text-zinc-500 hover:bg-zinc-50")
+                }
+              >
+                <CalendarIcon className="h-4 w-4" />
+              </button>
+
+              {calendarOpen ? (
+                <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-2xl border border-zinc-200 bg-white p-3 shadow-lg">
+                  <div className="mb-2 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCalendarMonth((m) => (m.month === 1 ? { year: m.year - 1, month: 12 } : { year: m.year, month: m.month - 1 }))
+                      }
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100"
+                      aria-label="Poprzedni miesiąc"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <div className="text-sm font-medium capitalize">
+                      {monthLabel(calendarMonth.year, calendarMonth.month)}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCalendarMonth((m) => (m.month === 12 ? { year: m.year + 1, month: 1 } : { year: m.year, month: m.month + 1 }))
+                      }
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100"
+                      aria-label="Następny miesiąc"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-medium uppercase text-zinc-400">
+                    {["Pon", "Wt", "Śr", "Czw", "Pt", "Sob", "Niedz"].map((d) => (
+                      <div key={d}>{d}</div>
+                    ))}
+                  </div>
+                  <div className="mt-1 grid grid-cols-7 gap-1">
+                    {buildMonthGrid(calendarMonth.year, calendarMonth.month).map((cellValue, index) => {
+                      if (!cellValue) return <div key={`empty-${index}`} />;
+                      const disabled = cellValue < today || cellValue > maxDate;
+                      const active = cellValue === date;
+                      return (
+                        <button
+                          key={cellValue}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => pickDateFromCalendar(cellValue)}
+                          className={
+                            "flex h-8 w-8 items-center justify-center rounded-lg text-xs font-medium transition disabled:cursor-not-allowed disabled:text-zinc-300 " +
+                            (active
+                              ? "bg-emerald-600 text-white"
+                              : disabled
+                                ? ""
+                                : "text-zinc-700 hover:bg-emerald-50")
+                          }
+                        >
+                          {dayOfMonth(cellValue)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
 
           {loadingSlots ? (
