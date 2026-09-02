@@ -469,7 +469,7 @@ export default function PublicBookingPage() {
 
   return (
     <BookingShell wide bare>
-      <div className="grid gap-6 md:grid-cols-[240px_1fr]">
+      <div className={"grid gap-6 md:grid-cols-[240px_1fr] " + (step === 1 ? "xl:grid-cols-[240px_1fr_260px]" : "")}>
         <SummarySidebar items={summaryItems} />
         <div className="min-w-0">
           <MobileSummaryBar items={summaryItems} />
@@ -496,76 +496,42 @@ export default function PublicBookingPage() {
 
       {!isLoading && step === 1 ? (
         <StepCard title="Wybierz zabieg" onBack={locations.length > 1 ? () => goToStep(0) : undefined}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-            <div className="min-w-0 flex-1">
-              <input
-                value={serviceQuery}
-                onChange={(e) => setServiceQuery(e.target.value)}
-                placeholder="Szukaj zabiegu…"
-                className="input mb-4"
-              />
-              <div className="max-h-[26rem] space-y-5 overflow-y-auto pr-1">
-                {servicesByCategory.length === 0 ? (
-                  <div className="text-sm text-zinc-500">Brak zabiegów pasujących do wyszukiwania.</div>
-                ) : null}
-                {servicesByCategory.map(([category, items]) => (
-                  <div key={category}>
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                      {category}
-                    </div>
-                    <div className="grid gap-3">
-                      {items.map((service) => (
-                        <OptionCard
-                          key={service.id}
-                          selected={serviceId === service.id}
-                          onClick={() => selectService(service.id)}
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <div className="font-medium">{service.name}</div>
-                              <div className="text-xs text-zinc-500">{service.durationMin} min</div>
-                            </div>
-                            <div className="shrink-0 font-semibold text-emerald-700">
-                              {formatPLNFromGrosze(service.price)}
-                            </div>
-                          </div>
-                        </OptionCard>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+          <input
+            value={serviceQuery}
+            onChange={(e) => setServiceQuery(e.target.value)}
+            placeholder="Szukaj zabiegu…"
+            className="input mb-4"
+          />
+          <div className="max-h-[26rem] space-y-5 overflow-y-auto pr-1">
+            {servicesByCategory.length === 0 ? (
+              <div className="text-sm text-zinc-500">Brak zabiegów pasujących do wyszukiwania.</div>
+            ) : null}
+            {servicesByCategory.map(([category, items]) => (
+              <div key={category}>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                  {category}
+                </div>
+                <div className="grid gap-3">
+                  {items.map((service) => (
+                    <OptionCard
+                      key={service.id}
+                      selected={serviceId === service.id}
+                      onClick={() => selectService(service.id)}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="font-medium">{service.name}</div>
+                          <div className="text-xs text-zinc-500">{service.durationMin} min</div>
+                        </div>
+                        <div className="shrink-0 font-semibold text-emerald-700">
+                          {formatPLNFromGrosze(service.price)}
+                        </div>
+                      </div>
+                    </OptionCard>
+                  ))}
+                </div>
               </div>
-            </div>
-
-            <div className="w-full shrink-0 rounded-xl border border-zinc-200 p-3 lg:w-56">
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Kategorie</div>
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1.5 text-sm hover:bg-zinc-50">
-                <input
-                  type="checkbox"
-                  checked={excludedCategories.size === 0}
-                  onChange={toggleAllCategories}
-                  className="h-4 w-4 shrink-0 accent-emerald-600"
-                />
-                <span className="font-medium">Wszystkie</span>
-              </label>
-              <div className="my-1.5 border-t border-zinc-100" />
-              <div className="max-h-64 space-y-0.5 overflow-y-auto pr-1 lg:max-h-none">
-                {allCategories.map((category) => (
-                  <label
-                    key={category}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1.5 text-sm hover:bg-zinc-50"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={!excludedCategories.has(category)}
-                      onChange={() => toggleCategory(category)}
-                      className="h-4 w-4 shrink-0 accent-emerald-600"
-                    />
-                    <span className="truncate text-zinc-700">{category}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
+            ))}
           </div>
         </StepCard>
       ) : null}
@@ -874,6 +840,15 @@ export default function PublicBookingPage() {
       `}</style>
           </div>
         </div>
+
+        {step === 1 ? (
+          <CategoryFilterSidebar
+            categories={allCategories}
+            excluded={excludedCategories}
+            onToggleAll={toggleAllCategories}
+            onToggleCategory={toggleCategory}
+          />
+        ) : null}
       </div>
     </BookingShell>
   );
@@ -895,7 +870,7 @@ function BookingShell({
           <Image src="/derclinic-logo.webp" alt="DerClinic" width={160} height={40} priority />
         </div>
       </header>
-      <main className={"mx-auto px-4 py-8 " + (wide ? "max-w-5xl" : "max-w-3xl")}>
+      <main className={"mx-auto px-4 py-8 " + (wide ? "max-w-6xl" : "max-w-3xl")}>
         {bare ? children : <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">{children}</div>}
       </main>
       <footer className="py-6 text-center text-xs text-zinc-400">
@@ -943,6 +918,50 @@ function SummarySidebar({ items }: { items: SummaryItem[] }) {
       <div className="space-y-3">
         {items.map((item) => (
           <SummaryRow key={item.label} {...item} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CategoryFilterSidebar({
+  categories,
+  excluded,
+  onToggleAll,
+  onToggleCategory,
+}: {
+  categories: string[];
+  excluded: Set<string>;
+  onToggleAll: () => void;
+  onToggleCategory: (category: string) => void;
+}) {
+  return (
+    <div className="self-start rounded-2xl border bg-white p-4 shadow-sm md:col-span-2 xl:col-span-1 xl:sticky xl:top-8">
+      <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">Kategorie</div>
+      <label className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1.5 text-sm hover:bg-zinc-50">
+        <input
+          type="checkbox"
+          checked={excluded.size === 0}
+          onChange={onToggleAll}
+          className="h-4 w-4 shrink-0 accent-emerald-600"
+        />
+        <span className="font-medium text-zinc-900">Wszystkie</span>
+      </label>
+      <div className="my-2 border-t border-zinc-100" />
+      <div className="max-h-[28rem] space-y-0.5 overflow-y-auto pr-1">
+        {categories.map((category) => (
+          <label
+            key={category}
+            className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1.5 text-sm hover:bg-zinc-50"
+          >
+            <input
+              type="checkbox"
+              checked={!excluded.has(category)}
+              onChange={() => onToggleCategory(category)}
+              className="h-4 w-4 shrink-0 accent-emerald-600"
+            />
+            <span className="truncate text-zinc-700">{category}</span>
+          </label>
         ))}
       </div>
     </div>
