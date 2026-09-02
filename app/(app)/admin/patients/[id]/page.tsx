@@ -68,7 +68,7 @@ export default async function AdminPatientDetailPage({ params }: { params: { id:
           })),
           soldByName: sale.soldBy.name,
           status: sale.status,
-          total: sale.items.reduce((sum, item) => sum + (item.total ?? 0), 0),
+          total: sale.total,
           paid: sale.payments.reduce((sum, payment) => sum + payment.amount, 0),
         }))}
       />
