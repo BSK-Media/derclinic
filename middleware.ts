@@ -60,8 +60,12 @@ export async function middleware(req: NextRequest) {
 
   if (!needsAuth) return NextResponse.next();
 
-  // allow auth endpoints without session
-  if (pathname.startsWith("/api/auth/login") || pathname.startsWith("/api/auth/logout"))
+  // allow auth endpoints and the public booking API without a session
+  if (
+    pathname.startsWith("/api/auth/login") ||
+    pathname.startsWith("/api/auth/logout") ||
+    pathname.startsWith("/api/public/")
+  )
     return NextResponse.next();
 
   const user = await getUserFromRequest(req);
