@@ -838,18 +838,62 @@ export default function PublicBookingPage() {
             </button>
           </div>
 
+          {accountMode === "register" ? (
+            <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5">
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-emerald-900">
+                <Sparkles className="h-4 w-4" /> Korzyści konta w DerClinic
+              </div>
+              <ul className="space-y-1.5 text-xs text-emerald-800">
+                <li className="flex items-start gap-2">
+                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>Punkty za każdą wizytę i zakup — wymienisz je na kolejne zabiegi</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>Cashback zwracany na Twoje konto klienta przy kolejnych rezerwacjach</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>Szybsza rezerwacja i pełna historia wizyt bez podawania danych za każdym razem</span>
+                </li>
+              </ul>
+            </div>
+          ) : null}
+
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Imię *">
-              <input className="input" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+              <input
+                className="input"
+                autoComplete="given-name"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+              />
             </Field>
             <Field label="Nazwisko *">
-              <input className="input" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+              <input
+                className="input"
+                autoComplete="family-name"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+              />
             </Field>
             <Field label="Telefon *">
-              <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="np. 600 000 000" />
+              <input
+                className="input"
+                autoComplete="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="np. 600 000 000"
+              />
             </Field>
             <Field label="E-mail">
-              <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input
+                className="input"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </Field>
             {accountMode === "register" ? (
               <>
@@ -857,6 +901,7 @@ export default function PublicBookingPage() {
                   <input
                     className="input"
                     type="password"
+                    autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="min. 6 znaków"
@@ -866,6 +911,7 @@ export default function PublicBookingPage() {
                   <input
                     className="input"
                     type="password"
+                    autoComplete="new-password"
                     value={passwordConfirm}
                     onChange={(e) => setPasswordConfirm(e.target.value)}
                   />
