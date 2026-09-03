@@ -37,6 +37,31 @@ type MultiSlot = { time: string; specialistId: string; specialistName: string };
 const ANY_SPECIALIST = "__ANY__";
 const STEP_LABELS = ["Lokalizacja", "Zabieg", "Specjalista", "Termin", "Dane kontaktowe"];
 
+// Numer telefonu w formularzu to zawsze polski numer krajowy (9 cyfr) —
+// prefiks +48 jest stały i doklejany automatycznie przy wysyłce. Pole samo
+// odrzuca litery/znaki specjalne i przycina do 9 cyfr, spacje między
+// cyframi są dozwolone wyłącznie jako separator wizualny.
+function sanitizePhoneInput(raw: string) {
+  let digitsCount = 0;
+  let result = "";
+  for (const char of raw) {
+    if (char === " ") {
+      result += char;
+      continue;
+    }
+    if (/\d/.test(char)) {
+      if (digitsCount >= 9) continue;
+      digitsCount += 1;
+      result += char;
+    }
+  }
+  return result;
+}
+
+function phoneDigitsOnly(value: string) {
+  return value.replace(/\D/g, "");
+}
+
 function warsawTodayInput() {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Warsaw",
@@ -376,6 +401,11 @@ export default function PublicBookingPage() {
       setSubmitError("Podaj imię, nazwisko, numer telefonu i adres e-mail");
       return;
     }
+    const phoneDigits = phoneDigitsOnly(phone);
+    if (phoneDigits.length !== 9) {
+      setSubmitError("Podaj prawidłowy 9-cyfrowy numer telefonu");
+      return;
+    }
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
       setSubmitError("Niepoprawny adres e-mail");
       return;
@@ -409,7 +439,7 @@ export default function PublicBookingPage() {
           time,
           firstName: firstName.trim(),
           lastName: lastName.trim(),
-          phone: phone.trim(),
+          phone: `+48${phoneDigitsOnly(phone)}`,
           email: email.trim(),
           note: note.trim() || undefined,
           password: accountMode === "register" ? password : undefined,
@@ -452,7 +482,7 @@ export default function PublicBookingPage() {
           </p>
           {accountCreated ? (
             <p className="max-w-md rounded-xl bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
-              Konto zostało założone na numer telefonu {phone.trim()}. Panel klienta z historią wizyt
+              Konto zostało założone na numer telefonu +48 {phone.trim()}. Panel klienta z historią wizyt
               pojawi się wkrótce — o uruchomieniu poinformujemy Cię osobno.
             </p>
           ) : null}
@@ -879,13 +909,17 @@ export default function PublicBookingPage() {
               />
             </Field>
             <Field label="Telefon *">
-              <input
-                className="input"
-                autoComplete="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="np. 600 000 000"
-              />
+              <div className="input phone-input-group">
+                <span className="shrink-0 text-sm text-zinc-500">+48</span>
+                <input
+                  className="w-full border-0 bg-transparent p-0 text-sm outline-none"
+                  autoComplete="tel-national"
+                  inputMode="numeric"
+                  value={phone}
+                  onChange={(e) => setPhone(sanitizePhoneInput(e.target.value))}
+                  placeholder="600 000 000"
+                />
+              </div>
             </Field>
             <Field label="E-mail *">
               <input
@@ -970,6 +1004,15 @@ export default function PublicBookingPage() {
           color: #a1a1aa;
         }
         .input:focus {
+          border-color: #10b981;
+          box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
+        }
+        .phone-input-group {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        .phone-input-group:focus-within {
           border-color: #10b981;
           box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
         }
