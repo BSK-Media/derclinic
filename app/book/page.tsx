@@ -3,7 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import useSWR from "swr";
-import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, Check, Calendar as CalendarIcon } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, Check, Calendar as CalendarIcon, Menu, X, ChevronDown, Instagram, Facebook, Phone, Mail, MapPin } from "lucide-react";
 import { formatPLNFromGrosze } from "@/lib/money";
 
 async function fetcher(url: string) {
@@ -990,6 +990,317 @@ export default function PublicBookingPage() {
   );
 }
 
+// Struktura menu i danych kontaktowych odzwierciedla stronę główną
+// https://derclinic.pl/ — trzymana jest tu jako stałe dane, bo widget
+// rezerwacji to osobna aplikacja (Next.js) bez dostępu do treści WordPressa.
+const SITE_URL = "https://derclinic.pl";
+const SITE_NAV: { label: string; href: string; children?: { label: string; href: string }[] }[] = [
+  {
+    label: "O klinice",
+    href: `${SITE_URL}/o-klinice/`,
+    children: [
+      { label: "O nas", href: `${SITE_URL}/o-nas/` },
+      { label: "Galeria", href: `${SITE_URL}/o-klinice/galeria/` },
+      { label: "Zespół", href: `${SITE_URL}/o-klinice/zespol/` },
+      { label: "Opinie", href: `${SITE_URL}/o-klinice/opinie/` },
+      { label: "Media o nas", href: `${SITE_URL}/media-o-nas/` },
+      { label: "Blog", href: `${SITE_URL}/category/blog/` },
+      { label: "Praca", href: `${SITE_URL}/o-klinice/praca/` },
+    ],
+  },
+  {
+    label: "Usługi",
+    href: `${SITE_URL}/uslugi/`,
+    children: [
+      { label: "Medycyna estetyczna", href: `${SITE_URL}/medycyna-estetyczna/` },
+      { label: "Dermatologia", href: `${SITE_URL}/dermatologia/` },
+      { label: "Kosmetologia estetyczna", href: `${SITE_URL}/kosmetologia-estetyczna/` },
+      { label: "Ginekologia", href: `${SITE_URL}/ginekologia/` },
+      { label: "Chirurgia plastyczna", href: `${SITE_URL}/chirurgia-plastyczna/` },
+      { label: "Chirurgia naczyniowa", href: `${SITE_URL}/chirurgia-naczyniowa/` },
+      { label: "Badania USG", href: `${SITE_URL}/badania-usg/` },
+      { label: "Centrum leczenia ran", href: `${SITE_URL}/centrum-leczenia-ran/` },
+      { label: "Leczenie otyłości", href: `${SITE_URL}/leczenie-otylosci/` },
+      { label: "DerClinic Metabolic", href: `${SITE_URL}/derclinic-metabolic/` },
+    ],
+  },
+  { label: "Cennik", href: `${SITE_URL}/cennik/` },
+  { label: "Twój problem", href: `${SITE_URL}/tp/` },
+  { label: "Szkolenia", href: `${SITE_URL}/szkolenia/` },
+  { label: "Academic Review", href: `${SITE_URL}/academic-review/` },
+  { label: "Kariera", href: `${SITE_URL}/kariera/` },
+  { label: "Kontakt", href: `${SITE_URL}/kontakt/` },
+];
+
+const POPULAR_TREATMENTS: { label: string; href: string }[] = [
+  { label: "Powiększanie i modelowanie ust", href: `${SITE_URL}/medycyna-estetyczna/kwas-hialuronowy/powiekszanie-i-modelowanie-ust/` },
+  { label: "Wypełnianie zmarszczek", href: `${SITE_URL}/medycyna-estetyczna/kwas-hialuronowy/wypelnianie-zmarszczek/` },
+  { label: "Mezobotoks", href: `${SITE_URL}/medycyna-estetyczna/toksyna-botulinowa/mezobotoks/` },
+  { label: "Osocze bogatopłytkowe PRP", href: `${SITE_URL}/medycyna-estetyczna/osocze-bogatoplytkowe/osocze-prp/` },
+  { label: "Mezoterapia igłowa", href: `${SITE_URL}/medycyna-estetyczna/mezoterapia/mezoterapia-iglowa-autorskimi-koktajlami/` },
+  { label: "Lipoliza iniekcyjna", href: `${SITE_URL}/medycyna-estetyczna/mezoterapia/mezoterapia-iniekcyjna-lipoliza-intralipoterapia/` },
+  { label: "Hialuronidaza iniekcyjna", href: `${SITE_URL}/medycyna-estetyczna/hialuronidaza/hialuronidaza-iniekcyjna/` },
+  { label: "Usuwanie zmian skórnych", href: `${SITE_URL}/dermatologia/usuwanie-zmian-skornych/` },
+  { label: "Usuwanie włókniaków, tłuszczaków i kaszaków", href: `${SITE_URL}/dermatologia/usuwanie-wlokniakow-tluszczakow-i-kaszakow/` },
+  { label: "ICOONE laserowe modelowanie sylwetki", href: `${SITE_URL}/kosmetologia-estetyczna/icoonelaser-modelowanie-sylwetki/` },
+  { label: "Oczyszczanie twarzy – mikrodermabrazja wodna", href: `${SITE_URL}/kosmetologia-estetyczna/hydrafacial/` },
+  { label: "Mezoterapia stymulująca – mikroigłowa", href: `${SITE_URL}/kosmetologia-estetyczna/dermapen-4-0-mezoterapia-mikroiglowa/` },
+  { label: "Leczenie nadpotliwości pach/dłoni/stóp", href: `${SITE_URL}/medycyna-estetyczna/toksyna-botulinowa/leczenie-nadpotliwosci-pach-dloni-stop/` },
+  { label: "Leczenie bruksizmu botoksem", href: `${SITE_URL}/medycyna-estetyczna/toksyna-botulinowa/leczenie-bruksizmu/` },
+  { label: "Blefaroplastyka – plastyka powiek", href: `${SITE_URL}/medycyna-estetyczna/blefaroplastyka-powiek-gornych/` },
+  { label: "Korekta uśmiechu dziąsłowego", href: `${SITE_URL}/medycyna-estetyczna/toksyna-botulinowa/terapia-usmiechu-dziaslowego/` },
+  { label: "Kwas hialuronowy", href: `${SITE_URL}/medycyna-estetyczna/kwas-hialuronowy/` },
+  { label: "Toksyna botulinowa / botoks", href: `${SITE_URL}/medycyna-estetyczna/toksyna-botulinowa/` },
+];
+
+const PARTNER_BRANDS = ["Hydrafacial", "iCoone Laser", "Jalupro", "PRO XN", "MEDIDERMA", "MedEstelle"];
+
+const CONTACT = {
+  email: "kontakt@derclinic.pl",
+  phone: "+48 570 070 750",
+  phoneHref: "tel:+48570070750",
+  address: "ul. Jana Kilińskiego 11, lok. 47, Grodzisk Mazowiecki koło Warszawy",
+  mapHref: "https://goo.gl/maps/KhFEWv2xRsGtLVQm8",
+  booksyHref: "https://booksy.com/pl-pl/124865_derclinic_medycyna-estetyczna_4424_grodzisk-mazowiecki",
+  instagramHref: "https://www.instagram.com/der_clinic/",
+  facebookHref: "https://www.facebook.com/people/DerClinic/100077195193118/",
+};
+
+function SiteHeader() {
+  const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [openMobileSection, setOpenMobileSection] = React.useState<string | null>(null);
+
+  return (
+    <header className="sticky top-0 z-40 border-b bg-white">
+      {/* Górny pasek: kontakt i social media — ukryty na małych ekranach */}
+      <div className="hidden border-b border-zinc-100 bg-zinc-50 sm:block">
+        <div className="mx-auto flex max-w-6xl items-center justify-end gap-5 px-4 py-1.5 text-xs text-zinc-500">
+          <a href={CONTACT.phoneHref} className="flex items-center gap-1.5 hover:text-emerald-700">
+            <Phone className="h-3.5 w-3.5" /> {CONTACT.phone}
+          </a>
+          <a href={CONTACT.mapHref} target="_blank" rel="noreferrer" className="hidden items-center gap-1.5 hover:text-emerald-700 md:flex">
+            <MapPin className="h-3.5 w-3.5" /> Grodzisk Mazowiecki
+          </a>
+          <a href={CONTACT.booksyHref} target="_blank" rel="noreferrer" className="hover:text-emerald-700">
+            Booksy
+          </a>
+          <a href={CONTACT.instagramHref} target="_blank" rel="noreferrer" aria-label="Instagram" className="hover:text-emerald-700">
+            <Instagram className="h-3.5 w-3.5" />
+          </a>
+          <a href={CONTACT.facebookHref} target="_blank" rel="noreferrer" aria-label="Facebook" className="hover:text-emerald-700">
+            <Facebook className="h-3.5 w-3.5" />
+          </a>
+        </div>
+      </div>
+
+      {/* Główny wiersz: logo + nawigacja + CTA */}
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+        <a href={SITE_URL} className="shrink-0">
+          <Image src="/derclinic-logo.webp" alt="DerClinic" width={150} height={38} priority />
+        </a>
+
+        <nav className="hidden items-center gap-1 lg:flex">
+          {SITE_NAV.map((item) =>
+            item.children ? (
+              <div key={item.label} className="group relative">
+                <a
+                  href={item.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:text-emerald-700"
+                >
+                  {item.label}
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </a>
+                <div className="invisible absolute left-0 top-full z-50 min-w-[240px] rounded-xl border border-zinc-100 bg-white p-2 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100">
+                  {item.children.map((sub) => (
+                    <a
+                      key={sub.label}
+                      href={sub.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block rounded-lg px-3 py-2 text-sm text-zinc-600 hover:bg-emerald-50 hover:text-emerald-800"
+                    >
+                      {sub.label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <a
+                key={item.label}
+                href={item.href}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:text-emerald-700"
+              >
+                {item.label}
+              </a>
+            ),
+          )}
+        </nav>
+
+        <div className="flex items-center gap-2">
+          <a
+            href={SITE_URL}
+            className="hidden rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 sm:block"
+          >
+            Umów wizytę
+          </a>
+          <button
+            type="button"
+            onClick={() => setMobileOpen((v) => !v)}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 text-zinc-600 lg:hidden"
+            aria-label={mobileOpen ? "Zamknij menu" : "Otwórz menu"}
+          >
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Menu mobilne */}
+      {mobileOpen ? (
+        <div className="border-t bg-white px-4 py-3 lg:hidden">
+          <nav className="flex flex-col">
+            {SITE_NAV.map((item) =>
+              item.children ? (
+                <div key={item.label} className="border-b border-zinc-100 py-1">
+                  <button
+                    type="button"
+                    onClick={() => setOpenMobileSection((current) => (current === item.label ? null : item.label))}
+                    className="flex w-full items-center justify-between py-2 text-sm font-medium text-zinc-800"
+                  >
+                    {item.label}
+                    <ChevronDown className={"h-4 w-4 transition " + (openMobileSection === item.label ? "rotate-180" : "")} />
+                  </button>
+                  {openMobileSection === item.label ? (
+                    <div className="pb-2 pl-3">
+                      {item.children.map((sub) => (
+                        <a key={sub.label} href={sub.href} target="_blank" rel="noreferrer" className="block py-1.5 text-sm text-zinc-600">
+                          {sub.label}
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="border-b border-zinc-100 py-2.5 text-sm font-medium text-zinc-800"
+                >
+                  {item.label}
+                </a>
+              ),
+            )}
+            <a href={CONTACT.phoneHref} className="flex items-center gap-2 py-3 text-sm text-zinc-600">
+              <Phone className="h-4 w-4" /> {CONTACT.phone}
+            </a>
+          </nav>
+        </div>
+      ) : null}
+    </header>
+  );
+}
+
+function SiteFooter() {
+  return (
+    <footer className="mt-10 border-t bg-zinc-900 text-zinc-300">
+      <div className="mx-auto max-w-6xl px-4 py-10">
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <Image src="/derclinic-logo.webp" alt="DerClinic" width={140} height={35} className="mb-4 brightness-0 invert" />
+            <div className="space-y-2 text-sm">
+              <a href={`mailto:${CONTACT.email}`} className="flex items-center gap-2 hover:text-emerald-400">
+                <Mail className="h-4 w-4 shrink-0" /> {CONTACT.email}
+              </a>
+              <a href={CONTACT.phoneHref} className="flex items-center gap-2 hover:text-emerald-400">
+                <Phone className="h-4 w-4 shrink-0" /> {CONTACT.phone}
+              </a>
+              <a href={CONTACT.mapHref} target="_blank" rel="noreferrer" className="flex items-start gap-2 hover:text-emerald-400">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0" /> <span>{CONTACT.address}</span>
+              </a>
+            </div>
+            <div className="mt-4 flex items-center gap-3">
+              <a href={CONTACT.booksyHref} target="_blank" rel="noreferrer" className="rounded-full border border-zinc-700 px-3 py-1 text-xs hover:border-emerald-500 hover:text-emerald-400">
+                Booksy
+              </a>
+              <a href={CONTACT.instagramHref} target="_blank" rel="noreferrer" aria-label="Instagram" className="text-zinc-400 hover:text-emerald-400">
+                <Instagram className="h-4 w-4" />
+              </a>
+              <a href={CONTACT.facebookHref} target="_blank" rel="noreferrer" aria-label="Facebook" className="text-zinc-400 hover:text-emerald-400">
+                <Facebook className="h-4 w-4" />
+              </a>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Menu</div>
+            <ul className="space-y-2 text-sm">
+              {SITE_NAV.map((item) => (
+                <li key={item.label}>
+                  <a href={item.href} target="_blank" rel="noreferrer" className="hover:text-emerald-400">
+                    {item.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Popularne zabiegi</div>
+            <ul className="space-y-2 text-sm">
+              {POPULAR_TREATMENTS.map((item) => (
+                <li key={item.label}>
+                  <a href={item.href} target="_blank" rel="noreferrer" className="hover:text-emerald-400">
+                    {item.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Partnerzy</div>
+            <div className="flex flex-wrap gap-2">
+              {PARTNER_BRANDS.map((brand) => (
+                <span key={brand} className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-400">
+                  {brand}
+                </span>
+              ))}
+            </div>
+
+            <div className="mt-6 mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Dokumenty</div>
+            <ul className="space-y-2 text-sm">
+              <li>
+                <a href={`${SITE_URL}/regulamin/`} target="_blank" rel="noreferrer" className="hover:text-emerald-400">
+                  Regulamin
+                </a>
+              </li>
+              <li>
+                <a href={`${SITE_URL}/polityka-prywatnosci/`} target="_blank" rel="noreferrer" className="hover:text-emerald-400">
+                  Polityka prywatności
+                </a>
+              </li>
+              <li>
+                <a href={`${SITE_URL}/mapa-strony/`} target="_blank" rel="noreferrer" className="hover:text-emerald-400">
+                  Mapa strony
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="mt-10 border-t border-zinc-800 pt-6 text-center text-xs text-zinc-500">
+          © {new Date().getFullYear()} DerClinic Klinika Medycyny Estetycznej. Wszelkie prawa zastrzeżone.
+        </div>
+      </div>
+    </footer>
+  );
+}
+
 function BookingShell({
   children,
   wide = false,
@@ -1001,17 +1312,11 @@ function BookingShell({
 }) {
   return (
     <div className="min-h-screen bg-zinc-50">
-      <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-4xl items-center justify-center px-4 py-5">
-          <Image src="/derclinic-logo.webp" alt="DerClinic" width={160} height={40} priority />
-        </div>
-      </header>
+      <SiteHeader />
       <main className={"mx-auto px-4 py-8 " + (wide ? "max-w-7xl" : "max-w-4xl")}>
         {bare ? children : <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">{children}</div>}
       </main>
-      <footer className="py-6 text-center text-xs text-zinc-400">
-        © {new Date().getFullYear()} DerClinic. Rezerwacja online.
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
