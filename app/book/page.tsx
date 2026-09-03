@@ -372,11 +372,11 @@ export default function PublicBookingPage() {
 
   async function submitBooking() {
     setSubmitError("");
-    if (!firstName.trim() || !lastName.trim() || !phone.trim()) {
-      setSubmitError("Podaj imię, nazwisko i numer telefonu");
+    if (!firstName.trim() || !lastName.trim() || !phone.trim() || !email.trim()) {
+      setSubmitError("Podaj imię, nazwisko, numer telefonu i adres e-mail");
       return;
     }
-    if (email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim())) {
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
       setSubmitError("Niepoprawny adres e-mail");
       return;
     }
@@ -410,7 +410,7 @@ export default function PublicBookingPage() {
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           phone: phone.trim(),
-          email: email.trim() || undefined,
+          email: email.trim(),
           note: note.trim() || undefined,
           password: accountMode === "register" ? password : undefined,
         }),
@@ -855,10 +855,6 @@ export default function PublicBookingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <span>Cashback zwracany na Twoje konto klienta przy kolejnych rezerwacjach</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <span>Szybsza rezerwacja i pełna historia wizyt bez podawania danych za każdym razem</span>
                 </li>
               </ul>
@@ -891,7 +887,7 @@ export default function PublicBookingPage() {
                 placeholder="np. 600 000 000"
               />
             </Field>
-            <Field label="E-mail">
+            <Field label="E-mail *">
               <input
                 className="input"
                 type="email"
