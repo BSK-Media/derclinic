@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
+import Link from "next/link";
 import useSWR from "swr";
 import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, Check, Calendar as CalendarIcon, Menu, X, ChevronDown, Instagram, Facebook, Phone, Mail, MapPin } from "lucide-react";
 import { formatPLNFromGrosze } from "@/lib/money";
@@ -481,11 +482,32 @@ export default function PublicBookingPage() {
             dodatkowe informacje.
           </p>
           {accountCreated ? (
-            <p className="max-w-md rounded-xl bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
-              Konto zostało założone na numer telefonu +48 {phone.trim()}. Panel klienta z historią wizyt
-              pojawi się wkrótce — o uruchomieniu poinformujemy Cię osobno.
-            </p>
-          ) : null}
+            <div className="w-full max-w-md space-y-3">
+              <p className="rounded-xl bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+                Konto zostało założone na numer telefonu +48 {phone.trim()}. Zaloguj się, żeby zobaczyć historię
+                wizyt.
+              </p>
+              <Link
+                href="/panel-klienta/logowanie"
+                className="block w-full rounded-xl bg-emerald-600 py-3 text-center text-sm font-semibold text-white transition hover:bg-emerald-700"
+              >
+                Zaloguj się do panelu klienta
+              </Link>
+            </div>
+          ) : (
+            <div className="w-full max-w-md space-y-3">
+              <p className="rounded-xl bg-zinc-50 px-4 py-3 text-xs text-zinc-500">
+                Rezerwowałaś/eś jako gość. Załóż konto, żeby mieć wgląd w historię wizyt i szybciej rezerwować
+                kolejne.
+              </p>
+              <Link
+                href="/panel-klienta/rejestracja"
+                className="block w-full rounded-xl border border-emerald-600 py-3 text-center text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
+              >
+                Zarejestruj się
+              </Link>
+            </div>
+          )}
         </div>
       </BookingShell>
     );
