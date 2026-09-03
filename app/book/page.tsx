@@ -509,7 +509,7 @@ export default function PublicBookingPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             {locations.map((loc) => (
               <OptionCard key={loc.id} selected={locationId === loc.id} onClick={() => selectLocation(loc.id)}>
-                <div className="font-medium">{loc.name}</div>
+                <div className="font-medium text-zinc-900">{loc.name}</div>
               </OptionCard>
             ))}
           </div>
@@ -542,7 +542,7 @@ export default function PublicBookingPage() {
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <div className="font-medium">{service.name}</div>
+                          <div className="font-medium text-zinc-900">{service.name}</div>
                           <div className="text-xs text-zinc-500">{service.durationMin} min</div>
                         </div>
                         <div className="shrink-0 font-semibold text-emerald-700">
@@ -592,7 +592,7 @@ export default function PublicBookingPage() {
                     )}
                   </div>
                   <div>
-                    <div className="font-medium">{s.name}</div>
+                    <div className="font-medium text-zinc-900">{s.name}</div>
                     {s.jobTitle ? <div className="text-xs text-zinc-500">{s.jobTitle}</div> : null}
                   </div>
                 </div>
@@ -686,7 +686,7 @@ export default function PublicBookingPage() {
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
-                    <div className="text-sm font-medium capitalize">
+                    <div className="text-sm font-medium capitalize text-zinc-900">
                       {monthLabel(calendarMonth.year, calendarMonth.month)}
                     </div>
                     <button
@@ -800,7 +800,7 @@ export default function PublicBookingPage() {
       {!isLoading && step === 4 ? (
         <StepCard title="Dane kontaktowe" onBack={() => goToStep(3)}>
           <div className="mb-4 rounded-xl bg-zinc-50 p-3 text-sm">
-            <div className="font-medium">{selectedService?.name}</div>
+            <div className="font-medium text-zinc-900">{selectedService?.name}</div>
             <div className="text-zinc-500">
               {displaySpecialistName} • {formatDateLabel(date)}, {time}
             </div>
@@ -943,6 +943,18 @@ export default function PublicBookingPage() {
       ) : null}
 
       <style jsx global>{`
+        /*
+         * Widget rezerwacji jest publiczną stroną i ma zawsze wyglądać
+         * tak samo, niezależnie od ciemnego motywu systemu/przeglądarki
+         * odwiedzającego. Bez poniższej deklaracji część przeglądarek
+         * (np. wymuszony "ciemny motyw stron" w Chrome) sama przemalowuje
+         * niestylowane elementy (pola formularzy, domyślny kolor tekstu)
+         * na biały tekst na białym tle, co robi stronę nieczytelną.
+         */
+        html,
+        body {
+          color-scheme: light only;
+        }
         .input {
           width: 100%;
           border-radius: 0.75rem;
@@ -950,6 +962,11 @@ export default function PublicBookingPage() {
           padding: 0.6rem 0.75rem;
           font-size: 0.875rem;
           outline: none;
+          background-color: #ffffff;
+          color: #18181b;
+        }
+        .input::placeholder {
+          color: #a1a1aa;
         }
         .input:focus {
           border-color: #10b981;
