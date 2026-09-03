@@ -27,7 +27,7 @@ const BodySchema = z.object({
   firstName: z.string().trim().min(1).max(100),
   lastName: z.string().trim().min(1).max(100),
   phone: z.string().trim().min(3).max(40),
-  email: z.string().trim().email().max(200).optional().or(z.literal("")),
+  email: z.string().trim().min(1, "E-mail jest wymagany").email().max(200),
   note: z.string().trim().max(500).optional().or(z.literal("")),
   // Podane tylko, gdy klient wybrał "Zarejestruj się" zamiast kontynuacji jako gość.
   password: z.string().min(6).max(100).optional(),
