@@ -406,7 +406,7 @@ export default function PublicBookingPage() {
       setSubmitError("Podaj prawidłowy 9-cyfrowy numer telefonu");
       return;
     }
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+    if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(email.trim())) {
       setSubmitError("Niepoprawny adres e-mail");
       return;
     }
