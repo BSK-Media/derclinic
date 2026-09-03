@@ -26,7 +26,7 @@ const BodySchema = z.object({
   time: z.string().regex(/^\d{2}:\d{2}$/),
   firstName: z.string().trim().min(1).max(100),
   lastName: z.string().trim().min(1).max(100),
-  phone: z.string().trim().min(3).max(40),
+  phone: z.string().trim().regex(/^\+48\d{9}$/, "Podaj prawidłowy 9-cyfrowy numer telefonu"),
   email: z.string().trim().min(1, "E-mail jest wymagany").email().max(200),
   note: z.string().trim().max(500).optional().or(z.literal("")),
   // Podane tylko, gdy klient wybrał "Zarejestruj się" zamiast kontynuacji jako gość.
