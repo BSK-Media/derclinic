@@ -133,9 +133,9 @@ const SERVICES: Array<{ name: string; price: number }> = [
   { name: 'Kwas polimlekowy lanluma - Modelowanie pośladków', price: 4500 },
   { name: 'Peeling fenolowy na twarz', price: 650 },
   { name: 'Mezobotox', price: 1500 },
-  { name: 'Nowość! Toksynaa Relfydess - 3 okolice', price: 2300 },
-  { name: 'Nowość! Toksynaa Relfydess - 2 okolice', price: 1500 },
-  { name: 'Nowość! Toksynaa Relfydess - 1 okolica', price: 800 },
+  { name: 'Nowość! Toksynaa Relfydess - 3 okolice', price: 2500 },
+  { name: 'Nowość! Toksynaa Relfydess - 2 okolice', price: 1700 },
+  { name: 'Nowość! Toksynaa Relfydess - 1 okolica', price: 900 },
   { name: 'Konsultacja dermatologiczna', price: 300 },
   { name: 'Konsultacja lekarza medycyny estetycznej', price: 250 },
   { name: 'Dermapen stymulacja wzrostu włosów', price: 900 },
@@ -653,6 +653,133 @@ function inferServiceDuration(name: string): number {
   return 45;
 }
 
+// Ceny, które administrator potwierdził jako aktualnie obowiązujące dla
+// usług, których duplikaty w SERVICES rozjechały się cenowo (patrz niżej
+// w mergeDuplicateServices). Klucz: nazwa usługi, wartość: cena w groszach.
+const CONFIRMED_SERVICE_PRICES: Record<string, number> = {
+  "Nowość! Toksynaa Relfydess - 3 okolice": 250000,
+  "Nowość! Toksynaa Relfydess - 2 okolice": 170000,
+  "Nowość! Toksynaa Relfydess - 1 okolica": 90000,
+};
+
+// Tablica SERVICES jest ręcznie utrzymywaną listą zaimportowaną z Amelii —
+// kilka pozycji zostało przez pomyłkę wklejonych dwukrotnie (raz z tą samą
+// ceną, raz z ceną zaktualizowaną w drugim wpisie zamiast w pierwszym).
+// Ponieważ każdy wiersz jest tworzony przez upsert po ID zależnym od
+// pozycji w tablicy (`service-seed-XXX`), usunięcie/przesunięcie wpisu w
+// SERVICES przesunęłoby ID wszystkich kolejnych usług i nadpisało ich dane
+// przy następnym wdrożeniu — dlatego duplikaty NIE są usuwane z tablicy.
+// Zamiast tego, po zaseedowaniu usług, scalamy duplikaty bezpośrednio w
+// bazie: zostawiamy najstarszy rekord dla danej nazwy, przenosimy na niego
+// wszystkie powiązania (wizyty, przypisania specjalistów, stawki,
+// sugerowane produkty) z pozostałych rekordów, po czym je usuwamy. Krok
+// jest bezpieczny do wielokrotnego uruchamiania — jeśli duplikatów nie ma,
+// nic się nie dzieje.
+async function mergeDuplicateServices() {
+  const services = await prisma.service.findMany({
+    select: { id: true, name: true, price: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const byName = new Map<string, typeof services>();
+  for (const service of services) {
+    const group = byName.get(service.name) ?? [];
+    group.push(service);
+    byName.set(service.name, group);
+  }
+
+  let mergedCount = 0;
+
+  for (const [name, group] of byName) {
+    if (group.length < 2) continue;
+
+    const [primary, ...duplicates] = group;
+    const distinctPrices = new Set(group.map((s) => s.price));
+
+    if (distinctPrices.size > 1) {
+      const confirmedPrice = CONFIRMED_SERVICE_PRICES[name];
+      if (confirmedPrice !== undefined && primary.price !== confirmedPrice) {
+        // Znamy potwierdzoną, aktualną cenę tej usługi — wymuszamy ją na
+        // rekordzie głównym, niezależnie od tego, który z duplikatów
+        // "wygrał" jako najstarszy.
+        await prisma.service.update({ where: { id: primary.id }, data: { price: confirmedPrice } });
+        primary.price = confirmedPrice;
+      } else if (confirmedPrice === undefined) {
+        // Duplikaty mają rozbieżne ceny, a nie znamy potwierdzonej wartości
+        // — scalamy pod ceną najstarszego rekordu, ale zgłaszamy to w logu,
+        // żeby administrator zweryfikował, która cena jest aktualna.
+        console.warn(
+          `⚠️  Usługa "${name}" ma duplikaty z różnymi cenami (${group
+            .map((s) => `${(s.price ?? 0) / 100} zł`)
+            .join(" / ")}). Scalono pod cenę ${(primary.price ?? 0) / 100} zł — sprawdź, która cena jest aktualna.`,
+        );
+      }
+    }
+
+    for (const duplicate of duplicates) {
+      // Wizyty historyczne — przepinamy na główny rekord usługi.
+      await prisma.appointment.updateMany({
+        where: { serviceId: duplicate.id },
+        data: { serviceId: primary.id },
+      });
+
+      // Przypisania specjalistów — przenosimy, pomijając te, które już
+      // istnieją dla głównego rekordu (unikalny klucz specialistId+serviceId).
+      const dupAssignments = await prisma.specialistService.findMany({
+        where: { serviceId: duplicate.id },
+        select: { id: true, specialistId: true },
+      });
+      for (const assignment of dupAssignments) {
+        const alreadyExists = await prisma.specialistService.findUnique({
+          where: { specialistId_serviceId: { specialistId: assignment.specialistId, serviceId: primary.id } },
+        });
+        if (alreadyExists) {
+          await prisma.specialistService.delete({ where: { id: assignment.id } });
+        } else {
+          await prisma.specialistService.update({ where: { id: assignment.id }, data: { serviceId: primary.id } });
+        }
+      }
+
+      // Stawki specjalistów za usługę — analogicznie.
+      const dupRates = await prisma.specialistServiceRate.findMany({
+        where: { serviceId: duplicate.id },
+        select: { id: true, specialistId: true },
+      });
+      for (const rate of dupRates) {
+        const alreadyExists = await prisma.specialistServiceRate.findUnique({
+          where: { specialistId_serviceId: { specialistId: rate.specialistId, serviceId: primary.id } },
+        });
+        if (alreadyExists) {
+          await prisma.specialistServiceRate.delete({ where: { id: rate.id } });
+        } else {
+          await prisma.specialistServiceRate.update({ where: { id: rate.id }, data: { serviceId: primary.id } });
+        }
+      }
+
+      // Sugerowane produkty do usługi — analogicznie.
+      const dupProducts = await prisma.serviceSuggestedProduct.findMany({
+        where: { serviceId: duplicate.id },
+        select: { id: true, productId: true },
+      });
+      for (const suggestion of dupProducts) {
+        const alreadyExists = await prisma.serviceSuggestedProduct.findUnique({
+          where: { serviceId_productId: { serviceId: primary.id, productId: suggestion.productId } },
+        });
+        if (alreadyExists) {
+          await prisma.serviceSuggestedProduct.delete({ where: { id: suggestion.id } });
+        } else {
+          await prisma.serviceSuggestedProduct.update({ where: { id: suggestion.id }, data: { serviceId: primary.id } });
+        }
+      }
+
+      await prisma.service.delete({ where: { id: duplicate.id } });
+      mergedCount += 1;
+    }
+  }
+
+  return mergedCount;
+}
+
 function inferServiceDescription(name: string, price: number): string {
   return `Usługa seedowana roboczo z cennika kliniki. Cena: ${price} PLN.`;
 }
@@ -905,6 +1032,8 @@ async function main() {
     seededServices += 1;
   }
 
+  const mergedDuplicateServices = await mergeDuplicateServices();
+
   await prisma.service.upsert({
     where: { id: "service-custom" },
     update: {
@@ -984,7 +1113,7 @@ async function main() {
   }
 
   console.log(
-    `✅ Seed completed: ${globalIndex} produktów, ${seededServices} usług, ${specialistServices.length} przypisań pracownik–usługa, ${assignedWarehouses} przypisań magazynów`,
+    `✅ Seed completed: ${globalIndex} produktów, ${seededServices} usług, ${mergedDuplicateServices} scalonych duplikatów usług, ${specialistServices.length} przypisań pracownik–usługa, ${assignedWarehouses} przypisań magazynów`,
   );
 }
 
