@@ -110,7 +110,7 @@ function StepProgress({ step }: { step: number }) {
             </div>
             <span
               className={
-                "hidden text-[11px] font-medium sm:block " +
+                "hidden whitespace-nowrap text-[11px] font-medium sm:block " +
                 (index <= step ? "text-zinc-700" : "text-zinc-400")
               }
             >
@@ -1001,11 +1001,11 @@ function BookingShell({
   return (
     <div className="min-h-screen bg-zinc-50">
       <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-3xl items-center justify-center px-4 py-5">
+        <div className="mx-auto flex max-w-4xl items-center justify-center px-4 py-5">
           <Image src="/derclinic-logo.webp" alt="DerClinic" width={160} height={40} priority />
         </div>
       </header>
-      <main className={"mx-auto px-4 py-8 " + (wide ? "max-w-7xl" : "max-w-3xl")}>
+      <main className={"mx-auto px-4 py-8 " + (wide ? "max-w-7xl" : "max-w-4xl")}>
         {bare ? children : <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">{children}</div>}
       </main>
       <footer className="py-6 text-center text-xs text-zinc-400">
