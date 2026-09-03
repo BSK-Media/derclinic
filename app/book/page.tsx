@@ -213,8 +213,13 @@ export default function PublicBookingPage() {
     const q = serviceQuery.trim().toLowerCase();
     return services.filter((service) => {
       const category = service.category || "Pozostałe zabiegi";
-      if (excludedCategories.has(category)) return false;
-      if (!q) return true;
+      // Aktywne wyszukiwanie działa niezależnie od zaznaczonych kategorii —
+      // filtr kategorii ma pomagać w przeglądaniu, a nie ograniczać wyniki
+      // wyszukiwania frazy. Kategorie liczą się tylko wtedy, gdy pole
+      // wyszukiwania jest puste.
+      if (!q) {
+        return !excludedCategories.has(category);
+      }
       return service.name.toLowerCase().includes(q) || category.toLowerCase().includes(q);
     });
   }, [services, serviceQuery, excludedCategories]);
