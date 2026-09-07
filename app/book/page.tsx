@@ -226,9 +226,10 @@ export default function PublicBookingPage() {
   }, [refreshPatientSession]);
 
   // Sprawdzenie "na żywo" (z opóźnieniem), czy podany numer telefonu ma już
-  // założone konto — tylko w trybie rejestracji i gdy nikt nie jest zalogowany.
+  // założone konto — niezależnie od trybu (gość/rejestracja), żeby nikt nie
+  // mógł zarezerwować się na dane, które są już przypisane do innego konta.
   React.useEffect(() => {
-    if (loggedInPatient || accountMode !== "register") {
+    if (loggedInPatient) {
       setPhoneAccountWarning(false);
       return;
     }
@@ -251,11 +252,11 @@ export default function PublicBookingPage() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [phone, accountMode, loggedInPatient]);
+  }, [phone, loggedInPatient]);
 
   // To samo dla adresu e-mail.
   React.useEffect(() => {
-    if (loggedInPatient || accountMode !== "register") {
+    if (loggedInPatient) {
       setEmailAccountWarning(false);
       return;
     }
@@ -278,7 +279,7 @@ export default function PublicBookingPage() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [email, accountMode, loggedInPatient]);
+  }, [email, loggedInPatient]);
 
   async function submitInlineLogin() {
     setLoginError("");
@@ -551,9 +552,39 @@ export default function PublicBookingPage() {
       setSubmitError("Podaj prawidłowy 9-cyfrowy numer telefonu");
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(email.trim())) {
+    const trimmedEmail = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(trimmedEmail)) {
       setSubmitError("Niepoprawny adres e-mail");
       return;
+    }
+    if (!loggedInPatient) {
+      // Sprawdzamy jeszcze raz tuż przed wysyłką (nie polegamy tylko na
+      // odpytywaniu "na żywo" z opóźnieniem) — nikt nie powinien dokończyć
+      // rezerwacji jako gość ani przez rejestrację na dane, które są już
+      // przypisane do istniejącego konta.
+      try {
+        const response = await fetch(
+          `/api/public/check-account?phone=${phoneDigits}&email=${encodeURIComponent(trimmedEmail)}`,
+        );
+        const result = await response.json().catch(() => ({}));
+        const phoneTaken = Boolean(result?.phoneHasAccount);
+        const emailTaken = Boolean(result?.emailHasAccount);
+        setPhoneAccountWarning(phoneTaken);
+        setEmailAccountWarning(emailTaken);
+        if (phoneTaken || emailTaken) {
+          setSubmitError(
+            (phoneTaken && emailTaken
+              ? "Ten numer telefonu i adres e-mail mają"
+              : phoneTaken
+                ? "Ten numer telefonu ma"
+                : "Ten adres e-mail ma") + " już założone konto. Zaloguj się, aby kontynuować rezerwację.",
+          );
+          return;
+        }
+      } catch {
+        // Brak odpowiedzi z serwera nie powinien blokować rezerwacji —
+        // ostateczna walidacja i tak następuje po stronie API przy zapisie.
+      }
     }
     if (accountMode === "register" && !loggedInPatient) {
       if (password.length < 6) {
