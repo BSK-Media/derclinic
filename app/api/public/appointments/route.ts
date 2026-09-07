@@ -19,6 +19,33 @@ function normalizePhone(value: string) {
   return trimmed.startsWith("+") ? `+${digits}` : digits;
 }
 
+// Numer telefonu i e-mail są dopuszczone jako zduplikowane w różnych
+// lokalizacjach (patrz komentarz w lib/patient-auth.ts), ale w obrębie jednej
+// lokalizacji rezerwacja musi trafić na już istniejące konto zamiast tworzyć
+// drugi, osierocony rekord Patient z tymi samymi danymi kontaktowymi.
+// Najpierw szukamy po telefonie (silniejszy identyfikator — używany też do
+// logowania), a dopiero gdy nic nie znajdziemy, po e-mailu.
+async function findExistingPatient(
+  tx: any,
+  normalizedPhone: string,
+  normalizedEmail: string | null,
+  locationId: string,
+) {
+  const byPhone = await tx.patient.findFirst({
+    where: { phone: normalizedPhone, locationId },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, email: true, phone: true, passwordHash: true },
+  });
+  if (byPhone) return byPhone;
+
+  if (!normalizedEmail) return null;
+  return tx.patient.findFirst({
+    where: { email: { equals: normalizedEmail, mode: "insensitive" }, locationId },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, email: true, phone: true, passwordHash: true },
+  });
+}
+
 const BodySchema = z.object({
   locationId: z.string().min(1),
   specialistId: z.string().min(1),
@@ -168,21 +195,21 @@ export async function POST(req: Request) {
           });
         }
       } else {
-        const existingPatient = await tx.patient.findFirst({
-          where: { phone: normalizedPhone, locationId },
-          orderBy: { updatedAt: "desc" },
-          select: { id: true, email: true, passwordHash: true },
-        });
+        const existingPatient = await findExistingPatient(tx, normalizedPhone, normalizedEmail, locationId);
 
-        // Numer telefonu ma już przypisane konto z hasłem — nie nadpisujemy go,
-        // ale front musi o tym wiedzieć, żeby nie pokazać mylącego komunikatu
-        // "rezerwowałeś jako gość" osobie, która w rzeczywistości ma konto.
+        // Telefon albo e-mail ma już przypisane konto z hasłem — nie
+        // nadpisujemy go, ale front musi o tym wiedzieć, żeby nie pokazać
+        // mylącego komunikatu "rezerwowałeś jako gość" osobie, która w
+        // rzeczywistości ma konto.
         alreadyHasAccount = Boolean(existingPatient?.passwordHash);
 
         if (existingPatient) {
           patientId = existingPatient.id;
-          const patientUpdate: { email?: string; passwordHash?: string } = {};
+          const patientUpdate: { email?: string; phone?: string; passwordHash?: string } = {};
           if (normalizedEmail && !existingPatient.email) patientUpdate.email = normalizedEmail;
+          // Uzupełniamy telefon tylko, gdy pacjent trafiony po e-mailu nie miał
+          // go jeszcze zapisanego — nie nadpisujemy istniejącego numeru innym.
+          if (normalizedPhone && !existingPatient.phone) patientUpdate.phone = normalizedPhone;
           // Nie nadpisujemy hasła istniejącego konta — tylko "dorejestrowanie"
           // dotychczasowego, jeszcze niezarejestrowanego pacjenta.
           if (passwordHash && !existingPatient.passwordHash) {
