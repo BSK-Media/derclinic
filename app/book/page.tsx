@@ -182,6 +182,7 @@ export default function PublicBookingPage() {
   const [submitError, setSubmitError] = React.useState("");
   const [confirmedAt, setConfirmedAt] = React.useState<string | null>(null);
   const [accountCreated, setAccountCreated] = React.useState(false);
+  const [alreadyHasAccount, setAlreadyHasAccount] = React.useState(false);
 
   // Jedna lokalizacja — pomijamy krok wyboru.
   React.useEffect(() => {
@@ -452,6 +453,7 @@ export default function PublicBookingPage() {
         return;
       }
       setAccountCreated(Boolean(result.accountCreated));
+      setAlreadyHasAccount(Boolean(result.alreadyHasAccount));
       setConfirmedAt(result.startsAt);
     } finally {
       setSubmitting(false);
@@ -490,6 +492,18 @@ export default function PublicBookingPage() {
               <Link
                 href="/panel-klienta/logowanie"
                 className="block w-full rounded-xl bg-emerald-600 py-3 text-center text-sm font-semibold text-white transition hover:bg-emerald-700"
+              >
+                Zaloguj się do panelu klienta
+              </Link>
+            </div>
+          ) : alreadyHasAccount ? (
+            <div className="w-full max-w-md space-y-3">
+              <p className="rounded-xl bg-zinc-50 px-4 py-3 text-xs text-zinc-500">
+                Ten numer telefonu ma już założone konto w DerClinic. Zaloguj się, żeby zobaczyć historię wizyt.
+              </p>
+              <Link
+                href="/panel-klienta/logowanie"
+                className="block w-full rounded-xl border border-emerald-600 py-3 text-center text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
               >
                 Zaloguj się do panelu klienta
               </Link>
