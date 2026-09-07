@@ -1,9 +1,7 @@
-import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getPatientAuth } from "@/lib/patient-auth";
 import { prisma } from "@/lib/db";
-import { LogoutButton } from "./LogoutButton";
-import { PatientDashboardTabs } from "./PatientDashboardTabs";
+import { PatientDashboard } from "./PatientDashboard";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +32,7 @@ export default async function PatientDashboardPage() {
 
   const appointments = await prisma.appointment.findMany({
     where: { patientId: auth.id, deletedAt: null },
-    orderBy: { startsAt: "desc" },
+    orderBy: { startsAt: "asc" },
     select: {
       id: true,
       startsAt: true,
@@ -49,48 +47,32 @@ export default async function PatientDashboardPage() {
   });
 
   const now = new Date();
+  // Rosnąco — najbliższa wizyta jest pierwsza na liście "nadchodzące".
   const upcoming = appointments
     .filter((a) => a.startsAt.getTime() >= now.getTime() && a.status !== "CANCELED")
     .map((a) => ({ ...a, startsAt: a.startsAt.toISOString() }));
+  // Malejąco — w historii najpierw najświeższa wizyta.
   const past = appointments
     .filter((a) => a.startsAt.getTime() < now.getTime() || a.status === "CANCELED")
-    .map((a) => ({ ...a, startsAt: a.startsAt.toISOString() }));
+    .map((a) => ({ ...a, startsAt: a.startsAt.toISOString() }))
+    .reverse();
 
   // Program punktowy — przelicznik naliczania punktów zostanie dodany później.
-  // Na razie zawsze pokazujemy 0, żeby zakładka nie sugerowała nieistniejącego salda.
+  // Na razie zawsze pokazujemy 0, żeby ekran nie sugerował nieistniejącego salda.
   const points = 0;
 
   return (
-    <div className="min-h-screen bg-zinc-50">
-      <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
-          <Image src="/derclinic-logo.webp" alt="DerClinic" width={140} height={35} />
-          <LogoutButton />
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-3xl px-4 py-8">
-        <div className="mb-6 rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
-          <div className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Witaj</div>
-          <div className="mt-1 text-xl font-semibold text-zinc-900">{patient.name}</div>
-          <div className="mt-1 text-sm text-zinc-500">
-            {patient.phone ?? "—"} {patient.email ? `• ${patient.email}` : ""}
-          </div>
-        </div>
-
-        <PatientDashboardTabs
-          profile={{
-            name: patient.name,
-            phone: patient.phone,
-            email: patient.email,
-            locationName: patient.location?.name ?? null,
-            memberSince: formatMemberSince(patient.createdAt),
-          }}
-          upcoming={upcoming}
-          past={past}
-          points={points}
-        />
-      </main>
-    </div>
+    <PatientDashboard
+      profile={{
+        name: patient.name,
+        phone: patient.phone,
+        email: patient.email,
+        locationName: patient.location?.name ?? null,
+        memberSince: formatMemberSince(patient.createdAt),
+      }}
+      upcoming={upcoming}
+      past={past}
+      points={points}
+    />
   );
 }
