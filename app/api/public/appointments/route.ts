@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { parseDateInput, warsawWallTimeToUtc } from "@/lib/warsaw-time";
 import { busyRangesForWarsawDay, computeFreeSlots, slotToUtc } from "@/lib/public-booking";
+import { getPatientAuth } from "@/lib/patient-auth";
 
 const RESERVATION_SERVICE_NAME = "__DERCLINIC_REZERWACJA_CZASU__";
 
@@ -62,6 +63,11 @@ export async function POST(req: Request) {
 
   const { locationId, specialistId, serviceId, date, time, firstName, lastName, phone, email, note, password } =
     parsed.data;
+
+  // Jeśli klient jest zalogowany do panelu pacjenta (ciasteczko sesji), wizytę
+  // od razu przypisujemy do jego istniejącego konta — pomijamy wyszukiwanie
+  // po telefonie/lokalizacji oraz zakładanie/aktualizowanie hasła.
+  const patientAuth = await getPatientAuth();
 
   const dateParam = parseDateInput(date);
   if (!dateParam) return bad("Nieprawidłowa data");
@@ -144,44 +150,62 @@ export async function POST(req: Request) {
       const normalizedEmail = email?.trim() || null;
       const passwordHash = password ? await bcrypt.hash(password, 10) : null;
 
-      const existingPatient = await tx.patient.findFirst({
-        where: { phone: normalizedPhone, locationId },
-        orderBy: { updatedAt: "desc" },
-        select: { id: true, email: true, passwordHash: true },
-      });
-
       let accountCreated = false;
-      // Numer telefonu ma już przypisane konto z hasłem — nie nadpisujemy go,
-      // ale front musi o tym wiedzieć, żeby nie pokazać mylącego komunikatu
-      // "rezerwowałeś jako gość" osobie, która w rzeczywistości ma konto.
-      const alreadyHasAccount = Boolean(existingPatient?.passwordHash);
+      let alreadyHasAccount = false;
+      let bookedAsLoggedIn = false;
       let patientId: string;
-      if (existingPatient) {
-        patientId = existingPatient.id;
-        const patientUpdate: { email?: string; passwordHash?: string } = {};
-        if (normalizedEmail && !existingPatient.email) patientUpdate.email = normalizedEmail;
-        // Nie nadpisujemy hasła istniejącego konta — tylko "dorejestrowanie"
-        // dotychczasowego, jeszcze niezarejestrowanego pacjenta.
-        if (passwordHash && !existingPatient.passwordHash) {
-          patientUpdate.passwordHash = passwordHash;
-          accountCreated = true;
-        }
-        if (Object.keys(patientUpdate).length > 0) {
-          await tx.patient.update({ where: { id: existingPatient.id }, data: patientUpdate });
+
+      if (patientAuth) {
+        // Rezerwacja wykonana przez zalogowanego pacjenta — wizyta trafia
+        // wprost na jego konto, bez tworzenia nowego rekordu Patient.
+        patientId = patientAuth.id;
+        alreadyHasAccount = true;
+        bookedAsLoggedIn = true;
+        if (normalizedEmail) {
+          await tx.patient.updateMany({
+            where: { id: patientAuth.id, email: null },
+            data: { email: normalizedEmail },
+          });
         }
       } else {
-        const createdPatient = await tx.patient.create({
-          data: {
-            name: patientName,
-            phone: normalizedPhone,
-            email: normalizedEmail,
-            locationId,
-            passwordHash,
-          },
-          select: { id: true },
+        const existingPatient = await tx.patient.findFirst({
+          where: { phone: normalizedPhone, locationId },
+          orderBy: { updatedAt: "desc" },
+          select: { id: true, email: true, passwordHash: true },
         });
-        patientId = createdPatient.id;
-        accountCreated = Boolean(passwordHash);
+
+        // Numer telefonu ma już przypisane konto z hasłem — nie nadpisujemy go,
+        // ale front musi o tym wiedzieć, żeby nie pokazać mylącego komunikatu
+        // "rezerwowałeś jako gość" osobie, która w rzeczywistości ma konto.
+        alreadyHasAccount = Boolean(existingPatient?.passwordHash);
+
+        if (existingPatient) {
+          patientId = existingPatient.id;
+          const patientUpdate: { email?: string; passwordHash?: string } = {};
+          if (normalizedEmail && !existingPatient.email) patientUpdate.email = normalizedEmail;
+          // Nie nadpisujemy hasła istniejącego konta — tylko "dorejestrowanie"
+          // dotychczasowego, jeszcze niezarejestrowanego pacjenta.
+          if (passwordHash && !existingPatient.passwordHash) {
+            patientUpdate.passwordHash = passwordHash;
+            accountCreated = true;
+          }
+          if (Object.keys(patientUpdate).length > 0) {
+            await tx.patient.update({ where: { id: existingPatient.id }, data: patientUpdate });
+          }
+        } else {
+          const createdPatient = await tx.patient.create({
+            data: {
+              name: patientName,
+              phone: normalizedPhone,
+              email: normalizedEmail,
+              locationId,
+              passwordHash,
+            },
+            select: { id: true },
+          });
+          patientId = createdPatient.id;
+          accountCreated = Boolean(passwordHash);
+        }
       }
 
       const created = await tx.appointment.create({
@@ -198,7 +222,7 @@ export async function POST(req: Request) {
         },
       });
 
-      return { ...created, accountCreated, alreadyHasAccount };
+      return { ...created, accountCreated, alreadyHasAccount, bookedAsLoggedIn };
     });
 
     return NextResponse.json({
@@ -207,6 +231,7 @@ export async function POST(req: Request) {
       startsAt: appointment.startsAt,
       accountCreated: appointment.accountCreated,
       alreadyHasAccount: appointment.alreadyHasAccount,
+      bookedAsLoggedIn: appointment.bookedAsLoggedIn,
     });
   } catch (e: any) {
     return bad(typeof e?.message === "string" ? e.message : "Nie udało się zapisać wizyty", 409);
