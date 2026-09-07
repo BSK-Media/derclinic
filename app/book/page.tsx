@@ -183,6 +183,149 @@ export default function PublicBookingPage() {
   const [confirmedAt, setConfirmedAt] = React.useState<string | null>(null);
   const [accountCreated, setAccountCreated] = React.useState(false);
   const [alreadyHasAccount, setAlreadyHasAccount] = React.useState(false);
+  const [bookedAsLoggedIn, setBookedAsLoggedIn] = React.useState(false);
+
+  // Sesja pacjenta (panel klienta) — jeśli osoba rezerwująca jest już
+  // zalogowana (albo zaloguje się w trakcie wypełniania kroku 4), wizyta
+  // trafia od razu na jej konto zamiast tworzyć nowy rekord gościa.
+  type LoggedInPatient = { id: string; name: string; phone: string | null; email: string | null };
+  const [loggedInPatient, setLoggedInPatient] = React.useState<LoggedInPatient | null>(null);
+  const [showInlineLogin, setShowInlineLogin] = React.useState(false);
+  const [loginPhone, setLoginPhone] = React.useState("");
+  const [loginPassword, setLoginPassword] = React.useState("");
+  const [loginError, setLoginError] = React.useState("");
+  const [loginSubmitting, setLoginSubmitting] = React.useState(false);
+  const [phoneAccountWarning, setPhoneAccountWarning] = React.useState(false);
+  const [emailAccountWarning, setEmailAccountWarning] = React.useState(false);
+
+  const refreshPatientSession = React.useCallback(async () => {
+    try {
+      const response = await fetch("/api/patient/me");
+      const result = await response.json().catch(() => ({}));
+      if (result?.ok && result.patient) {
+        setLoggedInPatient(result.patient);
+        const parts = String(result.patient.name || "").trim().split(/\s+/);
+        setFirstName(parts[0] || "");
+        setLastName(parts.slice(1).join(" ") || "");
+        if (result.patient.phone) setPhone(sanitizePhoneInput(result.patient.phone.replace(/^\+48/, "")));
+        if (result.patient.email) setEmail(result.patient.email);
+        return true;
+      }
+      setLoggedInPatient(null);
+      return false;
+    } catch {
+      setLoggedInPatient(null);
+      return false;
+    }
+  }, []);
+
+  // Sprawdzamy sesję raz przy wejściu na stronę rezerwacji — obsługuje
+  // przypadek, gdy klient wszedł na /book będąc już zalogowanym w panelu.
+  React.useEffect(() => {
+    refreshPatientSession();
+  }, [refreshPatientSession]);
+
+  // Sprawdzenie "na żywo" (z opóźnieniem), czy podany numer telefonu ma już
+  // założone konto — tylko w trybie rejestracji i gdy nikt nie jest zalogowany.
+  React.useEffect(() => {
+    if (loggedInPatient || accountMode !== "register") {
+      setPhoneAccountWarning(false);
+      return;
+    }
+    const digits = phoneDigitsOnly(phone);
+    if (digits.length !== 9) {
+      setPhoneAccountWarning(false);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/public/check-account?phone=${digits}`);
+        const result = await response.json().catch(() => ({}));
+        if (!cancelled) setPhoneAccountWarning(Boolean(result?.phoneHasAccount));
+      } catch {
+        if (!cancelled) setPhoneAccountWarning(false);
+      }
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [phone, accountMode, loggedInPatient]);
+
+  // To samo dla adresu e-mail.
+  React.useEffect(() => {
+    if (loggedInPatient || accountMode !== "register") {
+      setEmailAccountWarning(false);
+      return;
+    }
+    const trimmed = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(trimmed)) {
+      setEmailAccountWarning(false);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/public/check-account?email=${encodeURIComponent(trimmed)}`);
+        const result = await response.json().catch(() => ({}));
+        if (!cancelled) setEmailAccountWarning(Boolean(result?.emailHasAccount));
+      } catch {
+        if (!cancelled) setEmailAccountWarning(false);
+      }
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [email, accountMode, loggedInPatient]);
+
+  async function submitInlineLogin() {
+    setLoginError("");
+    const digits = phoneDigitsOnly(loginPhone);
+    if (digits.length !== 9) {
+      setLoginError("Podaj prawidłowy 9-cyfrowy numer telefonu");
+      return;
+    }
+    if (!loginPassword) {
+      setLoginError("Podaj hasło");
+      return;
+    }
+    setLoginSubmitting(true);
+    try {
+      const response = await fetch("/api/patient/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone: `+48${digits}`, password: loginPassword }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.ok) {
+        setLoginError(result?.message || "Nie udało się zalogować");
+        return;
+      }
+      await refreshPatientSession();
+      setShowInlineLogin(false);
+      setLoginPhone("");
+      setLoginPassword("");
+    } catch {
+      setLoginError("Nie udało się połączyć z serwerem. Spróbuj ponownie.");
+    } finally {
+      setLoginSubmitting(false);
+    }
+  }
+
+  async function logoutInline() {
+    try {
+      await fetch("/api/patient/logout", { method: "POST" });
+    } catch {
+      // Nawet jeśli zapytanie się nie powiedzie, i tak czyścimy stan lokalny.
+    }
+    setLoggedInPatient(null);
+    setFirstName("");
+    setLastName("");
+    setPhone("");
+    setEmail("");
+  }
 
   // Jedna lokalizacja — pomijamy krok wyboru.
   React.useEffect(() => {
@@ -412,7 +555,7 @@ export default function PublicBookingPage() {
       setSubmitError("Niepoprawny adres e-mail");
       return;
     }
-    if (accountMode === "register") {
+    if (accountMode === "register" && !loggedInPatient) {
       if (password.length < 6) {
         setSubmitError("Hasło musi mieć co najmniej 6 znaków");
         return;
@@ -444,7 +587,7 @@ export default function PublicBookingPage() {
           phone: `+48${phoneDigitsOnly(phone)}`,
           email: email.trim(),
           note: note.trim() || undefined,
-          password: accountMode === "register" ? password : undefined,
+          password: accountMode === "register" && !loggedInPatient ? password : undefined,
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -454,6 +597,7 @@ export default function PublicBookingPage() {
       }
       setAccountCreated(Boolean(result.accountCreated));
       setAlreadyHasAccount(Boolean(result.alreadyHasAccount));
+      setBookedAsLoggedIn(Boolean(result.bookedAsLoggedIn));
       setConfirmedAt(result.startsAt);
     } finally {
       setSubmitting(false);
@@ -483,7 +627,19 @@ export default function PublicBookingPage() {
             Potwierdzenie zostało zapisane w systemie kliniki. Skontaktujemy się, jeśli będą potrzebne
             dodatkowe informacje.
           </p>
-          {accountCreated ? (
+          {bookedAsLoggedIn ? (
+            <div className="w-full max-w-md space-y-3">
+              <p className="rounded-xl bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+                Wizyta została zapisana na Twoim koncie, {loggedInPatient?.name || "zalogowany kliencie"}.
+              </p>
+              <Link
+                href="/panel-klienta"
+                className="block w-full rounded-xl bg-emerald-600 py-3 text-center text-sm font-semibold text-white transition hover:bg-emerald-700"
+              >
+                Przejdź do panelu klienta
+              </Link>
+            </div>
+          ) : accountCreated ? (
             <div className="w-full max-w-md space-y-3">
               <p className="rounded-xl bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
                 Konto zostało założone na numer telefonu +48 {phone.trim()}. Zaloguj się, żeby zobaczyć historię
@@ -880,52 +1036,132 @@ export default function PublicBookingPage() {
             </div>
           </div>
 
-          <div className="mb-4 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setAccountMode("guest")}
-              className={
-                "rounded-xl border px-3 py-2.5 text-left text-sm transition " +
-                (accountMode === "guest"
-                  ? "border-emerald-500 bg-emerald-50"
-                  : "border-zinc-200 hover:bg-zinc-50")
-              }
-            >
-              <div className="font-medium text-zinc-900">Kontynuuj jako gość</div>
-              <div className="text-xs text-zinc-500">Bez zakładania konta</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => setAccountMode("register")}
-              className={
-                "rounded-xl border px-3 py-2.5 text-left text-sm transition " +
-                (accountMode === "register"
-                  ? "border-emerald-500 bg-emerald-50"
-                  : "border-zinc-200 hover:bg-zinc-50")
-              }
-            >
-              <div className="font-medium text-zinc-900">Zarejestruj się</div>
-              <div className="text-xs text-zinc-500">Załóż konto z hasłem</div>
-            </button>
-          </div>
-
-          {accountMode === "register" ? (
-            <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5">
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-emerald-900">
-                <Sparkles className="h-4 w-4" /> Korzyści konta w DerClinic
+          {loggedInPatient ? (
+            <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5">
+              <div>
+                <div className="text-sm font-semibold text-emerald-900">Zalogowano jako {loggedInPatient.name}</div>
+                <div className="text-xs text-emerald-700">Ta wizyta zostanie zapisana na Twoim koncie.</div>
               </div>
-              <ul className="space-y-1.5 text-xs text-emerald-800">
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <span>Punkty za każdą wizytę i zakup — wymienisz je na kolejne zabiegi</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <span>Szybsza rezerwacja i pełna historia wizyt bez podawania danych za każdym razem</span>
-                </li>
-              </ul>
+              <button
+                type="button"
+                onClick={logoutInline}
+                className="shrink-0 text-xs font-medium text-emerald-700 underline hover:no-underline"
+              >
+                To nie ja
+              </button>
             </div>
-          ) : null}
+          ) : (
+            <>
+              <div className="mb-2 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAccountMode("guest")}
+                  className={
+                    "rounded-xl border px-3 py-2.5 text-left text-sm transition " +
+                    (accountMode === "guest"
+                      ? "border-emerald-500 bg-emerald-50"
+                      : "border-zinc-200 hover:bg-zinc-50")
+                  }
+                >
+                  <div className="font-medium text-zinc-900">Kontynuuj jako gość</div>
+                  <div className="text-xs text-zinc-500">Bez zakładania konta</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAccountMode("register")}
+                  className={
+                    "rounded-xl border px-3 py-2.5 text-left text-sm transition " +
+                    (accountMode === "register"
+                      ? "border-emerald-500 bg-emerald-50"
+                      : "border-zinc-200 hover:bg-zinc-50")
+                  }
+                >
+                  <div className="font-medium text-zinc-900">Zarejestruj się</div>
+                  <div className="text-xs text-zinc-500">Załóż konto z hasłem</div>
+                </button>
+              </div>
+
+              <div className="mb-4 text-right">
+                <button
+                  type="button"
+                  onClick={() => setShowInlineLogin((v) => !v)}
+                  className="text-xs font-medium text-emerald-700 hover:underline"
+                >
+                  Masz już konto? Zaloguj się
+                </button>
+              </div>
+
+              {showInlineLogin ? (
+                <div className="mb-4 rounded-xl border border-zinc-200 bg-white p-3.5">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="text-sm font-semibold text-zinc-900">Zaloguj się do istniejącego konta</div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowInlineLogin(false);
+                        setLoginError("");
+                      }}
+                      className="text-zinc-400 transition hover:text-zinc-600"
+                      aria-label="Zamknij"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Telefon">
+                      <div className="input phone-input-group">
+                        <span className="shrink-0 text-sm text-zinc-500">+48</span>
+                        <input
+                          className="w-full border-0 bg-transparent p-0 text-sm outline-none"
+                          autoComplete="tel-national"
+                          inputMode="numeric"
+                          value={loginPhone}
+                          onChange={(e) => setLoginPhone(sanitizePhoneInput(e.target.value))}
+                          placeholder="600 000 000"
+                        />
+                      </div>
+                    </Field>
+                    <Field label="Hasło">
+                      <input
+                        className="input"
+                        type="password"
+                        autoComplete="current-password"
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                      />
+                    </Field>
+                  </div>
+                  {loginError ? <div className="mt-2 text-xs text-red-600">{loginError}</div> : null}
+                  <button
+                    type="button"
+                    onClick={submitInlineLogin}
+                    disabled={loginSubmitting}
+                    className="mt-3 w-full rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    {loginSubmitting ? "Logowanie…" : "Zaloguj się i kontynuuj rezerwację"}
+                  </button>
+                </div>
+              ) : null}
+
+              {accountMode === "register" ? (
+                <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5">
+                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-emerald-900">
+                    <Sparkles className="h-4 w-4" /> Korzyści konta w DerClinic
+                  </div>
+                  <ul className="space-y-1.5 text-xs text-emerald-800">
+                    <li className="flex items-start gap-2">
+                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>Punkty za każdą wizytę i zakup — wymienisz je na kolejne zabiegi</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>Szybsza rezerwacja i pełna historia wizyt bez podawania danych za każdym razem</span>
+                    </li>
+                  </ul>
+                </div>
+              ) : null}
+            </>
+          )}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Imię *">
@@ -956,6 +1192,19 @@ export default function PublicBookingPage() {
                   placeholder="600 000 000"
                 />
               </div>
+              {phoneAccountWarning ? (
+                <div className="mt-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Ten numer telefonu ma już założone konto.{" "}
+                  <button
+                    type="button"
+                    onClick={() => setShowInlineLogin(true)}
+                    className="font-semibold underline hover:no-underline"
+                  >
+                    Zaloguj się
+                  </button>{" "}
+                  zamiast rejestrować się ponownie.
+                </div>
+              ) : null}
             </Field>
             <Field label="E-mail *">
               <input
@@ -965,8 +1214,21 @@ export default function PublicBookingPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
+              {emailAccountWarning ? (
+                <div className="mt-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Ten adres e-mail ma już założone konto.{" "}
+                  <button
+                    type="button"
+                    onClick={() => setShowInlineLogin(true)}
+                    className="font-semibold underline hover:no-underline"
+                  >
+                    Zaloguj się
+                  </button>{" "}
+                  zamiast rejestrować się ponownie.
+                </div>
+              ) : null}
             </Field>
-            {accountMode === "register" ? (
+            {accountMode === "register" && !loggedInPatient ? (
               <>
                 <Field label="Hasło *">
                   <input
