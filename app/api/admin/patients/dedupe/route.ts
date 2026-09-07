@@ -21,10 +21,22 @@ type PatientRow = {
   _count: { appointments: number; retailSales: number };
 };
 
-function normalizedKey(value: string | null) {
+function normalizedEmailKey(value: string | null) {
   if (!value) return null;
   const trimmed = value.trim().toLowerCase();
   return trimmed || null;
+}
+
+// Numery bywają zapisane niespójnie — rezerwacja online zawsze dodaje prefiks
+// "+48", ale pacjent dodany ręcznie w panelu admina (formularz nie wymusza
+// formatu) mógł zostać zapisany bez niego, np. "123123123" zamiast
+// "+48123123123". Porównujemy więc po samych cyfrach, biorąc ostatnie 9 —
+// to krajowy numer bez prefiksu — żeby oba zapisy rozpoznać jako ten sam.
+function normalizedPhoneKey(value: string | null) {
+  if (!value) return null;
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return null;
+  return digits.length > 9 ? digits.slice(-9) : digits;
 }
 
 // Union-find po prostych indeksach — łączy pacjentów, którzy dzielą telefon
@@ -49,12 +61,12 @@ function buildDuplicateGroups(patients: PatientRow[]) {
   const byLocationPhone = new Map<string, string[]>();
   const byLocationEmail = new Map<string, string[]>();
   for (const p of patients) {
-    const phoneKey = normalizedKey(p.phone);
+    const phoneKey = normalizedPhoneKey(p.phone);
     if (phoneKey) {
       const key = `${p.locationId}::${phoneKey}`;
       byLocationPhone.set(key, [...(byLocationPhone.get(key) ?? []), p.id]);
     }
-    const emailKey = normalizedKey(p.email);
+    const emailKey = normalizedEmailKey(p.email);
     if (emailKey) {
       const key = `${p.locationId}::${emailKey}`;
       byLocationEmail.set(key, [...(byLocationEmail.get(key) ?? []), p.id]);
