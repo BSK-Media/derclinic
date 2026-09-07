@@ -219,14 +219,24 @@ export default function AdminPatientsPage() {
             {allPatients.length} {allPatients.length === 1 ? "pacjent" : "pacjentów"}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowAddForm((current) => !current)}
-          className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white shadow-sm transition hover:bg-emerald-700 md:hidden"
-          aria-label={showAddForm ? "Zamknij formularz" : "Dodaj pacjenta"}
-        >
-          {showAddForm ? <X className="h-6 w-6" /> : <Plus className="h-7 w-7" />}
-        </button>
+        <div className="flex items-center gap-2">
+          {isAdmin ? (
+            <Link
+              href="/admin/patients/dedupe"
+              className="hidden shrink-0 items-center rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900 md:inline-flex"
+            >
+              Duplikaty
+            </Link>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setShowAddForm((current) => !current)}
+            className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white shadow-sm transition hover:bg-emerald-700 md:hidden"
+            aria-label={showAddForm ? "Zamknij formularz" : "Dodaj pacjenta"}
+          >
+            {showAddForm ? <X className="h-6 w-6" /> : <Plus className="h-7 w-7" />}
+          </button>
+        </div>
       </div>
 
       {isAdmin ? (
