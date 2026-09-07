@@ -1,79 +1,39 @@
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { CalendarDays, MapPin, User as UserIcon } from "lucide-react";
 import { getPatientAuth } from "@/lib/patient-auth";
 import { prisma } from "@/lib/db";
-import { formatPLNFromGrosze } from "@/lib/money";
-import { appointmentStatusLabel } from "@/lib/appointment-status";
 import { LogoutButton } from "./LogoutButton";
+import { PatientDashboardTabs } from "./PatientDashboardTabs";
 
 export const dynamic = "force-dynamic";
 
-function formatDate(date: Date) {
+function formatMemberSince(date: Date) {
   return date.toLocaleDateString("pl-PL", {
     timeZone: "Europe/Warsaw",
-    weekday: "long",
     day: "2-digit",
     month: "long",
     year: "numeric",
   });
 }
 
-function formatTime(date: Date) {
-  return date.toLocaleTimeString("pl-PL", { timeZone: "Europe/Warsaw", hour: "2-digit", minute: "2-digit" });
-}
-
-type AppointmentRowData = {
-  id: string;
-  startsAt: Date;
-  status: string;
-  priceFinal: number | null;
-  priceEstimate: number | null;
-  customServiceName: string | null;
-  service: { name: string } | null;
-  specialist: { name: string } | null;
-  location: { name: string } | null;
-};
-
-function AppointmentRow({ appointment, highlight = false }: { appointment: AppointmentRowData; highlight?: boolean }) {
-  const serviceName = appointment.customServiceName || appointment.service?.name || "Zabieg";
-  const price = appointment.priceFinal ?? appointment.priceEstimate;
-  return (
-    <div className={"rounded-2xl border bg-white p-4 shadow-sm sm:p-5 " + (highlight ? "border-emerald-200" : "")}>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <div className="font-medium text-zinc-900">{serviceName}</div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
-            <span className="flex items-center gap-1">
-              <CalendarDays className="h-3.5 w-3.5" /> {formatDate(appointment.startsAt)}, {formatTime(appointment.startsAt)}
-            </span>
-            <span className="flex items-center gap-1">
-              <UserIcon className="h-3.5 w-3.5" /> {appointment.specialist?.name ?? "—"}
-            </span>
-            <span className="flex items-center gap-1">
-              <MapPin className="h-3.5 w-3.5" /> {appointment.location?.name ?? "—"}
-            </span>
-          </div>
-        </div>
-        <div className="text-right">
-          <span className="inline-block rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600">
-            {appointmentStatusLabel(appointment.status, appointment.startsAt)}
-          </span>
-          {price !== null && price !== undefined ? (
-            <div className="mt-1.5 text-sm font-semibold text-emerald-700">{formatPLNFromGrosze(price)}</div>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default async function PatientDashboardPage() {
-  const patient = await getPatientAuth();
+  const auth = await getPatientAuth();
+  if (!auth) redirect("/panel-klienta/logowanie");
+
+  const patient = await prisma.patient.findUnique({
+    where: { id: auth.id },
+    select: {
+      name: true,
+      phone: true,
+      email: true,
+      createdAt: true,
+      location: { select: { name: true } },
+    },
+  });
   if (!patient) redirect("/panel-klienta/logowanie");
 
   const appointments = await prisma.appointment.findMany({
-    where: { patientId: patient.id, deletedAt: null },
+    where: { patientId: auth.id, deletedAt: null },
     orderBy: { startsAt: "desc" },
     select: {
       id: true,
@@ -89,8 +49,16 @@ export default async function PatientDashboardPage() {
   });
 
   const now = new Date();
-  const upcoming = appointments.filter((a) => a.startsAt.getTime() >= now.getTime() && a.status !== "CANCELED");
-  const past = appointments.filter((a) => a.startsAt.getTime() < now.getTime() || a.status === "CANCELED");
+  const upcoming = appointments
+    .filter((a) => a.startsAt.getTime() >= now.getTime() && a.status !== "CANCELED")
+    .map((a) => ({ ...a, startsAt: a.startsAt.toISOString() }));
+  const past = appointments
+    .filter((a) => a.startsAt.getTime() < now.getTime() || a.status === "CANCELED")
+    .map((a) => ({ ...a, startsAt: a.startsAt.toISOString() }));
+
+  // Program punktowy — przelicznik naliczania punktów zostanie dodany później.
+  // Na razie zawsze pokazujemy 0, żeby zakładka nie sugerowała nieistniejącego salda.
+  const points = 0;
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -110,35 +78,18 @@ export default async function PatientDashboardPage() {
           </div>
         </div>
 
-        <section className="mb-8">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">Nadchodzące wizyty</h2>
-          {upcoming.length === 0 ? (
-            <div className="rounded-2xl border border-dashed bg-white p-6 text-center text-sm text-zinc-500">
-              Brak zaplanowanych wizyt.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {upcoming.map((appt) => (
-                <AppointmentRow key={appt.id} appointment={appt} highlight />
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">Historia wizyt</h2>
-          {past.length === 0 ? (
-            <div className="rounded-2xl border border-dashed bg-white p-6 text-center text-sm text-zinc-500">
-              Brak wcześniejszych wizyt.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {past.map((appt) => (
-                <AppointmentRow key={appt.id} appointment={appt} />
-              ))}
-            </div>
-          )}
-        </section>
+        <PatientDashboardTabs
+          profile={{
+            name: patient.name,
+            phone: patient.phone,
+            email: patient.email,
+            locationName: patient.location?.name ?? null,
+            memberSince: formatMemberSince(patient.createdAt),
+          }}
+          upcoming={upcoming}
+          past={past}
+          points={points}
+        />
       </main>
     </div>
   );
