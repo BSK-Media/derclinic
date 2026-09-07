@@ -151,6 +151,10 @@ export async function POST(req: Request) {
       });
 
       let accountCreated = false;
+      // Numer telefonu ma już przypisane konto z hasłem — nie nadpisujemy go,
+      // ale front musi o tym wiedzieć, żeby nie pokazać mylącego komunikatu
+      // "rezerwowałeś jako gość" osobie, która w rzeczywistości ma konto.
+      const alreadyHasAccount = Boolean(existingPatient?.passwordHash);
       let patientId: string;
       if (existingPatient) {
         patientId = existingPatient.id;
@@ -194,7 +198,7 @@ export async function POST(req: Request) {
         },
       });
 
-      return { ...created, accountCreated };
+      return { ...created, accountCreated, alreadyHasAccount };
     });
 
     return NextResponse.json({
@@ -202,6 +206,7 @@ export async function POST(req: Request) {
       appointmentId: appointment.id,
       startsAt: appointment.startsAt,
       accountCreated: appointment.accountCreated,
+      alreadyHasAccount: appointment.alreadyHasAccount,
     });
   } catch (e: any) {
     return bad(typeof e?.message === "string" ? e.message : "Nie udało się zapisać wizyty", 409);
