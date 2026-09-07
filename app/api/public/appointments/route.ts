@@ -197,11 +197,16 @@ export async function POST(req: Request) {
       } else {
         const existingPatient = await findExistingPatient(tx, normalizedPhone, normalizedEmail, locationId);
 
-        // Telefon albo e-mail ma już przypisane konto z hasłem — nie
-        // nadpisujemy go, ale front musi o tym wiedzieć, żeby nie pokazać
-        // mylącego komunikatu "rezerwowałeś jako gość" osobie, która w
-        // rzeczywistości ma konto.
-        alreadyHasAccount = Boolean(existingPatient?.passwordHash);
+        // Telefon albo e-mail ma już przypisane konto z hasłem — rezerwacja
+        // nie może przejść ani jako gość, ani jako rejestracja na te same
+        // dane; osoba musi się zalogować, żeby dokończyć rezerwację na
+        // właściwym koncie. Sprawdzane też tutaj (nie tylko na froncie), bo
+        // to jest ostateczne, autorytatywne miejsce walidacji.
+        if (existingPatient?.passwordHash) {
+          throw new Error(
+            "Ten numer telefonu lub adres e-mail ma już założone konto. Zaloguj się, aby dokończyć rezerwację.",
+          );
+        }
 
         if (existingPatient) {
           patientId = existingPatient.id;
@@ -210,9 +215,7 @@ export async function POST(req: Request) {
           // Uzupełniamy telefon tylko, gdy pacjent trafiony po e-mailu nie miał
           // go jeszcze zapisanego — nie nadpisujemy istniejącego numeru innym.
           if (normalizedPhone && !existingPatient.phone) patientUpdate.phone = normalizedPhone;
-          // Nie nadpisujemy hasła istniejącego konta — tylko "dorejestrowanie"
-          // dotychczasowego, jeszcze niezarejestrowanego pacjenta.
-          if (passwordHash && !existingPatient.passwordHash) {
+          if (passwordHash) {
             patientUpdate.passwordHash = passwordHash;
             accountCreated = true;
           }
