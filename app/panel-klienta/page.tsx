@@ -40,6 +40,8 @@ export default async function PatientDashboardPage() {
       priceFinal: true,
       priceEstimate: true,
       customServiceName: true,
+      serviceId: true,
+      specialistId: true,
       service: { select: { name: true } },
       specialist: { select: { name: true } },
       location: { select: { name: true } },
