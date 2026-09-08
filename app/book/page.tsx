@@ -1432,7 +1432,7 @@ const POPULAR_TREATMENTS: { label: string; href: string }[] = [
   { label: "Toksyna botulinowa / botoks", href: `${SITE_URL}/medycyna-estetyczna/toksyna-botulinowa/` },
 ];
 
-const PARTNER_BRANDS = ["Hydrafacial", "iCoone Laser", "Jalupro", "PRO XN", "MEDIDERMA", "MedEstelle"];
+const PARTNER_BRANDS = ["Hydrafacial", "iCoone Laser", "Jalupro", "PRO XN", "MEDIDERMA", "MedEstelle"]; // eslint-disable-line @typescript-eslint/no-unused-vars -- zachowane na wypadek przywrócenia sekcji "Partnerzy" w stopce
 
 const CONTACT = {
   email: "kontakt@derclinic.pl",
@@ -1632,9 +1632,6 @@ function SiteFooter() {
               </a>
             </div>
             <div className="mt-4 flex items-center gap-3">
-              <a href={CONTACT.booksyHref} target="_blank" rel="noreferrer" className="rounded-full border border-white/30 px-3 py-1 text-xs text-white/90 hover:border-white hover:text-white">
-                Booksy
-              </a>
               <a href={CONTACT.instagramHref} target="_blank" rel="noreferrer" aria-label="Instagram" className="text-white/80 hover:text-white">
                 <Instagram className="h-4 w-4" />
               </a>
@@ -1671,16 +1668,7 @@ function SiteFooter() {
           </div>
 
           <div>
-            <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-white/60">Partnerzy</div>
-            <div className="flex flex-wrap gap-2">
-              {PARTNER_BRANDS.map((brand) => (
-                <span key={brand} className="rounded-full border border-white/30 px-3 py-1 text-xs text-white/80">
-                  {brand}
-                </span>
-              ))}
-            </div>
-
-            <div className="mt-6 mb-3 text-xs font-semibold uppercase tracking-wide text-white/60">Dokumenty</div>
+            <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-white/60">Dokumenty</div>
             <ul className="space-y-2 text-sm text-white/90">
               <li>
                 <a href={`${SITE_URL}/regulamin/`} target="_blank" rel="noreferrer" className="hover:text-white">
