@@ -14,7 +14,11 @@ function formatMemberSince(date: Date) {
   });
 }
 
-export default async function PatientDashboardPage() {
+export default async function PatientDashboardPage({
+  searchParams,
+}: {
+  searchParams: { tab?: string };
+}) {
   const auth = await getPatientAuth();
   if (!auth) redirect("/panel-klienta/logowanie");
 
@@ -65,6 +69,7 @@ export default async function PatientDashboardPage() {
 
   return (
     <PatientDashboard
+      initialTab={searchParams?.tab === "profile" ? "profile" : "home"}
       profile={{
         name: patient.name,
         phone: patient.phone,
