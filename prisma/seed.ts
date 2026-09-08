@@ -1016,7 +1016,11 @@ async function main() {
       update: {
         name: service.name,
         category,
-        description: inferServiceDescription(service.name, service.price),
+        // Opis NIE jest nadpisywany przy aktualizacji — seed odpala się przy
+        // każdym deployu (patrz "vercel-build" w package.json), więc gdyby
+        // ustawiał tu placeholder za każdym razem, kasowałby prawdziwe opisy
+        // wpisane później przez admina/skrypt treści testowej. Placeholder
+        // trafia tylko do NOWO tworzonych usług (patrz "create" niżej).
         durationMin: inferServiceDuration(service.name),
         price: service.price * 100,
       },
