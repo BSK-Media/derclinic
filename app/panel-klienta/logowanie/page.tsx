@@ -3,7 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 function sanitizePhoneInput(raw: string) {
@@ -28,8 +28,21 @@ function phoneDigitsOnly(value: string) {
 }
 
 export default function PatientLoginPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <PatientLoginForm />
+    </React.Suspense>
+  );
+}
+
+function PatientLoginForm() {
   const router = useRouter();
-  const [phone, setPhone] = React.useState("");
+  const searchParams = useSearchParams();
+  const cameFromExistingAccount = searchParams.get("istniejace") === "1";
+  const [phone, setPhone] = React.useState(() => {
+    const prefill = searchParams.get("telefon") || "";
+    return sanitizePhoneInput(prefill.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3"));
+  });
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
@@ -78,6 +91,12 @@ export default function PatientLoginPage() {
         <h1 className="mb-1 text-center text-xl font-semibold text-zinc-900">Panel klienta</h1>
         <p className="mb-6 text-center text-sm text-zinc-500">Zaloguj się, aby zobaczyć historię wizyt.</p>
 
+        {cameFromExistingAccount ? (
+          <div className="mb-4 rounded-xl bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+            To konto już istnieje — zaloguj się swoim hasłem zamiast zakładać nowe.
+          </div>
+        ) : null}
+
         <form className="space-y-4" onSubmit={submit}>
           <label className="block space-y-1.5">
             <span className="text-xs font-medium text-zinc-600">Telefon</span>
@@ -95,7 +114,12 @@ export default function PatientLoginPage() {
           </label>
 
           <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-zinc-600">Hasło</span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-zinc-600">Hasło</span>
+              <Link href="/panel-klienta/zapomniane-haslo" className="text-xs font-medium text-emerald-700 hover:underline">
+                Zapomniałeś hasła?
+              </Link>
+            </div>
             <input
               className="input"
               type="password"
@@ -118,9 +142,9 @@ export default function PatientLoginPage() {
         </form>
 
         <p className="mt-5 text-center text-xs text-zinc-500">
-          Rezerwowałaś/eś jako gość i nie masz jeszcze hasła?{" "}
+          Nie masz jeszcze konta?{" "}
           <Link href="/panel-klienta/rejestracja" className="font-medium text-emerald-700 hover:underline">
-            Dokończ zakładanie konta
+            Załóż konto
           </Link>
         </p>
       </div>
