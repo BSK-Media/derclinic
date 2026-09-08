@@ -340,6 +340,22 @@ export default function PublicBookingPage() {
     if (locations.length === 1 && !locationId) setLocationId(locations[0].id);
   }, [locations, locationId]);
 
+  // Wejście z linku "Umów wizytę" na stronie zabiegu (/book?serviceId=...) —
+  // gdy tylko lokalizacja jest już ustalona (automatycznie dla jedynej
+  // lokalizacji, albo po wyborze przez użytkownika) i lista usług załadowana,
+  // od razu wybieramy wskazany zabieg i przechodzimy dalej — tak samo jak
+  // przy ręcznym kliknięciu usługi w kroku 2.
+  const appliedServicePreselect = React.useRef(false);
+  React.useEffect(() => {
+    if (appliedServicePreselect.current) return;
+    if (!locationId || services.length === 0) return;
+    const presetServiceId = new URLSearchParams(window.location.search).get("serviceId");
+    appliedServicePreselect.current = true;
+    if (presetServiceId && services.some((s) => s.id === presetServiceId)) {
+      selectService(presetServiceId);
+    }
+  }, [locationId, services]);
+
   const calendarRef = React.useRef<HTMLDivElement | null>(null);
   const [calendarMonth, setCalendarMonth] = React.useState(() => {
     const [y, m] = date.split("-").map(Number);
