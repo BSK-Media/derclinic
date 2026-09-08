@@ -4,8 +4,14 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import useSWR from "swr";
+import { Poppins } from "next/font/google";
 import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, Check, Calendar as CalendarIcon, Menu, X, ChevronDown, Instagram, Facebook, Phone, Mail, MapPin } from "lucide-react";
 import { formatPLNFromGrosze } from "@/lib/money";
+
+// Czcionka używana WYŁĄCZNIE w nagłówku (SiteHeader/SiteFooter), żeby wiernie
+// odwzorować krój ze strony derclinic.pl — reszta aplikacji zostaje przy
+// domyślnym systemowym foncie Tailwinda, zgodnie z życzeniem.
+const headerFont = Poppins({ subsets: ["latin", "latin-ext"], weight: ["400", "500", "600", "700"], display: "swap" });
 
 async function fetcher(url: string) {
   const response = await fetch(url);
@@ -1446,96 +1452,95 @@ function SiteHeader() {
   const BRAND = "#6669AC";
 
   return (
-    <header className="sticky top-0 z-40 border-b border-zinc-100 bg-white">
-      <div className="mx-auto max-w-6xl px-4">
-        {/* Górny pasek: język + social/kontakt ikony — jak na derclinic.pl */}
-        <div className="flex items-center justify-end gap-4 py-2 text-xs" style={{ color: BRAND }}>
-          <span className="hidden items-center gap-1 font-medium sm:flex">
+    <header className={`${headerFont.className} sticky top-0 z-40 overflow-visible border-b border-zinc-100 bg-white`}>
+      <div className="relative mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-10">
+        {/* Górny pasek: język + ikony kontaktu/social — jedna linijka, wyrównana do prawej, jak na derclinic.pl */}
+        <div className="flex items-center justify-end gap-4 py-2.5 sm:gap-5" style={{ color: BRAND }}>
+          <span className="hidden items-center gap-1.5 text-[13px] font-medium tracking-wide sm:flex">
             <span>PL</span>
             <span className="text-zinc-300">|</span>
             <span className="text-zinc-400">EN</span>
           </span>
-          <span className="hidden h-3 w-px bg-zinc-200 sm:block" />
           <a href={CONTACT.phoneHref} aria-label="Zadzwoń" className="transition hover:opacity-70">
-            <Phone className="h-4 w-4" />
+            <Phone className="h-[18px] w-[18px]" strokeWidth={1.75} />
           </a>
           <a href={CONTACT.mapHref} target="_blank" rel="noreferrer" aria-label="Mapa dojazdu" className="hidden transition hover:opacity-70 sm:block">
-            <MapPin className="h-4 w-4" />
+            <MapPin className="h-[18px] w-[18px]" strokeWidth={1.75} />
           </a>
           <a href={CONTACT.booksyHref} target="_blank" rel="noreferrer" aria-label="Booksy" className="hidden transition hover:opacity-70 sm:block">
-            <img src="https://derclinic.pl/wp-content/themes/derclinic/images/booksy_purple.webp" alt="Booksy" className="h-4 w-4" />
+            <img src="https://derclinic.pl/wp-content/themes/derclinic/images/booksy_purple.webp" alt="Booksy" className="h-[18px] w-[18px]" />
           </a>
           <a href={CONTACT.instagramHref} target="_blank" rel="noreferrer" aria-label="Instagram" className="transition hover:opacity-70">
-            <Instagram className="h-4 w-4" />
+            <Instagram className="h-[18px] w-[18px]" strokeWidth={1.75} />
           </a>
           <a href={CONTACT.facebookHref} target="_blank" rel="noreferrer" aria-label="Facebook" className="transition hover:opacity-70">
-            <Facebook className="h-4 w-4" />
+            <Facebook className="h-[18px] w-[18px]" strokeWidth={1.75} />
           </a>
         </div>
 
-        {/* Główny wiersz: okrągłe logo + nawigacja + CTA */}
-        <div className="flex items-center justify-between gap-4 py-2.5">
-          <a href={SITE_URL} className="shrink-0">
+        {/* Główny wiersz: okrągłe logo (nachodzące na dół nagłówka, jak w oryginale) + nawigacja + CTA */}
+        <div className="flex items-end justify-between gap-6 pb-3 pt-1 lg:pb-4">
+          <a href={SITE_URL} className="relative z-10 shrink-0">
             <span
-              className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 bg-white shadow-sm sm:h-16 sm:w-16"
-              style={{ borderColor: BRAND }}
+              className="-mb-8 flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-[3px] bg-white sm:-mb-10 sm:h-28 sm:w-28 lg:-mb-12 lg:h-32 lg:w-32"
+              style={{ borderColor: BRAND, boxShadow: "0 4px 10px rgba(0,0,0,0.18)" }}
             >
-              <Image src="/derclinic-logo.webp" alt="DerClinic" width={56} height={56} priority className="object-contain p-1" />
+              <Image
+                src="/derclinic-logo.webp"
+                alt="DerClinic"
+                width={128}
+                height={128}
+                priority
+                className="h-full w-full object-contain p-1.5"
+              />
             </span>
           </a>
 
-          <nav className="hidden items-center gap-0.5 lg:flex">
-            {SITE_NAV.map((item) =>
-              item.children ? (
-                <div key={item.label} className="group relative">
+          <div className="flex flex-1 items-center justify-end gap-6">
+            <nav className="hidden items-center lg:flex">
+              {SITE_NAV.map((item) =>
+                item.children ? (
+                  <div key={item.label} className="group relative">
+                    <a
+                      href={item.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1 px-3 py-2 text-[15px] font-medium tracking-wide text-zinc-800 transition-colors duration-200 hover:text-[#6669AC]"
+                    >
+                      {item.label}
+                      <ChevronDown className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-180" />
+                    </a>
+                    <div className="invisible absolute left-0 top-full z-50 min-w-[240px] -translate-y-1 rounded-xl border border-zinc-100 bg-white p-2 opacity-0 shadow-lg transition-all duration-200 ease-out group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+                      {item.children.map((sub) => (
+                        <a
+                          key={sub.label}
+                          href={sub.href}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block rounded-lg px-3 py-2 text-sm text-zinc-600 transition-colors duration-150 hover:bg-zinc-50 hover:text-[#6669AC]"
+                        >
+                          {sub.label}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
                   <a
+                    key={item.label}
                     href={item.href}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center gap-1 rounded-lg px-2.5 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-                    style={{ ["--hover-color" as any]: BRAND }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = BRAND)}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = "")}
+                    className="px-3 py-2 text-[15px] font-medium tracking-wide text-zinc-800 transition-colors duration-200 hover:text-[#6669AC]"
                   >
                     {item.label}
-                    <ChevronDown className="h-3.5 w-3.5" />
                   </a>
-                  <div className="invisible absolute left-0 top-full z-50 min-w-[240px] rounded-xl border border-zinc-100 bg-white p-2 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100">
-                    {item.children.map((sub) => (
-                      <a
-                        key={sub.label}
-                        href={sub.href}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="block rounded-lg px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-50"
-                        onMouseEnter={(e) => (e.currentTarget.style.color = BRAND)}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = "")}
-                      >
-                        {sub.label}
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-lg px-2.5 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-                  onMouseEnter={(e) => (e.currentTarget.style.color = BRAND)}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "")}
-                >
-                  {item.label}
-                </a>
-              ),
-            )}
-          </nav>
+                ),
+              )}
+            </nav>
 
-          <div className="flex items-center gap-2">
             <a
               href={SITE_URL}
-              className="hidden rounded-full px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 sm:block"
+              className="hidden shrink-0 rounded-full px-6 py-2.5 text-[15px] font-semibold text-white shadow-sm transition hover:opacity-90 sm:block"
               style={{ backgroundColor: BRAND }}
             >
               Umów wizytę
@@ -1543,7 +1548,7 @@ function SiteHeader() {
             <button
               type="button"
               onClick={() => setMobileOpen((v) => !v)}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 text-zinc-600 lg:hidden"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-200 text-zinc-600 lg:hidden"
               aria-label={mobileOpen ? "Zamknij menu" : "Otwórz menu"}
             >
               {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -1565,17 +1570,22 @@ function SiteHeader() {
                     className="flex w-full items-center justify-between py-2 text-sm font-medium text-zinc-800"
                   >
                     {item.label}
-                    <ChevronDown className={"h-4 w-4 transition " + (openMobileSection === item.label ? "rotate-180" : "")} />
+                    <ChevronDown className={"h-4 w-4 transition-transform duration-200 " + (openMobileSection === item.label ? "rotate-180" : "")} />
                   </button>
-                  {openMobileSection === item.label ? (
-                    <div className="pb-2 pl-3">
+                  <div
+                    className={
+                      "grid overflow-hidden pl-3 transition-all duration-200 ease-out " +
+                      (openMobileSection === item.label ? "grid-rows-[1fr] pb-2 opacity-100" : "grid-rows-[0fr] opacity-0")
+                    }
+                  >
+                    <div className="min-h-0">
                       {item.children.map((sub) => (
                         <a key={sub.label} href={sub.href} target="_blank" rel="noreferrer" className="block py-1.5 text-sm text-zinc-600">
                           {sub.label}
                         </a>
                       ))}
                     </div>
-                  ) : null}
+                  </div>
                 </div>
               ) : (
                 <a
@@ -1707,7 +1717,7 @@ function BookingShell({
   return (
     <div className="min-h-screen bg-zinc-50">
       <SiteHeader />
-      <main className={"mx-auto px-4 py-8 " + (wide ? "max-w-7xl" : "max-w-4xl")}>
+      <main className={"mx-auto px-4 pb-8 pt-14 sm:pt-16 " + (wide ? "max-w-7xl" : "max-w-4xl")}>
         {bare ? children : <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">{children}</div>}
       </main>
       <SiteFooter />
