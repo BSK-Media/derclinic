@@ -670,12 +670,12 @@ export default function PublicBookingPage() {
               <p className="rounded-xl bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
                 Wizyta została zapisana na Twoim koncie, {loggedInPatient?.name || "zalogowany kliencie"}.
               </p>
-              <Link
+              <a
                 href="/panel-klienta"
                 className="block w-full rounded-xl bg-emerald-600 py-3 text-center text-sm font-semibold text-white transition hover:bg-emerald-700"
               >
                 Przejdź do panelu klienta
-              </Link>
+              </a>
             </div>
           ) : accountCreated ? (
             <div className="w-full max-w-md space-y-3">
@@ -1775,12 +1775,12 @@ function AccountSidebar({ loggedInPatient }: { loggedInPatient: { id: string; na
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
         <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">Twoje konto</div>
         <div className="mb-3 text-sm font-medium text-emerald-900">Zalogowano jako {loggedInPatient.name}</div>
-        <Link
+        <a
           href="/panel-klienta"
           className="block w-full rounded-xl bg-emerald-600 py-2 text-center text-sm font-semibold text-white transition hover:bg-emerald-700"
         >
           Panel klienta
-        </Link>
+        </a>
       </div>
     );
   }
