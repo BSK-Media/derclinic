@@ -1707,9 +1707,9 @@ function BookingShell({
   bare?: boolean;
 }) {
   return (
-    <div className="min-h-screen bg-zinc-50">
+    <div className="flex min-h-screen flex-col bg-zinc-50">
       <SiteHeader />
-      <main className={"mx-auto px-4 pb-8 pt-6 sm:pt-7 " + (wide ? "max-w-7xl" : "max-w-4xl")}>
+      <main className={"mx-auto w-full flex-1 px-4 pb-8 pt-6 sm:pt-7 " + (wide ? "max-w-7xl" : "max-w-4xl")}>
         {bare ? children : <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">{children}</div>}
       </main>
       <SiteFooter />
