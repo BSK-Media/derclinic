@@ -4,14 +4,15 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import useSWR from "swr";
-import { Inter } from "next/font/google";
+import { Raleway } from "next/font/google";
 import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, Check, Calendar as CalendarIcon, Menu, X, ChevronDown, Instagram, Facebook, Phone, Mail, MapPin } from "lucide-react";
 import { formatPLNFromGrosze } from "@/lib/money";
 
-// Czcionka używana WYŁĄCZNIE w nagłówku (SiteHeader), żeby zbliżyć krój do
-// derclinic.pl (prosty, neutralny grotesk, bez zaokrągleń jak w Poppins) —
-// reszta aplikacji zostaje przy domyślnym systemowym foncie Tailwinda.
-const headerFont = Inter({ subsets: ["latin", "latin-ext"], weight: ["400", "500", "600", "700"], display: "swap" });
+// Czcionka używana WYŁĄCZNIE w nagłówku (SiteHeader) — potwierdzona wprost z
+// computed CSS elementu .navbar na derclinic.pl: font-family: Raleway, sans-serif,
+// font-size: 16px, font-weight: 400. Reszta aplikacji zostaje przy domyślnym
+// systemowym foncie Tailwinda.
+const headerFont = Raleway({ subsets: ["latin", "latin-ext"], weight: ["400", "500", "600", "700"], display: "swap" });
 
 async function fetcher(url: string) {
   const response = await fetch(url);
@@ -1452,8 +1453,11 @@ function SiteHeader() {
   const BRAND = "#6669AC";
 
   return (
-    <header className={`${headerFont.className} sticky top-0 z-40 overflow-visible border-b border-zinc-100 bg-white`}>
-      <div className="relative mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-10">
+    <header
+      className={`${headerFont.className} sticky top-0 z-40 overflow-visible rounded-b-[15px] bg-white`}
+      style={{ boxShadow: "0 4px 4px rgba(0,0,0,0.1)" }}
+    >
+      <div className="relative mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-16 xl:px-[100px]">
         {/* Górny pasek: język + ikony kontaktu/social — jedna linijka, wyrównana do prawej, jak na derclinic.pl */}
         <div className="flex items-center justify-end gap-3.5 pt-2.5 sm:gap-4" style={{ color: BRAND }}>
           <span className="hidden items-center gap-1.5 text-[13px] tracking-normal sm:flex">
@@ -1505,7 +1509,7 @@ function SiteHeader() {
                       href={item.href}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex items-center gap-1 px-2.5 py-2 text-[15px] text-zinc-800 transition-colors duration-200 hover:text-[#6669AC]"
+                      className="flex items-center gap-1 px-2.5 py-2 text-base font-normal text-zinc-800 transition-colors duration-200 hover:text-[#6669AC]"
                     >
                       {item.label}
                       <ChevronDown className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-180" />
@@ -1530,7 +1534,7 @@ function SiteHeader() {
                     href={item.href}
                     target="_blank"
                     rel="noreferrer"
-                    className="px-2.5 py-2 text-[15px] text-zinc-800 transition-colors duration-200 hover:text-[#6669AC]"
+                    className="px-2.5 py-2 text-base font-normal text-zinc-800 transition-colors duration-200 hover:text-[#6669AC]"
                   >
                     {item.label}
                   </a>
