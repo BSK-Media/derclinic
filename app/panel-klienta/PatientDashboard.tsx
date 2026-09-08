@@ -52,6 +52,8 @@ export type AppointmentRowData = {
   priceFinal: number | null;
   priceEstimate: number | null;
   customServiceName: string | null;
+  serviceId: string;
+  specialistId: string;
   service: { name: string } | null;
   specialist: { name: string } | null;
   location: { name: string } | null;
@@ -79,7 +81,13 @@ function AppointmentRow({ appointment, highlight = false }: { appointment: Appoi
   const serviceName = appointment.customServiceName || appointment.service?.name || "Zabieg";
   const price = appointment.priceFinal ?? appointment.priceEstimate;
   return (
-    <div className={"rounded-2xl border bg-white p-4 shadow-sm sm:p-5 " + (highlight ? "border-emerald-200" : "border-zinc-200")}>
+    <Link
+      href={`/panel-klienta/zabiegi/${appointment.serviceId}`}
+      className={
+        "block rounded-2xl border bg-white p-4 shadow-sm transition hover:border-emerald-300 hover:shadow sm:p-5 " +
+        (highlight ? "border-emerald-200" : "border-zinc-200")
+      }
+    >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <div className="font-medium text-zinc-900">{serviceName}</div>
@@ -104,7 +112,7 @@ function AppointmentRow({ appointment, highlight = false }: { appointment: Appoi
           ) : null}
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -390,10 +398,9 @@ export function PatientDashboard({
                   ) : (
                     <div className="mt-2 divide-y divide-zinc-100">
                       {recentPast.map((appt) => (
-                        <button
+                        <Link
                           key={appt.id}
-                          type="button"
-                          onClick={() => go("history")}
+                          href={`/panel-klienta/zabiegi/${appt.serviceId}`}
                           className="flex w-full items-center justify-between gap-2 py-3 text-left transition hover:bg-zinc-50"
                         >
                           <div>
@@ -403,7 +410,7 @@ export function PatientDashboard({
                             <div className="text-xs text-zinc-500">{formatDate(appt.startsAt)}</div>
                           </div>
                           <ChevronRight className="h-4 w-4 shrink-0 text-zinc-300" />
-                        </button>
+                        </Link>
                       ))}
                     </div>
                   )}
