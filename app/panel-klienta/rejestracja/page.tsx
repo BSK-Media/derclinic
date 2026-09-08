@@ -29,6 +29,8 @@ function phoneDigitsOnly(value: string) {
 
 export default function PatientRegisterPage() {
   const router = useRouter();
+  const [firstName, setFirstName] = React.useState("");
+  const [lastName, setLastName] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -40,6 +42,10 @@ export default function PatientRegisterPage() {
     e.preventDefault();
     setError("");
 
+    if (!firstName.trim() || !lastName.trim()) {
+      setError("Podaj imię i nazwisko");
+      return;
+    }
     const digits = phoneDigitsOnly(phone);
     if (digits.length !== 9) {
       setError("Podaj prawidłowy 9-cyfrowy numer telefonu");
@@ -63,10 +69,23 @@ export default function PatientRegisterPage() {
       const response = await fetch("/api/patient/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ phone: `+48${digits}`, email: email.trim(), password }),
+        body: JSON.stringify({
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          phone: `+48${digits}`,
+          email: email.trim(),
+          password,
+        }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result?.ok) {
+        if (result?.code === "ACCOUNT_EXISTS") {
+          // Standardowe zachowanie jak w innych serwisach — jeśli konto już
+          // istnieje, odsyłamy do logowania zamiast pokazywać błąd i
+          // zostawiać osobę na formularzu rejestracji.
+          router.push(`/panel-klienta/logowanie?istniejace=1&telefon=${digits}`);
+          return;
+        }
         setError(result?.message || "Nie udało się założyć konta");
         return;
       }
@@ -85,14 +104,36 @@ export default function PatientRegisterPage() {
         <div className="mb-6 flex justify-center">
           <Image src="/derclinic-logo.webp" alt="DerClinic" width={160} height={40} priority />
         </div>
-        <h1 className="mb-1 text-center text-xl font-semibold text-zinc-900">Dokończ zakładanie konta</h1>
+        <h1 className="mb-1 text-center text-xl font-semibold text-zinc-900">Załóż konto</h1>
         <p className="mb-6 text-center text-sm text-zinc-500">
-          Podaj numer telefonu i e-mail z Twojej ostatniej rezerwacji, żeby ustawić hasło do panelu klienta.
+          Jeśli masz już za sobą wizytę w DerClinic, użyj tego samego telefonu i e-maila — automatycznie połączymy
+          konto z historią Twoich wizyt.
         </p>
 
         <form className="space-y-4" onSubmit={submit}>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-zinc-600">Imię *</span>
+              <input
+                className="input"
+                autoComplete="given-name"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-zinc-600">Nazwisko *</span>
+              <input
+                className="input"
+                autoComplete="family-name"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+              />
+            </label>
+          </div>
+
           <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-zinc-600">Telefon</span>
+            <span className="text-xs font-medium text-zinc-600">Telefon *</span>
             <div className="input phone-input-group">
               <span className="shrink-0 text-sm text-zinc-500">+48</span>
               <input
@@ -107,7 +148,7 @@ export default function PatientRegisterPage() {
           </label>
 
           <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-zinc-600">E-mail</span>
+            <span className="text-xs font-medium text-zinc-600">E-mail *</span>
             <input
               className="input"
               type="email"
@@ -118,7 +159,7 @@ export default function PatientRegisterPage() {
           </label>
 
           <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-zinc-600">Hasło</span>
+            <span className="text-xs font-medium text-zinc-600">Hasło *</span>
             <input
               className="input"
               type="password"
@@ -130,7 +171,7 @@ export default function PatientRegisterPage() {
           </label>
 
           <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-zinc-600">Powtórz hasło</span>
+            <span className="text-xs font-medium text-zinc-600">Powtórz hasło *</span>
             <input
               className="input"
               type="password"
@@ -148,12 +189,12 @@ export default function PatientRegisterPage() {
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {submitting ? "Zakładanie konta…" : "Ustaw hasło i zaloguj się"}
+            {submitting ? "Zakładanie konta…" : "Załóż konto"}
           </button>
         </form>
 
         <p className="mt-5 text-center text-xs text-zinc-500">
-          Masz już hasło?{" "}
+          Masz już konto?{" "}
           <Link href="/panel-klienta/logowanie" className="font-medium text-emerald-700 hover:underline">
             Zaloguj się
           </Link>
