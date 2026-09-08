@@ -41,7 +41,7 @@ export default async function PatientServicePage({ params }: { params: { service
                 jobTitle: true,
                 specialization: true,
                 isVisible: true,
-                location: { select: { name: true } },
+                assignedLocation: { select: { name: true } },
               },
             },
           },
@@ -58,7 +58,7 @@ export default async function PatientServicePage({ params }: { params: { service
   });
 
   const specialists = service.specialistAssignments.map((a) => a.specialist).filter((s) => s.isVisible);
-  const locationName = specialists[0]?.location?.name ?? null;
+  const locationName = specialists[0]?.assignedLocation?.name ?? null;
 
   return (
     <PatientPageShell patientName={patient.name} upcomingCount={upcomingCount}>
