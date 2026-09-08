@@ -757,7 +757,10 @@ export default function PublicBookingPage() {
   return (
     <BookingShell wide bare>
       <div className={"grid gap-6 md:grid-cols-[240px_1fr] " + (step === 1 ? "xl:grid-cols-[240px_1fr_440px]" : "")}>
-        <SummarySidebar items={summaryItems} />
+        <div className="hidden self-start md:sticky md:top-8 md:flex md:flex-col md:gap-6">
+          <SummarySidebar items={summaryItems} />
+          <AccountSidebar loggedInPatient={loggedInPatient} />
+        </div>
         <div className="min-w-0">
           <MobileSummaryBar items={summaryItems} />
           <div className="min-w-0 rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
@@ -1750,12 +1753,50 @@ type SummaryItem = { label: string; value: string | null; onClick?: () => void }
 
 function SummarySidebar({ items }: { items: SummaryItem[] }) {
   return (
-    <div className="hidden self-start rounded-2xl border bg-white p-4 shadow-sm md:sticky md:top-8 md:block">
+    <div className="rounded-2xl border bg-white p-4 shadow-sm">
       <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">Twój wybór</div>
       <div className="space-y-3">
         {items.map((item) => (
           <SummaryRow key={item.label} {...item} />
         ))}
+      </div>
+    </div>
+  );
+}
+
+function AccountSidebar({ loggedInPatient }: { loggedInPatient: { id: string; name: string } | null }) {
+  if (loggedInPatient) {
+    return (
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">Twoje konto</div>
+        <div className="mb-3 text-sm font-medium text-emerald-900">Zalogowano jako {loggedInPatient.name}</div>
+        <Link
+          href="/panel-klienta"
+          className="block w-full rounded-xl bg-emerald-600 py-2 text-center text-sm font-semibold text-white transition hover:bg-emerald-700"
+        >
+          Panel klienta
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border bg-white p-4 shadow-sm">
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">Masz już konto?</div>
+      <p className="mb-3 text-xs text-zinc-500">Zaloguj się, żeby szybciej zarezerwować i zobaczyć historię wizyt.</p>
+      <div className="space-y-2">
+        <Link
+          href="/panel-klienta/logowanie"
+          className="block w-full rounded-xl border border-emerald-600 py-2 text-center text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
+        >
+          Zaloguj się
+        </Link>
+        <Link
+          href="/panel-klienta/rejestracja"
+          className="block w-full rounded-xl bg-emerald-600 py-2 text-center text-sm font-semibold text-white transition hover:bg-emerald-700"
+        >
+          Zarejestruj się
+        </Link>
       </div>
     </div>
   );
