@@ -135,6 +135,12 @@ model Patient {
   // to osobny, przyszły etap; na razie tylko zapisujemy dane konta.
   passwordHash String?
 
+  // Reset hasła: hash tokenu (nigdy nie zapisujemy tokenu w postaci jawnej) i
+  // jego data wygaśnięcia. Token jednorazowy, czyszczony po użyciu lub po
+  // wygaśnięciu.
+  passwordResetTokenHash String?
+  passwordResetExpiresAt DateTime?
+
   locationId String   @default("grodzisk-mazowiecki")
   location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
 
@@ -144,6 +150,7 @@ model Patient {
   @@index([name])
   @@index([phone])
   @@index([locationId])
+  @@index([passwordResetTokenHash])
 }
 
 model Location {
