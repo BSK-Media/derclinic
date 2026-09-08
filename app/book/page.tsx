@@ -1172,6 +1172,11 @@ export default function PublicBookingPage() {
                       />
                     </Field>
                   </div>
+                  <div className="mt-1.5 text-right">
+                    <Link href="/panel-klienta/zapomniane-haslo" className="text-xs font-medium text-emerald-700 hover:underline">
+                      Zapomniałeś hasła?
+                    </Link>
+                  </div>
                   {loginError ? <div className="mt-2 text-xs text-red-600">{loginError}</div> : null}
                   <button
                     type="button"
