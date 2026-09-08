@@ -81,11 +81,9 @@ function AppointmentRow({ appointment, highlight = false }: { appointment: Appoi
   const serviceName = appointment.customServiceName || appointment.service?.name || "Zabieg";
   const price = appointment.priceFinal ?? appointment.priceEstimate;
   return (
-    <Link
-      href={`/panel-klienta/zabiegi/${appointment.serviceId}`}
+    <div
       className={
-        "block rounded-2xl border bg-white p-4 shadow-sm transition hover:border-emerald-300 hover:shadow sm:p-5 " +
-        (highlight ? "border-emerald-200" : "border-zinc-200")
+        "rounded-2xl border bg-white p-4 shadow-sm sm:p-5 " + (highlight ? "border-emerald-200" : "border-zinc-200")
       }
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -112,7 +110,21 @@ function AppointmentRow({ appointment, highlight = false }: { appointment: Appoi
           ) : null}
         </div>
       </div>
-    </Link>
+      <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-zinc-100 pt-3">
+        <Link
+          href={`/panel-klienta/zabiegi/${appointment.serviceId}`}
+          className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+        >
+          Przeczytaj o zabiegu
+        </Link>
+        <Link
+          href={`/panel-klienta/wizyty/${appointment.id}`}
+          className="rounded-lg border border-emerald-600 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50"
+        >
+          Sprawdź kartę wizyty
+        </Link>
+      </div>
+    </div>
   );
 }
 
@@ -173,13 +185,15 @@ export function PatientDashboard({
   upcoming,
   past,
   points,
+  initialTab = "home",
 }: {
   profile: PatientProfile;
   upcoming: AppointmentRowData[];
   past: AppointmentRowData[];
   points: number;
+  initialTab?: TabId;
 }) {
-  const [tab, setTab] = React.useState<TabId>("home");
+  const [tab, setTab] = React.useState<TabId>(initialTab);
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
   const firstNameOnly = profile.name.trim().split(/\s+/)[0] || profile.name;
   const nearest = upcoming[0] ?? null;
@@ -273,9 +287,14 @@ export function PatientDashboard({
                 <CalendarPlus className="h-4 w-4" />
                 <span className="hidden sm:inline">Umów wizytę</span>
               </Link>
-              <span className="hidden h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-800 sm:inline-flex">
+              <button
+                type="button"
+                onClick={() => go("profile")}
+                className="hidden h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-200 sm:inline-flex"
+                aria-label="Dane klienta"
+              >
                 {firstNameOnly.slice(0, 1).toUpperCase()}
-              </span>
+              </button>
             </div>
           </div>
         </header>
