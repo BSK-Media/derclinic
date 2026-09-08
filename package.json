@@ -14,6 +14,7 @@
     "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio",
     "prisma:seed": "tsx prisma/seed.ts",
+    "content:test": "tsx prisma/update-test-content.ts",
     "db:setup": "prisma generate && prisma db push && prisma db seed"
   },
   "dependencies": {
