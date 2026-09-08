@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
+import { randomBytes, createHash } from "crypto";
 
 // Sesja pacjenta jest całkowicie osobna od sesji personelu (lib/auth-cookie.ts):
 // inne ciasteczko, inny kształt tokenu, brak ról ADMIN/RECEPTION/SPECIALIST.
@@ -75,5 +76,23 @@ export function clearPatientAuthCookie() {
     maxAge: 0,
   });
 }
+
+// --- Reset hasła ---
+// Token wysyłany w linku e-mail to losowy, wysokiej entropii ciąg znaków.
+// W bazie trzymamy tylko jego hash (SHA-256) — tak jak hasła, nigdy nie
+// zapisujemy sekretu w postaci jawnej. Sam token nie musi być bcryptowany
+// (nie jest to hasło wybrane przez człowieka, więc nie grozi mu brute-force
+// ze słownika) — wystarczy szybki, deterministyczny hash do porównania.
+export function generatePasswordResetToken() {
+  const token = randomBytes(32).toString("hex");
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+  return { token, tokenHash };
+}
+
+export function hashPasswordResetToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+export const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 godzina
 
 export const PATIENT_AUTH_COOKIE_NAME = COOKIE_NAME;
