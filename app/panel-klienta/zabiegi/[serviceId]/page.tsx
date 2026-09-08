@@ -116,7 +116,7 @@ export default async function PatientServicePage({ params }: { params: { service
             <div className="mt-3 text-sm text-zinc-500">Cena ustalana indywidualnie</div>
           )}
           <Link
-            href="/book"
+            href={`/book?serviceId=${service.id}`}
             className="mt-4 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
           >
             <CalendarPlus className="h-4 w-4" /> Umów wizytę
@@ -128,7 +128,7 @@ export default async function PatientServicePage({ params }: { params: { service
       {/* Lekarze wykonujący zabieg */}
       <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="text-sm font-semibold text-zinc-900">Lekarze wykonujący zabieg</div>
-        <p className="mb-4 text-xs text-zinc-500">Wybierz specjalistę i sprawdź dostępne terminy</p>
+        <p className="mb-4 text-xs text-zinc-500">Poznaj specjalistów wykonujących ten zabieg</p>
 
         {specialists.length === 0 ? (
           <div className="rounded-xl border border-dashed border-zinc-200 p-5 text-center text-sm text-zinc-500">
@@ -154,10 +154,10 @@ export default async function PatientServicePage({ params }: { params: { service
                   </div>
                 </Link>
                 <Link
-                  href="/book"
+                  href={`/panel-klienta/specjalisci/${s.id}`}
                   className="flex shrink-0 items-center gap-1.5 rounded-xl border border-emerald-600 px-3.5 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50"
                 >
-                  Zobacz terminy <ArrowRight className="h-3.5 w-3.5" />
+                  Przeczytaj o lekarzu <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
             ))}
