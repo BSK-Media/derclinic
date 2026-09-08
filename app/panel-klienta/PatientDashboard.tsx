@@ -77,7 +77,15 @@ const NAV = [
 
 type TabId = (typeof NAV)[number]["id"];
 
-function AppointmentRow({ appointment, highlight = false }: { appointment: AppointmentRowData; highlight?: boolean }) {
+function AppointmentRow({
+  appointment,
+  highlight = false,
+  showVisitCard = true,
+}: {
+  appointment: AppointmentRowData;
+  highlight?: boolean;
+  showVisitCard?: boolean;
+}) {
   const serviceName = appointment.customServiceName || appointment.service?.name || "Zabieg";
   const price = appointment.priceFinal ?? appointment.priceEstimate;
   return (
@@ -117,12 +125,14 @@ function AppointmentRow({ appointment, highlight = false }: { appointment: Appoi
         >
           Przeczytaj o zabiegu
         </Link>
-        <Link
-          href={`/panel-klienta/wizyty/${appointment.id}`}
-          className="rounded-lg border border-emerald-600 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50"
-        >
-          Sprawdź kartę wizyty
-        </Link>
+        {showVisitCard ? (
+          <Link
+            href={`/panel-klienta/wizyty/${appointment.id}`}
+            className="rounded-lg border border-emerald-600 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50"
+          >
+            Sprawdź kartę wizyty
+          </Link>
+        ) : null}
       </div>
     </div>
   );
@@ -473,7 +483,7 @@ export function PatientDashboard({
               ) : (
                 <div className="space-y-3">
                   {upcoming.map((appt) => (
-                    <AppointmentRow key={appt.id} appointment={appt} highlight />
+                    <AppointmentRow key={appt.id} appointment={appt} highlight showVisitCard={false} />
                   ))}
                 </div>
               )}
