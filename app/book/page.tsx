@@ -1459,26 +1459,26 @@ function SiteHeader() {
     >
       <div className="relative mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-16 xl:px-[100px]">
         {/* Górny pasek: język + ikony kontaktu/social — jedna linijka, wyrównana do prawej, jak na derclinic.pl */}
-        <div className="flex items-center justify-end gap-3.5 pt-2.5 sm:gap-4" style={{ color: BRAND }}>
+        <div className="flex items-center justify-end gap-4 pt-2.5 sm:gap-5" style={{ color: BRAND }}>
           <span className="hidden items-center gap-1.5 text-[13px] tracking-normal sm:flex">
             <span>PL</span>
             <span className="text-zinc-300">|</span>
             <span className="text-zinc-400">EN</span>
           </span>
           <a href={CONTACT.phoneHref} aria-label="Zadzwoń" className="transition hover:opacity-70">
-            <Phone className="h-[17px] w-[17px]" strokeWidth={1.75} />
+            <Phone className="h-[22px] w-[22px]" strokeWidth={1.75} />
           </a>
           <a href={CONTACT.mapHref} target="_blank" rel="noreferrer" aria-label="Mapa dojazdu" className="hidden transition hover:opacity-70 sm:block">
-            <MapPin className="h-[17px] w-[17px]" strokeWidth={1.75} />
+            <MapPin className="h-[22px] w-[22px]" strokeWidth={1.75} />
           </a>
           <a href={CONTACT.booksyHref} target="_blank" rel="noreferrer" aria-label="Booksy" className="hidden transition hover:opacity-70 sm:block">
-            <img src="https://derclinic.pl/wp-content/themes/derclinic/images/booksy_purple.webp" alt="Booksy" className="h-[17px] w-[17px]" />
+            <img src="https://derclinic.pl/wp-content/themes/derclinic/images/booksy_purple.webp" alt="Booksy" className="h-[22px] w-[22px]" />
           </a>
           <a href={CONTACT.instagramHref} target="_blank" rel="noreferrer" aria-label="Instagram" className="transition hover:opacity-70">
-            <Instagram className="h-[17px] w-[17px]" strokeWidth={1.75} />
+            <Instagram className="h-[22px] w-[22px]" strokeWidth={1.75} />
           </a>
           <a href={CONTACT.facebookHref} target="_blank" rel="noreferrer" aria-label="Facebook" className="transition hover:opacity-70">
-            <Facebook className="h-[17px] w-[17px]" strokeWidth={1.75} />
+            <Facebook className="h-[22px] w-[22px]" strokeWidth={1.75} />
           </a>
         </div>
 
