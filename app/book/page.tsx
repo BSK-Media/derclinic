@@ -4,14 +4,14 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import useSWR from "swr";
-import { Poppins } from "next/font/google";
+import { Inter } from "next/font/google";
 import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, Check, Calendar as CalendarIcon, Menu, X, ChevronDown, Instagram, Facebook, Phone, Mail, MapPin } from "lucide-react";
 import { formatPLNFromGrosze } from "@/lib/money";
 
-// Czcionka używana WYŁĄCZNIE w nagłówku (SiteHeader/SiteFooter), żeby wiernie
-// odwzorować krój ze strony derclinic.pl — reszta aplikacji zostaje przy
-// domyślnym systemowym foncie Tailwinda, zgodnie z życzeniem.
-const headerFont = Poppins({ subsets: ["latin", "latin-ext"], weight: ["400", "500", "600", "700"], display: "swap" });
+// Czcionka używana WYŁĄCZNIE w nagłówku (SiteHeader), żeby zbliżyć krój do
+// derclinic.pl (prosty, neutralny grotesk, bez zaokrągleń jak w Poppins) —
+// reszta aplikacji zostaje przy domyślnym systemowym foncie Tailwinda.
+const headerFont = Inter({ subsets: ["latin", "latin-ext"], weight: ["400", "500", "600", "700"], display: "swap" });
 
 async function fetcher(url: string) {
   const response = await fetch(url);
@@ -1455,34 +1455,34 @@ function SiteHeader() {
     <header className={`${headerFont.className} sticky top-0 z-40 overflow-visible border-b border-zinc-100 bg-white`}>
       <div className="relative mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-10">
         {/* Górny pasek: język + ikony kontaktu/social — jedna linijka, wyrównana do prawej, jak na derclinic.pl */}
-        <div className="flex items-center justify-end gap-4 py-2.5 sm:gap-5" style={{ color: BRAND }}>
-          <span className="hidden items-center gap-1.5 text-[13px] font-medium tracking-wide sm:flex">
+        <div className="flex items-center justify-end gap-3.5 pt-2.5 sm:gap-4" style={{ color: BRAND }}>
+          <span className="hidden items-center gap-1.5 text-[13px] tracking-normal sm:flex">
             <span>PL</span>
             <span className="text-zinc-300">|</span>
             <span className="text-zinc-400">EN</span>
           </span>
           <a href={CONTACT.phoneHref} aria-label="Zadzwoń" className="transition hover:opacity-70">
-            <Phone className="h-[18px] w-[18px]" strokeWidth={1.75} />
+            <Phone className="h-[17px] w-[17px]" strokeWidth={1.75} />
           </a>
           <a href={CONTACT.mapHref} target="_blank" rel="noreferrer" aria-label="Mapa dojazdu" className="hidden transition hover:opacity-70 sm:block">
-            <MapPin className="h-[18px] w-[18px]" strokeWidth={1.75} />
+            <MapPin className="h-[17px] w-[17px]" strokeWidth={1.75} />
           </a>
           <a href={CONTACT.booksyHref} target="_blank" rel="noreferrer" aria-label="Booksy" className="hidden transition hover:opacity-70 sm:block">
-            <img src="https://derclinic.pl/wp-content/themes/derclinic/images/booksy_purple.webp" alt="Booksy" className="h-[18px] w-[18px]" />
+            <img src="https://derclinic.pl/wp-content/themes/derclinic/images/booksy_purple.webp" alt="Booksy" className="h-[17px] w-[17px]" />
           </a>
           <a href={CONTACT.instagramHref} target="_blank" rel="noreferrer" aria-label="Instagram" className="transition hover:opacity-70">
-            <Instagram className="h-[18px] w-[18px]" strokeWidth={1.75} />
+            <Instagram className="h-[17px] w-[17px]" strokeWidth={1.75} />
           </a>
           <a href={CONTACT.facebookHref} target="_blank" rel="noreferrer" aria-label="Facebook" className="transition hover:opacity-70">
-            <Facebook className="h-[18px] w-[18px]" strokeWidth={1.75} />
+            <Facebook className="h-[17px] w-[17px]" strokeWidth={1.75} />
           </a>
         </div>
 
         {/* Główny wiersz: okrągłe logo (nachodzące na dół nagłówka, jak w oryginale) + nawigacja + CTA */}
-        <div className="flex items-end justify-between gap-6 pb-3 pt-1 lg:pb-4">
+        <div className="flex items-center justify-between gap-6 pb-2.5 pt-1.5">
           <a href={SITE_URL} className="relative z-10 shrink-0">
             <span
-              className="-mb-8 flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-[3px] bg-white sm:-mb-10 sm:h-28 sm:w-28 lg:-mb-12 lg:h-32 lg:w-32"
+              className="-mb-8 flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-[3px] bg-white sm:-mb-9 sm:h-28 sm:w-28 lg:-mb-10 lg:h-32 lg:w-32"
               style={{ borderColor: BRAND, boxShadow: "0 4px 10px rgba(0,0,0,0.18)" }}
             >
               <Image
@@ -1505,7 +1505,7 @@ function SiteHeader() {
                       href={item.href}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex items-center gap-1 px-3 py-2 text-[15px] font-medium tracking-wide text-zinc-800 transition-colors duration-200 hover:text-[#6669AC]"
+                      className="flex items-center gap-1 px-2.5 py-2 text-[15px] text-zinc-800 transition-colors duration-200 hover:text-[#6669AC]"
                     >
                       {item.label}
                       <ChevronDown className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-180" />
@@ -1530,7 +1530,7 @@ function SiteHeader() {
                     href={item.href}
                     target="_blank"
                     rel="noreferrer"
-                    className="px-3 py-2 text-[15px] font-medium tracking-wide text-zinc-800 transition-colors duration-200 hover:text-[#6669AC]"
+                    className="px-2.5 py-2 text-[15px] text-zinc-800 transition-colors duration-200 hover:text-[#6669AC]"
                   >
                     {item.label}
                   </a>
@@ -1717,7 +1717,7 @@ function BookingShell({
   return (
     <div className="min-h-screen bg-zinc-50">
       <SiteHeader />
-      <main className={"mx-auto px-4 pb-8 pt-14 sm:pt-16 " + (wide ? "max-w-7xl" : "max-w-4xl")}>
+      <main className={"mx-auto px-4 pb-8 pt-6 sm:pt-7 " + (wide ? "max-w-7xl" : "max-w-4xl")}>
         {bare ? children : <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">{children}</div>}
       </main>
       <SiteFooter />
