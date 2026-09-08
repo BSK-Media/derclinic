@@ -129,9 +129,13 @@ export function PatientPageShell({
                 <CalendarPlus className="h-4 w-4" />
                 <span className="hidden sm:inline">Umów wizytę</span>
               </Link>
-              <span className="hidden h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-800 sm:inline-flex">
+              <Link
+                href="/panel-klienta?tab=profile"
+                className="hidden h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-200 sm:inline-flex"
+                aria-label="Dane klienta"
+              >
                 {firstNameOnly.slice(0, 1).toUpperCase()}
-              </span>
+              </Link>
             </div>
           </div>
         </header>
