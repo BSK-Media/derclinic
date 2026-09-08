@@ -1615,41 +1615,41 @@ function SiteHeader() {
 
 function SiteFooter() {
   return (
-    <footer className="mt-10 border-t bg-zinc-900 text-zinc-300">
+    <footer className="mt-10 text-white" style={{ backgroundColor: "#6669AC" }}>
       <div className="mx-auto max-w-6xl px-4 py-10">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <Image src="/derclinic-logo.webp" alt="DerClinic" width={140} height={35} className="mb-4 brightness-0 invert" />
-            <div className="space-y-2 text-sm">
-              <a href={`mailto:${CONTACT.email}`} className="flex items-center gap-2 hover:text-emerald-400">
+            <div className="space-y-2 text-sm text-white/90">
+              <a href={`mailto:${CONTACT.email}`} className="flex items-center gap-2 hover:text-white">
                 <Mail className="h-4 w-4 shrink-0" /> {CONTACT.email}
               </a>
-              <a href={CONTACT.phoneHref} className="flex items-center gap-2 hover:text-emerald-400">
+              <a href={CONTACT.phoneHref} className="flex items-center gap-2 hover:text-white">
                 <Phone className="h-4 w-4 shrink-0" /> {CONTACT.phone}
               </a>
-              <a href={CONTACT.mapHref} target="_blank" rel="noreferrer" className="flex items-start gap-2 hover:text-emerald-400">
+              <a href={CONTACT.mapHref} target="_blank" rel="noreferrer" className="flex items-start gap-2 hover:text-white">
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0" /> <span>{CONTACT.address}</span>
               </a>
             </div>
             <div className="mt-4 flex items-center gap-3">
-              <a href={CONTACT.booksyHref} target="_blank" rel="noreferrer" className="rounded-full border border-zinc-700 px-3 py-1 text-xs hover:border-emerald-500 hover:text-emerald-400">
+              <a href={CONTACT.booksyHref} target="_blank" rel="noreferrer" className="rounded-full border border-white/30 px-3 py-1 text-xs text-white/90 hover:border-white hover:text-white">
                 Booksy
               </a>
-              <a href={CONTACT.instagramHref} target="_blank" rel="noreferrer" aria-label="Instagram" className="text-zinc-400 hover:text-emerald-400">
+              <a href={CONTACT.instagramHref} target="_blank" rel="noreferrer" aria-label="Instagram" className="text-white/80 hover:text-white">
                 <Instagram className="h-4 w-4" />
               </a>
-              <a href={CONTACT.facebookHref} target="_blank" rel="noreferrer" aria-label="Facebook" className="text-zinc-400 hover:text-emerald-400">
+              <a href={CONTACT.facebookHref} target="_blank" rel="noreferrer" aria-label="Facebook" className="text-white/80 hover:text-white">
                 <Facebook className="h-4 w-4" />
               </a>
             </div>
           </div>
 
           <div>
-            <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Menu</div>
-            <ul className="space-y-2 text-sm">
+            <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-white/60">Menu</div>
+            <ul className="space-y-2 text-sm text-white/90">
               {SITE_NAV.map((item) => (
                 <li key={item.label}>
-                  <a href={item.href} target="_blank" rel="noreferrer" className="hover:text-emerald-400">
+                  <a href={item.href} target="_blank" rel="noreferrer" className="hover:text-white">
                     {item.label}
                   </a>
                 </li>
@@ -1658,11 +1658,11 @@ function SiteFooter() {
           </div>
 
           <div>
-            <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Popularne zabiegi</div>
-            <ul className="space-y-2 text-sm">
+            <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-white/60">Popularne zabiegi</div>
+            <ul className="space-y-2 text-sm text-white/90">
               {POPULAR_TREATMENTS.map((item) => (
                 <li key={item.label}>
-                  <a href={item.href} target="_blank" rel="noreferrer" className="hover:text-emerald-400">
+                  <a href={item.href} target="_blank" rel="noreferrer" className="hover:text-white">
                     {item.label}
                   </a>
                 </li>
@@ -1671,29 +1671,29 @@ function SiteFooter() {
           </div>
 
           <div>
-            <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Partnerzy</div>
+            <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-white/60">Partnerzy</div>
             <div className="flex flex-wrap gap-2">
               {PARTNER_BRANDS.map((brand) => (
-                <span key={brand} className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-400">
+                <span key={brand} className="rounded-full border border-white/30 px-3 py-1 text-xs text-white/80">
                   {brand}
                 </span>
               ))}
             </div>
 
-            <div className="mt-6 mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Dokumenty</div>
-            <ul className="space-y-2 text-sm">
+            <div className="mt-6 mb-3 text-xs font-semibold uppercase tracking-wide text-white/60">Dokumenty</div>
+            <ul className="space-y-2 text-sm text-white/90">
               <li>
-                <a href={`${SITE_URL}/regulamin/`} target="_blank" rel="noreferrer" className="hover:text-emerald-400">
+                <a href={`${SITE_URL}/regulamin/`} target="_blank" rel="noreferrer" className="hover:text-white">
                   Regulamin
                 </a>
               </li>
               <li>
-                <a href={`${SITE_URL}/polityka-prywatnosci/`} target="_blank" rel="noreferrer" className="hover:text-emerald-400">
+                <a href={`${SITE_URL}/polityka-prywatnosci/`} target="_blank" rel="noreferrer" className="hover:text-white">
                   Polityka prywatności
                 </a>
               </li>
               <li>
-                <a href={`${SITE_URL}/mapa-strony/`} target="_blank" rel="noreferrer" className="hover:text-emerald-400">
+                <a href={`${SITE_URL}/mapa-strony/`} target="_blank" rel="noreferrer" className="hover:text-white">
                   Mapa strony
                 </a>
               </li>
@@ -1701,7 +1701,7 @@ function SiteFooter() {
           </div>
         </div>
 
-        <div className="mt-10 border-t border-zinc-800 pt-6 text-center text-xs text-zinc-500">
+        <div className="mt-10 border-t border-white/20 pt-6 text-center text-xs text-white/70">
           © {new Date().getFullYear()} DerClinic Klinika Medycyny Estetycznej. Wszelkie prawa zastrzeżone.
         </div>
       </div>
