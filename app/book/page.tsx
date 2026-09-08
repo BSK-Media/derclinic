@@ -1441,92 +1441,114 @@ const CONTACT = {
 function SiteHeader() {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [openMobileSection, setOpenMobileSection] = React.useState<string | null>(null);
+  // Fioletowy akcent marki DerClinic (identyczny z nagłówkiem na derclinic.pl),
+  // używany tylko w tym nagłówku — reszta widgetu rezerwacji zostaje zielona.
+  const BRAND = "#6669AC";
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-white">
-      {/* Górny pasek: kontakt i social media — ukryty na małych ekranach */}
-      <div className="hidden border-b border-zinc-100 bg-zinc-50 sm:block">
-        <div className="mx-auto flex max-w-6xl items-center justify-end gap-5 px-4 py-1.5 text-xs text-zinc-500">
-          <a href={CONTACT.phoneHref} className="flex items-center gap-1.5 hover:text-emerald-700">
-            <Phone className="h-3.5 w-3.5" /> {CONTACT.phone}
+    <header className="sticky top-0 z-40 border-b border-zinc-100 bg-white">
+      <div className="mx-auto max-w-6xl px-4">
+        {/* Górny pasek: język + social/kontakt ikony — jak na derclinic.pl */}
+        <div className="flex items-center justify-end gap-4 py-2 text-xs" style={{ color: BRAND }}>
+          <span className="hidden items-center gap-1 font-medium sm:flex">
+            <span>PL</span>
+            <span className="text-zinc-300">|</span>
+            <span className="text-zinc-400">EN</span>
+          </span>
+          <span className="hidden h-3 w-px bg-zinc-200 sm:block" />
+          <a href={CONTACT.phoneHref} aria-label="Zadzwoń" className="transition hover:opacity-70">
+            <Phone className="h-4 w-4" />
           </a>
-          <a href={CONTACT.mapHref} target="_blank" rel="noreferrer" className="hidden items-center gap-1.5 hover:text-emerald-700 md:flex">
-            <MapPin className="h-3.5 w-3.5" /> Grodzisk Mazowiecki
+          <a href={CONTACT.mapHref} target="_blank" rel="noreferrer" aria-label="Mapa dojazdu" className="hidden transition hover:opacity-70 sm:block">
+            <MapPin className="h-4 w-4" />
           </a>
-          <a href={CONTACT.booksyHref} target="_blank" rel="noreferrer" className="hover:text-emerald-700">
-            Booksy
+          <a href={CONTACT.booksyHref} target="_blank" rel="noreferrer" aria-label="Booksy" className="hidden transition hover:opacity-70 sm:block">
+            <img src="https://derclinic.pl/wp-content/themes/derclinic/images/booksy_purple.webp" alt="Booksy" className="h-4 w-4" />
           </a>
-          <a href={CONTACT.instagramHref} target="_blank" rel="noreferrer" aria-label="Instagram" className="hover:text-emerald-700">
-            <Instagram className="h-3.5 w-3.5" />
+          <a href={CONTACT.instagramHref} target="_blank" rel="noreferrer" aria-label="Instagram" className="transition hover:opacity-70">
+            <Instagram className="h-4 w-4" />
           </a>
-          <a href={CONTACT.facebookHref} target="_blank" rel="noreferrer" aria-label="Facebook" className="hover:text-emerald-700">
-            <Facebook className="h-3.5 w-3.5" />
+          <a href={CONTACT.facebookHref} target="_blank" rel="noreferrer" aria-label="Facebook" className="transition hover:opacity-70">
+            <Facebook className="h-4 w-4" />
           </a>
         </div>
-      </div>
 
-      {/* Główny wiersz: logo + nawigacja + CTA */}
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-        <a href={SITE_URL} className="shrink-0">
-          <Image src="/derclinic-logo.webp" alt="DerClinic" width={150} height={38} priority />
-        </a>
+        {/* Główny wiersz: okrągłe logo + nawigacja + CTA */}
+        <div className="flex items-center justify-between gap-4 py-2.5">
+          <a href={SITE_URL} className="shrink-0">
+            <span
+              className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 bg-white shadow-sm sm:h-16 sm:w-16"
+              style={{ borderColor: BRAND }}
+            >
+              <Image src="/derclinic-logo.webp" alt="DerClinic" width={56} height={56} priority className="object-contain p-1" />
+            </span>
+          </a>
 
-        <nav className="hidden items-center gap-1 lg:flex">
-          {SITE_NAV.map((item) =>
-            item.children ? (
-              <div key={item.label} className="group relative">
+          <nav className="hidden items-center gap-0.5 lg:flex">
+            {SITE_NAV.map((item) =>
+              item.children ? (
+                <div key={item.label} className="group relative">
+                  <a
+                    href={item.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1 rounded-lg px-2.5 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                    style={{ ["--hover-color" as any]: BRAND }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = BRAND)}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "")}
+                  >
+                    {item.label}
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </a>
+                  <div className="invisible absolute left-0 top-full z-50 min-w-[240px] rounded-xl border border-zinc-100 bg-white p-2 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100">
+                    {item.children.map((sub) => (
+                      <a
+                        key={sub.label}
+                        href={sub.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block rounded-lg px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-50"
+                        onMouseEnter={(e) => (e.currentTarget.style.color = BRAND)}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "")}
+                      >
+                        {sub.label}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ) : (
                 <a
+                  key={item.label}
                   href={item.href}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:text-emerald-700"
+                  className="rounded-lg px-2.5 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                  onMouseEnter={(e) => (e.currentTarget.style.color = BRAND)}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "")}
                 >
                   {item.label}
-                  <ChevronDown className="h-3.5 w-3.5" />
                 </a>
-                <div className="invisible absolute left-0 top-full z-50 min-w-[240px] rounded-xl border border-zinc-100 bg-white p-2 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100">
-                  {item.children.map((sub) => (
-                    <a
-                      key={sub.label}
-                      href={sub.href}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block rounded-lg px-3 py-2 text-sm text-zinc-600 hover:bg-emerald-50 hover:text-emerald-800"
-                    >
-                      {sub.label}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <a
-                key={item.label}
-                href={item.href}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-lg px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:text-emerald-700"
-              >
-                {item.label}
-              </a>
-            ),
-          )}
-        </nav>
+              ),
+            )}
+          </nav>
 
-        <div className="flex items-center gap-2">
-          <a
-            href={SITE_URL}
-            className="hidden rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 sm:block"
-          >
-            Umów wizytę
-          </a>
-          <button
-            type="button"
-            onClick={() => setMobileOpen((v) => !v)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 text-zinc-600 lg:hidden"
-            aria-label={mobileOpen ? "Zamknij menu" : "Otwórz menu"}
-          >
-            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              href={SITE_URL}
+              className="hidden rounded-full px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 sm:block"
+              style={{ backgroundColor: BRAND }}
+            >
+              Umów wizytę
+            </a>
+            <button
+              type="button"
+              onClick={() => setMobileOpen((v) => !v)}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 text-zinc-600 lg:hidden"
+              aria-label={mobileOpen ? "Zamknij menu" : "Otwórz menu"}
+            >
+              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
         </div>
       </div>
 
