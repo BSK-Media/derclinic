@@ -98,7 +98,7 @@ export function PatientPageShell({
 
         <nav className="mt-4 flex-1 space-y-1 px-1">{navList()}</nav>
 
-        <div className="mt-2 rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm">
+        <div className="mt-2 p-3">
           <LogoutButton />
         </div>
       </aside>
@@ -156,7 +156,7 @@ export function PatientPageShell({
                 </button>
               </div>
               <nav className="mt-2 flex-1 space-y-1 px-1">{navList(() => setMobileNavOpen(false))}</nav>
-              <div className="rounded-2xl border border-zinc-200 p-3">
+              <div className="p-3">
                 <LogoutButton />
               </div>
             </div>
