@@ -160,6 +160,15 @@ function ProfileField({ icon: Icon, label, value }: { icon: React.ElementType; l
   );
 }
 
+export type LoyaltyTransactionRow = {
+  id: string;
+  createdAt: string;
+  type: "EARNED" | "REDEEMED";
+  points: number;
+  note: string | null;
+  serviceName: string | null;
+};
+
 function PointsCard({ points, compact = false }: { points: number; compact?: boolean }) {
   return (
     <div className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-5 shadow-sm sm:p-6">
@@ -170,22 +179,64 @@ function PointsCard({ points, compact = false }: { points: number; compact?: boo
         </span>
         <div>
           <div className="text-2xl font-bold text-violet-700">{points} pkt</div>
-          <div className="text-xs text-zinc-500">Program w przygotowaniu</div>
+          <div className="text-xs text-zinc-500">≈ {points} zł rabatu</div>
         </div>
       </div>
       {!compact ? (
         <p className="mt-4 text-xs text-zinc-500">
-          Wkrótce będziesz mógł/mogła wymieniać punkty zebrane za wizyty i zakupy na kolejne zabiegi.
+          Za każde wydane 10 zł zbierasz 1 pkt. 1 pkt = 1 zł rabatu, który możesz wykorzystać podczas kolejnej
+          rezerwacji online.
         </p>
       ) : null}
-      <button
-        type="button"
-        disabled
-        title="Dostępne wkrótce"
-        className="mt-4 w-full cursor-not-allowed rounded-xl bg-violet-600/40 py-2.5 text-center text-sm font-semibold text-white"
+      <Link
+        href="/book"
+        className="mt-4 block w-full rounded-xl bg-violet-600 py-2.5 text-center text-sm font-semibold text-white transition hover:bg-violet-700"
       >
-        Wykorzystaj punkty
-      </button>
+        Umów wizytę i wykorzystaj punkty
+      </Link>
+    </div>
+  );
+}
+
+function formatPointsDate(iso: string) {
+  return new Date(iso).toLocaleDateString("pl-PL", {
+    timeZone: "Europe/Warsaw",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function LoyaltyHistoryList({ history }: { history: LoyaltyTransactionRow[] }) {
+  if (history.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-violet-200 bg-white p-6 text-center text-sm text-zinc-500">
+        Brak jeszcze żadnych operacji na punktach.
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-2xl border border-violet-100 bg-white shadow-sm">
+      <div className="divide-y divide-violet-50">
+        {history.map((entry) => {
+          const earned = entry.type === "EARNED";
+          return (
+            <div key={entry.id} className="flex items-center justify-between gap-3 p-4">
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-zinc-900">
+                  {earned ? "Naliczono punkty" : "Wykorzystano punkty"}
+                  {entry.serviceName ? ` — ${entry.serviceName}` : ""}
+                </div>
+                <div className="text-xs text-zinc-500">{formatPointsDate(entry.createdAt)}</div>
+              </div>
+              <div className={"shrink-0 text-sm font-semibold " + (earned ? "text-emerald-600" : "text-violet-600")}>
+                {earned ? "+" : "-"}
+                {entry.points} pkt
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -195,12 +246,14 @@ export function PatientDashboard({
   upcoming,
   past,
   points,
+  loyaltyHistory = [],
   initialTab = "home",
 }: {
   profile: PatientProfile;
   upcoming: AppointmentRowData[];
   past: AppointmentRowData[];
   points: number;
+  loyaltyHistory?: LoyaltyTransactionRow[];
   initialTab?: TabId;
 }) {
   const [tab, setTab] = React.useState<TabId>(initialTab);
@@ -508,8 +561,14 @@ export function PatientDashboard({
           {tab === "points" ? (
             <div>
               <h1 className="mb-5 text-xl font-bold text-zinc-900 sm:text-2xl">Punkty lojalnościowe</h1>
-              <div className="max-w-md">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,320px)_1fr]">
                 <PointsCard points={points} />
+                <div>
+                  <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                    Historia punktów
+                  </div>
+                  <LoyaltyHistoryList history={loyaltyHistory} />
+                </div>
               </div>
             </div>
           ) : null}
