@@ -2,9 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Star, Coins, Gift, ShieldCheck, Info } from "lucide-react";
+import { toast } from "sonner";
+import { Star, Coins, Gift, ShieldCheck, Info, RefreshCw } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 // UWAGA: to jest strona WYŁĄCZNIE do odczytu. Zasady programu lojalnościowego
 // (1 pkt za 10 zł, 1 pkt = 1 zł rabatu) są ustalone raz w lib/loyalty.ts i
@@ -14,12 +16,29 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 export default function LoyaltyExplainerPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const [backfilling, setBackfilling] = React.useState(false);
 
   React.useEffect(() => {
     if (!loading && user && user.role !== "ADMIN") {
       router.replace("/admin");
     }
   }, [loading, user, router]);
+
+  async function runBackfill() {
+    setBackfilling(true);
+    try {
+      const res = await fetch("/api/admin/loyalty/backfill", { method: "POST" });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się zsynchronizować punktów");
+      toast.success(
+        out.appointmentsFixed > 0
+          ? `Doliczono ${out.pointsAdded} pkt na ${out.appointmentsFixed} wizyt (sprawdzono ${out.appointmentsScanned}, pominięto ${out.skippedUnpaid} nieopłaconych w pełni)`
+          : `Wszystko już naliczone poprawnie (sprawdzono ${out.appointmentsScanned} wizyt, pominięto ${out.skippedUnpaid} nieopłaconych w pełni)`,
+      );
+    } finally {
+      setBackfilling(false);
+    }
+  }
 
   if (loading || !user || user.role !== "ADMIN") return null;
 
@@ -112,6 +131,25 @@ export default function LoyaltyExplainerPage() {
             Bieżące saldo punktów pacjenta jest zawsze sumą tej historii — nic nie da się „ręcznie" podkręcić
             bez pozostawienia śladu w dzienniku operacji.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <RefreshCw className="h-4 w-4 text-violet-600" /> Synchronizacja historycznych wizyt
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p>
+            Sprawdza wszystkie zakończone i zaakceptowane wizyty w systemie i dolicza brakujące punkty tym, które
+            są w pełni opłacone, a z jakiegoś powodu (np. wizyta zaakceptowana zanim naprawiono liczenie ceny)
+            punktów jeszcze nie otrzymały. Nigdy nie odbiera punktów i bezpiecznie można uruchomić wielokrotnie —
+            wizyty, które mają już poprawną liczbę punktów, są pomijane.
+          </p>
+          <Button size="sm" onClick={runBackfill} disabled={backfilling}>
+            {backfilling ? "Synchronizuję…" : "Zsynchronizuj punkty za wszystkie wizyty"}
+          </Button>
         </CardContent>
       </Card>
     </div>
