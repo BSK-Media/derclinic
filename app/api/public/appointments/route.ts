@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { parseDateInput, warsawWallTimeToUtc } from "@/lib/warsaw-time";
 import { busyRangesForWarsawDay, computeFreeSlots, slotToUtc } from "@/lib/public-booking";
 import { getPatientAuth } from "@/lib/patient-auth";
+import { maxRedeemablePoints, redeemLoyaltyPoints } from "@/lib/loyalty";
 
 const RESERVATION_SERVICE_NAME = "__DERCLINIC_REZERWACJA_CZASU__";
 
@@ -59,6 +60,9 @@ const BodySchema = z.object({
   note: z.string().trim().max(500).optional().or(z.literal("")),
   // Podane tylko, gdy klient wybrał "Zarejestruj się" zamiast kontynuacji jako gość.
   password: z.string().min(6).max(100).optional(),
+  // Punkty lojalnościowe do wykorzystania jako rabat — tylko dla zalogowanych
+  // pacjentów (patrz walidacja niżej). 1 pkt = 1 zł.
+  pointsToRedeem: z.number().int().min(0).max(100000).optional(),
 });
 
 const FIELD_LABELS: Record<string, string> = {
@@ -88,7 +92,7 @@ export async function POST(req: Request) {
   const parsed = BodySchema.safeParse(json);
   if (!parsed.success) return bad(describeValidationError(parsed.error));
 
-  const { locationId, specialistId, serviceId, date, time, firstName, lastName, phone, email, note, password } =
+  const { locationId, specialistId, serviceId, date, time, firstName, lastName, phone, email, note, password, pointsToRedeem } =
     parsed.data;
 
   // Jeśli klient jest zalogowany do panelu pacjenta (ciasteczko sesji), wizytę
@@ -252,7 +256,48 @@ export async function POST(req: Request) {
         },
       });
 
-      return { ...created, accountCreated, alreadyHasAccount, bookedAsLoggedIn };
+      // Rabat za punkty lojalnościowe — tylko dla zalogowanego pacjenta
+      // (gość nie ma trwałego salda). Walidujemy saldo TU, wewnątrz
+      // transakcji, jako ostateczne, autorytatywne źródło prawdy — nie
+      // ufamy samej wartości przysłanej z frontendu poza sprawdzeniem, że
+      // mieści się w limicie (saldo pacjenta i cena usługi).
+      let loyaltyPointsUsed = 0;
+      let loyaltyDiscountAmount = 0;
+      if (patientAuth && pointsToRedeem && pointsToRedeem > 0) {
+        const patientForBalance = await tx.patient.findUnique({
+          where: { id: patientId },
+          select: { loyaltyPoints: true },
+        });
+        const allowedPoints = maxRedeemablePoints(patientForBalance?.loyaltyPoints ?? 0, service.price);
+        const pointsApplied = Math.min(pointsToRedeem, allowedPoints);
+        if (pointsApplied > 0) {
+          const { discountAmount } = await redeemLoyaltyPoints(tx, {
+            patientId,
+            points: pointsApplied,
+            appointmentId: created.id,
+          });
+          loyaltyPointsUsed = pointsApplied;
+          loyaltyDiscountAmount = discountAmount;
+          await tx.appointment.update({
+            where: { id: created.id },
+            data: {
+              loyaltyPointsUsed,
+              loyaltyDiscountAmount,
+              priceFinal: Math.max(0, (service.price ?? 0) - discountAmount),
+            },
+          });
+        }
+      }
+
+      return {
+        ...created,
+        loyaltyPointsUsed,
+        loyaltyDiscountAmount,
+        priceFinal: loyaltyDiscountAmount > 0 ? Math.max(0, (service.price ?? 0) - loyaltyDiscountAmount) : created.priceFinal,
+        accountCreated,
+        alreadyHasAccount,
+        bookedAsLoggedIn,
+      };
     });
 
     return NextResponse.json({
@@ -262,6 +307,9 @@ export async function POST(req: Request) {
       accountCreated: appointment.accountCreated,
       alreadyHasAccount: appointment.alreadyHasAccount,
       bookedAsLoggedIn: appointment.bookedAsLoggedIn,
+      loyaltyPointsUsed: appointment.loyaltyPointsUsed,
+      loyaltyDiscountAmount: appointment.loyaltyDiscountAmount,
+      priceFinal: appointment.priceFinal,
     });
   } catch (e: any) {
     return bad(typeof e?.message === "string" ? e.message : "Nie udało się zapisać wizyty", 409);
