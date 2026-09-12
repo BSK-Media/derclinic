@@ -63,6 +63,11 @@ enum RetailSaleStatus {
   CANCELED
 }
 
+enum LoyaltyTransactionType {
+  EARNED
+  REDEEMED
+}
+
 enum DiscountType {
   AMOUNT
   PERCENT
@@ -143,6 +148,13 @@ model Patient {
   // wygaśnięciu.
   passwordResetTokenHash String?
   passwordResetExpiresAt DateTime?
+
+  // Program lojalnościowy: 1 pkt za każde wydane 10 zł (na podstawie
+  // priceFinal zaakceptowanej wizyty), 1 pkt = 1 zł rabatu przy kolejnej
+  // rezerwacji. Bieżące saldo trzymane tu dla szybkiego odczytu; pełna,
+  // niezmienna historia operacji w LoyaltyPointsTransaction (patrz niżej).
+  loyaltyPoints             Int                        @default(0)
+  loyaltyPointsTransactions LoyaltyPointsTransaction[]
 
   locationId String   @default("grodzisk-mazowiecki")
   location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
@@ -469,6 +481,18 @@ model Appointment {
   photoBefore String? @db.Text
   photoAfter  String? @db.Text
 
+  // Rabat za punkty lojalnościowe użyty przy REZERWACJI tej wizyty (1 pkt =
+  // 1 zł), oraz znacznik, kiedy naliczono punkty ZA tę wizytę (idempotencja —
+  // punkty przyznajemy dokładnie raz, przy zaakceptowaniu zakończonej
+  // wizyty, patrz lib/loyalty.ts). Oba procesy są od siebie niezależne:
+  // ta sama wizyta może użyć punktów przy rezerwacji I naliczyć nowe punkty
+  // po jej zakończeniu.
+  loyaltyPointsUsed      Int?
+  loyaltyDiscountAmount  Int?
+  loyaltyPointsAwardedAt DateTime?
+
+  loyaltyPointsTransactions LoyaltyPointsTransaction[]
+
   consumptions Consumption[]
   payments     Payment[]
 
@@ -588,6 +612,29 @@ model Payment {
 
   @@index([appointmentId])
   @@index([retailSaleId])
+}
+
+// Niezmienny, w pełni udokumentowany ślad każdej operacji na punktach
+// lojalnościowych — zarówno naliczenia (EARNED, po zaakceptowaniu wizyty),
+// jak i wykorzystania jako rabatu (REDEEMED, przy rezerwacji). Nigdy nie
+// edytujemy ani nie usuwamy wpisów — to jest księga, nie tylko licznik.
+model LoyaltyPointsTransaction {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  appointmentId String?
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  type   LoyaltyTransactionType
+  // Zawsze liczba dodatnia — kierunek (naliczenie/wykorzystanie) wynika z "type".
+  points Int
+  note   String?
+
+  @@index([patientId, createdAt])
+  @@index([appointmentId])
 }
 
 model AuditLog {
