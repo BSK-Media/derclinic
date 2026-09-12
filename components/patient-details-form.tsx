@@ -78,6 +78,34 @@ export function PatientDetailsForm({
   const [draft, setDraft] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
+  const [newPassword, setNewPassword] = React.useState("");
+  const [settingPassword, setSettingPassword] = React.useState(false);
+
+  async function setPatientPassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (newPassword.length < 6) {
+      toast.error("Hasło musi mieć co najmniej 6 znaków");
+      return;
+    }
+    setSettingPassword(true);
+    try {
+      const response = await fetch(`/api/admin/patients/${patient.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ password: newPassword }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.ok) {
+        toast.error(result?.message || "Nie udało się ustawić hasła");
+        return;
+      }
+      toast.success("Ustawiono nowe hasło pacjenta");
+      setNewPassword("");
+    } finally {
+      setSettingPassword(false);
+    }
+  }
+
   function requestEdit(field: EditableField) {
     if (saving) return;
     setConfirmationField(field);
@@ -254,6 +282,29 @@ export function PatientDetailsForm({
             </button>
           </div>
         )}
+      </Card>
+
+      <Card className="p-4">
+        <div className="mb-2 text-base font-medium">Hasło do panelu klienta</div>
+        <p className="mb-3 text-sm text-zinc-500">
+          Ustaw ręcznie nowe hasło pacjentowi — przydatne, gdy wysyłka maila z linkiem do resetu nie
+          dochodzi. Ze względów bezpieczeństwa obecnego hasła nie da się tu podejrzeć.
+        </p>
+        <form onSubmit={setPatientPassword} className="flex flex-wrap items-end gap-2">
+          <div className="min-w-[220px] flex-1">
+            <Input
+              type="text"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              placeholder="Nowe hasło (min. 6 znaków)"
+              maxLength={200}
+              disabled={settingPassword}
+            />
+          </div>
+          <Button type="submit" size="sm" disabled={settingPassword || newPassword.length < 6}>
+            {settingPassword ? "Zapisywanie…" : "Ustaw nowe hasło"}
+          </Button>
+        </form>
       </Card>
 
       <Dialog
