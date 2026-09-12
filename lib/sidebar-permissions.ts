@@ -11,6 +11,10 @@ export const SIDEBAR_PERMISSION_KEYS = [
   "locations",
   "analytics",
   "settings",
+  // Zakładka wyłącznie dla administratora — patrz komentarz przy
+  // DEFAULT_NON_ADMIN_PERMISSIONS i celowy brak wpisu w
+  // SIDEBAR_PERMISSION_OPTIONS niżej.
+  "loyalty",
 ] as const;
 
 export type SidebarPermission = (typeof SIDEBAR_PERMISSION_KEYS)[number];
@@ -38,7 +42,7 @@ const ALL_PERMISSIONS = [...SIDEBAR_PERMISSION_KEYS];
 // Dotychczasowy zakres menu dla pracowników, z wyłączeniem sekcji zastrzeżonych
 // domyślnie dla administratora.
 const DEFAULT_NON_ADMIN_PERMISSIONS: SidebarPermission[] = SIDEBAR_PERMISSION_KEYS.filter(
-  (key) => key !== "analytics" && key !== "specialists" && key !== "locations" && key !== "pos",
+  (key) => key !== "analytics" && key !== "specialists" && key !== "locations" && key !== "pos" && key !== "loyalty",
 );
 
 export function normalizeSidebarPermissions(role: string, value: unknown): SidebarPermission[] {
@@ -176,6 +180,7 @@ export function sidebarHref(permission: SidebarPermission, role: string) {
     locations: "/admin/locations",
     analytics: "/admin/analytics",
     settings: "/admin/settings",
+    loyalty: "/admin/loyalty",
   };
 
   return hrefs[permission];
