@@ -390,7 +390,12 @@ export default function AdminAppointmentDetail() {
                   <Button
                     size="sm"
                     onClick={() => decideApproval("APPROVE")}
-                    disabled={decidingApproval}
+                    disabled={decidingApproval || paymentRemaining > 0}
+                    title={
+                      paymentRemaining > 0
+                        ? `Brakuje ${formatPLNFromGrosze(paymentRemaining)} do pełnej płatności`
+                        : undefined
+                    }
                   >
                     {decidingApproval ? "…" : "✓ Zaakceptuj"}
                   </Button>
@@ -408,8 +413,9 @@ export default function AdminAppointmentDetail() {
             </div>
             {appt.approvalStatus === "PENDING" ? (
               <div className="text-xs text-zinc-500">
-                Zakończona wizyta czeka na decyzję recepcji lub administratora. Do statystyk i
-                rozliczeń liczą się tylko wizyty zaakceptowane.
+                {paymentRemaining > 0
+                  ? `Zaakceptować (i naliczyć punkty lojalnościowe) można dopiero po dodaniu pełnej płatności — brakuje ${formatPLNFromGrosze(paymentRemaining)}.`
+                  : "Zakończona wizyta czeka na decyzję recepcji lub administratora. Do statystyk i rozliczeń liczą się tylko wizyty zaakceptowane."}
               </div>
             ) : null}
             {appt.approvalStatus === "REJECTED" && appt.rejectionReason ? (

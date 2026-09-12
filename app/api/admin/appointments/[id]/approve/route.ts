@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { awardLoyaltyPointsForAppointment } from "@/lib/loyalty";
+import { formatPLNFromGrosze } from "@/lib/money";
 
 const BodySchema = z
   .object({
@@ -49,7 +50,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       deletedAt: true,
       patientId: true,
       priceFinal: true,
+      priceEstimate: true,
       loyaltyPointsAwardedAt: true,
+      service: { select: { price: true } },
+      payments: { select: { amount: true } },
     },
   });
   if (!appt || appt.deletedAt)
@@ -74,6 +78,24 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       },
       { status: 400 },
     );
+  }
+
+  // Akceptacja (a wraz z nią naliczenie punktów lojalnościowych) jest możliwa
+  // dopiero po odnotowaniu pełnej płatności za wizytę.
+  if (target === "APPROVED") {
+    const paymentTotal = appt.priceFinal ?? appt.service?.price ?? appt.priceEstimate ?? 0;
+    const paymentsSum = appt.payments.reduce((sum, p) => sum + p.amount, 0);
+    if (paymentsSum < paymentTotal) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: `Nie można zaakceptować wizyty bez pełnej płatności. Brakuje ${formatPLNFromGrosze(
+            paymentTotal - paymentsSum,
+          )}.`,
+        },
+        { status: 400 },
+      );
+    }
   }
 
   const updated = await prisma.$transaction(async (tx) => {
