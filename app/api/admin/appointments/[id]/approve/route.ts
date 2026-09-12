@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
-import { awardLoyaltyPointsForAppointment } from "@/lib/loyalty";
+import { awardLoyaltyPointsForAppointment, resolveAppointmentPrice } from "@/lib/loyalty";
 import { formatPLNFromGrosze } from "@/lib/money";
 
 const BodySchema = z
@@ -82,8 +82,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   // Akceptacja (a wraz z nią naliczenie punktów lojalnościowych) jest możliwa
   // dopiero po odnotowaniu pełnej płatności za wizytę.
+  const paymentTotal = resolveAppointmentPrice(appt);
   if (target === "APPROVED") {
-    const paymentTotal = appt.priceFinal ?? appt.service?.price ?? appt.priceEstimate ?? 0;
     const paymentsSum = appt.payments.reduce((sum, p) => sum + p.amount, 0);
     if (paymentsSum < paymentTotal) {
       return NextResponse.json(
@@ -116,7 +116,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       loyaltyPointsAwarded = await awardLoyaltyPointsForAppointment(tx, {
         id: appt.id,
         patientId: appt.patientId,
-        priceFinal: appt.priceFinal,
+        // Cena z tym samym pierwszeństwem pól co próg pełnej płatności powyżej
+        // — patrz komentarz przy resolveAppointmentPrice w lib/loyalty.ts.
+        priceFinal: paymentTotal,
         loyaltyPointsAwardedAt: appt.loyaltyPointsAwardedAt,
       });
     }

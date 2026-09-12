@@ -29,6 +29,22 @@ export function maxRedeemablePoints(balancePoints: number, priceGrosze: number |
 type TxClient = Prisma.TransactionClient;
 
 /**
+ * Cena, od której liczą się punkty i wymóg pełnej płatności — to samo
+ * pierwszeństwo pól, którego używa reszta systemu (rozliczenia, saldo
+ * płatności): ręcznie wpisana cena końcowa, a w jej braku cena standardowa
+ * (orientacyjna albo cennikowa usługi). Wizyta bez ręcznej korekty ceny NIE
+ * ma ustawionego `priceFinal` — liczenie punktów tylko z tego pola pomijałoby
+ * wtedy realnie zapłaconą kwotę.
+ */
+export function resolveAppointmentPrice(appointment: {
+  priceFinal: number | null;
+  priceEstimate?: number | null;
+  service?: { price: number | null } | null;
+}): number {
+  return appointment.priceFinal ?? appointment.priceEstimate ?? appointment.service?.price ?? 0;
+}
+
+/**
  * Nalicza punkty za wizytę — wywoływane w momencie, gdy recepcja/admin
  * ZAAKCEPTUJE zakończoną wizytę (nie samo oznaczenie jako "Zakończona" —
  * dopiero akceptacja potwierdza, że dane i cena są poprawne).
@@ -67,6 +83,58 @@ export async function awardLoyaltyPointsForAppointment(
   });
 
   return points;
+}
+
+/**
+ * Dolicza brakujące punkty za wizytę, która była już zaakceptowana (np. zanim
+ * poprawiono cenę, albo zanim `awardLoyaltyPointsForAppointment` liczył cenę
+ * z tym samym pierwszeństwem pól co reszta systemu — patrz
+ * `resolveAppointmentPrice`). W przeciwieństwie do `awardLoyaltyPointsForAppointment`
+ * NIE jest blokowana przez `loyaltyPointsAwardedAt` — zamiast tego porównuje
+ * punkty, jakie wizyta już naliczyła (suma transakcji EARNED dla tej wizyty),
+ * z tym, ile powinna dać przy aktualnej cenie, i dolicza tylko różnicę. Nigdy
+ * nie odbiera punktów — jeśli różnica wyszłaby ujemna, nic nie robi.
+ */
+export async function reconcileLoyaltyPointsForAppointment(
+  tx: TxClient,
+  appointment: {
+    id: string;
+    patientId: string;
+    priceFinal: number | null;
+    priceEstimate?: number | null;
+    service?: { price: number | null } | null;
+  },
+): Promise<number> {
+  const correctPrice = resolveAppointmentPrice(appointment);
+  const shouldHave = pointsEarnedForAmount(correctPrice);
+
+  const alreadyAwarded = await tx.loyaltyPointsTransaction.aggregate({
+    where: { appointmentId: appointment.id, type: "EARNED" },
+    _sum: { points: true },
+  });
+  const already = alreadyAwarded._sum.points ?? 0;
+  const missing = shouldHave - already;
+  if (missing <= 0) return 0;
+
+  await tx.patient.update({
+    where: { id: appointment.patientId },
+    data: { loyaltyPoints: { increment: missing } },
+  });
+  await tx.loyaltyPointsTransaction.create({
+    data: {
+      patientId: appointment.patientId,
+      appointmentId: appointment.id,
+      type: "EARNED",
+      points: missing,
+      note: `Korekta naliczenia — uzupełniono brakujące punkty do ceny ${(correctPrice / 100).toFixed(2)} zł (1 pkt / 10 zł)`,
+    },
+  });
+  await tx.appointment.update({
+    where: { id: appointment.id },
+    data: { loyaltyPointsAwardedAt: new Date() },
+  });
+
+  return missing;
 }
 
 /**

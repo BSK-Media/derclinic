@@ -66,6 +66,26 @@ export default function AdminAppointmentDetail() {
 
   const [decidingApproval, setDecidingApproval] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
+
+  async function reconcileLoyalty() {
+    setReconciling(true);
+    try {
+      const res = await fetch(`/api/admin/appointments/${id}/reconcile-loyalty`, {
+        method: "POST",
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się przeliczyć punktów");
+      toast.success(
+        out.pointsAdded > 0
+          ? `Doliczono ${out.pointsAdded} brakujących punktów lojalnościowych`
+          : "Punkty są już naliczone poprawnie — nic do doliczenia",
+      );
+      mutate();
+    } finally {
+      setReconciling(false);
+    }
+  }
 
   async function decideApproval(action: "APPROVE" | "REJECT", reason?: string) {
     setDecidingApproval(true);
@@ -410,7 +430,18 @@ export default function AdminAppointmentDetail() {
                   </Button>
                 </div>
               ) : null}
+              {appt.approvalStatus === "APPROVED" ? (
+                <Button size="sm" variant="outline" onClick={reconcileLoyalty} disabled={reconciling}>
+                  {reconciling ? "…" : "↻ Przelicz punkty lojalnościowe"}
+                </Button>
+              ) : null}
             </div>
+            {appt.approvalStatus === "APPROVED" ? (
+              <div className="text-xs text-zinc-500">
+                Jeśli cena wizyty została poprawiona po zaakceptowaniu, użyj przycisku powyżej, żeby
+                doliczyć ewentualne brakujące punkty pacjentowi.
+              </div>
+            ) : null}
             {appt.approvalStatus === "PENDING" ? (
               <div className="text-xs text-zinc-500">
                 {paymentRemaining > 0
