@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { awardLoyaltyPointsForAppointment } from "@/lib/loyalty";
 
 const BodySchema = z
   .object({
@@ -41,7 +42,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const appt = await prisma.appointment.findFirst({
     where: { id: params.id, ...scopedLocationWhere(user!) },
-    select: { id: true, status: true, approvalStatus: true, deletedAt: true },
+    select: {
+      id: true,
+      status: true,
+      approvalStatus: true,
+      deletedAt: true,
+      patientId: true,
+      priceFinal: true,
+      loyaltyPointsAwardedAt: true,
+    },
   });
   if (!appt || appt.deletedAt)
     return NextResponse.json({ ok: false, message: "Nie znaleziono wizyty" }, { status: 404 });
@@ -67,26 +76,47 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     );
   }
 
-  const updated = await prisma.appointment.update({
-    where: { id: params.id },
-    data: {
-      approvalStatus: target,
-      approvedAt: new Date(),
-      approvedById: user!.id,
-      rejectionReason: target === "REJECTED" ? parsed.data.reason!.trim() : null,
-    },
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.appointment.update({
+      where: { id: params.id },
+      data: {
+        approvalStatus: target,
+        approvedAt: new Date(),
+        approvedById: user!.id,
+        rejectionReason: target === "REJECTED" ? parsed.data.reason!.trim() : null,
+      },
+    });
+
+    // Punkty lojalnościowe naliczamy dopiero przy akceptacji — to moment, w
+    // którym recepcja/admin potwierdza, że cena i dane wizyty są poprawne.
+    let loyaltyPointsAwarded = 0;
+    if (target === "APPROVED") {
+      loyaltyPointsAwarded = await awardLoyaltyPointsForAppointment(tx, {
+        id: appt.id,
+        patientId: appt.patientId,
+        priceFinal: appt.priceFinal,
+        loyaltyPointsAwardedAt: appt.loyaltyPointsAwardedAt,
+      });
+    }
+
+    return { appointment: result, loyaltyPointsAwarded };
   });
 
   await logAudit({
     actorId: user!.id,
     action: "UPDATE",
     entity: "AppointmentApproval",
-    entityId: updated.id,
+    entityId: updated.appointment.id,
     data: {
       approvalStatus: target,
       rejectionReason: target === "REJECTED" ? parsed.data.reason!.trim() : null,
+      loyaltyPointsAwarded: updated.loyaltyPointsAwarded || undefined,
     },
   });
 
-  return NextResponse.json({ ok: true, appointment: updated });
+  return NextResponse.json({
+    ok: true,
+    appointment: updated.appointment,
+    loyaltyPointsAwarded: updated.loyaltyPointsAwarded,
+  });
 }
