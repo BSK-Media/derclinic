@@ -7,6 +7,7 @@ import useSWR from "swr";
 import { Raleway } from "next/font/google";
 import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, Check, Calendar as CalendarIcon, Menu, X, ChevronDown, Instagram, Facebook, Phone, Mail, MapPin } from "lucide-react";
 import { formatPLNFromGrosze } from "@/lib/money";
+import { maxRedeemablePoints, discountForPoints } from "@/lib/loyalty";
 
 // Czcionka używana WYŁĄCZNIE w nagłówku (SiteHeader) — potwierdzona wprost z
 // computed CSS elementu .navbar na derclinic.pl: font-family: Raleway, sans-serif,
@@ -191,11 +192,13 @@ export default function PublicBookingPage() {
   const [accountCreated, setAccountCreated] = React.useState(false);
   const [alreadyHasAccount, setAlreadyHasAccount] = React.useState(false);
   const [bookedAsLoggedIn, setBookedAsLoggedIn] = React.useState(false);
+  const [loyaltyPointsUsed, setLoyaltyPointsUsed] = React.useState(0);
+  const [loyaltyDiscountAmount, setLoyaltyDiscountAmount] = React.useState(0);
 
   // Sesja pacjenta (panel klienta) — jeśli osoba rezerwująca jest już
   // zalogowana (albo zaloguje się w trakcie wypełniania kroku 4), wizyta
   // trafia od razu na jej konto zamiast tworzyć nowy rekord gościa.
-  type LoggedInPatient = { id: string; name: string; phone: string | null; email: string | null };
+  type LoggedInPatient = { id: string; name: string; phone: string | null; email: string | null; loyaltyPoints?: number };
   const [loggedInPatient, setLoggedInPatient] = React.useState<LoggedInPatient | null>(null);
   const [showInlineLogin, setShowInlineLogin] = React.useState(false);
   const [loginPhone, setLoginPhone] = React.useState("");
@@ -204,6 +207,10 @@ export default function PublicBookingPage() {
   const [loginSubmitting, setLoginSubmitting] = React.useState(false);
   const [phoneAccountWarning, setPhoneAccountWarning] = React.useState(false);
   const [emailAccountWarning, setEmailAccountWarning] = React.useState(false);
+  // Punkty lojalnościowe do wykorzystania jako rabat (1 pkt = 1 zł) — tylko
+  // dla zalogowanego pacjenta. Fioletowy akcent w UI, zgodnie z resztą
+  // programu punktowego w aplikacji.
+  const [pointsToRedeem, setPointsToRedeem] = React.useState(0);
 
   const refreshPatientSession = React.useCallback(async () => {
     try {
@@ -430,6 +437,17 @@ export default function PublicBookingPage() {
 
   const selectedService = services.find((s) => s.id === serviceId) ?? null;
 
+  // Zabezpieczenie przed nieaktualną wartością suwaka punktów — np. po
+  // zmianie zabiegu (inna cena, inny limit) albo wylogowaniu w trakcie.
+  React.useEffect(() => {
+    if (!loggedInPatient) {
+      setPointsToRedeem(0);
+      return;
+    }
+    const max = maxRedeemablePoints(loggedInPatient.loyaltyPoints ?? 0, selectedService?.price ?? 0);
+    setPointsToRedeem((current) => Math.min(current, max));
+  }, [serviceId, loggedInPatient, selectedService?.price]);
+
   // Specjaliści wykonujący wybrany zabieg w wybranej lokalizacji.
   const qualifyingSpecialists = React.useMemo(() => {
     if (!serviceId) return [];
@@ -642,6 +660,7 @@ export default function PublicBookingPage() {
           email: email.trim(),
           note: note.trim() || undefined,
           password: accountMode === "register" && !loggedInPatient ? password : undefined,
+          pointsToRedeem: loggedInPatient && pointsToRedeem > 0 ? pointsToRedeem : undefined,
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -652,6 +671,8 @@ export default function PublicBookingPage() {
       setAccountCreated(Boolean(result.accountCreated));
       setAlreadyHasAccount(Boolean(result.alreadyHasAccount));
       setBookedAsLoggedIn(Boolean(result.bookedAsLoggedIn));
+      setLoyaltyPointsUsed(Number(result.loyaltyPointsUsed) || 0);
+      setLoyaltyDiscountAmount(Number(result.loyaltyDiscountAmount) || 0);
       setConfirmedAt(result.startsAt);
     } finally {
       setSubmitting(false);
@@ -681,6 +702,15 @@ export default function PublicBookingPage() {
             Potwierdzenie zostało zapisane w systemie kliniki. Skontaktujemy się, jeśli będą potrzebne
             dodatkowe informacje.
           </p>
+          {loyaltyPointsUsed > 0 ? (
+            <p
+              className="max-w-md rounded-xl px-4 py-3 text-xs"
+              style={{ backgroundColor: "#f5f3ff", color: "#6d28d9" }}
+            >
+              Wykorzystano <strong>{loyaltyPointsUsed} pkt</strong> lojalnościowych — rabat{" "}
+              <strong>{formatPLNFromGrosze(loyaltyDiscountAmount)}</strong>.
+            </p>
+          ) : null}
           {bookedAsLoggedIn ? (
             <div className="w-full max-w-md space-y-3">
               <p className="rounded-xl bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
@@ -1088,10 +1118,59 @@ export default function PublicBookingPage() {
             <div className="text-zinc-500">
               {displaySpecialistName} • {formatDateLabel(date)}, {time}
             </div>
-            <div className="mt-1 font-semibold text-emerald-700">
-              {formatPLNFromGrosze(selectedService?.price ?? null)}
+            <div className="mt-1 flex items-baseline gap-2">
+              {pointsToRedeem > 0 ? (
+                <span className="text-xs text-zinc-400 line-through">
+                  {formatPLNFromGrosze(selectedService?.price ?? null)}
+                </span>
+              ) : null}
+              <span className="font-semibold text-emerald-700">
+                {formatPLNFromGrosze(
+                  pointsToRedeem > 0
+                    ? Math.max(0, (selectedService?.price ?? 0) - discountForPoints(pointsToRedeem))
+                    : (selectedService?.price ?? null),
+                )}
+              </span>
             </div>
           </div>
+
+          {loggedInPatient && (loggedInPatient.loyaltyPoints ?? 0) > 0 && selectedService?.price ? (
+            <div className="mb-4 rounded-xl border p-3.5" style={{ borderColor: "#ddd6fe", backgroundColor: "#f5f3ff" }}>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-sm font-semibold" style={{ color: "#6d28d9" }}>
+                  Punkty lojalnościowe
+                </span>
+                <span className="text-xs" style={{ color: "#7c3aed" }}>
+                  Masz {loggedInPatient.loyaltyPoints} pkt
+                </span>
+              </div>
+              {(() => {
+                const maxPoints = maxRedeemablePoints(loggedInPatient.loyaltyPoints ?? 0, selectedService?.price ?? 0);
+                if (maxPoints <= 0) return null;
+                return (
+                  <>
+                    <input
+                      type="range"
+                      min={0}
+                      max={maxPoints}
+                      step={1}
+                      value={Math.min(pointsToRedeem, maxPoints)}
+                      onChange={(e) => setPointsToRedeem(Number(e.target.value))}
+                      className="w-full accent-violet-600"
+                    />
+                    <div className="mt-1.5 flex items-center justify-between text-xs" style={{ color: "#6d28d9" }}>
+                      <span>
+                        Wykorzystasz: <strong>{pointsToRedeem} pkt</strong>
+                      </span>
+                      <span>
+                        Rabat: <strong>-{formatPLNFromGrosze(discountForPoints(pointsToRedeem))}</strong>
+                      </span>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          ) : null}
 
           {loggedInPatient ? (
             <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5">
