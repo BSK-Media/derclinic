@@ -80,7 +80,13 @@ export default function AdminAppointmentDetail() {
         toast.error(out?.message || "Nie udało się zapisać decyzji");
         return false;
       }
-      toast.success(action === "APPROVE" ? "Wizyta zaakceptowana" : "Wizyta odrzucona");
+      toast.success(
+        action === "APPROVE"
+          ? out?.loyaltyPointsAwarded
+            ? `Wizyta zaakceptowana — naliczono ${out.loyaltyPointsAwarded} pkt lojalnościowych pacjentowi`
+            : "Wizyta zaakceptowana"
+          : "Wizyta odrzucona",
+      );
       mutate();
       return true;
     } finally {
@@ -511,6 +517,16 @@ export default function AdminAppointmentDetail() {
             </div>
             <Input value={priceFinal} onChange={(e) => setPriceFinal(e.target.value)} />
           </div>
+          {appt.loyaltyPointsUsed ? (
+            <div className="space-y-2 md:col-span-2">
+              <Label>Rabat za punkty lojalnościowe</Label>
+              <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-800 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300">
+                Klient wykorzystał <strong>{appt.loyaltyPointsUsed} pkt</strong> przy rezerwacji — rabat{" "}
+                <strong>{formatPLNFromGrosze(appt.loyaltyDiscountAmount ?? 0)}</strong>. Cena końcowa uwzględnia
+                już ten rabat.
+              </div>
+            </div>
+          ) : null}
           <div className="space-y-2 md:col-span-4">
             <Label>Notatka</Label>
             <Input value={note} onChange={(e) => setNote(e.target.value)} />
