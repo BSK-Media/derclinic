@@ -86,7 +86,7 @@ export function PatientPageShell({
     <div className="min-h-screen bg-zinc-50 lg:flex">
       {/* Sidebar — desktop */}
       <aside className="hidden w-[264px] shrink-0 border-r border-zinc-200 bg-white/70 p-3 backdrop-blur lg:fixed lg:left-0 lg:top-0 lg:flex lg:h-screen lg:flex-col">
-        <div className="flex items-center gap-3 px-2 py-2">
+        <Link href="/panel-klienta" className="flex items-center gap-3 px-2 py-2">
           <div className="relative h-11 w-11 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
             <Image src="/derclinic-logo.webp" alt="DerClinic" fill className="object-contain p-1.5" />
           </div>
@@ -94,7 +94,7 @@ export function PatientPageShell({
             <div className="truncate text-sm font-semibold text-zinc-900">DerClinic</div>
             <div className="truncate text-xs text-zinc-500">Panel klienta</div>
           </div>
-        </div>
+        </Link>
 
         <nav className="mt-4 flex-1 space-y-1 px-1">{navList()}</nav>
 
@@ -116,7 +116,9 @@ export function PatientPageShell({
               >
                 <Menu className="h-4.5 w-4.5" />
               </button>
-              <Image src="/derclinic-logo.webp" alt="DerClinic" width={110} height={28} />
+              <Link href="/panel-klienta">
+                <Image src="/derclinic-logo.webp" alt="DerClinic" width={110} height={28} />
+              </Link>
             </div>
             <div className="hidden text-sm text-zinc-600 lg:block">
               Dzień dobry, <span className="font-semibold text-zinc-900">{firstNameOnly}</span>
