@@ -128,7 +128,7 @@ function CameraDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-zinc-900">
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-[#0e182a]">
         <div className="flex items-center justify-between border-b p-3 dark:border-zinc-800">
           <div className="text-sm font-medium">Zrób zdjęcie</div>
           <Button size="sm" variant="ghost" onClick={onClose}>
