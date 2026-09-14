@@ -35,6 +35,7 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   CASH: "Gotówka",
   CARD: "Karta",
   VOUCHER: "Voucher",
+  ONLINE: "Online (przy rezerwacji)",
 };
 
 export default function AdminAppointmentDetail() {

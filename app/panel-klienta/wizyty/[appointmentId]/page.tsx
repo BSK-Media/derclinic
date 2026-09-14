@@ -23,6 +23,7 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   CASH: "Gotówka",
   CARD: "Karta",
   VOUCHER: "Voucher",
+  ONLINE: "Online (przy rezerwacji)",
 };
 
 function formatDate(date: Date) {

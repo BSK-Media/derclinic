@@ -8,6 +8,7 @@ import { Raleway } from "next/font/google";
 import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, Check, Calendar as CalendarIcon, Menu, X, ChevronDown, Instagram, Facebook, Phone, Mail, MapPin } from "lucide-react";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { maxRedeemablePoints, discountForPoints } from "@/lib/loyalty";
+import { requiresFullPrepayment, resolvePaymentDue, depositAmountGrosze, type PaymentChoice } from "@/lib/booking-payment";
 
 // Czcionka używana WYŁĄCZNIE w nagłówku (SiteHeader) — potwierdzona wprost z
 // computed CSS elementu .navbar na derclinic.pl: font-family: Raleway, sans-serif,
@@ -194,6 +195,12 @@ export default function PublicBookingPage() {
   const [bookedAsLoggedIn, setBookedAsLoggedIn] = React.useState(false);
   const [loyaltyPointsUsed, setLoyaltyPointsUsed] = React.useState(0);
   const [loyaltyDiscountAmount, setLoyaltyDiscountAmount] = React.useState(0);
+  // Płatność przy rezerwacji (demo — patrz lib/booking-payment.ts). Domyślnie
+  // proponujemy zaliczkę, jeśli usługa na to pozwala; dla usług powyżej progu
+  // wybór i tak jest wymuszany na pełną kwotę (patrz requiresFullPrepayment niżej).
+  const [paymentChoice, setPaymentChoice] = React.useState<PaymentChoice>("DEPOSIT_10");
+  const [amountPaid, setAmountPaid] = React.useState(0);
+  const [amountRemaining, setAmountRemaining] = React.useState(0);
 
   // Sesja pacjenta (panel klienta) — jeśli osoba rezerwująca jest już
   // zalogowana (albo zaloguje się w trakcie wypełniania kroku 4), wizyta
@@ -448,6 +455,23 @@ export default function PublicBookingPage() {
     setPointsToRedeem((current) => Math.min(current, max));
   }, [serviceId, loggedInPatient, selectedService?.price]);
 
+  // Usługi powyżej progu pełnej przedpłaty nie pozwalają na wybór zaliczki —
+  // jeśli klient wcześniej wybrał inny zabieg z zaliczką, a potem wrócił i
+  // zmienił zabieg na taki, który wymaga pełnej kwoty, wymuszamy to w stanie.
+  React.useEffect(() => {
+    if (requiresFullPrepayment(selectedService?.price)) {
+      setPaymentChoice("FULL");
+    }
+  }, [selectedService?.price]);
+
+  const amountOwedGrosze = Math.max(0, (selectedService?.price ?? 0) - discountForPoints(pointsToRedeem));
+  const mustPayFullNow = requiresFullPrepayment(selectedService?.price ?? null);
+  const paymentDue = resolvePaymentDue({
+    servicePriceGrosze: selectedService?.price ?? null,
+    amountOwedGrosze,
+    choice: paymentChoice,
+  });
+
   // Specjaliści wykonujący wybrany zabieg w wybranej lokalizacji.
   const qualifyingSpecialists = React.useMemo(() => {
     if (!serviceId) return [];
@@ -661,6 +685,7 @@ export default function PublicBookingPage() {
           note: note.trim() || undefined,
           password: accountMode === "register" && !loggedInPatient ? password : undefined,
           pointsToRedeem: loggedInPatient && pointsToRedeem > 0 ? pointsToRedeem : undefined,
+          paymentChoice,
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -673,6 +698,8 @@ export default function PublicBookingPage() {
       setBookedAsLoggedIn(Boolean(result.bookedAsLoggedIn));
       setLoyaltyPointsUsed(Number(result.loyaltyPointsUsed) || 0);
       setLoyaltyDiscountAmount(Number(result.loyaltyDiscountAmount) || 0);
+      setAmountPaid(Number(result.amountPaid) || 0);
+      setAmountRemaining(Number(result.amountRemaining) || 0);
       setConfirmedAt(result.startsAt);
     } finally {
       setSubmitting(false);
@@ -702,6 +729,18 @@ export default function PublicBookingPage() {
             Potwierdzenie zostało zapisane w systemie kliniki. Skontaktujemy się, jeśli będą potrzebne
             dodatkowe informacje.
           </p>
+          {amountPaid > 0 ? (
+            <p className="max-w-md rounded-xl bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+              Opłacono <strong>{formatPLNFromGrosze(amountPaid)}</strong>
+              {amountRemaining > 0 ? (
+                <>
+                  {" "}
+                  (pozostało do zapłaty na miejscu: <strong>{formatPLNFromGrosze(amountRemaining)}</strong>)
+                </>
+              ) : null}
+              .
+            </p>
+          ) : null}
           {loyaltyPointsUsed > 0 ? (
             <p
               className="max-w-md rounded-xl px-4 py-3 text-xs"
@@ -1403,6 +1442,50 @@ export default function PublicBookingPage() {
             </div>
           </div>
 
+          {selectedService?.price ? (
+            <div className="mb-4 mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-3.5">
+              <div className="mb-2 text-sm font-semibold text-zinc-900">Płatność przy rezerwacji</div>
+              {mustPayFullNow ? (
+                <p className="mb-2 text-xs text-zinc-500">
+                  Ta usługa (powyżej 2000 zł) wymaga pełnej przedpłaty przy rezerwacji online.
+                </p>
+              ) : (
+                <div className="mb-2 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentChoice("DEPOSIT_10")}
+                    className={
+                      "rounded-xl border px-3 py-2.5 text-left text-sm transition " +
+                      (paymentChoice === "DEPOSIT_10" ? "border-emerald-500 bg-emerald-50" : "border-zinc-200 bg-white hover:bg-zinc-50")
+                    }
+                  >
+                    <div className="font-medium text-zinc-900">Zaliczka 10%</div>
+                    <div className="text-xs text-zinc-500">{formatPLNFromGrosze(depositAmountGrosze(amountOwedGrosze))}</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentChoice("FULL")}
+                    className={
+                      "rounded-xl border px-3 py-2.5 text-left text-sm transition " +
+                      (paymentChoice === "FULL" ? "border-emerald-500 bg-emerald-50" : "border-zinc-200 bg-white hover:bg-zinc-50")
+                    }
+                  >
+                    <div className="font-medium text-zinc-900">Pełna płatność</div>
+                    <div className="text-xs text-zinc-500">{formatPLNFromGrosze(amountOwedGrosze)}</div>
+                  </button>
+                </div>
+              )}
+              <div className="flex items-center justify-between border-t border-zinc-200 pt-2 text-sm">
+                <span className="text-zinc-600">Do zapłaty teraz</span>
+                <span className="font-semibold text-emerald-700">{formatPLNFromGrosze(paymentDue.amountDueGrosze)}</span>
+              </div>
+              <p className="mt-2 text-[11px] text-zinc-400">
+                Płatność demonstracyjna — kliknięcie przycisku poniżej od razu oznacza wizytę jako opłaconą.
+                Docelowo zostanie tu podłączona prawdziwa bramka płatności.
+              </p>
+            </div>
+          ) : null}
+
           {submitError ? <div className="mt-3 text-sm text-red-600">{submitError}</div> : null}
 
           <button
@@ -1411,7 +1494,11 @@ export default function PublicBookingPage() {
             disabled={submitting}
             className="mt-5 w-full rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
           >
-            {submitting ? "Zapisywanie…" : "Potwierdź rezerwację"}
+            {submitting
+              ? "Zapisywanie…"
+              : selectedService?.price
+                ? `Zapłać ${formatPLNFromGrosze(paymentDue.amountDueGrosze)} i zarezerwuj`
+                : "Potwierdź rezerwację"}
           </button>
         </StepCard>
       ) : null}

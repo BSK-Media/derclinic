@@ -5,7 +5,8 @@ import { prisma } from "@/lib/db";
 import { parseDateInput, warsawWallTimeToUtc } from "@/lib/warsaw-time";
 import { busyRangesForWarsawDay, computeFreeSlots, slotToUtc } from "@/lib/public-booking";
 import { getPatientAuth } from "@/lib/patient-auth";
-import { maxRedeemablePoints, redeemLoyaltyPoints } from "@/lib/loyalty";
+import { maxRedeemablePoints, redeemLoyaltyPoints, discountForPoints } from "@/lib/loyalty";
+import { resolvePaymentDue, type PaymentChoice } from "@/lib/booking-payment";
 
 const RESERVATION_SERVICE_NAME = "__DERCLINIC_REZERWACJA_CZASU__";
 
@@ -63,6 +64,10 @@ const BodySchema = z.object({
   // Punkty lojalnościowe do wykorzystania jako rabat — tylko dla zalogowanych
   // pacjentów (patrz walidacja niżej). 1 pkt = 1 zł.
   pointsToRedeem: z.number().int().min(0).max(100000).optional(),
+  // Zaliczka 10% albo pełna przedpłata — patrz lib/booking-payment.ts. Dla
+  // usług powyżej progu pełnej przedpłaty wartość jest i tak wymuszana na
+  // "FULL" po stronie serwera, niezależnie od tego, co przyśle klient.
+  paymentChoice: z.enum(["DEPOSIT_10", "FULL"]),
 });
 
 const FIELD_LABELS: Record<string, string> = {
@@ -92,8 +97,21 @@ export async function POST(req: Request) {
   const parsed = BodySchema.safeParse(json);
   if (!parsed.success) return bad(describeValidationError(parsed.error));
 
-  const { locationId, specialistId, serviceId, date, time, firstName, lastName, phone, email, note, password, pointsToRedeem } =
-    parsed.data;
+  const {
+    locationId,
+    specialistId,
+    serviceId,
+    date,
+    time,
+    firstName,
+    lastName,
+    phone,
+    email,
+    note,
+    password,
+    pointsToRedeem,
+    paymentChoice,
+  } = parsed.data;
 
   // Jeśli klient jest zalogowany do panelu pacjenta (ciasteczko sesji), wizytę
   // od razu przypisujemy do jego istniejącego konta — pomijamy wyszukiwanie
@@ -242,6 +260,34 @@ export async function POST(req: Request) {
         }
       }
 
+      // Rabat za punkty lojalnościowe — tylko dla zalogowanego pacjenta
+      // (gość nie ma trwałego salda). Walidujemy saldo TU, wewnątrz
+      // transakcji, jako ostateczne, autorytatywne źródło prawdy — nie
+      // ufamy samej wartości przysłanej z frontendu poza sprawdzeniem, że
+      // mieści się w limicie (saldo pacjenta i cena usługi). Liczymy PRZED
+      // utworzeniem wizyty, żeby zapisać od razu poprawną cenę końcową i
+      // móc od niej policzyć wymaganą wpłatę.
+      let pointsApplied = 0;
+      if (patientAuth && pointsToRedeem && pointsToRedeem > 0) {
+        const patientForBalance = await tx.patient.findUnique({
+          where: { id: patientId },
+          select: { loyaltyPoints: true },
+        });
+        const allowedPoints = maxRedeemablePoints(patientForBalance?.loyaltyPoints ?? 0, service.price);
+        pointsApplied = Math.min(pointsToRedeem, allowedPoints);
+      }
+      const loyaltyDiscountAmount = discountForPoints(pointsApplied);
+      const priceFinal = Math.max(0, (service.price ?? 0) - loyaltyDiscountAmount);
+
+      // Płatność przy rezerwacji (zaliczka 10% albo pełna przedpłata) — patrz
+      // lib/booking-payment.ts. Serwer jest ostatecznym źródłem prawdy: dla
+      // usług powyżej progu wybór klienta jest wymuszany na pełną kwotę.
+      const { effectiveChoice, amountDueGrosze } = resolvePaymentDue({
+        servicePriceGrosze: service.price,
+        amountOwedGrosze: priceFinal,
+        choice: paymentChoice as PaymentChoice,
+      });
+
       const created = await tx.appointment.create({
         data: {
           patientId,
@@ -251,52 +297,37 @@ export async function POST(req: Request) {
           startsAt,
           endsAt,
           priceEstimate: service.price,
-          priceFinal: service.price,
+          priceFinal,
           note: ["Rezerwacja online (strona WWW)", note?.trim()].filter(Boolean).join(" — "),
         },
       });
 
-      // Rabat za punkty lojalnościowe — tylko dla zalogowanego pacjenta
-      // (gość nie ma trwałego salda). Walidujemy saldo TU, wewnątrz
-      // transakcji, jako ostateczne, autorytatywne źródło prawdy — nie
-      // ufamy samej wartości przysłanej z frontendu poza sprawdzeniem, że
-      // mieści się w limicie (saldo pacjenta i cena usługi).
       let loyaltyPointsUsed = 0;
-      let loyaltyDiscountAmount = 0;
-      if (patientAuth && pointsToRedeem && pointsToRedeem > 0) {
-        const patientForBalance = await tx.patient.findUnique({
-          where: { id: patientId },
-          select: { loyaltyPoints: true },
+      if (pointsApplied > 0) {
+        await redeemLoyaltyPoints(tx, { patientId, points: pointsApplied, appointmentId: created.id });
+        loyaltyPointsUsed = pointsApplied;
+      }
+
+      // DEMO: brak prawdziwej bramki płatności — kliknięcie "Zapłać" na
+      // froncie od razu tworzy opłaconą płatność. Docelowo w tym miejscu
+      // wizyta trafi w stan oczekiwania na płatność, a Payment powstanie
+      // dopiero po potwierdzeniu z bramki (np. webhookiem).
+      if (amountDueGrosze > 0) {
+        await tx.payment.create({
+          data: { method: "ONLINE", amount: amountDueGrosze, appointmentId: created.id },
         });
-        const allowedPoints = maxRedeemablePoints(patientForBalance?.loyaltyPoints ?? 0, service.price);
-        const pointsApplied = Math.min(pointsToRedeem, allowedPoints);
-        if (pointsApplied > 0) {
-          const { discountAmount } = await redeemLoyaltyPoints(tx, {
-            patientId,
-            points: pointsApplied,
-            appointmentId: created.id,
-          });
-          loyaltyPointsUsed = pointsApplied;
-          loyaltyDiscountAmount = discountAmount;
-          await tx.appointment.update({
-            where: { id: created.id },
-            data: {
-              loyaltyPointsUsed,
-              loyaltyDiscountAmount,
-              priceFinal: Math.max(0, (service.price ?? 0) - discountAmount),
-            },
-          });
-        }
       }
 
       return {
         ...created,
         loyaltyPointsUsed,
         loyaltyDiscountAmount,
-        priceFinal: loyaltyDiscountAmount > 0 ? Math.max(0, (service.price ?? 0) - loyaltyDiscountAmount) : created.priceFinal,
         accountCreated,
         alreadyHasAccount,
         bookedAsLoggedIn,
+        paymentChoice: effectiveChoice,
+        amountPaid: amountDueGrosze,
+        amountRemaining: Math.max(0, priceFinal - amountDueGrosze),
       };
     });
 
@@ -310,6 +341,9 @@ export async function POST(req: Request) {
       loyaltyPointsUsed: appointment.loyaltyPointsUsed,
       loyaltyDiscountAmount: appointment.loyaltyDiscountAmount,
       priceFinal: appointment.priceFinal,
+      paymentChoice: appointment.paymentChoice,
+      amountPaid: appointment.amountPaid,
+      amountRemaining: appointment.amountRemaining,
     });
   } catch (e: any) {
     return bad(typeof e?.message === "string" ? e.message : "Nie udało się zapisać wizyty", 409);

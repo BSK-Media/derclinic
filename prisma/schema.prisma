@@ -50,6 +50,11 @@ enum PaymentMethod {
   CASH
   CARD
   VOUCHER
+  // Płatność zebrana przy rezerwacji online (zaliczka albo pełna przedpłata,
+  // patrz lib/booking-payment.ts). Obecnie DEMO — samo kliknięcie "Zapłać"
+  // od razu tworzy tę płatność, bez prawdziwej bramki. Docelowo ten sam
+  // enum posłuży do integracji z rzeczywistym dostawcą płatności.
+  ONLINE
 }
 
 enum ConsumptionStatus {
