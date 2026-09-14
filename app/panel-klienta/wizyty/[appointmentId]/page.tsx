@@ -120,7 +120,7 @@ export default async function PatientAppointmentCardPage({ params }: { params: {
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="flex items-center gap-1.5 text-zinc-500">
-                <UserIcon className="h-3.5 w-3.5" /> Lekarz / specjalista
+                <UserIcon className="h-3.5 w-3.5" /> Specjalista
               </dt>
               <dd className="text-right font-medium text-zinc-900">
                 {appointment.specialist.name}
