@@ -123,7 +123,7 @@ function ResetPasswordForm() {
           border-radius: 0.75rem;
           border: 1px solid #e4e4e7;
           padding: 0.6rem 0.75rem;
-          font-size: 0.875rem;
+          font-size: 1rem;
           outline: none;
           color-scheme: light only;
           background-color: #fff;

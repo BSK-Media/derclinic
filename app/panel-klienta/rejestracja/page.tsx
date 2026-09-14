@@ -135,9 +135,9 @@ export default function PatientRegisterPage() {
           <label className="block space-y-1.5">
             <span className="text-xs font-medium text-zinc-600">Telefon *</span>
             <div className="input phone-input-group">
-              <span className="shrink-0 text-sm text-zinc-500">+48</span>
+              <span className="shrink-0 text-base text-zinc-500">+48</span>
               <input
-                className="w-full border-0 bg-transparent p-0 text-sm outline-none"
+                className="w-full border-0 bg-transparent p-0 text-base outline-none"
                 inputMode="numeric"
                 autoComplete="tel-national"
                 value={phone}
@@ -207,7 +207,7 @@ export default function PatientRegisterPage() {
           border-radius: 0.75rem;
           border: 1px solid #e4e4e7;
           padding: 0.6rem 0.75rem;
-          font-size: 0.875rem;
+          font-size: 1rem;
           outline: none;
           color-scheme: light only;
           background-color: #fff;

@@ -5,6 +5,12 @@
 html,
 body {
   height: 100%;
+  /*
+   * Bez jawnego tła na <html> Safari na iOS maluje obszar "rubber-band"
+   * (przewinięcie poza granice strony) na czarno, nawet gdy cała treść
+   * mieści się w jednym ekranie — wygląda to jak zepsute przewijanie.
+   */
+  background-color: #fafafa;
 }
 
 /*
@@ -17,6 +23,7 @@ body {
   --app-dark-surface: 11 18 32;
   --app-dark-surface-raised: 14 24 42;
   --app-dark-border: 148 163 184;
+  background-color: #0b1220;
 }
 
 .dark [class~="dark:bg-zinc-950"],
