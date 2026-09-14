@@ -126,6 +126,8 @@ function ResetPasswordForm() {
           font-size: 0.875rem;
           outline: none;
           color-scheme: light only;
+          background-color: #fff;
+          color: #18181b;
         }
         .input:focus {
           border-color: #10b981;
