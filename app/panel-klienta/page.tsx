@@ -51,6 +51,7 @@ export default async function PatientDashboardPage({
         service: { select: { name: true } },
         specialist: { select: { name: true } },
         location: { select: { name: true } },
+        payments: { select: { amount: true } },
       },
     }),
     prisma.loyaltyPointsTransaction.findMany({

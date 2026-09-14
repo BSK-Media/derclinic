@@ -59,6 +59,7 @@ export type AppointmentRowData = {
   service: { name: string } | null;
   specialist: { name: string } | null;
   location: { name: string } | null;
+  payments: { amount: number }[];
 };
 
 export type PatientProfile = {
@@ -90,6 +91,10 @@ function AppointmentRow({
 }) {
   const serviceName = appointment.customServiceName || appointment.service?.name || "Zabieg";
   const price = appointment.priceFinal ?? appointment.priceEstimate;
+  const paidTotal = (appointment.payments ?? []).reduce((sum, p) => sum + p.amount, 0);
+  const isFullyPaid = price !== null && price !== undefined && price > 0 && paidTotal >= price;
+  const isPartiallyPaid = paidTotal > 0 && !isFullyPaid;
+  const remaining = price !== null && price !== undefined ? Math.max(0, price - paidTotal) : null;
   return (
     <div
       className={
@@ -117,6 +122,26 @@ function AppointmentRow({
           </span>
           {price !== null && price !== undefined ? (
             <div className="mt-1.5 text-sm font-semibold text-emerald-700">{formatPLNFromGrosze(price)}</div>
+          ) : null}
+          {price ? (
+            <div className="mt-1 flex flex-col items-end gap-0.5">
+              {isFullyPaid ? (
+                <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                  Opłacone w całości
+                </span>
+              ) : isPartiallyPaid ? (
+                <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                  Zaliczka wpłacona: {formatPLNFromGrosze(paidTotal)}
+                </span>
+              ) : (
+                <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                  Nieopłacone
+                </span>
+              )}
+              {!isFullyPaid ? (
+                <span className="text-[11px] text-zinc-500">Pozostało: {formatPLNFromGrosze(remaining)}</span>
+              ) : null}
+            </div>
           ) : null}
         </div>
       </div>
