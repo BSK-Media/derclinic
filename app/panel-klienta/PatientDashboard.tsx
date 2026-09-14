@@ -19,6 +19,7 @@ import {
   Phone,
   Menu,
   X,
+  FileCheck,
 } from "lucide-react";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
@@ -75,6 +76,7 @@ const NAV = [
   { id: "upcoming", label: "Nadchodzące wizyty", icon: CalendarDays },
   { id: "history", label: "Historia wizyt", icon: History },
   { id: "profile", label: "Dane klienta", icon: IdCard },
+  { id: "consents", label: "Zgody", icon: FileCheck },
   { id: "points", label: "Punkty lojalnościowe", icon: Star },
 ] as const;
 
@@ -788,6 +790,13 @@ export function PatientDashboard({
                 </div>
                 <DataChangeRequestCard />
               </div>
+            </div>
+          ) : null}
+
+          {tab === "consents" ? (
+            <div>
+              <h1 className="mb-5 text-xl font-bold text-zinc-900 sm:text-2xl">Zgody</h1>
+              <EmptyState text="Nie masz jeszcze żadnych zgód do zaakceptowania. Pojawią się tutaj, gdy klinika je udostępni." />
             </div>
           ) : null}
         </main>

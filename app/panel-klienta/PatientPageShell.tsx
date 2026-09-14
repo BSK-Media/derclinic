@@ -13,6 +13,7 @@ import {
   CalendarPlus,
   Menu,
   X,
+  FileCheck,
 } from "lucide-react";
 import { LogoutButton } from "./LogoutButton";
 
@@ -22,6 +23,7 @@ const NAV = [
   { id: "upcoming", label: "Nadchodzące wizyty", icon: CalendarDays, href: "/panel-klienta" },
   { id: "history", label: "Historia wizyt", icon: History, href: "/panel-klienta" },
   { id: "profile", label: "Dane klienta", icon: IdCard, href: "/panel-klienta" },
+  { id: "consents", label: "Zgody", icon: FileCheck, href: "/panel-klienta" },
   { id: "points", label: "Punkty lojalnościowe", icon: Star, href: "/panel-klienta" },
 ] as const;
 

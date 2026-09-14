@@ -97,7 +97,9 @@ export default async function PatientDashboardPage({
 
   return (
     <PatientDashboard
-      initialTab={searchParams?.tab === "profile" ? "profile" : "home"}
+      initialTab={
+        searchParams?.tab === "profile" ? "profile" : searchParams?.tab === "consents" ? "consents" : "home"
+      }
       profile={{
         name: patient.name,
         phone: patient.phone,
