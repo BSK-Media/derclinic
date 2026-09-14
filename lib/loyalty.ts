@@ -8,6 +8,11 @@ import type { Prisma } from "@prisma/client";
 export const GROSZE_PER_EARNED_POINT = 1000; // 10,00 zł
 export const GROSZE_PER_REDEEMED_POINT = 100; // 1,00 zł
 
+// Rabat za punkty nigdy nie może zejść ceny do zera — zawsze musi zostać co
+// najmniej tyle do zapłaty (np. przy zabiegu za 500 zł maksymalny rabat to
+// 499 zł, nie 500 zł).
+export const MIN_PAYABLE_AFTER_DISCOUNT_GROSZE = 100; // 1,00 zł
+
 export function pointsEarnedForAmount(amountGrosze: number): number {
   if (!Number.isFinite(amountGrosze) || amountGrosze <= 0) return 0;
   return Math.floor(amountGrosze / GROSZE_PER_EARNED_POINT);
@@ -18,11 +23,16 @@ export function discountForPoints(points: number): number {
   return Math.round(points) * GROSZE_PER_REDEEMED_POINT;
 }
 
-/** Maksymalna liczba punktów, jaką można wykorzystać na rezerwację o danej cenie. */
+/**
+ * Maksymalna liczba punktów, jaką można wykorzystać na rezerwację o danej
+ * cenie — ograniczona tak, żeby po rabacie zawsze zostało do zapłaty co
+ * najmniej MIN_PAYABLE_AFTER_DISCOUNT_GROSZE (1 zł).
+ */
 export function maxRedeemablePoints(balancePoints: number, priceGrosze: number | null | undefined): number {
   const byBalance = Math.max(0, Math.floor(balancePoints || 0));
   if (!priceGrosze || priceGrosze <= 0) return 0;
-  const byPrice = Math.floor(priceGrosze / GROSZE_PER_REDEEMED_POINT);
+  const maxDiscountGrosze = priceGrosze - MIN_PAYABLE_AFTER_DISCOUNT_GROSZE;
+  const byPrice = Math.max(0, Math.floor(maxDiscountGrosze / GROSZE_PER_REDEEMED_POINT));
   return Math.min(byBalance, byPrice);
 }
 
