@@ -47,19 +47,33 @@ export function ApprovalBadge({
   return null;
 }
 
-// Popup wymuszający podanie powodu odrzucenia wizyty
+// Popup wymuszający podanie powodu odrzucenia — domyślnie teksty dotyczą
+// odrzucenia wizyty, ale wszystkie są nadpisywalne, żeby ten sam dialog dało
+// się użyć np. do odrzucenia prośby pacjenta o zmianę danych.
 export function RejectReasonDialog({
   open,
   onOpenChange,
   onConfirm,
   saving,
   contextLabel,
+  dialogTitle = "Powód odrzucenia",
+  questionLabel = "Dlaczego odrzucasz tę wizytę? *",
+  placeholder = "np. termin koliduje z inną wizytą, brak dostępności specjalisty…",
+  helperText = "Powód zobaczy specjalista przy odrzuconej wizycie.",
+  confirmLabel = "Odrzuć wizytę",
+  savingLabel = "Zapisywanie…",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: (reason: string) => void;
   saving?: boolean;
   contextLabel?: string | null;
+  dialogTitle?: string;
+  questionLabel?: string;
+  placeholder?: string;
+  helperText?: string;
+  confirmLabel?: string;
+  savingLabel?: string;
 }) {
   const [reason, setReason] = React.useState("");
   const tooShort = reason.trim().length < 3;
@@ -72,7 +86,7 @@ export function RejectReasonDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Powód odrzucenia</DialogTitle>
+          <DialogTitle>{dialogTitle}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
@@ -80,18 +94,16 @@ export function RejectReasonDialog({
             <div className="text-sm text-zinc-600 dark:text-zinc-300">{contextLabel}</div>
           ) : null}
           <div className="space-y-2">
-            <Label>Dlaczego odrzucasz tę wizytę? *</Label>
+            <Label>{questionLabel}</Label>
             <Textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="np. termin koliduje z inną wizytą, brak dostępności specjalisty…"
+              placeholder={placeholder}
               rows={4}
               maxLength={500}
               autoFocus
             />
-            <div className="text-xs text-zinc-500">
-              Powód zobaczy specjalista przy odrzuconej wizycie.
-            </div>
+            <div className="text-xs text-zinc-500">{helperText}</div>
           </div>
         </div>
 
@@ -105,7 +117,7 @@ export function RejectReasonDialog({
             onClick={() => onConfirm(reason.trim())}
             disabled={saving || tooShort}
           >
-            {saving ? "Zapisywanie…" : "Odrzuć wizytę"}
+            {saving ? savingLabel : confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

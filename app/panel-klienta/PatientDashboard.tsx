@@ -199,6 +199,7 @@ function DataChangeRequestCard() {
     field: "NAME" | "PHONE" | "EMAIL";
     newValue: string;
     status: "PENDING" | "APPROVED" | "REJECTED";
+    rejectionReason: string | null;
   }> = data?.requests ?? [];
   const pending = requests.find((r) => r.status === "PENDING") ?? null;
 
@@ -306,11 +307,16 @@ function DataChangeRequestCard() {
         <div className="mt-5 space-y-2 border-t border-zinc-100 pt-4">
           <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">Historia próśb</div>
           {requests.slice(0, 5).map((r) => (
-            <div key={r.id} className="flex items-center justify-between gap-2 text-xs">
-              <span className="min-w-0 truncate text-zinc-600">
-                {DATA_CHANGE_FIELD_LABELS[r.field]}: {r.newValue}
-              </span>
-              <DataChangeStatusPill status={r.status} />
+            <div key={r.id} className="text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate text-zinc-600">
+                  {DATA_CHANGE_FIELD_LABELS[r.field]}: {r.newValue}
+                </span>
+                <DataChangeStatusPill status={r.status} />
+              </div>
+              {r.status === "REJECTED" && r.rejectionReason ? (
+                <div className="mt-0.5 text-[11px] text-red-600">Powód: {r.rejectionReason}</div>
+              ) : null}
             </div>
           ))}
         </div>

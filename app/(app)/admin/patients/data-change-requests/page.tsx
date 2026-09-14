@@ -198,6 +198,12 @@ export default function DataChangeRequestsPage() {
           if (!open) setRejectTarget(null);
         }}
         saving={decidingId === rejectTarget?.id}
+        dialogTitle="Powód odrzucenia prośby"
+        questionLabel="Dlaczego odrzucasz tę prośbę o zmianę danych? *"
+        placeholder="np. wymaga potwierdzenia tożsamości telefonicznie, dane wyglądają na błędne…"
+        helperText="Powód zobaczy pacjent przy odrzuconej prośbie."
+        confirmLabel="Odrzuć prośbę"
+        savingLabel="Zapisywanie…"
         contextLabel={
           rejectTarget
             ? `${rejectTarget.patient.name} — zmiana pola „${FIELD_LABELS[rejectTarget.field]}" na „${rejectTarget.newValue}"`
