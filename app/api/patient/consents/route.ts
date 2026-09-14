@@ -45,21 +45,36 @@ export async function POST(req: Request) {
   const parsed = BodySchema.safeParse(json);
   if (!parsed.success) return bad("Niepoprawne dane");
 
-  const now = new Date();
-  const consent = await prisma.patientConsent.upsert({
+  const existing = await prisma.patientConsent.findUnique({
     where: { patientId_type: { patientId: auth.id, type: parsed.data.type } },
-    create: {
-      patientId: auth.id,
-      type: parsed.data.type,
-      granted: parsed.data.granted,
-      grantedAt: parsed.data.granted ? now : null,
-      revokedAt: parsed.data.granted ? null : now,
-    },
-    update: {
-      granted: parsed.data.granted,
-      ...(parsed.data.granted ? { grantedAt: now, revokedAt: null } : { revokedAt: now }),
-    },
+    select: { granted: true },
   });
+  // Bez zmiany stanu nic nie robimy — nie dokładamy pustego wpisu do
+  // historii za kliknięcie, które i tak niczego nie zmieniło.
+  if (existing?.granted === parsed.data.granted) {
+    return NextResponse.json({ ok: true, unchanged: true });
+  }
+
+  const now = new Date();
+  const [consent] = await prisma.$transaction([
+    prisma.patientConsent.upsert({
+      where: { patientId_type: { patientId: auth.id, type: parsed.data.type } },
+      create: {
+        patientId: auth.id,
+        type: parsed.data.type,
+        granted: parsed.data.granted,
+        grantedAt: parsed.data.granted ? now : null,
+        revokedAt: parsed.data.granted ? null : now,
+      },
+      update: {
+        granted: parsed.data.granted,
+        ...(parsed.data.granted ? { grantedAt: now, revokedAt: null } : { revokedAt: now }),
+      },
+    }),
+    prisma.patientConsentEvent.create({
+      data: { patientId: auth.id, type: parsed.data.type, granted: parsed.data.granted },
+    }),
+  ]);
 
   return NextResponse.json({ ok: true, consent });
 }

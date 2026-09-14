@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { PatientDetailsForm } from "@/components/patient-details-form";
 import { PatientStatistics } from "@/components/patient-statistics";
 import { PatientHistoryTabs } from "@/components/patient-history-tabs";
+import { PatientConsents } from "@/components/patient-consents";
 import { getEffectiveAuth } from "@/lib/effective-auth";
 
 export default async function AdminPatientDetailPage({ params }: { params: { id: string } }) {
@@ -10,7 +11,7 @@ export default async function AdminPatientDetailPage({ params }: { params: { id:
   const patient = await prisma.patient.findUnique({ where: { id: params.id } });
   if (!patient) return <div className="p-6 text-sm">Nie znaleziono pacjenta.</div>;
 
-  const [appts, sales] = await Promise.all([
+  const [appts, sales, consentState, consentEvents] = await Promise.all([
     prisma.appointment.findMany({
       where: { patientId: params.id, deletedAt: null },
       orderBy: { startsAt: "desc" },
@@ -31,6 +32,12 @@ export default async function AdminPatientDetailPage({ params }: { params: { id:
         payments: true,
       },
       take: 200,
+    }),
+    prisma.patientConsent.findMany({ where: { patientId: params.id } }),
+    prisma.patientConsentEvent.findMany({
+      where: { patientId: params.id },
+      orderBy: { createdAt: "desc" },
+      take: 50,
     }),
   ]);
 
@@ -72,6 +79,8 @@ export default async function AdminPatientDetailPage({ params }: { params: { id:
           paid: sale.payments.reduce((sum, payment) => sum + payment.amount, 0),
         }))}
       />
+
+      <PatientConsents state={consentState} events={consentEvents} />
     </div>
   );
 }

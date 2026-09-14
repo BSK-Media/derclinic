@@ -169,6 +169,7 @@ model Patient {
   retailSales  RetailSale[]
   dataChangeRequests PatientDataChangeRequest[]
   consents     PatientConsent[]
+  consentEvents PatientConsentEvent[]
 
   @@index([name])
   @@index([phone])
@@ -714,6 +715,23 @@ model PatientConsent {
 
   @@unique([patientId, type])
   @@index([patientId])
+}
+
+// Niezmienny, w pełni udokumentowany ślad każdej zmiany zgody (wyrażenie,
+// wycofanie, ponowne wyrażenie...) — analogicznie do LoyaltyPointsTransaction.
+// PatientConsent trzyma tylko BIEŻĄCY stan (do szybkiego odczytu), ten
+// model to pełna historia, widoczna dla recepcji/admina w karcie pacjenta.
+model PatientConsentEvent {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  type    PatientConsentType
+  granted Boolean
+
+  @@index([patientId, createdAt])
 }
 
 model AuditLog {
