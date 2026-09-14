@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import useSWR from "swr";
 import { toast } from "sonner";
+import { PatientBottomNav, useIsStandalone } from "@/components/patient-bottom-nav";
 import {
   Home,
   CalendarDays,
@@ -567,6 +568,7 @@ export function PatientDashboard({
 }) {
   const [tab, setTab] = React.useState<TabId>(initialTab);
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
+  const standalone = useIsStandalone();
   const firstNameOnly = profile.name.trim().split(/\s+/)[0] || profile.name;
   const nearest = upcoming[0] ?? null;
   const recentPast = past.slice(0, 2);
@@ -728,7 +730,11 @@ export function PatientDashboard({
           </div>
         ) : null}
 
-        <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+        <main
+          className={
+            "mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8" + (standalone ? " pb-[calc(5.5rem+env(safe-area-inset-bottom))]" : "")
+          }
+        >
           {tab === "home" ? (
             <div>
               <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -922,6 +928,8 @@ export function PatientDashboard({
           ) : null}
         </main>
       </div>
+
+      <PatientBottomNav mode="tabs" activeTab={tab} onNavigate={go} />
     </div>
   );
 }

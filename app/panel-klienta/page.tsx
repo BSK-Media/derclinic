@@ -5,6 +5,8 @@ import { PatientDashboard } from "./PatientDashboard";
 
 export const dynamic = "force-dynamic";
 
+const VALID_TABS = ["home", "upcoming", "history", "profile", "points", "consents"] as const;
+
 function formatMemberSince(date: Date) {
   return date.toLocaleDateString("pl-PL", {
     timeZone: "Europe/Warsaw",
@@ -98,7 +100,9 @@ export default async function PatientDashboardPage({
   return (
     <PatientDashboard
       initialTab={
-        searchParams?.tab === "profile" ? "profile" : searchParams?.tab === "consents" ? "consents" : "home"
+        VALID_TABS.includes(searchParams?.tab as (typeof VALID_TABS)[number])
+          ? (searchParams!.tab as (typeof VALID_TABS)[number])
+          : "home"
       }
       profile={{
         name: patient.name,

@@ -16,15 +16,16 @@ import {
   FileCheck,
 } from "lucide-react";
 import { LogoutButton } from "./LogoutButton";
+import { PatientBottomNav, useIsStandalone } from "@/components/patient-bottom-nav";
 
 const NAV = [
-  { id: "home", label: "Strona główna", icon: Home, href: "/panel-klienta" },
+  { id: "home", label: "Strona główna", icon: Home, href: "/panel-klienta?tab=home" },
   { id: "services", label: "Usługi i zabiegi", icon: Sparkles, href: null },
-  { id: "upcoming", label: "Nadchodzące wizyty", icon: CalendarDays, href: "/panel-klienta" },
-  { id: "history", label: "Historia wizyt", icon: History, href: "/panel-klienta" },
-  { id: "profile", label: "Dane klienta", icon: IdCard, href: "/panel-klienta" },
-  { id: "points", label: "Punkty lojalnościowe", icon: Star, href: "/panel-klienta" },
-  { id: "consents", label: "Zgody", icon: FileCheck, href: "/panel-klienta" },
+  { id: "upcoming", label: "Nadchodzące wizyty", icon: CalendarDays, href: "/panel-klienta?tab=upcoming" },
+  { id: "history", label: "Historia wizyt", icon: History, href: "/panel-klienta?tab=history" },
+  { id: "profile", label: "Dane klienta", icon: IdCard, href: "/panel-klienta?tab=profile" },
+  { id: "points", label: "Punkty lojalnościowe", icon: Star, href: "/panel-klienta?tab=points" },
+  { id: "consents", label: "Zgody", icon: FileCheck, href: "/panel-klienta?tab=consents" },
 ] as const;
 
 export function PatientPageShell({
@@ -37,6 +38,7 @@ export function PatientPageShell({
   children: React.ReactNode;
 }) {
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
+  const standalone = useIsStandalone();
   const firstNameOnly = patientName.trim().split(/\s+/)[0] || patientName;
 
   const navList = (onNavigate?: () => void) => (
@@ -172,8 +174,16 @@ export function PatientPageShell({
           </div>
         ) : null}
 
-        <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+        <main
+          className={
+            "mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8" + (standalone ? " pb-[calc(5.5rem+env(safe-area-inset-bottom))]" : "")
+          }
+        >
+          {children}
+        </main>
       </div>
+
+      <PatientBottomNav mode="links" />
     </div>
   );
 }
