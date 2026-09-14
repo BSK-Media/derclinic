@@ -106,7 +106,7 @@ export function PatientPageShell({
       {/* Main column */}
       <div className="flex-1 lg:ml-[264px]">
         <header className="border-b border-zinc-200 bg-white">
-          <div className="flex items-center justify-between px-4 py-3.5 sm:px-6">
+          <div className="relative flex items-center justify-between px-4 py-3.5 sm:px-6">
             <div className="flex items-center gap-2 lg:hidden">
               <button
                 type="button"
@@ -116,10 +116,13 @@ export function PatientPageShell({
               >
                 <Menu className="h-4.5 w-4.5" />
               </button>
-              <Link href="/panel-klienta">
-                <Image src="/derclinic-logo.webp" alt="DerClinic" width={110} height={28} />
-              </Link>
             </div>
+            <Link
+              href="/panel-klienta"
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 lg:hidden"
+            >
+              <Image src="/derclinic-logo.webp" alt="DerClinic" width={110} height={28} />
+            </Link>
             <div className="hidden text-sm text-zinc-600 lg:block">
               Dzień dobry, <span className="font-semibold text-zinc-900">{firstNameOnly}</span>
             </div>
