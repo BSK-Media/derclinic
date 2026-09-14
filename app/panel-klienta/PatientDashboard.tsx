@@ -506,9 +506,9 @@ export function PatientDashboard({
             <button
               type="button"
               onClick={() => go("home")}
-              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 lg:hidden"
+              className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center lg:hidden"
             >
-              <Image src="/derclinic-logo.webp" alt="DerClinic" width={110} height={28} />
+              <Image src="/derclinic-logo.webp" alt="DerClinic" width={88} height={22} className="block" />
             </button>
             <div className="hidden text-sm text-zinc-600 lg:block">
               Dzień dobry, <span className="font-semibold text-zinc-900">{firstNameOnly}</span>
