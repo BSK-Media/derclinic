@@ -635,7 +635,7 @@ export function PatientDashboard({
       {/* Main column */}
       <div className="flex-1 lg:ml-[264px]">
         {/* Top bar */}
-        <header className="border-b border-zinc-200 bg-white">
+        <header className="border-b border-zinc-200 bg-white pt-[env(safe-area-inset-top)]">
           <div className="relative flex items-center justify-between px-4 py-3.5 sm:px-6">
             <div className="flex items-center gap-2 lg:hidden">
               <button
