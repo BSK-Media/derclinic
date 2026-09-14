@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Clock, User as UserIcon, ArrowRight } from "lucide-react";
 import { getPatientAuth } from "@/lib/patient-auth";
@@ -66,7 +65,7 @@ export default async function PatientSpecialistPage({ params }: { params: { spec
         <div className="flex items-center gap-4">
           <span className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full bg-zinc-100">
             {specialist.avatarUrl ? (
-              <Image src={specialist.avatarUrl} alt={specialist.name} fill className="object-cover" />
+              <img src={specialist.avatarUrl} alt={specialist.name} className="h-full w-full object-cover" />
             ) : (
               <span className="flex h-full w-full items-center justify-center text-zinc-400">
                 <UserIcon className="h-8 w-8" />

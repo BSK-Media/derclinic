@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Clock, MapPin, User as UserIcon, CalendarPlus, ArrowRight } from "lucide-react";
 import { getPatientAuth } from "@/lib/patient-auth";
@@ -161,7 +160,7 @@ export default async function PatientServicePage({ params }: { params: { service
                 <Link href={`/panel-klienta/specjalisci/${s.id}`} className="flex min-w-0 flex-1 items-center gap-4">
                   <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full bg-zinc-100">
                     {s.avatarUrl ? (
-                      <Image src={s.avatarUrl} alt={s.name} fill className="object-cover" />
+                      <img src={s.avatarUrl} alt={s.name} className="h-full w-full object-cover" />
                     ) : (
                       <span className="flex h-full w-full items-center justify-center text-zinc-400">
                         <UserIcon className="h-5 w-5" />
