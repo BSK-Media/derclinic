@@ -8,11 +8,6 @@ function bad(message: string, status = 400, extra?: Record<string, unknown>) {
   return NextResponse.json({ ok: false, message, ...extra }, { status });
 }
 
-function normalizePhone(value: string) {
-  const digits = value.replace(/\D/g, "");
-  return `+48${digits}`;
-}
-
 const BodySchema = z.object({
   firstName: z.string().trim().min(1, "Podaj imię").max(100),
   lastName: z.string().trim().min(1, "Podaj nazwisko").max(100),
@@ -27,7 +22,10 @@ export async function POST(req: Request) {
   if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "Uzupełnij poprawnie wszystkie pola");
 
   const { firstName, lastName, password } = parsed.data;
-  const phone = normalizePhone(parsed.data.phone);
+  // Już zwalidowane wyżej regexem do dokładnie "+48" + 9 cyfr — nie normalizujemy
+  // ponownie, bo naiwne dodanie "+48" do wartości, która już je ma, dawało
+  // podwójny prefiks (np. "+4848XXXXXXXXX") i uniemożliwiało późniejsze logowanie.
+  const phone = parsed.data.phone;
   const email = parsed.data.email.trim();
   const name = `${firstName} ${lastName}`.replace(/\s+/g, " ").trim();
 

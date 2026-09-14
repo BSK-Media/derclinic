@@ -187,6 +187,24 @@ export default function AdminPatientsPage() {
   const [email, setEmail] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [fixingPhones, setFixingPhones] = useState(false);
+
+  async function fixPhonePrefixes() {
+    setFixingPhones(true);
+    try {
+      const res = await fetch("/api/admin/patients/fix-phone-prefix", { method: "POST" });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się naprawić numerów");
+      toast.success(
+        out.fixed > 0
+          ? `Naprawiono ${out.fixed} numerów telefonów z podwójnym prefiksem +48`
+          : "Nie znaleziono numerów do naprawy",
+      );
+      mutate();
+    } finally {
+      setFixingPhones(false);
+    }
+  }
 
   async function create() {
     setSaving(true);
@@ -227,6 +245,17 @@ export default function AdminPatientsPage() {
             >
               Duplikaty
             </Link>
+          ) : null}
+          {isAdmin ? (
+            <button
+              type="button"
+              onClick={fixPhonePrefixes}
+              disabled={fixingPhones}
+              className="hidden shrink-0 items-center rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900 md:inline-flex"
+              title="Naprawia numery telefonów zapisane z podwójnym prefiksem +48 (błąd starej rejestracji), które uniemożliwiały logowanie"
+            >
+              {fixingPhones ? "Naprawiam…" : "Napraw numery +4848…"}
+            </button>
           ) : null}
           <button
             type="button"
