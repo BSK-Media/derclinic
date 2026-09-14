@@ -168,6 +168,7 @@ model Patient {
   appointments Appointment[]
   retailSales  RetailSale[]
   dataChangeRequests PatientDataChangeRequest[]
+  consents     PatientConsent[]
 
   @@index([name])
   @@index([phone])
@@ -498,6 +499,14 @@ model Appointment {
   loyaltyDiscountAmount  Int?
   loyaltyPointsAwardedAt DateTime?
 
+  // Zgoda na wykorzystanie wizerunku (zdjęcia przed/po tej konkretnej
+  // wizyty) w panelu klienta i w mediach społecznościowych — wyrażana od
+  // nowa przy KAŻDEJ rezerwacji (checkbox w formularzu online), inaczej niż
+  // RODO/marketing, które są jednorazowymi zgodami konta (patrz
+  // PatientConsent). Obecnie zwykły checkbox — docelowo podłączymy to pod
+  // rządowy system zgód.
+  imageConsent Boolean @default(false)
+
   loyaltyPointsTransactions LoyaltyPointsTransaction[]
 
   consumptions Consumption[]
@@ -675,6 +684,36 @@ model PatientDataChangeRequest {
 
   @@index([patientId])
   @@index([status, createdAt])
+}
+
+enum PatientConsentType {
+  // Przetwarzanie danych osobowych (RODO) — jednorazowa, ogólna zgoda konta.
+  RODO
+  // Komunikacja marketingowa (push w aplikacji, newsletter) — jednorazowa,
+  // ogólna zgoda konta, możliwa do wycofania w dowolnym momencie.
+  MARKETING
+}
+
+// Zgody "stałe" konta pacjenta — RODO i marketing (patrz PatientConsentType).
+// Jeden wiersz na (pacjent, typ zgody), nadpisywany przy każdej zmianie —
+// grantedAt/revokedAt trzymają historię ostatniej decyzji. Zgoda na
+// wizerunek jest INNA: wyrażana osobno przy KAŻDEJ rezerwacji (patrz
+// Appointment.imageConsent), więc nie ma tu swojego typu.
+model PatientConsent {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  type      PatientConsentType
+  granted   Boolean
+  grantedAt DateTime?
+  revokedAt DateTime?
+
+  @@unique([patientId, type])
+  @@index([patientId])
 }
 
 model AuditLog {

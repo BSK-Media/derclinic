@@ -970,6 +970,19 @@ export default function AdminAppointmentDetail() {
         </div>
       </Card>
 
+      <div
+        className={
+          "rounded-xl border p-3 text-sm " +
+          (appt.imageConsent
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+            : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300")
+        }
+      >
+        {appt.imageConsent
+          ? "Pacjent wyraził zgodę na wykorzystanie zdjęć tej wizyty (panel klienta i media społecznościowe)."
+          : "Pacjent nie wyraził zgody na wykorzystanie zdjęć tej wizyty."}
+      </div>
+
       <AppointmentPhotos
         appointmentId={id}
         photoBefore={appt.photoBefore}

@@ -184,6 +184,11 @@ export default function PublicBookingPage() {
   const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [note, setNote] = React.useState("");
+  // Zgoda na wizerunek (zdjęcia przed/po) — wyrażana od nowa przy KAŻDEJ
+  // rezerwacji, w przeciwieństwie do zgód RODO/marketing w panelu klienta,
+  // które są jednorazowe. Docelowo podłączymy to pod rządowy system zgód —
+  // na razie zwykły checkbox.
+  const [imageConsent, setImageConsent] = React.useState(false);
   const [accountMode, setAccountMode] = React.useState<"guest" | "register">("guest");
   const [password, setPassword] = React.useState("");
   const [passwordConfirm, setPasswordConfirm] = React.useState("");
@@ -686,6 +691,7 @@ export default function PublicBookingPage() {
           password: accountMode === "register" && !loggedInPatient ? password : undefined,
           pointsToRedeem: loggedInPatient && pointsToRedeem > 0 ? pointsToRedeem : undefined,
           paymentChoice,
+          imageConsent,
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -1439,6 +1445,21 @@ export default function PublicBookingPage() {
                   onChange={(e) => setNote(e.target.value)}
                 />
               </Field>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="flex items-start gap-2.5 text-xs text-zinc-600">
+                <input
+                  type="checkbox"
+                  checked={imageConsent}
+                  onChange={(e) => setImageConsent(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span>
+                  Wyrażam zgodę na wykonanie i wykorzystanie dokumentacji fotograficznej (zdjęcia przed/po) tej
+                  wizyty w moim panelu klienta oraz w mediach społecznościowych i materiałach promocyjnych kliniki
+                  DerClinic. Zgoda jest opcjonalna i dotyczy wyłącznie tej rezerwacji.
+                </span>
+              </label>
             </div>
           </div>
 

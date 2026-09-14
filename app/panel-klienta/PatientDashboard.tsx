@@ -352,6 +352,123 @@ function DataChangeRequestCard() {
   );
 }
 
+type ConsentType = "RODO" | "MARKETING";
+type ConsentRow = { type: ConsentType; granted: boolean; grantedAt: string | null; revokedAt: string | null };
+
+// UWAGA: treść zgód poniżej to robocza propozycja tekstu — przed
+// uruchomieniem produkcyjnym powinna zostać zweryfikowana przez osobę
+// odpowiedzialną za zgodność prawną (RODO) w klinice.
+const CONSENT_INFO: Record<ConsentType, { title: string; description: string }> = {
+  RODO: {
+    title: "Przetwarzanie danych osobowych (RODO)",
+    description:
+      "Wyrażam zgodę na przetwarzanie moich danych osobowych przez DerClinic w celu realizacji usług, prowadzenia dokumentacji oraz kontaktu w sprawach związanych z wizytami, zgodnie z RODO. Zgodę mogę wycofać w dowolnym momencie — nie wpływa to na zgodność z prawem przetwarzania dokonanego wcześniej.",
+  },
+  MARKETING: {
+    title: "Komunikacja marketingowa",
+    description:
+      "Wyrażam zgodę na otrzymywanie od DerClinic powiadomień push w aplikacji oraz newslettera z informacjami o promocjach, nowych zabiegach i wydarzeniach. Zgodę mogę wycofać w dowolnym momencie.",
+  },
+};
+
+function formatConsentDate(iso: string) {
+  return new Date(iso).toLocaleString("pl-PL", {
+    timeZone: "Europe/Warsaw",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function ConsentToggle({ granted, onClick, disabled }: { granted: boolean; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={granted}
+      onClick={onClick}
+      disabled={disabled}
+      className={
+        "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition disabled:opacity-60 " +
+        (granted ? "bg-emerald-600" : "bg-zinc-200")
+      }
+    >
+      <span
+        className={
+          "inline-block h-5 w-5 transform rounded-full bg-white shadow transition " +
+          (granted ? "translate-x-6" : "translate-x-1")
+        }
+      />
+    </button>
+  );
+}
+
+function ConsentsPanel() {
+  const { data, mutate, isLoading } = useSWR("/api/patient/consents", dataChangeRequestFetcher);
+  const consents: ConsentRow[] = data?.consents ?? [];
+  const [savingType, setSavingType] = React.useState<ConsentType | null>(null);
+
+  async function setConsent(type: ConsentType, granted: boolean) {
+    setSavingType(type);
+    try {
+      const res = await fetch("/api/patient/consents", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type, granted }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) {
+        toast.error(out?.message || "Nie udało się zapisać zgody");
+        return;
+      }
+      toast.success(granted ? "Zgoda zapisana" : "Zgoda wycofana");
+      mutate();
+    } finally {
+      setSavingType(null);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {(["RODO", "MARKETING"] as const).map((type) => {
+        const info = CONSENT_INFO[type];
+        const row = consents.find((c) => c.type === type);
+        const granted = row?.granted ?? false;
+        return (
+          <div key={type} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-zinc-900">{info.title}</div>
+                <p className="mt-1 text-xs text-zinc-500">{info.description}</p>
+                {granted && row?.grantedAt ? (
+                  <p className="mt-2 text-xs text-emerald-700">Zaakceptowano {formatConsentDate(row.grantedAt)}</p>
+                ) : !granted && row?.revokedAt ? (
+                  <p className="mt-2 text-xs text-zinc-400">Wycofano {formatConsentDate(row.revokedAt)}</p>
+                ) : null}
+              </div>
+              <ConsentToggle
+                granted={granted}
+                disabled={isLoading || savingType === type}
+                onClick={() => setConsent(type, !granted)}
+              />
+            </div>
+          </div>
+        );
+      })}
+
+      <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-5 sm:p-6">
+        <div className="text-sm font-semibold text-zinc-900">Zgoda na wizerunek</div>
+        <p className="mt-1 text-xs text-zinc-500">
+          Zgoda na wykorzystanie zdjęć przed/po zabiegu w panelu klienta i mediach społecznościowych jest wyrażana
+          osobno przy każdej rezerwacji wizyty — zaznaczasz ją w formularzu rezerwacji online.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export type LoyaltyTransactionRow = {
   id: string;
   createdAt: string;
@@ -796,7 +913,9 @@ export function PatientDashboard({
           {tab === "consents" ? (
             <div>
               <h1 className="mb-5 text-xl font-bold text-zinc-900 sm:text-2xl">Zgody</h1>
-              <EmptyState text="Nie masz jeszcze żadnych zgód do zaakceptowania. Pojawią się tutaj, gdy klinika je udostępni." />
+              <div className="max-w-xl">
+                <ConsentsPanel />
+              </div>
             </div>
           ) : null}
         </main>

@@ -68,6 +68,9 @@ const BodySchema = z.object({
   // usług powyżej progu pełnej przedpłaty wartość jest i tak wymuszana na
   // "FULL" po stronie serwera, niezależnie od tego, co przyśle klient.
   paymentChoice: z.enum(["DEPOSIT_10", "FULL"]),
+  // Zgoda na wizerunek (zdjęcia przed/po) — opcjonalna, dotyczy tylko tej
+  // jednej wizyty (patrz Appointment.imageConsent w schema.prisma).
+  imageConsent: z.boolean().optional().default(false),
 });
 
 const FIELD_LABELS: Record<string, string> = {
@@ -111,6 +114,7 @@ export async function POST(req: Request) {
     password,
     pointsToRedeem,
     paymentChoice,
+    imageConsent,
   } = parsed.data;
 
   // Jeśli klient jest zalogowany do panelu pacjenta (ciasteczko sesji), wizytę
@@ -299,6 +303,7 @@ export async function POST(req: Request) {
           priceEstimate: service.price,
           priceFinal,
           note: ["Rezerwacja online (strona WWW)", note?.trim()].filter(Boolean).join(" — "),
+          imageConsent,
         },
       });
 
