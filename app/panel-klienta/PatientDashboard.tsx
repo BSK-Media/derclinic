@@ -76,8 +76,8 @@ const NAV = [
   { id: "upcoming", label: "Nadchodzące wizyty", icon: CalendarDays },
   { id: "history", label: "Historia wizyt", icon: History },
   { id: "profile", label: "Dane klienta", icon: IdCard },
-  { id: "consents", label: "Zgody", icon: FileCheck },
   { id: "points", label: "Punkty lojalnościowe", icon: Star },
+  { id: "consents", label: "Zgody", icon: FileCheck },
 ] as const;
 
 type TabId = (typeof NAV)[number]["id"];
