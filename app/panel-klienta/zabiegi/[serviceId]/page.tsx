@@ -53,9 +53,21 @@ export default async function PatientServicePage({ params }: { params: { service
   if (!patient) redirect("/panel-klienta/logowanie");
   if (!service) notFound();
 
-  const upcomingCount = await prisma.appointment.count({
-    where: { patientId: auth.id, deletedAt: null, status: { not: "CANCELED" }, startsAt: { gte: new Date() } },
-  });
+  const now = new Date();
+  const [upcomingCount, hasUpcomingForService] = await Promise.all([
+    prisma.appointment.count({
+      where: { patientId: auth.id, deletedAt: null, status: { not: "CANCELED" }, startsAt: { gte: now } },
+    }),
+    prisma.appointment.count({
+      where: {
+        patientId: auth.id,
+        serviceId: service.id,
+        deletedAt: null,
+        status: { not: "CANCELED" },
+        startsAt: { gte: now },
+      },
+    }),
+  ]);
 
   const specialists = service.specialistAssignments.map((a) => a.specialist).filter((s) => s.isVisible);
   const locationName = specialists[0]?.assignedLocation?.name ?? null;
@@ -115,13 +127,21 @@ export default async function PatientServicePage({ params }: { params: { service
           ) : (
             <div className="mt-3 text-sm text-zinc-500">Cena ustalana indywidualnie</div>
           )}
-          <Link
-            href={`/book?serviceId=${service.id}`}
-            className="mt-4 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
-          >
-            <CalendarPlus className="h-4 w-4" /> Umów wizytę
-          </Link>
-          <div className="mt-2 text-center text-xs text-zinc-500">Wybierz lekarza i dogodny termin</div>
+          {hasUpcomingForService === 0 ? (
+            <>
+              <Link
+                href={`/book?serviceId=${service.id}`}
+                className="mt-4 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+              >
+                <CalendarPlus className="h-4 w-4" /> Umów wizytę
+              </Link>
+              <div className="mt-2 text-center text-xs text-zinc-500">Wybierz lekarza i dogodny termin</div>
+            </>
+          ) : (
+            <div className="mt-4 rounded-xl bg-zinc-50 px-3 py-2.5 text-center text-xs text-zinc-500">
+              Masz już zaplanowaną nadchodzącą wizytę na ten zabieg
+            </div>
+          )}
         </div>
       </div>
 
