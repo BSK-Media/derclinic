@@ -78,6 +78,10 @@ export default function AdminPatientsPage() {
   const patients: Patient[] = data?.patients ?? [];
   const isAdmin = data?.viewerRole === "ADMIN";
 
+  const { data: changeRequestsData } = useSWR("/api/admin/patient-data-change-requests", fetcher);
+  const pendingChangeRequests =
+    (changeRequestsData?.requests ?? []).filter((r: { status: string }) => r.status === "PENDING").length;
+
   // Statystyki liczone z pełnej listy (niezależnie od pola wyszukiwania)
   const { data: allData } = useSWR(`/api/admin/patients?q=`, fetcher);
   const allPatients: Patient[] = allData?.patients ?? [];
@@ -248,9 +252,14 @@ export default function AdminPatientsPage() {
           ) : null}
           <Link
             href="/admin/patients/data-change-requests"
-            className="hidden shrink-0 items-center rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900 md:inline-flex"
+            className="relative hidden shrink-0 items-center rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900 md:inline-flex"
           >
             Prośby o zmiany danych
+            {pendingChangeRequests > 0 ? (
+              <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[11px] font-bold text-white">
+                {pendingChangeRequests}
+              </span>
+            ) : null}
           </Link>
           {isAdmin ? (
             <button

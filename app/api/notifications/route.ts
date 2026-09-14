@@ -17,6 +17,13 @@ type NotificationItem = {
   description: string;
   createdAt: Date;
   appointmentId?: string;
+  href?: string;
+};
+
+const DATA_CHANGE_FIELD_LABELS: Record<string, string> = {
+  NAME: "Imię i nazwisko",
+  PHONE: "Telefon",
+  EMAIL: "E-mail",
 };
 
 const DATE_FORMATTER = new Intl.DateTimeFormat("pl-PL", {
@@ -39,6 +46,26 @@ const MarkReadSchema = z.object({
 
 function serviceName(appointment: { customServiceName: string | null; service: { name: string } }) {
   return appointment.customServiceName || appointment.service.name;
+}
+
+// Powiadomienia dla recepcji/admina — na razie tylko oczekujące prośby
+// pacjentów o zmianę danych kontaktowych (patrz PatientDataChangeRequest).
+async function getAdminNotifications(): Promise<NotificationItem[]> {
+  const pending = await prisma.patientDataChangeRequest.findMany({
+    where: { status: "PENDING" },
+    orderBy: { createdAt: "desc" },
+    take: NOTIFICATIONS_LIMIT,
+    include: { patient: { select: { name: true } } },
+  });
+
+  return pending.map((request) => ({
+    id: `data-change-${request.id}`,
+    kind: "message",
+    title: "Prośba o zmianę danych",
+    description: `${request.patient.name} — ${DATA_CHANGE_FIELD_LABELS[request.field] ?? request.field}: „${request.newValue}”`,
+    createdAt: request.createdAt,
+    href: "/admin/patients/data-change-requests",
+  }));
 }
 
 async function getSpecialistNotifications(specialistId: string, locationId: string) {
@@ -185,11 +212,15 @@ export async function GET() {
   const { user, error } = await requireAuth();
   if (error) return error;
 
-  if (user!.role !== "SPECIALIST") {
+  let notifications: NotificationItem[];
+  if (user!.role === "SPECIALIST") {
+    notifications = await getSpecialistNotifications(user!.id, user!.locationId);
+  } else if (user!.role === "ADMIN" || user!.role === "RECEPTION") {
+    notifications = await getAdminNotifications();
+  } else {
     return NextResponse.json({ ok: true, notifications: [], unreadCount: 0 });
   }
 
-  const notifications = await getSpecialistNotifications(user!.id, user!.locationId);
   const readRows = notifications.length
     ? await prisma.auditLog.findMany({
         where: {

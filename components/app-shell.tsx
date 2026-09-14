@@ -39,6 +39,10 @@ type HeaderNotification = {
   description: string;
   createdAt: string;
   appointmentId?: string;
+  // Cel kliknięcia dla powiadomień, które nie dotyczą konkretnej wizyty
+  // (np. prośba pacjenta o zmianę danych) — ma pierwszeństwo przed
+  // appointmentId, jeśli oba są ustawione.
+  href?: string;
   read: boolean;
 };
 
@@ -539,17 +543,24 @@ export function AppHeader() {
                             : "bg-emerald-50/60 dark:bg-emerald-500/5",
                         )}
                       >
-                        {notification.appointmentId ? (
-                          <Link
-                            href={`/specialist/appointments/${notification.appointmentId}`}
-                            onClick={() => setNotificationsOpen(false)}
-                            className="flex min-w-0 flex-1 items-start gap-3 rounded-xl p-1 transition hover:bg-slate-50 dark:hover:bg-white/5"
-                          >
-                            {content}
-                          </Link>
-                        ) : (
-                          <div className="flex min-w-0 flex-1 items-start gap-3 p-1">{content}</div>
-                        )}
+                        {(() => {
+                          const href =
+                            notification.href ??
+                            (notification.appointmentId
+                              ? `/specialist/appointments/${notification.appointmentId}`
+                              : null);
+                          return href ? (
+                            <Link
+                              href={href}
+                              onClick={() => setNotificationsOpen(false)}
+                              className="flex min-w-0 flex-1 items-start gap-3 rounded-xl p-1 transition hover:bg-slate-50 dark:hover:bg-white/5"
+                            >
+                              {content}
+                            </Link>
+                          ) : (
+                            <div className="flex min-w-0 flex-1 items-start gap-3 p-1">{content}</div>
+                          );
+                        })()}
                         <button
                           type="button"
                           onClick={() =>
