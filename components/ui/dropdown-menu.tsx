@@ -11,7 +11,7 @@ export function DropdownMenuContent({ className, ...props }: React.ComponentProp
   return (
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content
-        className={cn("z-50 min-w-[180px] rounded-xl border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-800 dark:bg-zinc-950", className)}
+        className={cn("z-50 min-w-[180px] rounded-xl border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-800 dark:bg-[#0b1220]", className)}
         {...props}
       />
     </DropdownMenuPrimitive.Portal>

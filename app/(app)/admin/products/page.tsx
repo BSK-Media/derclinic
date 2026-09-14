@@ -212,7 +212,7 @@ function StockBreakdown({ product, warehouses }: { product: Product; warehouses:
       <span className="cursor-help rounded-lg px-2 py-1 font-medium transition-colors hover:bg-teal-50 hover:text-teal-800 dark:hover:bg-teal-500/10 dark:hover:text-teal-200">
         {quantity(totalQuantity(product))}
       </span>
-      <div className="pointer-events-none absolute left-0 top-full z-40 mt-1 hidden min-w-64 rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-xl group-hover:block dark:border-white/10 dark:bg-slate-950">
+      <div className="pointer-events-none absolute left-0 top-full z-40 mt-1 hidden min-w-64 rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-xl group-hover:block dark:border-white/10 dark:bg-[#0b1220]">
         <div className="mb-2 font-semibold text-slate-900 dark:text-white">Stan w magazynach</div>
         <div className="space-y-1.5">
           {rows.map((row) => (

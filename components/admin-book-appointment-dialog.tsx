@@ -108,7 +108,7 @@ function PatientCombobox({
       </button>
 
       {open ? (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-[#0b1220]">
           <div className="border-b p-2">
             <Input
               ref={searchRef}

@@ -671,7 +671,7 @@ export default function ServicesPage({ searchParams }: ServicesPageProps) {
               placeholder="Szukaj usługi, kategorii lub preparatu..."
             />
             {suggestionsOpen && suggestions.length > 0 ? (
-              <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-[#0b1220]">
                 {suggestions.map((service) => (
                   <button
                     key={service.id}

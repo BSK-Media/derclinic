@@ -586,7 +586,7 @@ export default function ServiceDetailsPage({
                   placeholder="Zacznij pisać, aby wyszukać preparat..."
                 />
                 {productSearchOpen && !selectedProduct ? (
-                  <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
+                  <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-[#0b1220]">
                     {productSuggestions.length > 0 ? (
                       productSuggestions.map((product) => (
                         <button
