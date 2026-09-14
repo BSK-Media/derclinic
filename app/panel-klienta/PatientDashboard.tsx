@@ -3,6 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
+import useSWR from "swr";
+import { toast } from "sonner";
 import {
   Home,
   CalendarDays,
@@ -156,6 +158,163 @@ function ProfileField({ icon: Icon, label, value }: { icon: React.ElementType; l
         <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">{label}</div>
         <div className="mt-0.5 truncate text-sm font-medium text-zinc-900">{value}</div>
       </div>
+    </div>
+  );
+}
+
+const DATA_CHANGE_FIELD_LABELS: Record<string, string> = {
+  NAME: "Imię i nazwisko",
+  PHONE: "Telefon",
+  EMAIL: "E-mail",
+};
+
+const dataChangeRequestFetcher = (url: string) => fetch(url).then((r) => r.json());
+
+function DataChangeStatusPill({ status }: { status: string }) {
+  if (status === "PENDING") {
+    return (
+      <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+        Oczekuje
+      </span>
+    );
+  }
+  if (status === "REJECTED") {
+    return (
+      <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-800">
+        Odrzucona
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+      Zaakceptowana
+    </span>
+  );
+}
+
+function DataChangeRequestCard() {
+  const { data, mutate } = useSWR("/api/patient/data-change-requests", dataChangeRequestFetcher);
+  const requests: Array<{
+    id: string;
+    field: "NAME" | "PHONE" | "EMAIL";
+    newValue: string;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+  }> = data?.requests ?? [];
+  const pending = requests.find((r) => r.status === "PENDING") ?? null;
+
+  const [field, setField] = React.useState<"NAME" | "PHONE" | "EMAIL">("PHONE");
+  const [textValue, setTextValue] = React.useState("");
+  const [phoneDigits, setPhoneDigits] = React.useState("");
+  const [submitting, setSubmitting] = React.useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (field === "PHONE" && phoneDigits.length !== 9) {
+      toast.error("Podaj prawidłowy 9-cyfrowy numer telefonu");
+      return;
+    }
+    if (field !== "PHONE" && !textValue.trim()) {
+      toast.error("Podaj nową wartość");
+      return;
+    }
+    const newValue = field === "PHONE" ? `+48${phoneDigits}` : textValue.trim();
+
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/patient/data-change-requests", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ field, newValue }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) {
+        toast.error(out?.message || "Nie udało się wysłać prośby");
+        return;
+      }
+      toast.success("Wysłano prośbę o zmianę danych do recepcji");
+      setTextValue("");
+      setPhoneDigits("");
+      mutate();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="text-sm font-semibold text-zinc-900">Poproś o zmianę danych</div>
+      <p className="mb-4 mt-1 text-xs text-zinc-500">
+        Wybierz, które dane chcesz zmienić, i podaj nową wartość — prośba trafi do recepcji, która ją zaakceptuje
+        albo odrzuci.
+      </p>
+
+      {pending ? (
+        <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
+          Masz oczekującą prośbę o zmianę pola „{DATA_CHANGE_FIELD_LABELS[pending.field]}" na „{pending.newValue}
+          ” — czekaj na decyzję recepcji, zanim wyślesz kolejną.
+        </div>
+      ) : (
+        <form onSubmit={submit} className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-600">Które dane chcesz zmienić?</label>
+            <select
+              value={field}
+              onChange={(e) => setField(e.target.value as "NAME" | "PHONE" | "EMAIL")}
+              className="h-10 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-emerald-400"
+            >
+              <option value="PHONE">Telefon</option>
+              <option value="EMAIL">E-mail</option>
+              <option value="NAME">Imię i nazwisko</option>
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-600">Nowa wartość</label>
+            {field === "PHONE" ? (
+              <div className="flex h-10 items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 focus-within:border-emerald-400">
+                <span className="shrink-0 text-sm text-zinc-500">+48</span>
+                <input
+                  className="w-full border-0 bg-transparent p-0 text-sm outline-none"
+                  inputMode="numeric"
+                  value={phoneDigits}
+                  onChange={(e) => setPhoneDigits(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                  placeholder="600000000"
+                />
+              </div>
+            ) : (
+              <input
+                type={field === "EMAIL" ? "email" : "text"}
+                value={textValue}
+                onChange={(e) => setTextValue(e.target.value)}
+                className="h-10 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-emerald-400"
+                placeholder={field === "EMAIL" ? "np. jan.kowalski@example.com" : "Imię i nazwisko"}
+              />
+            )}
+          </div>
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
+          >
+            {submitting ? "Wysyłanie…" : "Wyślij prośbę o zmianę danych"}
+          </button>
+        </form>
+      )}
+
+      {requests.length > 0 ? (
+        <div className="mt-5 space-y-2 border-t border-zinc-100 pt-4">
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">Historia próśb</div>
+          {requests.slice(0, 5).map((r) => (
+            <div key={r.id} className="flex items-center justify-between gap-2 text-xs">
+              <span className="min-w-0 truncate text-zinc-600">
+                {DATA_CHANGE_FIELD_LABELS[r.field]}: {r.newValue}
+              </span>
+              <DataChangeStatusPill status={r.status} />
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -576,17 +735,22 @@ export function PatientDashboard({
           {tab === "profile" ? (
             <div>
               <h1 className="mb-5 text-xl font-bold text-zinc-900 sm:text-2xl">Dane klienta</h1>
-              <div className="max-w-md rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6">
-                <ProfileField icon={UserIcon} label="Imię i nazwisko" value={profile.name || "—"} />
-                <ProfileField icon={Phone} label="Telefon" value={profile.phone || "—"} />
-                <ProfileField icon={Mail} label="E-mail" value={profile.email || "—"} />
-                <ProfileField icon={MapPin} label="Lokalizacja" value={profile.locationName || "—"} />
-                <ProfileField icon={CalendarDays} label="Klient od" value={profile.memberSince} />
+              <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
+                <div>
+                  <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6">
+                    <ProfileField icon={UserIcon} label="Imię i nazwisko" value={profile.name || "—"} />
+                    <ProfileField icon={Phone} label="Telefon" value={profile.phone || "—"} />
+                    <ProfileField icon={Mail} label="E-mail" value={profile.email || "—"} />
+                    <ProfileField icon={MapPin} label="Lokalizacja" value={profile.locationName || "—"} />
+                    <ProfileField icon={CalendarDays} label="Klient od" value={profile.memberSince} />
+                  </div>
+                  <p className="mt-3 text-xs text-zinc-400">
+                    Dane konta nie mogą być edytowane samodzielnie. Skorzystaj z formularza obok, aby wysłać prośbę
+                    o zmianę — recepcja ją zaakceptuje albo odrzuci.
+                  </p>
+                </div>
+                <DataChangeRequestCard />
               </div>
-              <p className="mt-3 max-w-md text-xs text-zinc-400">
-                Dane konta nie mogą być edytowane samodzielnie. Aby je zaktualizować, skontaktuj się telefonicznie z
-                kliniką — recepcja zmieni je za Ciebie.
-              </p>
             </div>
           ) : null}
         </main>

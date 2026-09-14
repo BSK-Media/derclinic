@@ -118,6 +118,7 @@ model User {
   warehouseAssignments   SpecialistWarehouse[]
   approvedAppointments   Appointment[]             @relation("AppointmentApprover")
   deletedAppointments    Appointment[]             @relation("AppointmentDeleter")
+  decidedPatientDataChangeRequests PatientDataChangeRequest[] @relation("PatientDataChangeDecider")
   assignedServices       SpecialistService[]
   workDays               SpecialistWorkDay[]
   customWorkDays         SpecialistCustomWorkDay[]
@@ -161,6 +162,7 @@ model Patient {
 
   appointments Appointment[]
   retailSales  RetailSale[]
+  dataChangeRequests PatientDataChangeRequest[]
 
   @@index([name])
   @@index([phone])
@@ -635,6 +637,39 @@ model LoyaltyPointsTransaction {
 
   @@index([patientId, createdAt])
   @@index([appointmentId])
+}
+
+enum PatientDataChangeField {
+  NAME
+  PHONE
+  EMAIL
+}
+
+// Prośba pacjenta o zmianę swoich danych kontaktowych (panel klienta nie
+// pozwala edytować ich samodzielnie — patrz komentarz przy Patient.passwordHash
+// dla analogicznego uzasadnienia). Recepcja/admin widzi prośbę w panelu i
+// akceptuje albo odrzuca ją; akceptacja od razu nadpisuje odpowiednie pole
+// na Patient. Współdzielimy ApprovalStatus z akceptacją wizyt, bo to
+// dokładnie ten sam trójstanowy przepływ (PENDING/APPROVED/REJECTED).
+model PatientDataChangeRequest {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  field        PatientDataChangeField
+  currentValue String?
+  newValue     String
+
+  status          ApprovalStatus @default(PENDING)
+  decidedAt       DateTime?
+  decidedById     String?
+  decidedBy       User?          @relation("PatientDataChangeDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  rejectionReason String?
+
+  @@index([patientId])
+  @@index([status, createdAt])
 }
 
 model AuditLog {
