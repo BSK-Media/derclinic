@@ -60,7 +60,13 @@ const SPECIALISTS: SeedSpecialist[] = [
   { specialistCode: 27, name: "Weronika Kaczor", login: "weronika.kaczor", location: "DerClinic Grodzisk Mazowiecki", specialization: "Specjalista w leczeniu otyłości (obesitolog)", email: "weronika.kaczor1997@wp.pl", phone: null, isVisible: false, isAvailable: false, role: Role.SPECIALIST, jobTitle: "Specjalista w leczeniu otyłości (obesitolog)", avatarUrl: "https://derclinic.pl/wp-content/uploads/2026/03/99a17e09-4431-480a-85c2-24b37451ca7e-scaled.webp", sourceProfileUrl: "https://derclinic.pl/o-klinice/zespol/weronika-kaczor/" },
 ];
 
-const SERVICES: Array<{ name: string; price: number }> = [
+// UWAGA: ID usługi w bazie to `service-seed-XXX`, gdzie XXX wynika z POZYCJI
+// wpisu w tej tablicy. Dlatego wycofanej usługi NIE wolno po prostu wykasować
+// z tablicy (przesunęłoby to ID wszystkich kolejnych usług i podmieniło im
+// nazwy/ceny/kategorie, a wizyty wskazywałyby na złe usługi). Zamiast tego
+// wpis zamieniamy na `null` (tombstone) — pozycje pozostałych usług się nie
+// zmieniają, a usługa zostaje usunięta z bazy przez removeRetiredServices().
+const SERVICES: Array<{ name: string; price: number } | null> = [
   { name: 'PAKIET konsultacja+USG jamy brzusznej+USG tarczycy', price: 750 },
   { name: 'Kolejna wizyta- leczenie otyłości', price: 300 },
   { name: 'Konsultacja obesitologiczna + USG jamy brzusznej', price: 650 },
@@ -208,10 +214,10 @@ const SERVICES: Array<{ name: string; price: number }> = [
   { name: 'Regulacja Brwi', price: 40 },
   { name: 'Makijaż permanentny ust', price: 1500 },
   { name: 'Makijaż permanentny brwi', price: 1500 },
-  { name: 'Konsultacja z kwalifikacją', price: 200 },
-  { name: 'ScarInk Mikronakłuwanie', price: 900 },
-  { name: 'Micropeel', price: 1200 },
-  { name: 'Supernova Nebula ACTO2 10%', price: 450 },
+  null, // wycofane: Konsultacja z kwalifikacją (ScarINK) — service-seed-148
+  null, // wycofane: ScarInk Mikronakłuwanie (ScarINK) — service-seed-149
+  null, // wycofane: Micropeel (ScarINK) — service-seed-150
+  null, // wycofane: Supernova Nebula ACTO2 10% (Nebula) — service-seed-151
   { name: 'Terapia blizny - Dr Pen + egzosomy', price: 700 },
   { name: 'Terapia blizn - Dr Pen + peeling chemiczny Twarz', price: 450 },
   { name: 'Odmładzanie z mikronakłuwaniem - twarz + szyja + dekolt', price: 600 },
@@ -324,7 +330,7 @@ const SERVICES: Array<{ name: string; price: number }> = [
   { name: 'Peeling kawitacyjny z peelingiem kwasowym', price: 320 },
   { name: 'Peeling kawitacyjny z doczyszczaniem manualnym', price: 270 },
   { name: 'Peeling medyczny twarz+szyja', price: 320 },
-  { name: 'Supernowa Nebula Acto2 Orion Strong', price: 550 },
+  null, // wycofane: Supernowa Nebula Acto2 Orion Strong (Nebula) — service-seed-264
   { name: 'Tropokolagen GUNA - 3 ampułki', price: 1900 },
   { name: 'Tropokolagen GUNA - 2 ampułki', price: 1300 },
   { name: 'Tropokolagen GUNA - 1 ampułka', price: 700 },
@@ -634,9 +640,7 @@ function inferServiceCategory(name: string): ServiceCategory {
     lower.includes("madero") ||
     lower.includes("kobido") ||
     lower.includes("presoterapia") ||
-    lower.includes("kosmetologiczna") ||
-    lower.includes("micropeel") ||
-    lower.includes("acto2")
+    lower.includes("kosmetologiczna")
   ) return "Kosmetologia estetyczna";
 
   return "Medycyna estetyczna";
@@ -778,6 +782,59 @@ async function mergeDuplicateServices() {
   }
 
   return mergedCount;
+}
+
+// Usługi wycofane z oferty (kategorie „Nebula" oraz „ScarINK – Kompleksowa
+// Terapia"). Upsert w seedzie nigdy niczego nie usuwa, więc bez tego kroku
+// usługi zostałyby w bazie (i w panelu) mimo usunięcia ich z kodu.
+// Usuwamy WYŁĄCZNIE rekordy o tych konkretnych ID seedowym (i pasującej
+// nazwie), więc usługa o tej samej nazwie dodana ręcznie w panelu nie zostanie
+// ruszona.
+const RETIRED_SERVICES: ReadonlyArray<{ id: string; name: string }> = [
+  { id: "service-seed-148", name: "Konsultacja z kwalifikacją" },
+  { id: "service-seed-149", name: "ScarInk Mikronakłuwanie" },
+  { id: "service-seed-150", name: "Micropeel" },
+  { id: "service-seed-151", name: "Supernova Nebula ACTO2 10%" },
+  { id: "service-seed-264", name: "Supernowa Nebula Acto2 Orion Strong" },
+];
+
+// Kasuje wycofane usługi z bazy. Powiązane przypisania specjalistów, stawki i
+// sugerowane produkty znikają kaskadowo. Usługa, do której istnieją wizyty
+// (relacja Restrict — także wizyty usunięte miękko), NIE jest kasowana, żeby
+// nie zgubić historii ani nie wywrócić deployu; zostaje wtedy ostrzeżenie w logu.
+async function removeRetiredServices() {
+  let removed = 0;
+
+  for (const retired of RETIRED_SERVICES) {
+    try {
+      const service = await prisma.service.findUnique({
+        where: { id: retired.id },
+        select: { id: true, name: true, _count: { select: { appointments: true } } },
+      });
+      if (!service) continue;
+
+      if (service.name !== retired.name) {
+        console.warn(
+          `⚠️  Pominięto usunięcie ${retired.id}: oczekiwano "${retired.name}", a w bazie jest "${service.name}".`,
+        );
+        continue;
+      }
+
+      if (service._count.appointments > 0) {
+        console.warn(
+          `⚠️  Usługa "${service.name}" (${service.id}) ma ${service._count.appointments} wizyt(y) w historii — nie usunięto jej z bazy.`,
+        );
+        continue;
+      }
+
+      await prisma.service.delete({ where: { id: service.id } });
+      removed += 1;
+    } catch (error) {
+      console.warn(`⚠️  Nie udało się usunąć usługi ${retired.id} (${retired.name}):`, error);
+    }
+  }
+
+  return removed;
 }
 
 function inferServiceDescription(name: string, price: number): string {
@@ -1010,6 +1067,7 @@ async function main() {
 
   for (let index = 0; index < SERVICES.length; index += 1) {
     const service = SERVICES[index];
+    if (service === null) continue; // wycofana usługa — pozycja zostaje zajęta, żeby ID się nie przesunęły
     const category = AMELIA_SERVICE_CATEGORIES[service.name] ?? inferServiceCategory(service.name);
     await prisma.service.upsert({
       where: { id: `service-seed-${String(index + 1).padStart(3, "0")}` },
@@ -1037,6 +1095,7 @@ async function main() {
   }
 
   const mergedDuplicateServices = await mergeDuplicateServices();
+  const removedRetiredServices = await removeRetiredServices();
 
   await prisma.service.upsert({
     where: { id: "service-custom" },
@@ -1117,7 +1176,7 @@ async function main() {
   }
 
   console.log(
-    `✅ Seed completed: ${globalIndex} produktów, ${seededServices} usług, ${mergedDuplicateServices} scalonych duplikatów usług, ${specialistServices.length} przypisań pracownik–usługa, ${assignedWarehouses} przypisań magazynów`,
+    `✅ Seed completed: ${globalIndex} produktów, ${seededServices} usług, ${mergedDuplicateServices} scalonych duplikatów usług, ${removedRetiredServices} usuniętych wycofanych usług, ${specialistServices.length} przypisań pracownik–usługa, ${assignedWarehouses} przypisań magazynów`,
   );
 }
 
