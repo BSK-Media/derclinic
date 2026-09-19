@@ -67,8 +67,6 @@ const CATEGORY_ORDER = [
   "Tropokolagen GUNA",
   "Zabiegi ANTI-AGING odmłodzenie/ujędrnienie",
   "Bandaże AROSHA",
-  "Nebula",
-  "ScarINK – Kompleksowa Terapia",
   "Makijaż permanentny",
 ];
 
