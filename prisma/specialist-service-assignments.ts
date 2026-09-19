@@ -78,7 +78,6 @@ export const SPECIALIST_SERVICE_ASSIGNMENTS: Record<string, readonly string[]> =
     "Tropokolagen GUNA - 1 ampułka",
     "Tropokolagen GUNA - 2 ampułki",
     "Tropokolagen GUNA - 3 ampułki",
-    "Supernowa Nebula Acto2 Orion Strong"
   ],
   "natalia.paryska": [
     "Laser tulowy dodatkowy obszar lub przebarwienie",
@@ -86,7 +85,6 @@ export const SPECIALIST_SERVICE_ASSIGNMENTS: Record<string, readonly string[]> =
     "Laser tulowy na twarz",
     "Laser tulowy na dłonie",
     "Laser tulowy twarz + szyja",
-    "Supernowa Nebula Acto2 Orion Strong",
     "Peeling medyczny twarz+szyja",
     "Peeling kawitacyjny z doczyszczaniem manualnym",
     "Peeling kawitacyjny z peelingiem kwasowym",
@@ -210,15 +208,10 @@ export const SPECIALIST_SERVICE_ASSIGNMENTS: Record<string, readonly string[]> =
     "Odmładzanie z mikronakłuwaniem - twarz + szyja + dekolt",
     "Terapia blizn - Dr Pen + peeling chemiczny Twarz",
     "Terapia blizny - Dr Pen + egzosomy",
-    "Supernova Nebula ACTO2 10%",
-    "Micropeel",
-    "ScarInk Mikronakłuwanie",
-    "Konsultacja z kwalifikacją",
     "Makijaż permanentny brwi",
     "Makijaż permanentny ust"
   ],
   "joanna.sankowska": [
-    "Supernowa Nebula Acto2 Orion Strong",
     "Regulacja Brwi",
     "Henna pudrowa + regulacja brwi",
     "Laserowe zamykanie naczynka - jedno naczynko",
@@ -369,7 +362,6 @@ export const SPECIALIST_SERVICE_ASSIGNMENTS: Record<string, readonly string[]> =
     "Odmładzanie z mikronakłuwaniem - twarz + szyja",
     "Odmładzanie z mikronakłuwaniem - twarz + szyja + dekolt",
     "Terapia blizny - Dr Pen + egzosomy",
-    "Supernova Nebula ACTO2 10%"
   ],
   "anna.krysa": [
     "Iniekcja sterydu",
@@ -709,7 +701,6 @@ export const SPECIALIST_SERVICE_ASSIGNMENTS: Record<string, readonly string[]> =
     "Tropokolagen GUNA - 3 ampułki"
   ],
   "michal.swider": [
-    "Supernowa Nebula Acto2 Orion Strong",
     "Konsultacja + usg aorty brzusznej i tętnic",
     "Konsultacja + usg doppler kończyn-żył lub tetnic",
     "Skleroterapia",
@@ -739,7 +730,6 @@ export const SPECIALIST_SERVICE_ASSIGNMENTS: Record<string, readonly string[]> =
     "Antycellulitowy rytuał SPA",
     "Masaż relaksacyjny twarzy, szyi i dekoltu",
     "Regulacja Brwi",
-    "Supernowa Nebula Acto2 Orion Strong",
     "Mezoterapia Neuvia HYDRO de lux Twarz+szyja 2,5ml",
     "Sunekos 200",
     "Konsultacja kosmetologiczna",
@@ -816,7 +806,6 @@ export const SPECIALIST_SERVICE_ASSIGNMENTS: Record<string, readonly string[]> =
     "Laser tulowy na twarz",
     "Laser tulowy twarz + szyja",
     "Laser tulowy twarz + szyja + dekolt",
-    "Supernowa Nebula Acto2 Orion Strong",
     "Toksyna botulinowa BOTOX - Lip flip / broda brukowana / uniesienie kącika ust",
     "Toksyna botulinowa BOTOX - Redukcja uśmiechu dziąsłowego",
     "Toksyna botulinowa BOTOX - 1 okolica",
@@ -995,7 +984,6 @@ export const SPECIALIST_SERVICE_ASSIGNMENTS: Record<string, readonly string[]> =
     "Dermapen + egzosomy (twarz, szyja, dekolt)"
   ],
   "anna.frydecka": [
-    "Supernowa Nebula Acto2 Orion Strong",
     "Cytologia jednowarstwowa LBC (płynna cytologia)",
     "Cytologia ginekologiczna",
     "Cytologia płynna + HPV",
@@ -1031,7 +1019,6 @@ export const SPECIALIST_SERVICE_ASSIGNMENTS: Record<string, readonly string[]> =
     "Lipotransfer - lifting twarzy",
     "Lipotransfer - powiększanie piersi",
     "Lipotransfer - lifting pośladków",
-    "Supernowa Nebula Acto2 Orion Strong",
     "Toksyna botulinowa BOTOX - Lip flip / broda brukowana / uniesienie kącika ust",
     "Toksyna botulinowa BOTOX - Redukcja uśmiechu dziąsłowego",
     "Toksyna botulinowa BOTOX - 1 okolica",
@@ -1279,7 +1266,6 @@ export const SPECIALIST_SERVICE_ASSIGNMENTS: Record<string, readonly string[]> =
     "Tropokolagen GUNA - 1 ampułka",
     "Tropokolagen GUNA - 2 ampułki",
     "Tropokolagen GUNA - 3 ampułki",
-    "Supernowa Nebula Acto2 Orion Strong",
     "Badanie histopatologiczne*",
     "Chirurgiczne usunięcie zmiany skórnej - 1 zmiana",
     "Laserowe usunięcie zmian skórnych - 1-3 zmian na twarzy",
@@ -1325,7 +1311,6 @@ export const SPECIALIST_SERVICE_ASSIGNMENTS: Record<string, readonly string[]> =
     "Pakiet 10 zabiegów masaż MADERO",
     "Antycellulitowy rytuał SPA",
     "Regulacja Brwi",
-    "Supernowa Nebula Acto2 Orion Strong",
     "Konsultacja kosmetologiczna",
     "Tropokolagen GUNA - 1 ampułka",
     "Tropokolagen GUNA - 2 ampułki",
@@ -1534,7 +1519,6 @@ export const AMELIA_SERVICE_CATEGORIES: Record<string, string> = {
   "Konsultacja z dermatoskopią": "Dermatologia",
   "Konsultacja z dermatoskopią u Dr Aliny": "Dermatologia",
   "Konsultacja z indywidualnie dobranym zabiegiem": "Kosmetologia",
-  "Konsultacja z kwalifikacją": "ScarINK – Kompleksowa Terapia",
   "Kontrola": "Konsultacje Specjalistyczne",
   "Ksantohumol Recovery Treatment do zabiegu": "PRO XN - Twarz",
   "Kwas hialuronowy - wypełnienie / modelowanie - 1 ampułka": "Kwas Hialuronowy - wypełnienie / modelowanie",
@@ -1607,7 +1591,6 @@ export const AMELIA_SERVICE_CATEGORIES: Record<string, string> = {
   "Mezoterapia mezokoktajlami - Wybrany obszar": "Mezoterapia igłowa / Stymulatory tkankowe",
   "Mezoterapia Neuvia HYDRO de lux Twarz+szyja 2,5ml": "Mezoterapia igłowa / Stymulatory tkankowe",
   "Męski rytuał pielęgnacyjny": "Kosmetologia",
-  "Micropeel": "ScarINK – Kompleksowa Terapia",
   "Miniflebektomia": "Chirurgia naczyniowa",
   "Modelowanie ust": "Kwas Hialuronowy - wypełnienie / modelowanie",
   "Modelowanie ust \"na płasko\"": "Kwas Hialuronowy - wypełnienie / modelowanie",
@@ -1690,7 +1673,6 @@ export const AMELIA_SERVICE_CATEGORIES: Record<string, string> = {
   "RF Radiofrekwencja mikroigłowa - twarz": "Radiofrekwencja mikroigłowa RF",
   "RF Radiofrekwencja mikroigłowa - twarz + szyja": "Radiofrekwencja mikroigłowa RF",
   "RF Radiofrekwencja mikroigłowa - twarz + szyja + dekolt": "Radiofrekwencja mikroigłowa RF",
-  "ScarInk Mikronakłuwanie": "ScarINK – Kompleksowa Terapia",
   "Skleroterapia": "Chirurgia naczyniowa",
   "Specjalistyczna konsultacja u Dr Marty": "Autorskie terapie Dr Marty",
   "Stymulator tkankowy Jalupro Classic + Jalupro HMW": "Mezoterapia igłowa / Stymulatory tkankowe",
@@ -1705,8 +1687,6 @@ export const AMELIA_SERVICE_CATEGORIES: Record<string, string> = {
   "Stymulator tkankowy Radiesse - 2 ampułki": "Mezoterapia igłowa / Stymulatory tkankowe",
   "SUNEKOS 1200": "Mezoterapia igłowa / Stymulatory tkankowe",
   "Sunekos 200": "Mezoterapia igłowa / Stymulatory tkankowe",
-  "Supernova Nebula ACTO2 10%": "Nebula",
-  "Supernowa Nebula Acto2 Orion Strong": "Bez Kategorii",
   "Tapping twarzy": "Bez Kategorii",
   "Teosyal Redensity II": "Kwas Hialuronowy - wypełnienie / modelowanie",
   "Teosyal RHA2 - 1 ampułka": "Kwas Hialuronowy - wypełnienie / modelowanie",
