@@ -16,6 +16,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { prisma } from "@/lib/db";
+import { resolveStaffNames } from "@/lib/audit";
 import { getEffectiveAuth } from "@/lib/effective-auth";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { SpecialistDashboardRefresh } from "@/components/specialist-dashboard-refresh";
@@ -393,13 +394,18 @@ export default async function SpecialistHome() {
   const auditLogs = await prisma.auditLog.findMany({
     where: {
       createdAt: { gte: notificationsFrom },
-      actorId: { not: auth.id },
-      OR: auditConditions,
+      // wpisy bez konta pracownika (gość) mają actorId = null — samo "not" w SQL
+      // pomijałoby NULL, więc uwzględniamy je jawnie
+      AND: [{ OR: [{ actorId: null }, { actorId: { not: auth.id } }] }, { OR: auditConditions }],
     },
-    include: { actor: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
     take: 100,
   });
+  const staffNames = await resolveStaffNames(
+    auditLogs.filter((log) => !log.actorName).map((log) => log.actorId),
+  );
+  const actorNameOf = (log: { actorName: string | null; actorId: string | null }) =>
+    log.actorName ?? (log.actorId ? staffNames.get(log.actorId) : null) ?? "systemu";
 
   const notifications: NotificationItem[] = [];
   for (const log of auditLogs) {
@@ -413,7 +419,7 @@ export default async function SpecialistHome() {
       notifications.push({
         id: log.id,
         kind: "message",
-        title: `Wiadomość od ${log.actor.name}`,
+        title: `Wiadomość od ${actorNameOf(log)}`,
         description:
           typeof data.message === "string" ? data.message : "Nowa wiadomość od administratora.",
         createdAt: log.createdAt,
@@ -466,7 +472,7 @@ export default async function SpecialistHome() {
       notifications.push({
         id: log.id,
         kind: "message",
-        title: `Wiadomość od ${log.actor.name}`,
+        title: `Wiadomość od ${actorNameOf(log)}`,
         description: data.note.trim(),
         createdAt: log.createdAt,
         appointmentId: appointment.id,

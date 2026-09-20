@@ -30,17 +30,36 @@ export async function POST(req: Request) {
 
   const admin = await prisma.user.findUnique({ where: { login } });
   if (!admin?.passwordHash || admin.role !== "ADMIN") {
+    await logAudit({
+      actorId: user!.id,
+      action: "LOGIN_FAILED",
+      entity: "User",
+      summary: `Nieudana autoryzacja rabatu w POS: „${login}" nie jest kontem administratora`,
+      data: { attemptedLogin: login, reason: "not_admin_or_unknown" },
+    });
     return bad("Błędny login lub hasło administratora", 401);
   }
 
   const ok = await bcrypt.compare(password, admin.passwordHash);
-  if (!ok) return bad("Błędny login lub hasło administratora", 401);
+  if (!ok) {
+    await logAudit({
+      actorId: user!.id,
+      action: "LOGIN_FAILED",
+      entity: "User",
+      entityId: admin.id,
+      summary: `Nieudana autoryzacja rabatu w POS: błędne hasło administratora „${login}"`,
+      data: { attemptedLogin: login, reason: "wrong_password" },
+    });
+    return bad("Błędny login lub hasło administratora", 401);
+  }
 
   await logAudit({
     actorId: user!.id,
     action: "sale.discount_authorize",
     entity: "User",
     entityId: admin.id,
+    summary: `Autoryzacja rabatu w POS przez administratora „${admin.name}"`,
+    data: { authorizedByAdminId: admin.id },
   });
 
   return NextResponse.json({ ok: true, admin: { id: admin.id, name: admin.name } });

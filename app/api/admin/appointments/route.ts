@@ -7,7 +7,7 @@ import {
   requireStrictRole,
   scopedLocationWhere,
 } from "@/lib/api-helpers";
-import { logAudit } from "@/lib/audit";
+import { logAudit, formatWarsaw } from "@/lib/audit";
 
 const RESERVATION_SERVICE_NAME = "__DERCLINIC_REZERWACJA_CZASU__";
 const RESERVATION_PATIENT_NAME = "__DERCLINIC_REZERWACJA_CZASU__";
@@ -327,6 +327,14 @@ export async function POST(req: Request) {
           where: { id: existingPatient.id },
           data: { email },
         });
+        await logAudit({
+          actorId: user!.id,
+          action: "UPDATE",
+          entity: "Patient",
+          entityId: existingPatient.id,
+          summary: `Uzupełnienie adresu e-mail pacjenta przy dodawaniu wizyty: ${email}`,
+          data: { changes: { email: { from: null, to: email } } },
+        });
       }
     } else {
       const createdPatient = await prisma.patient.create({
@@ -344,6 +352,8 @@ export async function POST(req: Request) {
         action: "CREATE",
         entity: "Patient",
         entityId: createdPatient.id,
+        summary: `Nowa karta pacjenta przy dodawaniu wizyty: ${patientName} (${phone})`,
+        data: { name: patientName, phone, email, locationId: appointmentLocationId },
       });
     }
   }
@@ -384,11 +394,34 @@ export async function POST(req: Request) {
     },
   });
 
+  const names = await prisma.appointment.findUnique({
+    where: { id: appt.id },
+    select: {
+      patient: { select: { name: true } },
+      service: { select: { name: true } },
+      specialist: { select: { name: true } },
+    },
+  });
   await logAudit({
     actorId: user!.id,
     action: "CREATE",
     entity: "Appointment",
     entityId: appt.id,
+    summary: parsed.data.reservation
+      ? `Rezerwacja czasu (blokada terminu) w kalendarzu: specjalista ${names?.specialist.name ?? "—"} · ${formatWarsaw(startsAt)}`
+      : `Nowa wizyta: ${names?.patient.name ?? "—"} · ${names?.service.name ?? "—"} · ${formatWarsaw(startsAt)} · specjalista ${names?.specialist.name ?? "—"}`,
+    data: {
+      patientId,
+      specialistId: parsed.data.specialistId,
+      serviceId: service.id,
+      locationId: appointmentLocationId,
+      startsAt,
+      endsAt,
+      priceEstimate: standardPrice,
+      priceFinal: appt.priceFinal,
+      reservation: parsed.data.reservation ? true : undefined,
+      hasNote: parsed.data.note ? true : undefined,
+    },
   });
 
   return NextResponse.json({ ok: true, appointment: appt });

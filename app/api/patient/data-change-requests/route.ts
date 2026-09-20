@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getPatientAuth } from "@/lib/patient-auth";
+import { logAudit } from "@/lib/audit";
 
 function bad(message: string, status = 400) {
   return NextResponse.json({ ok: false, message }, { status });
 }
+
+const FIELD_LABELS = { NAME: "imię i nazwisko", PHONE: "telefon", EMAIL: "e-mail" } as const;
 
 const FIELD_VALIDATORS: Record<"NAME" | "PHONE" | "EMAIL", z.ZodString> = {
   NAME: z.string().trim().min(2, "Podaj imię i nazwisko").max(100),
@@ -72,6 +75,15 @@ export async function POST(req: Request) {
       currentValue,
       newValue,
     },
+  });
+
+  await logAudit({
+    actor: { type: "PATIENT", id: auth.id, name: patient.name, contact: auth.phone },
+    action: "CREATE",
+    entity: "PatientDataChangeRequest",
+    entityId: request.id,
+    summary: `Prośba o zmianę danych (${FIELD_LABELS[parsed.data.field]}): „${currentValue ?? "—"}" → „${newValue}"`,
+    data: { patientId: auth.id, field: parsed.data.field, currentValue, newValue },
   });
 
   return NextResponse.json({ ok: true, request });

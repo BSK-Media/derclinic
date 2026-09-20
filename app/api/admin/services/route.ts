@@ -7,7 +7,8 @@ import {
   requireStrictRole,
   scopedLocationWhere,
 } from "@/lib/api-helpers";
-import { logAudit } from "@/lib/audit";
+import { logAudit, diffFields } from "@/lib/audit";
+import { formatPLNFromGrosze } from "@/lib/money";
 import { resolveSettlementRange } from "@/lib/settlement-range";
 
 const RESERVATION_SERVICE_NAME = "__DERCLINIC_REZERWACJA_CZASU__";
@@ -232,7 +233,15 @@ export async function PATCH(req: Request) {
   const { id, ...changes } = parsed.data;
   const existing = await prisma.service.findUnique({
     where: { id },
-    select: { id: true, category: true, categoryColor: true },
+    select: {
+      id: true,
+      name: true,
+      category: true,
+      categoryColor: true,
+      description: true,
+      durationMin: true,
+      price: true,
+    },
   });
   if (!existing) {
     return NextResponse.json(
@@ -265,12 +274,36 @@ export async function PATCH(req: Request) {
     where: { id },
     data: changes,
   });
+  const serviceChanges = diffFields(existing, {
+    name: service.name,
+    category: service.category,
+    categoryColor: service.categoryColor,
+    description: service.description,
+    durationMin: service.durationMin,
+    price: service.price,
+  });
+  const labels: Record<string, string> = {
+    name: "nazwa",
+    category: "kategoria",
+    categoryColor: "kolor kategorii",
+    description: "opis",
+    durationMin: "czas trwania (min)",
+    price: "cena",
+  };
+  const parts = Object.entries(serviceChanges ?? {}).map(([key, change]) =>
+    key === "description"
+      ? "zmieniono opis"
+      : key === "price"
+        ? `cena: ${formatPLNFromGrosze(change.from as number | null)} → ${formatPLNFromGrosze(change.to as number | null)}`
+        : `${labels[key] ?? key}: ${change.from ?? "—"} → ${change.to ?? "—"}`,
+  );
   await logAudit({
     actorId: user!.id,
     action: "UPDATE",
     entity: "Service",
     entityId: service.id,
-    data: changes,
+    summary: `Zmiana zabiegu „${existing.name}": ${parts.length ? parts.join("; ") : "bez zmian wartości"}`,
+    data: { ...changes, changes: serviceChanges },
   });
 
   return NextResponse.json({ ok: true, service });
@@ -351,7 +384,8 @@ export async function POST(req: Request) {
     action: "CREATE",
     entity: "Service",
     entityId: s.id,
-    data: { specialistIds },
+    summary: `Nowy zabieg „${s.name}"${s.price !== null ? ` (cena ${formatPLNFromGrosze(s.price)})` : ""}`,
+    data: { name: s.name, category: s.category, durationMin: s.durationMin, price: s.price, specialistIds },
   });
 
   return NextResponse.json({ ok: true, service: s });

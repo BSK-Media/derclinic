@@ -52,6 +52,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       priceFinal: true,
       priceEstimate: true,
       loyaltyPointsAwardedAt: true,
+      patient: { select: { name: true } },
       service: { select: { price: true } },
       payments: { select: { amount: true } },
     },
@@ -131,10 +132,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     action: "UPDATE",
     entity: "AppointmentApproval",
     entityId: updated.appointment.id,
+    summary:
+      target === "APPROVED"
+        ? `Akceptacja zakończonej wizyty (pacjent ${appt.patient.name})${
+            updated.loyaltyPointsAwarded ? ` — naliczono ${updated.loyaltyPointsAwarded} pkt lojalnościowych` : ""
+          }`
+        : `Odrzucenie zakończonej wizyty (pacjent ${appt.patient.name}); powód: ${parsed.data.reason!.trim()}`,
     data: {
       approvalStatus: target,
+      previousApprovalStatus: appt.approvalStatus,
       rejectionReason: target === "REJECTED" ? parsed.data.reason!.trim() : null,
       loyaltyPointsAwarded: updated.loyaltyPointsAwarded || undefined,
+      appointmentTotal: paymentTotal,
     },
   });
 

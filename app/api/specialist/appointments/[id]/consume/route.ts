@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
+import { logAudit } from "@/lib/audit";
 
 const BodySchema = z.object({
   productId: z.string().min(1),
@@ -14,7 +15,13 @@ const BodySchema = z.object({
 async function loadActiveAppointment(appointmentId: string, locationScopeId: string | null) {
   const appointment = await prisma.appointment.findFirst({
     where: { id: appointmentId, ...(locationScopeId ? { locationId: locationScopeId } : {}) },
-    select: { id: true, specialistId: true, locationId: true, deletedAt: true },
+    select: {
+      id: true,
+      specialistId: true,
+      locationId: true,
+      deletedAt: true,
+      patient: { select: { name: true } },
+    },
   });
   if (!appointment || appointment.deletedAt) {
     return {
@@ -51,7 +58,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const product = await prisma.product.findUnique({
     where: { id: parsed.data.productId },
-    select: { id: true, unit: true },
+    select: { id: true, unit: true, name: true },
   });
   if (!product)
     return NextResponse.json({ ok: false, message: "Nie znaleziono produktu" }, { status: 404 });
@@ -82,6 +89,22 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     });
   }
 
+  await logAudit({
+    actorId: user!.id,
+    action: "CREATE",
+    entity: "Consumption",
+    entityId: c.id,
+    summary: `Zużycie preparatu „${product.name}": ${parsed.data.quantity} ${product.unit} (wizyta pacjenta ${appt!.patient.name})`,
+    data: {
+      appointmentId: appt!.id,
+      productId: product.id,
+      warehouseId,
+      quantity: parsed.data.quantity,
+      unit: product.unit,
+      note: parsed.data.note || null,
+    },
+  });
+
   return NextResponse.json({ ok: true, consumption: c });
 }
 
@@ -91,7 +114,10 @@ const PatchSchema = z.object({
 });
 
 async function loadAppointmentConsumption(appointmentId: string, consumptionId: string) {
-  const c = await prisma.consumption.findUnique({ where: { id: consumptionId } });
+  const c = await prisma.consumption.findUnique({
+    where: { id: consumptionId },
+    include: { product: { select: { name: true } } },
+  });
   if (!c || c.appointmentId !== appointmentId)
     return {
       error: NextResponse.json({ ok: false, message: "Nie znaleziono zużycia" }, { status: 404 }),
@@ -105,7 +131,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const deny = requireStrictRole(user!.role, ["RECEPTION", "ADMIN"]);
   if (deny) return deny;
 
-  const { error: appointmentError } = await loadActiveAppointment(params.id, user!.locationScopeId);
+  const { appointment: appt, error: appointmentError } = await loadActiveAppointment(params.id, user!.locationScopeId);
   if (appointmentError) return appointmentError;
 
   const json = await req.json().catch(() => null);
@@ -147,6 +173,19 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return row;
   });
 
+  await logAudit({
+    actorId: user!.id,
+    action: "UPDATE",
+    entity: "Consumption",
+    entityId: consumption!.id,
+    summary: `Korekta zużycia preparatu „${consumption!.product.name}": ${oldQty.toString()} → ${newQty.toString()} ${consumption!.unit} (wizyta pacjenta ${appt!.patient.name})`,
+    data: {
+      appointmentId: params.id,
+      productId: consumption!.productId,
+      changes: { quantity: { from: Number(oldQty), to: Number(newQty) } },
+    },
+  });
+
   return NextResponse.json({ ok: true, consumption: updated });
 }
 
@@ -156,7 +195,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   const deny = requireStrictRole(user!.role, ["RECEPTION", "ADMIN"]);
   if (deny) return deny;
 
-  const { error: appointmentError } = await loadActiveAppointment(params.id, user!.locationScopeId);
+  const { appointment: appt, error: appointmentError } = await loadActiveAppointment(params.id, user!.locationScopeId);
   if (appointmentError) return appointmentError;
 
   const url = new URL(req.url);
@@ -189,6 +228,21 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
         },
       });
     }
+  });
+
+  await logAudit({
+    actorId: user!.id,
+    action: "DELETE",
+    entity: "Consumption",
+    entityId: consumption!.id,
+    summary: `Usunięcie zużycia preparatu „${consumption!.product.name}": ${consumption!.quantity.toString()} ${consumption!.unit} (wizyta pacjenta ${appt!.patient.name}) — stan magazynu przywrócony`,
+    data: {
+      appointmentId: params.id,
+      productId: consumption!.productId,
+      warehouseId: consumption!.warehouseId,
+      quantity: Number(consumption!.quantity),
+      unit: consumption!.unit,
+    },
   });
 
   return NextResponse.json({ ok: true });

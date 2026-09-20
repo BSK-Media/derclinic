@@ -105,7 +105,21 @@ export async function POST(req: Request) {
     },
   });
 
-  await logAudit({ actorId: user!.id, action: "CREATE", entity: "Product", entityId: p.id });
+  await logAudit({
+    actorId: user!.id,
+    action: "CREATE",
+    entity: "Product",
+    entityId: p.id,
+    summary: `Nowy produkt „${p.name}"`,
+    data: {
+      name: p.name,
+      category: p.category,
+      sku: p.sku,
+      unit: p.unit,
+      purchasePrice: p.purchasePrice,
+      salePrice: p.salePrice,
+    },
+  });
 
   return NextResponse.json({ ok: true, product: p });
 }

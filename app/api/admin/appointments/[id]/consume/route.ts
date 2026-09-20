@@ -21,7 +21,13 @@ const PatchSchema = z.object({
 async function loadActiveAppointment(appointmentId: string, locationScopeId: string | null) {
   const appointment = await prisma.appointment.findFirst({
     where: { id: appointmentId, ...(locationScopeId ? { locationId: locationScopeId } : {}) },
-    select: { id: true, specialistId: true, locationId: true, deletedAt: true },
+    select: {
+      id: true,
+      specialistId: true,
+      locationId: true,
+      deletedAt: true,
+      patient: { select: { name: true } },
+    },
   });
   if (!appointment || appointment.deletedAt) {
     return {
@@ -32,7 +38,10 @@ async function loadActiveAppointment(appointmentId: string, locationScopeId: str
 }
 
 async function loadAppointmentConsumption(appointmentId: string, consumptionId: string) {
-  const consumption = await prisma.consumption.findUnique({ where: { id: consumptionId } });
+  const consumption = await prisma.consumption.findUnique({
+    where: { id: consumptionId },
+    include: { product: { select: { name: true } } },
+  });
   if (!consumption || consumption.appointmentId !== appointmentId) {
     return {
       error: NextResponse.json({ ok: false, message: "Nie znaleziono zużycia" }, { status: 404 }),
@@ -68,7 +77,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const product = await prisma.product.findUnique({
     where: { id: parsed.data.productId },
-    select: { id: true, unit: true },
+    select: { id: true, unit: true, name: true },
   });
   if (!product) {
     return NextResponse.json({ ok: false, message: "Nie znaleziono produktu" }, { status: 404 });
@@ -106,7 +115,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     action: "CREATE",
     entity: "Consumption",
     entityId: c.id,
-    data: { appointmentId: appt.id },
+    summary: `Zużycie preparatu „${product.name}": ${parsed.data.quantity} ${product.unit} (wizyta pacjenta ${appt.patient.name})`,
+    data: {
+      appointmentId: appt.id,
+      productId: product.id,
+      warehouseId,
+      quantity: parsed.data.quantity,
+      unit: product.unit,
+      kind: parsed.data.kind ?? "APPOINTMENT",
+      note: parsed.data.note || null,
+    },
   });
 
   return NextResponse.json({ ok: true, consumption: c });
@@ -118,7 +136,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
   if (deny) return deny;
 
-  const { error: appointmentError } = await loadActiveAppointment(params.id, user!.locationScopeId);
+  const { appointment: appt, error: appointmentError } = await loadActiveAppointment(params.id, user!.locationScopeId);
   if (appointmentError) return appointmentError;
 
   const json = await req.json().catch(() => null);
@@ -164,7 +182,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     action: "UPDATE",
     entity: "Consumption",
     entityId: updated.id,
-    data: { appointmentId: params.id, quantity: parsed.data.quantity },
+    summary: `Korekta zużycia preparatu „${consumption!.product.name}": ${consumption!.quantity.toString()} → ${newQuantity.toString()} ${consumption!.unit} (wizyta pacjenta ${appt!.patient.name})`,
+    data: {
+      appointmentId: params.id,
+      productId: consumption!.productId,
+      quantity: parsed.data.quantity,
+      changes: { quantity: { from: Number(consumption!.quantity), to: parsed.data.quantity } },
+    },
   });
 
   return NextResponse.json({ ok: true, consumption: updated });
@@ -176,7 +200,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
   if (deny) return deny;
 
-  const { error: appointmentError } = await loadActiveAppointment(params.id, user!.locationScopeId);
+  const { appointment: appt, error: appointmentError } = await loadActiveAppointment(params.id, user!.locationScopeId);
   if (appointmentError) return appointmentError;
 
   const consumptionId = new URL(req.url).searchParams.get("consumptionId");
@@ -214,7 +238,14 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     action: "DELETE",
     entity: "Consumption",
     entityId: consumption!.id,
-    data: { appointmentId: params.id },
+    summary: `Usunięcie zużycia preparatu „${consumption!.product.name}": ${consumption!.quantity.toString()} ${consumption!.unit} (wizyta pacjenta ${appt!.patient.name}) — stan magazynu przywrócony`,
+    data: {
+      appointmentId: params.id,
+      productId: consumption!.productId,
+      warehouseId: consumption!.warehouseId,
+      quantity: Number(consumption!.quantity),
+      unit: consumption!.unit,
+    },
   });
 
   return NextResponse.json({ ok: true });

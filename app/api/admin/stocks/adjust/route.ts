@@ -178,11 +178,18 @@ export async function POST(req: Request) {
         },
       });
 
-      return { stock: updatedStock, product };
+      return { stock: updatedStock, product, warehouseName: warehouse.name };
     });
 
     if (newProduct) {
-      await logAudit({ actorId: user!.id, action: "CREATE", entity: "Product", entityId: result.product.id });
+      await logAudit({
+        actorId: user!.id,
+        action: "CREATE",
+        entity: "Product",
+        entityId: result.product.id,
+        summary: `Nowy produkt „${result.product.name}" dodany przy korekcie stanu magazynowego`,
+        data: { name: result.product.name, sku: result.product.sku, unit: result.product.unit },
+      });
     }
 
     await logAudit({
@@ -190,7 +197,15 @@ export async function POST(req: Request) {
       action: "STOCK_ADJUST",
       entity: "Stock",
       entityId: result.stock?.id ?? `${warehouseId}:${result.product.id}`,
-      data: { productId: result.product.id, warehouseId, delta, expiryDate: expiryDate ?? null, batchNumber: batchNumber ?? null },
+      summary: `Korekta stanu „${result.product.name}" w magazynie „${result.warehouseName}": ${delta > 0 ? "+" : ""}${delta}${note?.trim() ? ` (${note.trim()})` : ""}`,
+      data: {
+        productId: result.product.id,
+        warehouseId,
+        delta,
+        expiryDate: expiryDate ?? null,
+        batchNumber: batchNumber ?? null,
+        note: note?.trim() || null,
+      },
     });
 
     return NextResponse.json({ ok: true, stock: result.stock, product: result.product });

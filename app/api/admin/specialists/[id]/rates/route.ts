@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { formatPLNFromGrosze } from "@/lib/money";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
@@ -56,7 +57,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   const parsed = PutSchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
-  const specialist = await prisma.user.findUnique({ where: { id: params.id }, select: { id: true } });
+  const specialist = await prisma.user.findUnique({
+    where: { id: params.id },
+    select: { id: true, name: true, baseRate: true },
+  });
   if (!specialist) return NextResponse.json({ ok: false, message: "Nie znaleziono pracownika" }, { status: 404 });
 
   if ("baseRate" in parsed.data) {
@@ -66,14 +70,23 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       action: "UPDATE",
       entity: "SpecialistBaseRate",
       entityId: params.id,
-      data: { baseRate: parsed.data.baseRate },
+      summary: `Zmiana stawki bazowej specjalisty ${specialist.name}: ${formatPLNFromGrosze(specialist.baseRate)} → ${formatPLNFromGrosze(parsed.data.baseRate)}`,
+      data: {
+        baseRate: parsed.data.baseRate,
+        changes: { baseRate: { from: specialist.baseRate, to: parsed.data.baseRate } },
+      },
     });
     return NextResponse.json({ ok: true, baseRate: parsed.data.baseRate });
   }
 
   const { serviceId, amount } = parsed.data;
-  const service = await prisma.service.findUnique({ where: { id: serviceId }, select: { id: true } });
+  const service = await prisma.service.findUnique({ where: { id: serviceId }, select: { id: true, name: true } });
   if (!service) return NextResponse.json({ ok: false, message: "Nie znaleziono zabiegu" }, { status: 404 });
+
+  const previousRate = await prisma.specialistServiceRate.findUnique({
+    where: { specialistId_serviceId: { specialistId: params.id, serviceId } },
+    select: { amount: true },
+  });
 
   if (amount === null) {
     await prisma.specialistServiceRate.deleteMany({ where: { specialistId: params.id, serviceId } });
@@ -90,7 +103,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     action: "UPDATE",
     entity: "SpecialistServiceRate",
     entityId: `${params.id}:${serviceId}`,
-    data: { amount },
+    summary: `Zmiana stawki specjalisty ${specialist.name} za zabieg „${service.name}": ${formatPLNFromGrosze(previousRate?.amount ?? null)} → ${amount === null ? "stawka domyślna" : formatPLNFromGrosze(amount)}`,
+    data: {
+      serviceId,
+      amount,
+      changes: { amount: { from: previousRate?.amount ?? null, to: amount } },
+    },
   });
 
   return NextResponse.json({ ok: true, serviceId, amount });

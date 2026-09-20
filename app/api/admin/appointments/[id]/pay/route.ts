@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { AUDIT_PAYMENT_METHOD_LABELS } from "@/lib/audit-labels";
+import { formatPLNFromGrosze } from "@/lib/money";
 
 const BodySchema = z.object({
   method: z.enum(["CASH", "CARD", "VOUCHER"]),
@@ -25,6 +27,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     select: {
       id: true,
       deletedAt: true,
+      patient: { select: { name: true } },
       priceFinal: true,
       priceEstimate: true,
       service: { select: { price: true } },
@@ -82,7 +85,23 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     action: "CREATE",
     entity: "Payment",
     entityId: p.id,
-    data: { appointmentId: params.id, replaced },
+    summary: `Zapis płatności (${AUDIT_PAYMENT_METHOD_LABELS[parsed.data.method]}): ${formatPLNFromGrosze(parsed.data.amount)} za wizytę pacjenta ${appointment.patient.name}${
+      replaced
+        ? ` — zastąpiono wcześniejszą wpłatę tą metodą (${formatPLNFromGrosze(
+            appointment.payments.find((payment) => payment.method === parsed.data.method)?.amount ?? 0,
+          )})`
+        : ""
+    }`,
+    data: {
+      appointmentId: params.id,
+      method: parsed.data.method,
+      amount: parsed.data.amount,
+      replaced,
+      // stara płatność tą metodą jest kasowana — jej kwota musi zostać w śladzie
+      replacedAmount: replaced
+        ? (appointment.payments.find((payment) => payment.method === parsed.data.method)?.amount ?? null)
+        : undefined,
+    },
   });
 
   return NextResponse.json({ ok: true, payment: p, replaced });

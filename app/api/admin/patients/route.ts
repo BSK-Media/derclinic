@@ -147,7 +147,14 @@ export async function POST(req: Request) {
     },
   });
 
-  await logAudit({ actorId: user!.id, action: "CREATE", entity: "Patient", entityId: p.id });
+  await logAudit({
+    actorId: user!.id,
+    action: "CREATE",
+    entity: "Patient",
+    entityId: p.id,
+    summary: `Nowa karta pacjenta: ${p.name}${p.phone ? ` (${p.phone})` : ""}`,
+    data: { name: p.name, phone: p.phone, email: p.email, locationId: p.locationId, hasNote: p.note ? true : undefined },
+  });
 
   return NextResponse.json({ ok: true, patient: p });
 }

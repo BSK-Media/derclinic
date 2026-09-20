@@ -2,12 +2,18 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getPatientAuth } from "@/lib/patient-auth";
+import { logAudit } from "@/lib/audit";
 
 function bad(message: string, status = 400) {
   return NextResponse.json({ ok: false, message }, { status });
 }
 
 const CONSENT_TYPES = ["RODO", "MARKETING"] as const;
+
+const CONSENT_LABELS: Record<(typeof CONSENT_TYPES)[number], string> = {
+  RODO: "RODO (przetwarzanie danych osobowych)",
+  MARKETING: "marketingowa",
+};
 
 const BodySchema = z.object({
   type: z.enum(CONSENT_TYPES),
@@ -75,6 +81,19 @@ export async function POST(req: Request) {
       data: { patientId: auth.id, type: parsed.data.type, granted: parsed.data.granted },
     }),
   ]);
+
+  await logAudit({
+    actor: { type: "PATIENT", id: auth.id, name: auth.name, contact: auth.phone },
+    action: "CONSENT",
+    entity: "PatientConsent",
+    entityId: auth.id,
+    summary: `Zgoda ${CONSENT_LABELS[parsed.data.type]}: ${parsed.data.granted ? "wyrażona" : "wycofana"}`,
+    data: {
+      type: parsed.data.type,
+      granted: parsed.data.granted,
+      previouslyGranted: existing?.granted ?? null,
+    },
+  });
 
   return NextResponse.json({ ok: true, consent });
 }

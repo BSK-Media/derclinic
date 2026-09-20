@@ -125,6 +125,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     action: "DELETE",
     entity: "Location",
     entityId: location.id,
+    summary: `Usunięcie lokalizacji „${location.name}"`,
     data: { name: location.name },
   });
 

@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, requireStrictRole, scopedLocationWhere } from "@/lib/api-helpers";
-import { logAudit } from "@/lib/audit";
+import { logAudit, diffFields } from "@/lib/audit";
 
 const PatchSchema = z.object({
   name: z.string().min(2).optional(),
@@ -18,7 +18,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const visibleWarehouse = await prisma.warehouse.findFirst({
     where: { id: params.id, ...scopedLocationWhere(user!) },
-    select: { id: true },
+    select: { id: true, name: true, parentId: true },
   });
   if (!visibleWarehouse) return NextResponse.json({ ok: false, message: "Nie znaleziono magazynu" }, { status: 404 });
 
@@ -31,7 +31,20 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     data: { name: parsed.data.name, parentId: parsed.data.parentId === undefined ? undefined : (parsed.data.parentId ?? null) },
   });
 
-  await logAudit({ actorId: user!.id, action: "UPDATE", entity: "Warehouse", entityId: updated.id });
+  const changes = diffFields(
+    { name: visibleWarehouse.name, parentId: visibleWarehouse.parentId },
+    { name: updated.name, parentId: updated.parentId },
+  );
+  await logAudit({
+    actorId: user!.id,
+    action: "UPDATE",
+    entity: "Warehouse",
+    entityId: updated.id,
+    summary: changes?.name
+      ? `Zmiana magazynu: nazwa „${visibleWarehouse.name}" → „${updated.name}"`
+      : `Zmiana magazynu „${updated.name}"${changes?.parentId ? " (zmieniono magazyn nadrzędny)" : " (bez zmian wartości)"}`,
+    data: { changes },
+  });
 
   return NextResponse.json({ ok: true, warehouse: updated });
 }
@@ -59,6 +72,14 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     select: { passwordHash: true },
   });
   if (!admin?.passwordHash || !(await bcrypt.compare(parsed.data.password, admin.passwordHash))) {
+    await logAudit({
+      actorId: user!.id,
+      action: "LOGIN_FAILED",
+      entity: "Warehouse",
+      entityId: params.id,
+      summary: "Nieudana próba usunięcia magazynu: błędne hasło administratora",
+      data: { reason: "wrong_password" },
+    });
     return NextResponse.json({ ok: false, message: "Nieprawidłowe hasło administratora" }, { status: 401 });
   }
 
@@ -73,6 +94,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     action: "DELETE",
     entity: "Warehouse",
     entityId: params.id,
+    summary: `Usunięcie magazynu „${warehouse.name}"`,
     data: { name: warehouse.name, locationId: warehouse.locationId },
   });
 

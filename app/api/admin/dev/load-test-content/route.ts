@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
+import { logAudit } from "@/lib/audit";
 
 // Ten sam kod co prisma/update-test-content.ts, tylko dostępny jako endpoint
 // w panelu admina — dla wygody, gdy nie ma się lokalnego dostępu do bazy
@@ -63,6 +64,14 @@ export async function POST() {
       log.push(`Powiązanie "${SPECIALIST_NAME}" ↔ "${SERVICE_NAME}" już istniało.`);
     }
   }
+
+  await logAudit({
+    actorId: user!.id,
+    action: "UPDATE",
+    entity: "ContentImport",
+    summary: "Załadowanie treści testowej (opis zabiegu, biogram specjalisty)",
+    data: { log },
+  });
 
   return NextResponse.json({ ok: true, log });
 }

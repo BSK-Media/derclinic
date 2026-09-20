@@ -222,6 +222,8 @@ export async function POST(req: Request) {
 
       return {
         keptPatientId: keepId,
+        // migawka kart, które przestają istnieć — po scaleniu nie da się ich odtworzyć
+        removedPatients: merging.map((r) => ({ id: r.id, name: r.name, phone: r.phone, email: r.email })),
         removedPatientIds: mergeIdsList,
         movedAppointments: movedAppointments.count,
         movedRetailSales: movedSales.count,
@@ -233,6 +235,9 @@ export async function POST(req: Request) {
       action: "MERGE",
       entity: "Patient",
       entityId: result.keptPatientId,
+      summary: `Scalenie kart pacjentów: ${result.removedPatients
+        .map((r) => `${r.name}${r.phone ? ` (${r.phone})` : ""}`)
+        .join(", ")} → karta docelowa (przeniesiono wizyt: ${result.movedAppointments}, sprzedaży: ${result.movedRetailSales})`,
       data: result,
     });
 

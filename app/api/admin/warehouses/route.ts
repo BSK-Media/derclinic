@@ -66,7 +66,14 @@ export async function POST(req: Request) {
     data: { name: parsed.data.name, parentId: parsed.data.parentId ?? null, locationId: location.id },
   });
 
-  await logAudit({ actorId: user!.id, action: "CREATE", entity: "Warehouse", entityId: wh.id });
+  await logAudit({
+    actorId: user!.id,
+    action: "CREATE",
+    entity: "Warehouse",
+    entityId: wh.id,
+    summary: `Nowy magazyn „${wh.name}"`,
+    data: { name: wh.name, parentId: wh.parentId, locationId: wh.locationId },
+  });
 
   return NextResponse.json({ ok: true, warehouse: wh });
 }

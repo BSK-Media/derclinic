@@ -118,7 +118,7 @@ model User {
   reviewedConsumptions   Consumption[]             @relation("ConsumptionReviewer")
   retailSales            RetailSale[]              @relation("RetailSaleSeller")
   discountApprovals      RetailSale[]              @relation("RetailSaleDiscountApprover")
-  auditLogs              AuditLog[]
+  notificationReads      NotificationRead[]
   serviceRates           SpecialistServiceRate[]
   warehouseAssignments   SpecialistWarehouse[]
   approvedAppointments   Appointment[]             @relation("AppointmentApprover")
@@ -734,18 +734,68 @@ model PatientConsentEvent {
   @@index([patientId, createdAt])
 }
 
+// Kto ("actor"), co ("action" + "entity"), kiedy ("createdAt") — dziennik
+// zdarzeń wymagany w systemie przetwarzającym dane medyczne. Zasady:
+//  * Wpisy są TYLKO dopisywane. Aplikacja nigdy ich nie edytuje ani nie
+//    usuwa (nie ma takiego endpointu); przeglądać je może wyłącznie ADMIN
+//    (zakładka "Logi").
+//  * Brak relacji (klucza obcego) do User/Patient — usunięcie konta nie może
+//    skasować historii jego działań, dlatego nazwa/login/rola aktora są
+//    zapisywane jako migawka w momencie zdarzenia.
+//  * Stan wizyt, płatności itd. może się później zmienić — "summary" i "data"
+//    opisują to, co się stało w chwili zdarzenia (m.in. wartości przed i po).
 model AuditLog {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
 
-  actorId String
-  actor   User   @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  actorType  AuditActorType @default(STAFF)
+  // Id konta User (STAFF) albo Patient (PATIENT); null dla GUEST/SYSTEM.
+  actorId    String?
+  actorName  String?
+  actorLogin String?
+  // ADMIN / RECEPTION / SPECIALIST dla STAFF; dla pozostałych typów null.
+  actorRole  String?
 
   action   String
   entity   String
   entityId String?
+  // Czytelny opis zdarzenia po polsku ("Anna Nowak zmieniła status wizyty ...").
+  summary  String? @db.Text
   data     Json?
 
+  ipAddress String?
+  userAgent String?
+
+  @@index([createdAt])
   @@index([actorId, createdAt])
   @@index([entity, createdAt])
+  @@index([entity, entityId])
+  @@index([action, createdAt])
+}
+
+enum AuditActorType {
+  // Pracownik: ADMIN / RECEPTION / SPECIALIST (konto User)
+  STAFF
+  // Zalogowany pacjent (panel klienta)
+  PATIENT
+  // Osoba niezalogowana (np. rezerwacja online jako gość, nieudane logowanie)
+  GUEST
+  // Zadanie systemowe bez człowieka
+  SYSTEM
+}
+
+// Znaczniki "powiadomienie przeczytane" per użytkownik. Wcześniej trzymane
+// w AuditLog, ale dziennik zdarzeń musi być niezmienny, a ten stan trzeba
+// móc cofnąć ("oznacz jako nieprzeczytane"), więc ma własną tabelę.
+model NotificationRead {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  notificationId String
+
+  @@unique([userId, notificationId])
+  @@index([userId])
 }

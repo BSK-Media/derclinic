@@ -3,7 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
-import { logAudit } from "@/lib/audit";
+import { logAudit, diffFields } from "@/lib/audit";
 
 const PatchSchema = z.object({
   name: z.string().trim().min(2, "Podaj imię i nazwisko").max(100).optional(),
@@ -38,7 +38,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const visiblePatient = await prisma.patient.findFirst({
     where: { id: params.id, ...scopedLocationWhere(user!) },
-    select: { id: true },
+    select: { id: true, name: true, phone: true, email: true, note: true },
   });
   if (!visiblePatient) return NextResponse.json({ ok: false, message: "Nie znaleziono pacjenta" }, { status: 404 });
 
@@ -72,12 +72,23 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     select: PATIENT_SAFE_SELECT,
   });
 
+  const changes = diffFields(
+    { name: visiblePatient.name, phone: visiblePatient.phone, email: visiblePatient.email, note: visiblePatient.note },
+    { name: updated.name, phone: updated.phone, email: updated.email, note: updated.note },
+  );
+  const fieldLabels: Record<string, string> = { name: "imię i nazwisko", phone: "telefon", email: "e-mail" };
+  const parts = Object.entries(changes ?? {}).map(([key, change]) =>
+    key === "note" ? "zmieniono notatkę" : `${fieldLabels[key]}: ${change.from ?? "—"} → ${change.to ?? "—"}`,
+  );
+  if (parsed.data.password) parts.push("ustawiono nowe hasło do panelu klienta");
   await logAudit({
     actorId: user!.id,
     action: "UPDATE",
     entity: "Patient",
     entityId: updated.id,
-    data: parsed.data.password ? { ...parsed.data, password: "[hidden]" } : parsed.data,
+    summary: `Zmiana danych pacjenta ${visiblePatient.name}: ${parts.length ? parts.join("; ") : "bez zmian wartości"}`,
+    // hasła nigdy nie trafiają do dziennika — zapisujemy tylko fakt zmiany
+    data: { changes, passwordChanged: parsed.data.password ? true : undefined },
   });
 
   return NextResponse.json({ ok: true, patient: updated });
@@ -91,12 +102,27 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
 
   const visiblePatient = await prisma.patient.findFirst({
     where: { id: params.id, ...scopedLocationWhere(user!) },
-    select: { id: true },
+    select: { id: true, name: true, phone: true, email: true },
   });
   if (!visiblePatient) return NextResponse.json({ ok: false, message: "Nie znaleziono pacjenta" }, { status: 404 });
 
+  // Usunięcie pacjenta kasuje kaskadowo jego wizyty — zapisujemy ich liczbę
+  // razem z migawką danych, bo po usunięciu nie da się tego odtworzyć.
+  const appointmentsDeleted = await prisma.appointment.count({ where: { patientId: params.id } });
   await prisma.patient.delete({ where: { id: params.id } });
-  await logAudit({ actorId: user!.id, action: "DELETE", entity: "Patient", entityId: params.id });
+  await logAudit({
+    actorId: user!.id,
+    action: "DELETE",
+    entity: "Patient",
+    entityId: params.id,
+    summary: `Trwałe usunięcie pacjenta ${visiblePatient.name}${visiblePatient.phone ? ` (${visiblePatient.phone})` : ""} wraz z wizytami (${appointmentsDeleted})`,
+    data: {
+      name: visiblePatient.name,
+      phone: visiblePatient.phone,
+      email: visiblePatient.email,
+      appointmentsDeleted,
+    },
+  });
 
   return NextResponse.json({ ok: true });
 }

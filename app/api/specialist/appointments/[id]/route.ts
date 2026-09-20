@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, requireStrictRole } from "@/lib/api-helpers";
-import { logAudit } from "@/lib/audit";
+import { logAudit, diffFields, formatWarsaw } from "@/lib/audit";
+import {
+  APPOINTMENT_AUDIT_FIELDS,
+  appointmentSnapshot,
+  describeAppointmentChanges,
+} from "@/lib/audit-appointment";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const { user, error } = await requireAuth();
@@ -52,7 +57,20 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const existing = await prisma.appointment.findFirst({
     where: { id: params.id, locationId: user!.locationId },
-    select: { id: true, specialistId: true, startsAt: true, status: true, deletedAt: true },
+    select: {
+      id: true,
+      specialistId: true,
+      serviceId: true,
+      startsAt: true,
+      endsAt: true,
+      status: true,
+      priceFinal: true,
+      priceEstimate: true,
+      note: true,
+      deletedAt: true,
+      patient: { select: { name: true } },
+      service: { select: { name: true } },
+    },
   });
   if (!existing || existing.deletedAt)
     return NextResponse.json({ ok: false, message: "Nie znaleziono" }, { status: 404 });
@@ -103,12 +121,23 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     },
   });
 
+  const changes = diffFields(
+    appointmentSnapshot(existing),
+    appointmentSnapshot(appt),
+    APPOINTMENT_AUDIT_FIELDS,
+  );
   await logAudit({
     actorId: user!.id,
     action: "UPDATE",
     entity: "Appointment",
     entityId: appt.id,
-    data: parsed.data,
+    summary: `${changes?.status ? "Zmiana statusu wizyty" : "Zmiana wizyty"} ${existing.patient.name} · ${existing.service.name} (${formatWarsaw(existing.startsAt)}): ${describeAppointmentChanges(changes)}`,
+    data: {
+      ...parsed.data,
+      patient: existing.patient.name,
+      changes,
+      approvalReset: changes?.status ? true : undefined,
+    },
   });
 
   return NextResponse.json({ ok: true, appointment: appt });

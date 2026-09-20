@@ -47,9 +47,26 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const updated = await prisma.$transaction(async (tx) => {
     if (target === "APPROVED") {
       const column = PATIENT_FIELD_MAP[request.field];
+      const beforePatient = await tx.patient.findUnique({
+        where: { id: request.patientId },
+        select: { name: true, phone: true, email: true },
+      });
       await tx.patient.update({
         where: { id: request.patientId },
         data: { [column]: request.newValue },
+      });
+      // Zmiana danych pacjenta to osobne zdarzenie — zapisujemy ją w tej samej transakcji.
+      await logAudit({
+        tx,
+        actorId: user!.id,
+        action: "UPDATE",
+        entity: "Patient",
+        entityId: request.patientId,
+        summary: `Zmiana danych pacjenta ${beforePatient?.name ?? ""} po zaakceptowaniu prośby pacjenta (${column}): ${beforePatient?.[column] ?? "—"} → ${request.newValue}`,
+        data: {
+          requestId: request.id,
+          changes: { [column]: { from: beforePatient?.[column] ?? null, to: request.newValue } },
+        },
       });
     }
 
@@ -69,7 +86,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     action: "UPDATE",
     entity: "PatientDataChangeRequest",
     entityId: updated.id,
-    data: { status: target, field: request.field, newValue: request.newValue },
+    summary:
+      target === "APPROVED"
+        ? `Akceptacja prośby pacjenta o zmianę danych (${request.field}): „${request.currentValue ?? "—"}" → „${request.newValue}"`
+        : `Odrzucenie prośby pacjenta o zmianę danych (${request.field}: „${request.newValue}"); powód: ${parsed.data.reason!.trim()}`,
+    data: {
+      status: target,
+      field: request.field,
+      currentValue: request.currentValue,
+      newValue: request.newValue,
+      patientId: request.patientId,
+    },
   });
 
   return NextResponse.json({ ok: true, request: updated });

@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { setPatientAuthCookie, signPatientToken } from "@/lib/patient-auth";
+import { logAudit } from "@/lib/audit";
 
 function bad(message: string, status = 400, extra?: Record<string, unknown>) {
   return NextResponse.json({ ok: false, message, ...extra }, { status });
@@ -103,6 +104,17 @@ export async function POST(req: Request) {
     email: patient.email,
   });
   setPatientAuthCookie(token);
+
+  await logAudit({
+    actor: { type: "PATIENT", id: patient.id, name: patient.name, contact: patient.phone },
+    action: "REGISTER",
+    entity: "PatientAccount",
+    entityId: patient.id,
+    summary: existingGuest
+      ? `Rejestracja konta w panelu klienta (hasło dopisane do istniejącej karty pacjenta ${patient.name})`
+      : `Rejestracja konta w panelu klienta (nowa karta pacjenta ${patient.name})`,
+    data: { mergedWithExistingRecord: Boolean(existingGuest), phone: patient.phone, email: patient.email },
+  });
 
   return NextResponse.json({ ok: true });
 }

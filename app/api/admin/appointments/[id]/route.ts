@@ -7,7 +7,12 @@ import {
   requireStrictRole,
   scopedLocationWhere,
 } from "@/lib/api-helpers";
-import { logAudit } from "@/lib/audit";
+import { logAudit, diffFields, formatWarsaw } from "@/lib/audit";
+import {
+  APPOINTMENT_AUDIT_FIELDS,
+  appointmentSnapshot,
+  describeAppointmentChanges,
+} from "@/lib/audit-appointment";
 
 export async function GET(
   _req: Request,
@@ -121,8 +126,14 @@ export async function PATCH(
       locationId: true,
       serviceId: true,
       startsAt: true,
+      endsAt: true,
       status: true,
+      priceFinal: true,
+      priceEstimate: true,
+      note: true,
       deletedAt: true,
+      patient: { select: { name: true } },
+      service: { select: { name: true } },
     },
   });
   if (!existing || existing.deletedAt)
@@ -253,12 +264,25 @@ export async function PATCH(
     },
   });
 
+  // Stan przed i po — żeby dało się odpowiedzieć "kto zmienił z czego na co".
+  const changes = diffFields(
+    appointmentSnapshot(existing),
+    appointmentSnapshot(appt),
+    APPOINTMENT_AUDIT_FIELDS,
+  );
   await logAudit({
     actorId: user!.id,
     action: "UPDATE",
     entity: "Appointment",
     entityId: appt.id,
-    data: parsed.data,
+    summary: `${changes?.status ? "Zmiana statusu wizyty" : "Zmiana wizyty"} ${existing.patient.name} · ${existing.service.name} (${formatWarsaw(existing.startsAt)}): ${describeAppointmentChanges(changes)}`,
+    data: {
+      ...parsed.data,
+      patient: existing.patient.name,
+      changes,
+      // zmiana statusu zeruje decyzję o akceptacji wizyty
+      approvalReset: changes?.status ? true : undefined,
+    },
   });
 
   return NextResponse.json({ ok: true, appointment: appt });
@@ -290,6 +314,8 @@ export async function DELETE(
     select: {
       id: true,
       deletedAt: true,
+      startsAt: true,
+      patient: { select: { name: true } },
       service: { select: { name: true } },
     },
   });
@@ -317,7 +343,8 @@ export async function DELETE(
       action: "DELETE",
       entity: "Appointment",
       entityId: existing.id,
-      data: { permanent: true, reservation: true },
+      summary: `Trwałe usunięcie rezerwacji czasu (blokady terminu) z ${formatWarsaw(existing.startsAt)}`,
+      data: { permanent: true, reservation: true, startsAt: existing.startsAt },
     });
 
     return NextResponse.json({ ok: true, permanentlyDeleted: true });
@@ -345,10 +372,14 @@ export async function DELETE(
     action: "DELETE",
     entity: "Appointment",
     entityId: appointment.id,
+    summary: `Usunięcie wizyty ${existing.patient.name} · ${existing.service.name} (${formatWarsaw(existing.startsAt)}); powód: ${parsed.data.reason}`,
     data: {
       softDelete: true,
       deletedAt,
       deletionReason: parsed.data.reason,
+      patient: existing.patient.name,
+      service: existing.service.name,
+      startsAt: existing.startsAt,
     },
   });
 

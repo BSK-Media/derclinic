@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { logAudit } from "@/lib/audit";
 
 const TransferSchema = z.object({
   productId: z.string().min(1),
@@ -136,14 +137,15 @@ export async function POST(req: Request) {
         ],
       });
 
-      await tx.auditLog.create({
-        data: {
-          actorId: user!.id,
-          action: "stock.transfer",
-          entity: "Stock",
-          entityId: productId,
-          data: { productId, fromWarehouseId, toWarehouseId, quantity, note: note?.trim() || null },
-        },
+      const movedProduct = await tx.product.findUnique({ where: { id: productId }, select: { name: true } });
+      await logAudit({
+        tx,
+        actorId: user!.id,
+        action: "stock.transfer",
+        entity: "Stock",
+        entityId: productId,
+        summary: `Przesunięcie „${movedProduct?.name ?? productId}": ${quantity} z magazynu „${fromWarehouse.name}" do „${toWarehouse.name}"`,
+        data: { productId, fromWarehouseId, toWarehouseId, quantity, note: note?.trim() || null },
       });
     });
 

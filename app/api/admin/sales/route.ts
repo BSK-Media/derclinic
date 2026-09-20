@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
+import { logAudit } from "@/lib/audit";
+import { formatPLNFromGrosze } from "@/lib/money";
 
 function bad(message: string, status = 400) {
   return NextResponse.json({ ok: false, message }, { status });
@@ -223,20 +225,26 @@ export async function POST(req: Request) {
       });
     }
 
-    await tx.auditLog.create({
+    await logAudit({
+      tx,
+      actorId: user!.id,
+      action: "sale.create",
+      entity: "RetailSale",
+      entityId: created.id,
+      summary: `Sprzedaż POS: ${items.length} poz., razem ${formatPLNFromGrosze(total)}${
+        discountAmount > 0 ? ` (rabat ${formatPLNFromGrosze(discountAmount)})` : ""
+      }`,
       data: {
-        actorId: user!.id,
-        action: "sale.create",
-        entity: "RetailSale",
-        entityId: created.id,
-        data: {
-          itemsCount: items.length,
-          warehouseId,
-          subtotal,
-          discountAmount,
-          total,
-          paymentsCount: payments.length,
-        },
+        itemsCount: items.length,
+        warehouseId,
+        patientId: patientId || null,
+        subtotal,
+        discountAmount,
+        discountType,
+        discountValue,
+        discountApprovedById,
+        total,
+        payments: payments.map((p) => ({ method: p.method, amount: Math.round(p.amount) })),
       },
     });
 

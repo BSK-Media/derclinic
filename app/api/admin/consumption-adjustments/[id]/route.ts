@@ -33,6 +33,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           }
         : {}),
     },
+    include: { product: { select: { name: true } } },
   });
   if (!consumption)
     return NextResponse.json({ ok: false, message: "Nie znaleziono zgłoszenia" }, { status: 404 });
@@ -58,6 +59,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       action: "REJECT",
       entity: "Consumption",
       entityId: updated.id,
+      summary: `Odrzucenie zmiany ilości preparatu „${consumption.product.name}" zgłoszonej przez specjalistę (zgłoszono ${consumption.quantity.toString()} ${consumption.unit}, sugerowano ${consumption.suggestedQuantity?.toString() ?? "—"})`,
+      data: {
+        appointmentId: consumption.appointmentId,
+        productId: consumption.productId,
+        requestedQuantity: Number(consumption.quantity),
+        suggestedQuantity: consumption.suggestedQuantity ? Number(consumption.suggestedQuantity) : null,
+        note: parsed.data.note || null,
+      },
     });
     return NextResponse.json({ ok: true, consumption: updated });
   }
@@ -96,6 +105,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     action: "APPROVE",
     entity: "Consumption",
     entityId: updated.id,
+    summary: `Akceptacja zmiany ilości preparatu „${consumption.product.name}" zgłoszonej przez specjalistę: ${consumption.quantity.toString()} ${consumption.unit} (sugerowano ${consumption.suggestedQuantity?.toString() ?? "—"}) — stan magazynu pomniejszony`,
+    data: {
+      appointmentId: consumption.appointmentId,
+      productId: consumption.productId,
+      warehouseId: consumption.warehouseId,
+      quantity: Number(consumption.quantity),
+      suggestedQuantity: consumption.suggestedQuantity ? Number(consumption.suggestedQuantity) : null,
+      note: parsed.data.note || null,
+    },
   });
 
   return NextResponse.json({ ok: true, consumption: updated });

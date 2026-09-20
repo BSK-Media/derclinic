@@ -3,7 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
-import { logAudit } from "@/lib/audit";
+import { logAudit, diffFields } from "@/lib/audit";
 
 const PatchSchema = z.object({
   name: z.string().min(2).optional(),
@@ -36,6 +36,25 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const json = await req.json().catch(() => null);
   const parsed = PatchSchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
+
+  const before = await prisma.user.findUnique({
+    where: { id: params.id },
+    select: {
+      login: true,
+      name: true,
+      role: true,
+      email: true,
+      payoutPercent: true,
+      phone: true,
+      specialistCode: true,
+      isVisible: true,
+      isAvailable: true,
+      jobTitle: true,
+      locationId: true,
+      specialization: true,
+      sourceProfileUrl: true,
+    },
+  });
 
   const data: any = {};
   if (parsed.data.name !== undefined) data.name = parsed.data.name;
@@ -78,7 +97,26 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     });
   }
 
-  await logAudit({ actorId: user!.id, action: "UPDATE", entity: "User", entityId: updated.id, data: { ...data, ...(data.avatarUrl ? { avatarUrl: "[image]" } : {}), ...(data.passwordHash ? { passwordHash: "[hidden]" } : {}) } });
+  // Hasło i zdjęcie nie trafiają do dziennika — zapisujemy tylko fakt zmiany.
+  const { passwordHash: _passwordHash, avatarUrl: _avatarUrl, location: _location, ...auditable } = data;
+  const changes = before ? diffFields(before, auditable) : undefined;
+  const parts = Object.entries(changes ?? {}).map(
+    ([key, change]) => `${key}: ${change.from ?? "—"} → ${change.to ?? "—"}`,
+  );
+  if (data.passwordHash) parts.push("ustawiono nowe hasło");
+  if (data.avatarUrl !== undefined) parts.push("zmieniono zdjęcie profilowe");
+  await logAudit({
+    actorId: user!.id,
+    action: "UPDATE",
+    entity: "User",
+    entityId: updated.id,
+    summary: `Zmiana konta pracownika „${updated.login}" (${updated.name}): ${parts.length ? parts.join("; ") : "bez zmian wartości"}`,
+    data: {
+      changes,
+      passwordChanged: data.passwordHash ? true : undefined,
+      avatarChanged: data.avatarUrl !== undefined ? true : undefined,
+    },
+  });
 
   return NextResponse.json({ ok: true, user: updated });
 }
@@ -91,8 +129,22 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
 
   if (params.id === user!.id) return NextResponse.json({ ok: false, message: "Nie możesz usunąć własnego konta." }, { status: 400 });
 
+  const target = await prisma.user.findUnique({
+    where: { id: params.id },
+    select: { login: true, name: true, role: true },
+  });
   await prisma.user.delete({ where: { id: params.id } });
-  await logAudit({ actorId: user!.id, action: "DELETE", entity: "User", entityId: params.id });
+  await logAudit({
+    actorId: user!.id,
+    action: "DELETE",
+    entity: "User",
+    entityId: params.id,
+    summary: target
+      ? `Trwałe usunięcie konta pracownika „${target.login}" (${target.name}, rola ${target.role})`
+      : "Trwałe usunięcie konta pracownika",
+    // Wpisy dziennika tego pracownika zostają (brak klucza obcego) — tu jego migawka.
+    data: target ?? undefined,
+  });
 
   return NextResponse.json({ ok: true });
 }

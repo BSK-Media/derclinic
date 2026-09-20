@@ -40,7 +40,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           ? { locationId: user!.locationScopeId }
           : {}),
     },
-    select: { id: true, specialistId: true, deletedAt: true },
+    select: { id: true, specialistId: true, deletedAt: true, patient: { select: { name: true } } },
   });
   if (!existing || existing.deletedAt) {
     return NextResponse.json({ ok: false, message: "Nie znaleziono wizyty" }, { status: 404 });
@@ -52,6 +52,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   const field = parsed.data.slot === "BEFORE" ? "photoBefore" : "photoAfter";
+  // Czy zdjęcie już było — liczymy zapytaniem, bez ładowania wielomegabajtowego base64.
+  const hadPhoto =
+    (await prisma.appointment.count({
+      where: { id: params.id, ...(field === "photoBefore" ? { photoBefore: { not: null } } : { photoAfter: { not: null } }) },
+    })) > 0;
 
   const appointment = await prisma.appointment.update({
     where: { id: params.id },
@@ -64,7 +69,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     action: "UPDATE",
     entity: "AppointmentPhoto",
     entityId: params.id,
-    data: { slot: parsed.data.slot, image: parsed.data.image ? "[image]" : null },
+    summary: `Zdjęcie „${parsed.data.slot === "BEFORE" ? "przed" : "po"}" ${
+      parsed.data.image ? (hadPhoto ? "podmienione" : "dodane") : "usunięte"
+    } (wizyta pacjenta ${existing.patient.name})`,
+    data: { slot: parsed.data.slot, image: parsed.data.image ? "[image]" : null, hadPhoto },
   });
 
   return NextResponse.json({ ok: true, appointment });

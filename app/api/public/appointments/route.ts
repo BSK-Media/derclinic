@@ -7,6 +7,7 @@ import { busyRangesForWarsawDay, computeFreeSlots, slotToUtc } from "@/lib/publi
 import { getPatientAuth } from "@/lib/patient-auth";
 import { maxRedeemablePoints, redeemLoyaltyPoints, discountForPoints } from "@/lib/loyalty";
 import { resolvePaymentDue, type PaymentChoice } from "@/lib/booking-payment";
+import { logAudit, formatWarsaw, type AuditActor } from "@/lib/audit";
 
 const RESERVATION_SERVICE_NAME = "__DERCLINIC_REZERWACJA_CZASU__";
 
@@ -131,13 +132,14 @@ export async function POST(req: Request) {
       where: { id: specialistId, role: "SPECIALIST", isVisible: true, locationId },
       select: {
         id: true,
+        name: true,
         workDays: true,
         assignedServices: { select: { serviceId: true } },
       },
     }),
     prisma.service.findFirst({
       where: { id: serviceId, name: { not: RESERVATION_SERVICE_NAME } },
-      select: { id: true, price: true, durationMin: true },
+      select: { id: true, name: true, price: true, durationMin: true },
     }),
   ]);
 
@@ -203,6 +205,11 @@ export async function POST(req: Request) {
       const normalizedEmail = email?.trim() || null;
       const passwordHash = password ? await bcrypt.hash(password, 10) : null;
 
+      // Kto rezerwuje: zalogowany pacjent albo gość — zapisujemy to, co sam podał.
+      const bookingActor: AuditActor = patientAuth
+        ? { type: "PATIENT", id: patientAuth.id, name: patientAuth.name, contact: patientAuth.phone }
+        : { type: "GUEST", name: patientName, contact: normalizedPhone };
+
       let accountCreated = false;
       let alreadyHasAccount = false;
       let bookedAsLoggedIn = false;
@@ -215,10 +222,21 @@ export async function POST(req: Request) {
         alreadyHasAccount = true;
         bookedAsLoggedIn = true;
         if (normalizedEmail) {
-          await tx.patient.updateMany({
+          const filled = await tx.patient.updateMany({
             where: { id: patientAuth.id, email: null },
             data: { email: normalizedEmail },
           });
+          if (filled.count > 0) {
+            await logAudit({
+              tx,
+              actor: bookingActor,
+              action: "UPDATE",
+              entity: "Patient",
+              entityId: patientAuth.id,
+              summary: `Uzupełnienie adresu e-mail pacjenta przy rezerwacji online: ${normalizedEmail}`,
+              data: { changes: { email: { from: null, to: normalizedEmail } } },
+            });
+          }
         }
       } else {
         const existingPatient = await findExistingPatient(tx, normalizedPhone, normalizedEmail, locationId);
@@ -247,6 +265,22 @@ export async function POST(req: Request) {
           }
           if (Object.keys(patientUpdate).length > 0) {
             await tx.patient.update({ where: { id: existingPatient.id }, data: patientUpdate });
+            await logAudit({
+              tx,
+              actor: bookingActor,
+              action: "UPDATE",
+              entity: "Patient",
+              entityId: existingPatient.id,
+              summary: accountCreated
+                ? "Założenie konta (ustawienie hasła) na istniejącej karcie pacjenta przy rezerwacji online"
+                : "Uzupełnienie danych kontaktowych istniejącej karty pacjenta przy rezerwacji online",
+              data: {
+                updatedFields: Object.keys(patientUpdate),
+                email: patientUpdate.email ?? undefined,
+                phone: patientUpdate.phone ?? undefined,
+                accountCreated,
+              },
+            });
           }
         } else {
           const createdPatient = await tx.patient.create({
@@ -261,6 +295,17 @@ export async function POST(req: Request) {
           });
           patientId = createdPatient.id;
           accountCreated = Boolean(passwordHash);
+          await logAudit({
+            tx,
+            actor: bookingActor,
+            action: "CREATE",
+            entity: "Patient",
+            entityId: createdPatient.id,
+            summary: `Nowa karta pacjenta z rezerwacji online: ${patientName} (${normalizedPhone})${
+              accountCreated ? " — z założeniem konta" : ""
+            }`,
+            data: { name: patientName, phone: normalizedPhone, email: normalizedEmail, locationId, accountCreated },
+          });
         }
       }
 
@@ -317,9 +362,44 @@ export async function POST(req: Request) {
       // froncie od razu tworzy opłaconą płatność. Docelowo w tym miejscu
       // wizyta trafi w stan oczekiwania na płatność, a Payment powstanie
       // dopiero po potwierdzeniu z bramki (np. webhookiem).
+      await logAudit({
+        tx,
+        actor: bookingActor,
+        action: "CREATE",
+        entity: "Appointment",
+        entityId: created.id,
+        summary: `Rezerwacja online: ${patientName} · ${service.name} · ${formatWarsaw(startsAt)} · specjalista ${specialist.name}`,
+        data: {
+          source: "online",
+          patientId,
+          specialistId,
+          serviceId,
+          locationId,
+          startsAt,
+          endsAt,
+          priceEstimate: service.price,
+          priceFinal,
+          loyaltyPointsUsed,
+          loyaltyDiscountAmount,
+          imageConsent,
+          accountCreated,
+          bookedAsLoggedIn,
+          hasNote: Boolean(note?.trim()),
+        },
+      });
+
       if (amountDueGrosze > 0) {
-        await tx.payment.create({
+        const payment = await tx.payment.create({
           data: { method: "ONLINE", amount: amountDueGrosze, appointmentId: created.id },
+        });
+        await logAudit({
+          tx,
+          actor: bookingActor,
+          action: "CREATE",
+          entity: "Payment",
+          entityId: payment.id,
+          summary: `Płatność online przy rezerwacji (${effectiveChoice === "FULL" ? "pełna przedpłata" : "zaliczka"}): ${(amountDueGrosze / 100).toFixed(2).replace(".", ",")} zł`,
+          data: { appointmentId: created.id, method: "ONLINE", amount: amountDueGrosze, choice: effectiveChoice },
         });
       }
 

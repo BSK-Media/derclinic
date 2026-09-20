@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { generatePasswordResetToken, PASSWORD_RESET_TOKEN_TTL_MS } from "@/lib/patient-auth";
 import { sendEmail } from "@/lib/mailer";
+import { logAudit } from "@/lib/audit";
 
 const BodySchema = z.object({
   email: z.string().trim().min(1).email(),
@@ -55,6 +56,19 @@ export async function POST(req: Request) {
       text: `Link do zresetowania hasła (ważny 1h): ${resetUrl}`,
     });
   }
+
+  // Odpowiedź dla klienta jest zawsze taka sama (ochrona przed sprawdzaniem,
+  // czyj adres jest zarejestrowany), ale w dzienniku zapisujemy, czy konto istniało.
+  await logAudit({
+    actor: { type: "GUEST", name: patient?.name ?? null, contact: email },
+    action: "PASSWORD_RESET_REQUEST",
+    entity: "PatientAccount",
+    entityId: patient?.id ?? null,
+    summary: patient
+      ? `Prośba o reset hasła w panelu klienta (${patient.name}, ${email}) — wysłano link`
+      : `Prośba o reset hasła w panelu klienta dla adresu ${email} — brak konta, nic nie wysłano`,
+    data: { email, accountFound: Boolean(patient) },
+  });
 
   return NextResponse.json({ ok: true, message: GENERIC_MESSAGE });
 }

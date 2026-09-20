@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { hashPasswordResetToken, setPatientAuthCookie, signPatientToken } from "@/lib/patient-auth";
+import { logAudit } from "@/lib/audit";
 
 function bad(message: string, status = 400) {
   return NextResponse.json({ ok: false, message }, { status });
@@ -43,6 +44,14 @@ export async function POST(req: Request) {
     email: patient.email,
   });
   setPatientAuthCookie(authToken);
+
+  await logAudit({
+    actor: { type: "PATIENT", id: patient.id, name: patient.name, contact: patient.phone },
+    action: "PASSWORD_RESET",
+    entity: "PatientAccount",
+    entityId: patient.id,
+    summary: "Ustawienie nowego hasła przez link z e-maila (reset hasła w panelu klienta)",
+  });
 
   return NextResponse.json({ ok: true });
 }

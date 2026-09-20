@@ -75,6 +75,7 @@ export async function POST(req: Request) {
     action: "CREATE",
     entity: "Location",
     entityId: location.id,
+    summary: `Nowa lokalizacja „${location.name}"`,
     data: { name: location.name },
   });
 

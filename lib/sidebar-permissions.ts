@@ -15,6 +15,10 @@ export const SIDEBAR_PERMISSION_KEYS = [
   // DEFAULT_NON_ADMIN_PERMISSIONS i celowy brak wpisu w
   // SIDEBAR_PERMISSION_OPTIONS niżej.
   "loyalty",
+  // Dziennik zdarzeń (kto/co/kiedy) — wyłącznie administrator. Nigdy nie
+  // nadawany pracownikom, nawet gdyby trafił do zapisanych uprawnień
+  // (patrz ADMIN_ONLY_PERMISSIONS i normalizeSidebarPermissions).
+  "logs",
 ] as const;
 
 export type SidebarPermission = (typeof SIDEBAR_PERMISSION_KEYS)[number];
@@ -39,10 +43,14 @@ export const SIDEBAR_PERMISSION_OPTIONS: ReadonlyArray<{
 
 const ALL_PERMISSIONS = [...SIDEBAR_PERMISSION_KEYS];
 
+// Sekcje, do których nie ma dostępu żaden pracownik niebędący adminem —
+// odfiltrowywane także z uprawnień zapisanych w bazie/tokenie.
+const ADMIN_ONLY_PERMISSIONS: readonly SidebarPermission[] = ["logs"];
+
 // Dotychczasowy zakres menu dla pracowników, z wyłączeniem sekcji zastrzeżonych
 // domyślnie dla administratora.
 const DEFAULT_NON_ADMIN_PERMISSIONS: SidebarPermission[] = SIDEBAR_PERMISSION_KEYS.filter(
-  (key) => key !== "analytics" && key !== "specialists" && key !== "locations" && key !== "pos" && key !== "loyalty",
+  (key) => key !== "analytics" && key !== "specialists" && key !== "locations" && key !== "pos" && key !== "loyalty" && key !== "logs",
 );
 
 export function normalizeSidebarPermissions(role: string, value: unknown): SidebarPermission[] {
@@ -58,7 +66,9 @@ export function normalizeSidebarPermissions(role: string, value: unknown): Sideb
   }
 
   const allowed = new Set<SidebarPermission>(SIDEBAR_PERMISSION_KEYS);
-  return SIDEBAR_PERMISSION_KEYS.filter((key) => value.includes(key) && allowed.has(key));
+  return SIDEBAR_PERMISSION_KEYS.filter(
+    (key) => value.includes(key) && allowed.has(key) && !ADMIN_ONLY_PERMISSIONS.includes(key),
+  );
 }
 
 export function hasSidebarPermission(
@@ -149,6 +159,9 @@ export function sidebarPermissionForPath(pathname: string): SidebarPermission | 
   ) {
     return "analytics";
   }
+  if (path.startsWith("/admin/logs") || path.startsWith("/api/admin/logs")) {
+    return "logs";
+  }
   if (path.startsWith("/admin/settings") || path.startsWith("/admin/profile")) {
     return "settings";
   }
@@ -181,6 +194,7 @@ export function sidebarHref(permission: SidebarPermission, role: string) {
     analytics: "/admin/analytics",
     settings: "/admin/settings",
     loyalty: "/admin/loyalty",
+    logs: "/admin/logs",
   };
 
   return hrefs[permission];

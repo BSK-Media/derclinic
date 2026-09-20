@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { setPatientAuthCookie, signPatientToken } from "@/lib/patient-auth";
+import { logAudit } from "@/lib/audit";
 
 function bad(message: string, status = 400) {
   return NextResponse.json({ ok: false, message }, { status });
@@ -30,10 +31,29 @@ export async function POST(req: Request) {
     select: { id: true, name: true, phone: true, email: true, passwordHash: true },
   });
 
-  if (!patient?.passwordHash) return bad("Błędny numer telefonu lub hasło", 401);
+  if (!patient?.passwordHash) {
+    await logAudit({
+      actor: { type: "GUEST", contact: phone },
+      action: "LOGIN_FAILED",
+      entity: "PatientAccount",
+      summary: `Nieudane logowanie do panelu klienta: brak konta dla numeru ${phone}`,
+      data: { phone, reason: "unknown_account" },
+    });
+    return bad("Błędny numer telefonu lub hasło", 401);
+  }
 
   const ok = await bcrypt.compare(password, patient.passwordHash);
-  if (!ok) return bad("Błędny numer telefonu lub hasło", 401);
+  if (!ok) {
+    await logAudit({
+      actor: { type: "GUEST", name: patient.name, contact: phone },
+      action: "LOGIN_FAILED",
+      entity: "PatientAccount",
+      entityId: patient.id,
+      summary: `Nieudane logowanie do panelu klienta: błędne hasło (${patient.name}, ${phone})`,
+      data: { phone, reason: "wrong_password" },
+    });
+    return bad("Błędny numer telefonu lub hasło", 401);
+  }
 
   const token = await signPatientToken({
     id: patient.id,
@@ -42,6 +62,14 @@ export async function POST(req: Request) {
     email: patient.email,
   });
   setPatientAuthCookie(token);
+
+  await logAudit({
+    actor: { type: "PATIENT", id: patient.id, name: patient.name, contact: patient.phone },
+    action: "LOGIN",
+    entity: "PatientAccount",
+    entityId: patient.id,
+    summary: "Logowanie do panelu klienta",
+  });
 
   return NextResponse.json({ ok: true });
 }

@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { AUDIT_PAYMENT_METHOD_LABELS } from "@/lib/audit-labels";
+import { formatPLNFromGrosze } from "@/lib/money";
 
 const PatchSchema = z.object({
   amount: z.number().int().min(1),
@@ -16,6 +18,7 @@ async function loadAppointmentWithPayment(appointmentId: string, paymentId: stri
     select: {
       id: true,
       deletedAt: true,
+      patient: { select: { name: true } },
       priceFinal: true,
       priceEstimate: true,
       service: { select: { price: true } },
@@ -71,8 +74,10 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     action: "UPDATE",
     entity: "Payment",
     entityId: payment.id,
+    summary: `Zmiana kwoty płatności (${AUDIT_PAYMENT_METHOD_LABELS[payment.method] ?? payment.method}) za wizytę pacjenta ${appointment.patient.name}: ${formatPLNFromGrosze(payment.amount)} → ${formatPLNFromGrosze(parsed.data.amount)}`,
     data: {
       appointmentId: params.id,
+      method: payment.method,
       previousAmount: payment.amount,
       newAmount: parsed.data.amount,
     },
@@ -103,6 +108,7 @@ export async function DELETE(_req: Request, { params }: RouteParams) {
     action: "DELETE",
     entity: "Payment",
     entityId: payment.id,
+    summary: `Usunięcie płatności (${AUDIT_PAYMENT_METHOD_LABELS[payment.method] ?? payment.method}) ${formatPLNFromGrosze(payment.amount)} za wizytę pacjenta ${appointment.patient.name}`,
     data: {
       appointmentId: params.id,
       method: payment.method,

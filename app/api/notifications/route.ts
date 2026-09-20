@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/api-helpers";
+import { resolveStaffNames } from "@/lib/audit";
 
 const TIME_ZONE = "Europe/Warsaw";
 const NOTIFICATIONS_DAYS = 30;
@@ -107,13 +108,18 @@ async function getSpecialistNotifications(specialistId: string, locationId: stri
   const auditLogs = await prisma.auditLog.findMany({
     where: {
       createdAt: { gte: notificationsFrom },
-      actorId: { not: specialistId },
-      OR: auditConditions,
+      // wpisy bez konta pracownika (gość) mają actorId = null — samo "not" w SQL
+      // pomijałoby NULL, więc uwzględniamy je jawnie
+      AND: [{ OR: [{ actorId: null }, { actorId: { not: specialistId } }] }, { OR: auditConditions }],
     },
-    include: { actor: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
     take: 30,
   });
+  const staffNames = await resolveStaffNames(
+    auditLogs.filter((log) => !log.actorName).map((log) => log.actorId),
+  );
+  const actorNameOf = (log: { actorName: string | null; actorId: string | null }) =>
+    log.actorName ?? (log.actorId ? staffNames.get(log.actorId) : null) ?? "systemu";
 
   const notifications: NotificationItem[] = [];
   for (const log of auditLogs) {
@@ -127,7 +133,7 @@ async function getSpecialistNotifications(specialistId: string, locationId: stri
       notifications.push({
         id: log.id,
         kind: "message",
-        title: `Wiadomość od ${log.actor.name}`,
+        title: `Wiadomość od ${actorNameOf(log)}`,
         description:
           typeof data.message === "string" ? data.message : "Nowa wiadomość od administratora.",
         createdAt: log.createdAt,
@@ -180,7 +186,7 @@ async function getSpecialistNotifications(specialistId: string, locationId: stri
       notifications.push({
         id: log.id,
         kind: "message",
-        title: `Wiadomość od ${log.actor.name}`,
+        title: `Wiadomość od ${actorNameOf(log)}`,
         description: data.note.trim(),
         createdAt: log.createdAt,
         appointmentId: appointment.id,
@@ -222,16 +228,15 @@ export async function GET() {
   }
 
   const readRows = notifications.length
-    ? await prisma.auditLog.findMany({
+    ? await prisma.notificationRead.findMany({
         where: {
-          actorId: user!.id,
-          entity: "NotificationRead",
-          entityId: { in: notifications.map((notification) => notification.id) },
+          userId: user!.id,
+          notificationId: { in: notifications.map((notification) => notification.id) },
         },
-        select: { entityId: true },
+        select: { notificationId: true },
       })
     : [];
-  const readIds = new Set(readRows.map((row) => row.entityId).filter(Boolean));
+  const readIds = new Set(readRows.map((row) => row.notificationId));
   const shaped = notifications.map((notification) => ({
     ...notification,
     read: readIds.has(notification.id),
@@ -254,33 +259,21 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
   }
 
+  // Stan "przeczytane" to zwykłe dane użytkownika, nie zdarzenie do audytu —
+  // trzymamy go w osobnej tabeli, żeby dziennik zdarzeń (AuditLog) pozostał
+  // niezmienny i nigdy nie był kasowany.
   if (parsed.data.read) {
-    const existing = await prisma.auditLog.findFirst({
+    await prisma.notificationRead.upsert({
       where: {
-        actorId: user!.id,
-        entity: "NotificationRead",
-        entityId: parsed.data.notificationId,
+        userId_notificationId: { userId: user!.id, notificationId: parsed.data.notificationId },
       },
-      select: { id: true },
+      create: { userId: user!.id, notificationId: parsed.data.notificationId },
+      update: {},
     });
-    if (!existing) {
-      await prisma.auditLog.create({
-        data: {
-          actorId: user!.id,
-          action: "READ",
-          entity: "NotificationRead",
-          entityId: parsed.data.notificationId,
-        },
-      });
-    }
   } else {
-    // Ponowne oznaczenie jako nieprzeczytane — usuwamy wpis o odczycie
-    await prisma.auditLog.deleteMany({
-      where: {
-        actorId: user!.id,
-        entity: "NotificationRead",
-        entityId: parsed.data.notificationId,
-      },
+    // Ponowne oznaczenie jako nieprzeczytane
+    await prisma.notificationRead.deleteMany({
+      where: { userId: user!.id, notificationId: parsed.data.notificationId },
     });
   }
 

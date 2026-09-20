@@ -75,7 +75,14 @@ export async function POST(req: Request) {
     select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true, location: true, locationId: true, assignedLocation: { select: { id: true, name: true } }, specialization: true },
   });
 
-  await logAudit({ actorId: user!.id, action: "CREATE", entity: "User", entityId: created.id, data: { login, role } });
+  await logAudit({
+    actorId: user!.id,
+    action: "CREATE",
+    entity: "User",
+    entityId: created.id,
+    summary: `Utworzenie konta pracownika „${login}" (${name}, rola ${role})`,
+    data: { login, name, role, email: email || null, locationId: assignedLocation.id },
+  });
 
   return NextResponse.json({ ok: true, user: created });
 }
