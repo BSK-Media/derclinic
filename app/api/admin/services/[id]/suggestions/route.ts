@@ -11,10 +11,11 @@ const CreateSchema = z.object({
   unit: z.enum(["UNIT", "ML", "MG", "G", "AMPULE", "BOTOX_UNIT"]).optional(),
 });
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);
@@ -55,10 +56,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   return NextResponse.json({ ok: true, suggestion: row });
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
   const url = new URL(req.url);

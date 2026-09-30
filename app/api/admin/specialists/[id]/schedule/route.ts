@@ -55,7 +55,8 @@ async function ensureSpecialist(id: string, locationScopeId: string | null) {
 }
 
 // GET — wzorzec tygodniowy + lista wolnych (opcjonalnie zawężona zakresem dat)
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
@@ -91,7 +92,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 }
 
 // PUT — zapis tygodniowego wzorca pracy (zastępuje poprzedni w całości)
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
@@ -153,7 +155,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 }
 
 // POST — dodanie niestandardowych dni pracy albo dnia/godzin wolnych
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
@@ -320,7 +323,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 }
 
 // DELETE — usunięcie wpisu wolnego albo niestandardowego dnia pracy
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);

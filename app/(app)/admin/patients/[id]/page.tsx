@@ -5,7 +5,8 @@ import { PatientHistoryTabs } from "@/components/patient-history-tabs";
 import { PatientConsents } from "@/components/patient-consents";
 import { getEffectiveAuth } from "@/lib/effective-auth";
 
-export default async function AdminPatientDetailPage({ params }: { params: { id: string } }) {
+export default async function AdminPatientDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user } = await getEffectiveAuth();
   const isAdmin = user?.role === "ADMIN";
   const patient = await prisma.patient.findUnique({ where: { id: params.id } });

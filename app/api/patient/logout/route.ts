@@ -4,7 +4,7 @@ import { logAudit } from "@/lib/audit";
 
 export async function POST() {
   const patient = await getPatientAuth();
-  clearPatientAuthCookie();
+  await clearPatientAuthCookie();
   if (patient) {
     await logAudit({
       actor: { type: "PATIENT", id: patient.id, name: patient.name, contact: patient.phone },

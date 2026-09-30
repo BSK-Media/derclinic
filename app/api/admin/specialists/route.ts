@@ -34,7 +34,7 @@ function getWarsawScheduleContext(now = new Date()) {
 export async function GET() {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
   const scheduleContext = getWarsawScheduleContext();

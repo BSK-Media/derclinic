@@ -28,7 +28,7 @@ function monthKey(d: Date) {
 export async function GET(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
   const url = new URL(req.url);

@@ -1,4 +1,5 @@
 import { PrismaClient, Role, ProductCategory, UnitType } from "@prisma/client";
+import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import {
   AMELIA_SERVICE_CATEGORIES,
@@ -8,7 +9,12 @@ import {
 const prisma = new PrismaClient();
 
 
-const TEMP_SPECIALIST_PASSWORD = "DerClinic2026!";
+// Seed nie nadaje kontom żadnego znanego hasła (audyt bezpieczeństwa, F-01).
+// Nowe konta specjalistów dostają losowe, nigdzie niezapisane hasło — dopóki
+// administrator nie ustawi im hasła w panelu, nie da się na nie zalogować.
+function unusablePassword() {
+  return randomBytes(32).toString("base64url");
+}
 
 type SeedSpecialist = {
   specialistCode: number;
@@ -857,28 +863,11 @@ async function main() {
     create: { id: "warszawa", name: "Warszawa" },
   });
 
-  const login = "admin";
-  const existing = await prisma.user.findUnique({ where: { login } });
-  if (!existing) {
-    const passwordHash = await bcrypt.hash("admin", 10);
-    await prisma.user.create({
-      data: {
-        login,
-        name: "Administrator",
-        role: Role.ADMIN,
-        locationId: "grodzisk-mazowiecki",
-        location: "Grodzisk Mazowiecki",
-        passwordHash,
-        isVisible: true,
-        isAvailable: true,
-      },
-    });
-    console.log("✅ Seeded default admin (admin/admin)");
-  } else {
-    console.log("ℹ️ Default admin already exists");
+  // Pierwszego administratora zakłada się osobno: npm run admin:bootstrap.
+  if (!(await prisma.user.findFirst({ where: { role: Role.ADMIN }, select: { id: true } }))) {
+    console.log("ℹ️ Brak administratora — utwórz go poleceniem: npm run admin:bootstrap");
   }
 
-  const specialistHash = await bcrypt.hash(TEMP_SPECIALIST_PASSWORD, 10);
   for (const specialist of SPECIALISTS) {
     const existing = await prisma.user.findUnique({ where: { login: specialist.login } });
 
@@ -889,7 +878,8 @@ async function main() {
           name: specialist.name,
           email: specialist.email,
           role: specialist.role,
-          passwordHash: specialistHash,
+          passwordHash: await bcrypt.hash(unusablePassword(), 10),
+          mustChangePassword: true,
           phone: specialist.phone,
           specialistCode: specialist.specialistCode,
           isVisible: specialist.isVisible,
@@ -904,7 +894,7 @@ async function main() {
         },
       });
     } else {
-      // Seed uruchamia się przy każdym deployu (vercel-build -> db:setup),
+      // Seed mógł być uruchamiany wielokrotnie na tej samej bazie,
       // dlatego pola edytowane przez administratora (name, location, specialization,
       // avatarUrl, jobTitle) uzupełniamy WYŁĄCZNIE gdy są jeszcze puste,
       // żeby deploy nie nadpisywał trwałych zmian z panelu.

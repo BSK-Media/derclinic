@@ -10,7 +10,8 @@ const BodySchema = z.object({
   note: z.string().optional().or(z.literal("")),
 });
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN"]);

@@ -11,7 +11,8 @@ const BodySchema = z.object({
   amount: z.number().int().min(1),
 });
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);

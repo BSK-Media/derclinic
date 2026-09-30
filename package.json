@@ -6,17 +6,17 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "vercel-build": "npm run db:setup && next build",
+    "vercel-build": "npm run db:deploy && next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio",
     "prisma:seed": "tsx prisma/seed.ts",
     "content:test": "tsx prisma/update-test-content.ts",
-    "db:setup": "prisma generate && prisma db push && prisma db seed",
-    "pwa:icons": "node scripts/generate-pwa-icons.mjs"
+    "pwa:icons": "node scripts/generate-pwa-icons.mjs",
+    "db:deploy": "prisma generate && node scripts/migrate-deploy.mjs",
+    "admin:bootstrap": "tsx scripts/bootstrap-admin.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -33,7 +33,7 @@
     "date-fns": "^3.6.0",
     "jose": "^5.9.6",
     "lucide-react": "^0.456.0",
-    "next": "^14.2.14",
+    "next": "^16.3.8",
     "next-themes": "^0.3.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -49,8 +49,8 @@
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "autoprefixer": "^10.4.20",
-    "eslint": "^8.57.0",
-    "eslint-config-next": "^14.2.14",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.8",
     "postcss": "^8.4.49",
     "prettier": "^3.4.2",
     "prettier-plugin-tailwindcss": "^0.6.9",
@@ -59,7 +59,8 @@
     "tailwindcss": "^3.4.16",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "vite": "^8.3.1",
+    "vitest": "^5.0.3"
   },
   "description": "DerClinic OS – system rezerwacji, wizyt i magazynu",
   "prisma": {

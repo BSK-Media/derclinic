@@ -3,7 +3,7 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, use } from "react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -105,12 +105,13 @@ type Service = {
 };
 
 type ServicesPageProps = {
-  searchParams?: {
+  searchParams: Promise<{
     serviceId?: string | string[];
-  };
+  }>;
 };
 
-export default function ServicesPage({ searchParams }: ServicesPageProps) {
+export default function ServicesPage(props: ServicesPageProps) {
+  const searchParams = use(props.searchParams);
   const router = useRouter();
   const requestedServiceId = Array.isArray(searchParams?.serviceId)
     ? searchParams?.serviceId[0]

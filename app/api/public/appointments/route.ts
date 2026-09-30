@@ -8,6 +8,8 @@ import { getPatientAuth } from "@/lib/patient-auth";
 import { maxRedeemablePoints, redeemLoyaltyPoints, discountForPoints } from "@/lib/loyalty";
 import { resolvePaymentDue, type PaymentChoice } from "@/lib/booking-payment";
 import { logAudit, formatWarsaw, type AuditActor } from "@/lib/audit";
+import { validatePassword } from "@/lib/password-policy";
+import { RATE_LIMITS, clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 const RESERVATION_SERVICE_NAME = "__DERCLINIC_REZERWACJA_CZASU__";
 
@@ -61,7 +63,7 @@ const BodySchema = z.object({
   email: z.string().trim().min(1, "E-mail jest wymagany").email().max(200),
   note: z.string().trim().max(500).optional().or(z.literal("")),
   // Podane tylko, gdy klient wybrał "Zarejestruj się" zamiast kontynuacji jako gość.
-  password: z.string().min(6).max(100).optional(),
+  password: z.string().min(1).max(500).optional(),
   // Punkty lojalnościowe do wykorzystania jako rabat — tylko dla zalogowanych
   // pacjentów (patrz walidacja niżej). 1 pkt = 1 zł.
   pointsToRedeem: z.number().int().min(0).max(100000).optional(),
@@ -97,6 +99,11 @@ function describeValidationError(error: z.ZodError) {
 }
 
 export async function POST(req: Request) {
+  const ipLimit = await hitRateLimit(RATE_LIMITS.publicBookingIp, await clientIp());
+  if (!ipLimit.allowed) {
+    return tooManyRequests(ipLimit, "Zbyt wiele rezerwacji z tego urządzenia. Spróbuj później albo zadzwoń do kliniki.");
+  }
+
   const json = await req.json().catch(() => null);
   const parsed = BodySchema.safeParse(json);
   if (!parsed.success) return bad(describeValidationError(parsed.error));
@@ -122,6 +129,15 @@ export async function POST(req: Request) {
   // od razu przypisujemy do jego istniejącego konta — pomijamy wyszukiwanie
   // po telefonie/lokalizacji oraz zakładanie/aktualizowanie hasła.
   const patientAuth = await getPatientAuth();
+
+  if (password && !patientAuth) {
+    const passwordIssue = validatePassword(password, {
+      name: `${firstName} ${lastName}`,
+      email,
+      phone,
+    });
+    if (passwordIssue) return bad(`Hasło: ${passwordIssue}`);
+  }
 
   const dateParam = parseDateInput(date);
   if (!dateParam) return bad("Nieprawidłowa data");

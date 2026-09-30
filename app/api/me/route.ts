@@ -25,7 +25,7 @@ export async function GET() {
     role: dbu.role,
     sidebarPermissions,
   });
-  setAuthCookie(token);
+  await setAuthCookie(token);
 
   return NextResponse.json({
     ok: true,

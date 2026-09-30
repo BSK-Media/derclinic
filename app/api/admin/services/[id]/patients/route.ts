@@ -3,10 +3,11 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireRole } from "@/lib/api-helpers";
 import { resolveSettlementRange } from "@/lib/settlement-range";
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "RECEPTION"]);
   if (deny) return deny;
 
   const requestUrl = new URL(req.url);

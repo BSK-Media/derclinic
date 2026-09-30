@@ -8,7 +8,8 @@ import { reconcileLoyaltyPointsForAppointment } from "@/lib/loyalty";
 // zaakceptowana wcześniej (np. zanim poprawiono cenę, albo przed naprawą
 // liczenia ceny w akceptacji — patrz lib/loyalty.ts). Bezpieczne do wielokrotnego
 // wywołania: nigdy nie odbiera punktów, dolicza tylko brakującą różnicę.
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);

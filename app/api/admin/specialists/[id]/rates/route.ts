@@ -5,10 +5,11 @@ import { requireAuth, requireRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { formatPLNFromGrosze } from "@/lib/money";
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
   const specialist = await prisma.user.findUnique({
@@ -47,10 +48,11 @@ const PutSchema = z.union([
   z.object({ baseRate: z.number().int().min(0).nullable() }),
 ]);
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);

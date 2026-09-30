@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { PASSWORD_REQUIREMENTS_HINT, validatePassword } from "@/lib/password-policy";
 
 export default function ResetPasswordPage() {
   return (
@@ -31,8 +32,9 @@ function ResetPasswordForm() {
       setError("Link jest nieprawidłowy. Poproś o nowy link do resetu hasła.");
       return;
     }
-    if (password.length < 6) {
-      setError("Hasło musi mieć co najmniej 6 znaków");
+    const passwordIssue = validatePassword(password);
+    if (passwordIssue) {
+      setError(passwordIssue);
       return;
     }
     if (password !== passwordConfirm) {
@@ -88,7 +90,7 @@ function ResetPasswordForm() {
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="min. 6 znaków"
+                placeholder={PASSWORD_REQUIREMENTS_HINT}
               />
             </label>
 

@@ -11,6 +11,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   REGISTER: "Rejestracja konta",
   PASSWORD_RESET_REQUEST: "Prośba o reset hasła",
   PASSWORD_RESET: "Reset hasła",
+  PASSWORD_CHANGE: "Zmiana hasła",
+  RATE_LIMITED: "Blokada prób (limit)",
   APPROVE: "Akceptacja",
   REJECT: "Odrzucenie",
   MERGE: "Scalenie",
@@ -57,6 +59,7 @@ export const AUDIT_ENTITY_LABELS: Record<string, string> = {
   ContentImport: "Import treści testowych",
   AuditLog: "Dziennik zdarzeń",
   SpecialistMessage: "Wiadomość do specjalisty",
+  Security: "Bezpieczeństwo",
 };
 
 export const AUDIT_PAYMENT_METHOD_LABELS: Record<string, string> = {

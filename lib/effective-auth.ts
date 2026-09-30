@@ -20,7 +20,7 @@ export async function getEffectiveAuth(): Promise<EffectiveAuth> {
   const adminUser = await getAuthUser();
   if (!adminUser) return { user: null, adminUser: null, impersonating: false };
 
-  const targetId = cookies().get(IMPERSONATE_COOKIE_NAME)?.value;
+  const targetId = (await cookies()).get(IMPERSONATE_COOKIE_NAME)?.value;
   if (!targetId || adminUser.role !== "ADMIN") {
     return { user: adminUser, adminUser, impersonating: false };
   }
@@ -48,8 +48,8 @@ export async function getEffectiveAuth(): Promise<EffectiveAuth> {
   };
 }
 
-export function clearImpersonationCookie() {
-  cookies().set({
+export async function clearImpersonationCookie() {
+  (await cookies()).set({
     name: IMPERSONATE_COOKIE_NAME,
     value: "",
     httpOnly: true,
@@ -59,8 +59,8 @@ export function clearImpersonationCookie() {
     maxAge: 0,
   });
 }
-export function setImpersonationCookie(userId: string) {
-  cookies().set({
+export async function setImpersonationCookie(userId: string) {
+  (await cookies()).set({
     name: IMPERSONATE_COOKIE_NAME,
     value: userId,
     httpOnly: true,

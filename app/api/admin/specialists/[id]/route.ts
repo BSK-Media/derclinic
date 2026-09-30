@@ -14,7 +14,8 @@ const PatchSchema = z.object({
   sidebarPermissions: z.array(z.enum(SIDEBAR_PERMISSION_KEYS)).optional(),
 });
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN"]);

@@ -10,10 +10,11 @@ const PatchSchema = z.object({
   parentId: z.string().optional().nullable(),
 });
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
   const visibleWarehouse = await prisma.warehouse.findFirst({
@@ -53,7 +54,8 @@ const DeleteSchema = z.object({
   password: z.string().min(1, "Wpisz hasło administratora"),
 });
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN"]);

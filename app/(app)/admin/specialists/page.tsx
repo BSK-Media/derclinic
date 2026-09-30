@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { formatPLNFromGrosze } from "@/lib/money";
+import { validatePassword } from "@/lib/password-policy";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -877,7 +878,8 @@ function EditSpecialistDialog({
   async function onSave() {
     if (!specialist) return;
     if (name.trim().length < 2) return toast.error("Podaj imię i nazwisko.");
-    if (password && password.length < 4) return toast.error("Nowe hasło musi mieć min. 4 znaki.");
+    const passwordIssue = password ? validatePassword(password, { name }) : null;
+    if (passwordIssue) return toast.error(passwordIssue);
 
     setSaving(true);
     try {

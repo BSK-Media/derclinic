@@ -10,7 +10,7 @@ const PatchSchema = z.object({
   amount: z.number().int().min(1),
 });
 
-type RouteParams = { params: { id: string; paymentId: string } };
+type RouteParams = { params: Promise<{ id: string; paymentId: string }> };
 
 async function loadAppointmentWithPayment(appointmentId: string, paymentId: string, locationScopeId: string | null) {
   const appointment = await prisma.appointment.findFirst({
@@ -32,7 +32,8 @@ async function loadAppointmentWithPayment(appointmentId: string, paymentId: stri
 }
 
 // Zmiana kwoty pojedynczej zapisanej płatności
-export async function PATCH(req: Request, { params }: RouteParams) {
+export async function PATCH(req: Request, props: RouteParams) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
@@ -87,7 +88,8 @@ export async function PATCH(req: Request, { params }: RouteParams) {
 }
 
 // Usunięcie pojedynczej zapisanej płatności
-export async function DELETE(_req: Request, { params }: RouteParams) {
+export async function DELETE(_req: Request, props: RouteParams) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);

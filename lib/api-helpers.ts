@@ -32,7 +32,7 @@ export async function requireAuth() {
   const sidebarPermissions = normalizeSidebarPermissions(dbUser.role, dbUser.sidebarPermissions);
   let locationScopeId: string | null = dbUser.locationId;
   if (dbUser.role === "ADMIN") {
-    const requestedLocationId = cookies().get("bsk_location_scope")?.value ?? "all";
+    const requestedLocationId = (await cookies()).get("bsk_location_scope")?.value ?? "all";
     if (requestedLocationId === "all") {
       locationScopeId = null;
     } else {
@@ -43,7 +43,7 @@ export async function requireAuth() {
       locationScopeId = requestedLocation?.id ?? null;
     }
   }
-  const requestedPermission = headers().get("x-bsk-sidebar-permission");
+  const requestedPermission = (await headers()).get("x-bsk-sidebar-permission");
   const isKnownPermission = SIDEBAR_PERMISSION_KEYS.includes(requestedPermission as SidebarPermission);
 
   if (
@@ -72,8 +72,8 @@ export function scopedLocationWhere(user: { locationScopeId: string | null }) {
   return user.locationScopeId ? { locationId: user.locationScopeId } : {};
 }
 
-export function requireRole(userRole: string, allowed: string[]) {
-  if (headers().get("x-bsk-sidebar-permission")) return null;
+export async function requireRole(userRole: string, allowed: string[]) {
+  if ((await headers()).get("x-bsk-sidebar-permission")) return null;
 
   if (!allowed.includes(userRole)) {
     return NextResponse.json({ ok: false, message: "Brak uprawnień" }, { status: 403 });

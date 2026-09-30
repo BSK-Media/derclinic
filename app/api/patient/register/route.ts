@@ -4,6 +4,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { setPatientAuthCookie, signPatientToken } from "@/lib/patient-auth";
 import { logAudit } from "@/lib/audit";
+import { validatePassword } from "@/lib/password-policy";
+import { RATE_LIMITS, clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 function bad(message: string, status = 400, extra?: Record<string, unknown>) {
   return NextResponse.json({ ok: false, message, ...extra }, { status });
@@ -14,13 +16,16 @@ const BodySchema = z.object({
   lastName: z.string().trim().min(1, "Podaj nazwisko").max(100),
   phone: z.string().trim().regex(/^\+48\d{9}$/, "Podaj prawidłowy 9-cyfrowy numer telefonu"),
   email: z.string().trim().min(1, "Podaj adres e-mail").email("Niepoprawny adres e-mail").max(200),
-  password: z.string().min(6, "Hasło musi mieć co najmniej 6 znaków").max(100),
+  password: z.string().min(1, "Podaj hasło").max(500),
 });
 
 export async function POST(req: Request) {
   const json = await req.json().catch(() => null);
   const parsed = BodySchema.safeParse(json);
   if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "Uzupełnij poprawnie wszystkie pola");
+
+  const ipLimit = await hitRateLimit(RATE_LIMITS.patientRegisterIp, await clientIp());
+  if (!ipLimit.allowed) return tooManyRequests(ipLimit);
 
   const { firstName, lastName, password } = parsed.data;
   // Już zwalidowane wyżej regexem do dokładnie "+48" + 9 cyfr — nie normalizujemy
@@ -29,6 +34,9 @@ export async function POST(req: Request) {
   const phone = parsed.data.phone;
   const email = parsed.data.email.trim();
   const name = `${firstName} ${lastName}`.replace(/\s+/g, " ").trim();
+
+  const passwordIssue = validatePassword(password, { name, email, phone });
+  if (passwordIssue) return bad(passwordIssue);
 
   // Krok 1 — czy ten telefon albo e-mail ma już aktywne konto (ustawione
   // hasło)? Jeśli tak, nie zakładamy drugiego konta — tak jak w typowych
@@ -103,7 +111,7 @@ export async function POST(req: Request) {
     phone: patient.phone,
     email: patient.email,
   });
-  setPatientAuthCookie(token);
+  await setPatientAuthCookie(token);
 
   await logAudit({
     actor: { type: "PATIENT", id: patient.id, name: patient.name, contact: patient.phone },

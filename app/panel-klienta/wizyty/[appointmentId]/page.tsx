@@ -40,7 +40,8 @@ function formatTime(date: Date) {
   return date.toLocaleTimeString("pl-PL", { timeZone: "Europe/Warsaw", hour: "2-digit", minute: "2-digit" });
 }
 
-export default async function PatientAppointmentCardPage({ params }: { params: { appointmentId: string } }) {
+export default async function PatientAppointmentCardPage(props: { params: Promise<{ appointmentId: string }> }) {
+  const params = await props.params;
   const auth = await getPatientAuth();
   if (!auth) redirect("/panel-klienta/logowanie");
 

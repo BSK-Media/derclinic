@@ -48,13 +48,13 @@ export async function verifyPatientToken(token: string): Promise<PatientAuthUser
 }
 
 export async function getPatientAuth(): Promise<PatientAuthUser | null> {
-  const token = cookies().get(COOKIE_NAME)?.value;
+  const token = (await cookies()).get(COOKIE_NAME)?.value;
   if (!token) return null;
   return await verifyPatientToken(token);
 }
 
-export function setPatientAuthCookie(token: string) {
-  cookies().set({
+export async function setPatientAuthCookie(token: string) {
+  (await cookies()).set({
     name: COOKIE_NAME,
     value: token,
     httpOnly: true,
@@ -65,8 +65,8 @@ export function setPatientAuthCookie(token: string) {
   });
 }
 
-export function clearPatientAuthCookie() {
-  cookies().set({
+export async function clearPatientAuthCookie() {
+  (await cookies()).set({
     name: COOKIE_NAME,
     value: "",
     httpOnly: true,

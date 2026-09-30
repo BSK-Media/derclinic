@@ -16,10 +16,11 @@ const PhotoSchema = z.object({
     .nullable(),
 });
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN", "RECEPTION", "SPECIALIST"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "RECEPTION", "SPECIALIST"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);

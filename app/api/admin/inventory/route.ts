@@ -9,7 +9,7 @@ const LOW_STOCK_DAYS = 14;
 export async function GET() {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
   const tenWeeksAgo = new Date();

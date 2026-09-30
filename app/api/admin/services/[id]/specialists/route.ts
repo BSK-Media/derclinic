@@ -4,13 +4,11 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 
-export async function GET(
-  _req: Request,
-  { params }: { params: { id: string } },
-) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "RECEPTION"]);
   if (deny) return deny;
 
   const [service, specialists, products] = await Promise.all([
@@ -82,10 +80,8 @@ const AssignmentSchema = z
   })
   .strict();
 
-export async function PUT(
-  req: Request,
-  { params }: { params: { id: string } },
-) {
+export async function PUT(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN"]);
@@ -166,10 +162,8 @@ export async function PUT(
   return NextResponse.json({ ok: true, assigned });
 }
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: { id: string } },
-) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN"]);

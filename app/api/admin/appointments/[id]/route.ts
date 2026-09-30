@@ -14,13 +14,11 @@ import {
   describeAppointmentChanges,
 } from "@/lib/audit-appointment";
 
-export async function GET(
-  _req: Request,
-  { params }: { params: { id: string } },
-) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN", "RECEPTION", "SPECIALIST"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "RECEPTION", "SPECIALIST"]);
   if (deny) return deny;
 
   const appt = await prisma.appointment.findFirst({
@@ -101,10 +99,8 @@ const DeleteSchema = z.object({
   reason: z.string().trim().max(500).optional().default(""),
 });
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: { id: string } },
-) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
@@ -288,10 +284,8 @@ export async function PATCH(
   return NextResponse.json({ ok: true, appointment: appt });
 }
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: { id: string } },
-) {
+export async function DELETE(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);

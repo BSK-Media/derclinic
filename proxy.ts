@@ -49,7 +49,7 @@ function rejectAccess(req: NextRequest, user: MiddlewareUser) {
   return NextResponse.redirect(url);
 }
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   const needsAuth =
@@ -64,6 +64,7 @@ export async function middleware(req: NextRequest) {
   if (
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/api/auth/logout") ||
+    pathname.startsWith("/api/auth/change-password") ||
     pathname.startsWith("/api/public/") ||
     pathname.startsWith("/api/patient/")
   )

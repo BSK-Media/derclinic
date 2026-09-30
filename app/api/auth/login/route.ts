@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
 import { setAuthCookie, signAuthToken } from "@/lib/auth-cookie";
 import { logAudit } from "@/lib/audit";
 import { normalizeSidebarPermissions } from "@/lib/sidebar-permissions";
+import { validatePassword } from "@/lib/password-policy";
+import { verifyStaffCredentials } from "@/lib/staff-credentials";
 
 const BodySchema = z.object({
-  login: z.string().min(1),
-  password: z.string().min(1),
+  login: z.string().trim().min(1).max(200),
+  password: z.string().min(1).max(500),
 });
 
 export async function POST(req: Request) {
@@ -18,29 +18,33 @@ export async function POST(req: Request) {
 
   const { login, password } = parsed.data;
 
-  const user = await prisma.user.findUnique({ where: { login } });
-  if (!user?.passwordHash) {
-    await logAudit({
-      actor: { type: "GUEST", contact: login },
-      action: "LOGIN_FAILED",
-      entity: "User",
-      summary: `Nieudane logowanie do panelu: nieznany login „${login}"`,
-      data: { login, reason: "unknown_login" },
-    });
-    return NextResponse.json({ ok: false, message: "Błędny login lub hasło" }, { status: 401 });
-  }
+  const verified = await verifyStaffCredentials(login, password, "panel");
+  if (verified.response) return verified.response;
+  const { user } = verified;
 
-  const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) {
+  // Hasło tymczasowe (nadane przez administratora / bootstrap) albo niespełniające
+  // obecnej polityki (np. dawne admin/admin) — nie wydajemy sesji, dopóki
+  // pracownik nie ustawi nowego hasła (POST /api/auth/change-password).
+  const policyIssue = validatePassword(password, { login: user.login, name: user.name, email: user.email });
+  if (user.mustChangePassword || policyIssue) {
     await logAudit({
-      actor: { type: "GUEST", name: user.name, contact: login },
+      actor: { type: "GUEST", name: user.name, contact: user.login },
       action: "LOGIN_FAILED",
       entity: "User",
       entityId: user.id,
-      summary: `Nieudane logowanie do panelu: błędne hasło dla konta „${login}" (${user.name})`,
-      data: { login, reason: "wrong_password" },
+      summary: `Logowanie wstrzymane do czasu zmiany hasła (konto „${user.login}")`,
+      data: { reason: user.mustChangePassword ? "temporary_password" : "weak_password" },
     });
-    return NextResponse.json({ ok: false, message: "Błędny login lub hasło" }, { status: 401 });
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "PASSWORD_CHANGE_REQUIRED",
+        message: user.mustChangePassword
+          ? "To hasło jest tymczasowe. Ustaw własne hasło, aby się zalogować."
+          : "Twoje hasło nie spełnia aktualnych wymagań bezpieczeństwa. Ustaw nowe hasło, aby się zalogować.",
+      },
+      { status: 403 },
+    );
   }
 
   const token = await signAuthToken({
@@ -51,7 +55,7 @@ export async function POST(req: Request) {
     sidebarPermissions: normalizeSidebarPermissions(user.role, user.sidebarPermissions),
   });
 
-  setAuthCookie(token);
+  await setAuthCookie(token);
 
   await logAudit({
     actorId: user.id,

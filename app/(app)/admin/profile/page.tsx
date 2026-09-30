@@ -4,6 +4,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth-provider";
 import { LocationSelect } from "@/components/location-select";
+import { validatePassword } from "@/lib/password-policy";
 
 type RoleT = "ADMIN" | "RECEPTION" | "SPECIALIST";
 
@@ -448,7 +449,8 @@ function CreateEmployeeForm({ onCreated }: { onCreated: (emp: EmployeeRow) => vo
     const name = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
     if (name.length < 2) return toast.error("Podaj imię i nazwisko.");
     if (login.trim().length < 2) return toast.error("Podaj login (min. 2 znaki).");
-    if (password.length < 4) return toast.error("Podaj hasło (min. 4 znaki).");
+    const passwordIssue = validatePassword(password, { login, name });
+    if (passwordIssue) return toast.error(passwordIssue);
 
     setSaving(true);
     try {

@@ -50,13 +50,13 @@ export async function verifyAuthToken(token: string): Promise<AuthUser | null> {
 }
 
 export async function getAuthUser(): Promise<AuthUser | null> {
-  const token = cookies().get(COOKIE_NAME)?.value;
+  const token = (await cookies()).get(COOKIE_NAME)?.value;
   if (!token) return null;
   return await verifyAuthToken(token);
 }
 
-export function setAuthCookie(token: string) {
-  cookies().set({
+export async function setAuthCookie(token: string) {
+  (await cookies()).set({
     name: COOKIE_NAME,
     value: token,
     httpOnly: true,
@@ -67,8 +67,8 @@ export function setAuthCookie(token: string) {
   });
 }
 
-export function clearAuthCookie() {
-  cookies().set({
+export async function clearAuthCookie() {
+  (await cookies()).set({
     name: COOKIE_NAME,
     value: "",
     httpOnly: true,

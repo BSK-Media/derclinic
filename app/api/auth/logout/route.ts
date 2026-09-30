@@ -5,7 +5,7 @@ import { logAudit } from "@/lib/audit";
 export async function POST() {
   // Kto się wylogowuje — odczytujemy z ciasteczka, zanim je wyczyścimy.
   const user = await getAuthUser();
-  clearAuthCookie();
+  await clearAuthCookie();
   if (user?.id) {
     await logAudit({
       actorId: user.id,

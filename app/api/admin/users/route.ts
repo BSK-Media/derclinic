@@ -4,6 +4,8 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { validatePassword } from "@/lib/password-policy";
+import { STAFF_BCRYPT_COST } from "@/lib/staff-credentials";
 
 export async function GET() {
   const { user, error } = await requireAuth();
@@ -26,7 +28,7 @@ const CreateSchema = z.object({
   name: z.string().min(2),
   role: z.enum(["ADMIN", "RECEPTION", "SPECIALIST"]),
   email: z.string().email().optional().or(z.literal("")),
-  password: z.string().min(4),
+  password: z.string().min(1).max(500),
   payoutPercent: z.number().int().min(0).max(100).optional(),
   locationId: z.string().min(1),
   specialization: z.string().optional().or(z.literal("")),
@@ -57,7 +59,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, message: "Wybierz prawidłową lokalizację" }, { status: 400 });
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordIssue = validatePassword(password, { login, name, email });
+  if (passwordIssue) return NextResponse.json({ ok: false, message: passwordIssue }, { status: 400 });
+
+  const passwordHash = await bcrypt.hash(password, STAFF_BCRYPT_COST);
 
   const created = await prisma.user.create({
     data: {
@@ -66,6 +71,8 @@ export async function POST(req: Request) {
       role: role as any,
       email: email ? email : null,
       passwordHash,
+      // Hasło zna administrator — pracownik musi ustawić własne przy pierwszym logowaniu.
+      mustChangePassword: true,
       payoutPercent: role === "SPECIALIST" ? (payoutPercent ?? 50) : 0,
       locationId: assignedLocation.id,
       location: assignedLocation.name,

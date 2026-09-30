@@ -88,6 +88,9 @@ model User {
   name             String
   email            String?  @unique
   passwordHash     String
+  // Hasło nadane przez administratora (albo niespełniające obecnej polityki)
+  // jest tymczasowe — przy logowaniu pracownik musi ustawić własne.
+  mustChangePassword Boolean @default(false)
   phone            String?
   specialistCode   Int?
   isVisible        Boolean  @default(true)
@@ -782,6 +785,17 @@ enum AuditActorType {
   GUEST
   // Zadanie systemowe bez człowieka
   SYSTEM
+}
+
+// Liczniki prób dla ograniczania częstotliwości (logowanie, reset hasła,
+// rejestracja, rezerwacja online) — patrz lib/rate-limit.ts. Klucz ma postać
+// "<zakres>:<ip|konto>", okno czasowe liczone jest od pierwszej próby.
+model RateLimitBucket {
+  key         String   @id
+  count       Int
+  windowStart DateTime
+
+  @@index([windowStart])
 }
 
 // Znaczniki "powiadomienie przeczytane" per użytkownik. Wcześniej trzymane

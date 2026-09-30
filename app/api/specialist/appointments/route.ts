@@ -44,7 +44,7 @@ export async function GET(req: Request) {
   if (error) return error;
 
   // Admin może podejrzeć panel konkretnego specjalisty.
-  const deny = requireRole(user!.role, ["SPECIALIST", "RECEPTION", "ADMIN"]);
+  const deny = await requireRole(user!.role, ["SPECIALIST", "RECEPTION", "ADMIN"]);
   if (deny) return deny;
 
   const url = new URL(req.url);

@@ -15,7 +15,8 @@ function formatDuration(min: number) {
   return rest ? `${h} godz. ${rest} min` : `${h} godz.`;
 }
 
-export default async function PatientServicePage({ params }: { params: { serviceId: string } }) {
+export default async function PatientServicePage(props: { params: Promise<{ serviceId: string }> }) {
+  const params = await props.params;
   const auth = await getPatientAuth();
   if (!auth) redirect(`/panel-klienta/logowanie`);
 

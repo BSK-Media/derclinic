@@ -8,7 +8,8 @@ import { logAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
@@ -35,7 +36,8 @@ const DeleteSchema = z.object({
   password: z.string().min(1, "Wpisz hasło administratora"),
 });
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN"]);
@@ -130,7 +132,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   });
 
   const response = NextResponse.json({ ok: true });
-  if (cookies().get("bsk_location_scope")?.value === location.id) {
+  if ((await cookies()).get("bsk_location_scope")?.value === location.id) {
     response.cookies.set("bsk_location_scope", "all", {
       httpOnly: true,
       sameSite: "lax",

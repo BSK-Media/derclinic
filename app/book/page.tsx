@@ -9,6 +9,7 @@ import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, Check, Cale
 import { formatPLNFromGrosze } from "@/lib/money";
 import { maxRedeemablePoints, discountForPoints } from "@/lib/loyalty";
 import { requiresFullPrepayment, resolvePaymentDue, depositAmountGrosze, type PaymentChoice } from "@/lib/booking-payment";
+import { PASSWORD_REQUIREMENTS_HINT, validatePassword } from "@/lib/password-policy";
 
 // Czcionka używana WYŁĄCZNIE w nagłówku (SiteHeader) — potwierdzona wprost z
 // computed CSS elementu .navbar na derclinic.pl: font-family: Raleway, sans-serif,
@@ -657,8 +658,9 @@ export default function PublicBookingPage() {
       }
     }
     if (accountMode === "register" && !loggedInPatient) {
-      if (password.length < 6) {
-        setSubmitError("Hasło musi mieć co najmniej 6 znaków");
+      const passwordIssue = validatePassword(password);
+      if (passwordIssue) {
+        setSubmitError(passwordIssue);
         return;
       }
       if (password !== passwordConfirm) {
@@ -1423,7 +1425,7 @@ export default function PublicBookingPage() {
                     autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="min. 6 znaków"
+                    placeholder={PASSWORD_REQUIREMENTS_HINT}
                   />
                 </Field>
                 <Field label="Powtórz hasło *">

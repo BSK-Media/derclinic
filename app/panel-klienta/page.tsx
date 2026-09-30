@@ -16,11 +16,12 @@ function formatMemberSince(date: Date) {
   });
 }
 
-export default async function PatientDashboardPage({
-  searchParams,
-}: {
-  searchParams: { tab?: string };
-}) {
+export default async function PatientDashboardPage(
+  props: {
+    searchParams: Promise<{ tab?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const auth = await getPatientAuth();
   if (!auth) redirect("/panel-klienta/logowanie");
 

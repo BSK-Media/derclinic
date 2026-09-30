@@ -21,7 +21,8 @@ const BodySchema = z
 
 const PATIENT_FIELD_MAP = { NAME: "name", PHONE: "phone", EMAIL: "email" } as const;
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);

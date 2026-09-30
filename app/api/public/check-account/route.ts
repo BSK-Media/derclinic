@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { RATE_LIMITS, clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 // Lekki endpoint używany przez formularz rezerwacji online do sprawdzenia "na
 // żywo", czy podany numer telefonu lub e-mail ma już założone konto pacjenta
 // (czyli ma ustawione hasło). Nie zwraca żadnych danych pacjenta — tylko flagi
 // boolean — żeby nie ujawniać niczego poza samym faktem istnienia konta.
 export async function GET(req: Request) {
+  const ipLimit = await hitRateLimit(RATE_LIMITS.checkAccountIp, await clientIp());
+  if (!ipLimit.allowed) return tooManyRequests(ipLimit);
+
   const { searchParams } = new URL(req.url);
   const phoneDigits = (searchParams.get("phone") || "").replace(/\D/g, "");
   const emailRaw = (searchParams.get("email") || "").trim().toLowerCase();

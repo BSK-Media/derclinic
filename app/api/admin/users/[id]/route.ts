@@ -4,6 +4,8 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit, diffFields } from "@/lib/audit";
+import { validatePassword } from "@/lib/password-policy";
+import { STAFF_BCRYPT_COST } from "@/lib/staff-credentials";
 
 const PatchSchema = z.object({
   name: z.string().min(2).optional(),
@@ -24,10 +26,11 @@ const PatchSchema = z.object({
   locationId: z.string().min(1).optional(),
   specialization: z.string().optional().or(z.literal("")).optional(),
   sourceProfileUrl: z.string().url().optional().or(z.literal("")).optional(),
-  password: z.string().min(4).optional(),
+  password: z.string().min(1).max(500).optional(),
 });
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN"]);
@@ -80,7 +83,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
   if (parsed.data.specialization !== undefined) data.specialization = parsed.data.specialization || null;
   if (parsed.data.sourceProfileUrl !== undefined) data.sourceProfileUrl = parsed.data.sourceProfileUrl || null;
-  if (parsed.data.password) data.passwordHash = await bcrypt.hash(parsed.data.password, 10);
+  if (parsed.data.password) {
+    const passwordIssue = validatePassword(parsed.data.password, {
+      login: before?.login,
+      name: parsed.data.name ?? before?.name,
+      email: before?.email,
+    });
+    if (passwordIssue) return NextResponse.json({ ok: false, message: passwordIssue }, { status: 400 });
+    data.passwordHash = await bcrypt.hash(parsed.data.password, STAFF_BCRYPT_COST);
+    // Hasło nadane innemu pracownikowi jest tymczasowe — zmieni je przy logowaniu.
+    data.mustChangePassword = params.id !== user!.id;
+  }
 
   const updated = await prisma.user.update({
     where: { id: params.id },
@@ -121,7 +134,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   return NextResponse.json({ ok: true, user: updated });
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN"]);

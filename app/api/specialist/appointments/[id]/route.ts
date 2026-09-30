@@ -9,10 +9,11 @@ import {
   describeAppointmentChanges,
 } from "@/lib/audit-appointment";
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["SPECIALIST", "RECEPTION", "ADMIN"]);
+  const deny = await requireRole(user!.role, ["SPECIALIST", "RECEPTION", "ADMIN"]);
   if (deny) return deny;
 
   const appt = await prisma.appointment.findFirst({
@@ -44,7 +45,8 @@ const PatchSchema = z
   })
   .strict();
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["SPECIALIST", "ADMIN"]);

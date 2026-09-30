@@ -25,7 +25,8 @@ const BodySchema = z
 // Akceptacja lub odrzucenie zakończonej wizyty. Tylko recepcja i administrator —
 // lekarz nie może zatwierdzić własnej wizyty (specjalistów blokuje też middleware
 // dla całej ścieżki /api/admin/appointments).
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS_HINT, validatePassword } from "@/lib/password-policy";
 
 type PatientDetails = {
   id: string;
@@ -83,8 +84,9 @@ export function PatientDetailsForm({
 
   async function setPatientPassword(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (newPassword.length < 6) {
-      toast.error("Hasło musi mieć co najmniej 6 znaków");
+    const passwordIssue = validatePassword(newPassword, { name: patient.name, email: patient.email, phone: patient.phone });
+    if (passwordIssue) {
+      toast.error(passwordIssue);
       return;
     }
     setSettingPassword(true);
@@ -296,12 +298,12 @@ export function PatientDetailsForm({
               type="text"
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
-              placeholder="Nowe hasło (min. 6 znaków)"
+              placeholder={`Nowe hasło (${PASSWORD_REQUIREMENTS_HINT})`}
               maxLength={200}
               disabled={settingPassword}
             />
           </div>
-          <Button type="submit" size="sm" disabled={settingPassword || newPassword.length < 6}>
+          <Button type="submit" size="sm" disabled={settingPassword || newPassword.length < PASSWORD_MIN_LENGTH}>
             {settingPassword ? "Zapisywanie…" : "Ustaw nowe hasło"}
           </Button>
         </form>

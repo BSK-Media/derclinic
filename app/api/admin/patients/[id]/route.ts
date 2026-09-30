@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit, diffFields } from "@/lib/audit";
+import { validatePassword } from "@/lib/password-policy";
 
 const PatchSchema = z.object({
   name: z.string().trim().min(2, "Podaj imię i nazwisko").max(100).optional(),
@@ -19,7 +20,14 @@ const PatchSchema = z.object({
   // Ręczne ustawienie hasła do panelu klienta przez recepcję/admina — np. gdy
   // wysyłka maili resetujących nie działa. Nigdy nie zwracamy hasha w
   // odpowiedzi (patrz `select` przy update poniżej).
-  password: z.string().min(6, "Hasło musi mieć co najmniej 6 znaków").max(200).optional(),
+  password: z
+    .string()
+    .max(500)
+    .optional()
+    .superRefine((value, ctx) => {
+      const issue = value === undefined ? null : validatePassword(value);
+      if (issue) ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
+    }),
 });
 
 const PATIENT_SAFE_SELECT = {
@@ -30,10 +38,11 @@ const PATIENT_SAFE_SELECT = {
   note: true,
 } as const;
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "RECEPTION"]);
   if (deny) return deny;
 
   const visiblePatient = await prisma.patient.findFirst({
@@ -94,10 +103,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   return NextResponse.json({ ok: true, patient: updated });
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
   const visiblePatient = await prisma.patient.findFirst({

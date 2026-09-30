@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { generatePasswordResetToken, PASSWORD_RESET_TOKEN_TTL_MS } from "@/lib/patient-auth";
 import { sendEmail } from "@/lib/mailer";
 import { logAudit } from "@/lib/audit";
+import { RATE_LIMITS, clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 const BodySchema = z.object({
   email: z.string().trim().min(1).email(),
@@ -23,6 +24,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, message: "Podaj prawidłowy adres e-mail" }, { status: 400 });
   }
   const email = parsed.data.email.trim();
+
+  const ipLimit = await hitRateLimit(RATE_LIMITS.forgotPasswordIp, await clientIp());
+  if (!ipLimit.allowed) return tooManyRequests(ipLimit);
+  // Limit per adres e-mail nie zdradza, czy konto istnieje — odpowiedź jest
+  // taka sama; po prostu nie wysyłamy kolejnych maili (ochrona skrzynki pacjenta).
+  const emailLimit = await hitRateLimit(RATE_LIMITS.forgotPasswordAccount, email);
+  if (!emailLimit.allowed) return NextResponse.json({ ok: true, message: GENERIC_MESSAGE });
 
   const patient = await prisma.patient.findFirst({
     where: { email: { equals: email, mode: "insensitive" }, passwordHash: { not: null } },

@@ -47,9 +47,9 @@ type ResolvedActor = {
   actorRole: string | null;
 };
 
-function requestContext(): { ipAddress: string | null; userAgent: string | null } {
+async function requestContext(): Promise<{ ipAddress: string | null; userAgent: string | null }> {
   try {
-    const h = headers();
+    const h = (await headers());
     const forwarded = h.get("x-forwarded-for");
     const ip = forwarded?.split(",")[0]?.trim() || h.get("x-real-ip")?.trim() || null;
     const ua = h.get("user-agent");
@@ -122,7 +122,7 @@ export async function logAudit(input: LogAuditInput): Promise<void> {
       entityId: input.entityId ?? null,
       summary: input.summary ? input.summary.slice(0, 2000) : null,
       data: data === null ? undefined : (data as Prisma.InputJsonValue),
-      ...requestContext(),
+      ...(await requestContext()),
     };
     await client.auditLog.create({ data: entry });
   } catch (e) {
