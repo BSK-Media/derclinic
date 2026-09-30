@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clip, diffFields, sanitizeAuditData } from "./audit-format";
+import { clip, diffFields, maskPii, sanitizeAuditData } from "./audit-format";
 
 describe("sanitizeAuditData", () => {
   it("ukrywa hasła, hashe i tokeny na każdej głębokości", () => {
@@ -21,11 +21,11 @@ describe("sanitizeAuditData", () => {
   it("nie zapisuje zdjęć (data URL) i skraca bardzo długie teksty", () => {
     const out = sanitizeAuditData({
       photo: "data:image/png;base64," + "A".repeat(50_000),
-      note: "x".repeat(5000),
+      summaryText: "x".repeat(5000),
     }) as any;
     expect(out.photo).toBe("[dane binarne]");
-    expect(out.note.length).toBeLessThan(1100);
-    expect(out.note).toContain("[+4000 znaków]");
+    expect(out.summaryText.length).toBeLessThan(1100);
+    expect(out.summaryText).toContain("[+4000 znaków]");
   });
 
   it("zamienia Date na tekst ISO i obsługuje null/undefined", () => {
@@ -74,5 +74,30 @@ describe("clip", () => {
     expect(clip("  a \n b  ")).toBe("a b");
     expect(clip("x".repeat(200), 10)).toBe("xxxxxxxxxx…");
     expect(clip(null)).toBe("");
+  });
+});
+
+describe("maskowanie danych osobowych w dzienniku (audyt F-15)", () => {
+  it("maskuje telefony i e-maile w tekście", () => {
+    expect(maskPii("Nowy pacjent Jan (+48600100200), jan.kowalski@example.com")).toBe(
+      "Nowy pacjent Jan (+48 *** *** 200), j***@example.com",
+    );
+    expect(maskPii("tel. 600 100 200")).toBe("tel. *** *** 200");
+  });
+
+  it("nie rusza dłuższych ciągów cyfr ani zwykłego tekstu", () => {
+    expect(maskPii("kwota 1234567890 gr, wizyta 2026-09-30")).toBe("kwota 1234567890 gr, wizyta 2026-09-30");
+  });
+
+  it("ukrywa treść notatek i maskuje kontakty w danych zdarzenia", () => {
+    const cleaned = sanitizeAuditData({
+      changes: { note: { from: "alergia na lidokainę", to: "brak" }, phone: { from: "+48600100200", to: "+48600100201" } },
+      hasNote: true,
+      email: "anna@example.com",
+    }) as any;
+    expect(cleaned.changes.note).toBe("[treść ukryta]");
+    expect(cleaned.changes.phone).toEqual({ from: "+48 *** *** 200", to: "+48 *** *** 201" });
+    expect(cleaned.hasNote).toBe(true);
+    expect(cleaned.email).toBe("a***@example.com");
   });
 });

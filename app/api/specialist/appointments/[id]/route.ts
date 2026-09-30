@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PATIENT_PUBLIC_SELECT } from "@/lib/patient-select";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, requireStrictRole } from "@/lib/api-helpers";
@@ -19,7 +20,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   const appt = await prisma.appointment.findFirst({
     where: { id: params.id, locationId: user!.locationId },
     include: {
-      patient: true,
+      patient: { select: PATIENT_PUBLIC_SELECT },
       service: { include: { suggestedProducts: { include: { product: true } } } },
       consumptions: { include: { product: true, warehouse: true } },
       payments: true,

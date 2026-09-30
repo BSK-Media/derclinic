@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { requireStepUp } from "@/lib/mfa";
 
 // Naprawa danych po błędzie w /api/patient/register, który do numeru telefonu
 // zwalidowanego już jako "+48" + 9 cyfr doklejał drugi prefiks "+48"
@@ -17,6 +18,9 @@ export async function POST() {
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
+  // Masowa zmiana danych = operacja wysokiego ryzyka: ponowne potwierdzenie MFA.
+  const stepUp = requireStepUp(user!);
+  if (stepUp) return stepUp;
 
   const candidates = await prisma.patient.findMany({
     where: { phone: { startsWith: "+4848" } },

@@ -49,9 +49,10 @@ function serviceName(appointment: { customServiceName: string | null; service: {
   return appointment.customServiceName || appointment.service.name;
 }
 
-// Powiadomienia dla recepcji/admina — na razie tylko oczekujące prośby
-// pacjentów o zmianę danych kontaktowych (patrz PatientDataChangeRequest).
-async function getAdminNotifications(): Promise<NotificationItem[]> {
+// Powiadomienia dla recepcji/admina — oczekujące prośby pacjentów o zmianę
+// danych kontaktowych (patrz PatientDataChangeRequest), a dla administratora
+// także alerty bezpieczeństwa.
+async function getAdminNotifications(includeSecurityAlerts: boolean): Promise<NotificationItem[]> {
   const pending = await prisma.patientDataChangeRequest.findMany({
     where: { status: "PENDING" },
     orderBy: { createdAt: "desc" },
@@ -59,7 +60,7 @@ async function getAdminNotifications(): Promise<NotificationItem[]> {
     include: { patient: { select: { name: true } } },
   });
 
-  return pending.map((request) => ({
+  const requests: NotificationItem[] = pending.map((request) => ({
     id: `data-change-${request.id}`,
     kind: "message",
     title: "Prośba o zmianę danych",
@@ -67,7 +68,33 @@ async function getAdminNotifications(): Promise<NotificationItem[]> {
     createdAt: request.createdAt,
     href: "/admin/patients/data-change-requests",
   }));
+
+  // Alerty bezpieczeństwa z ostatnich 7 dni (audyt F-04/F-05): reset MFA,
+  // blokady po przekroczeniu limitu prób logowania / kodów.
+  const securityEvents = !includeSecurityAlerts ? [] : await prisma.auditLog.findMany({
+    where: {
+      action: { in: ["MFA_RESET", "RATE_LIMITED"] },
+      createdAt: { gte: new Date(Date.now() - SECURITY_ALERT_DAYS * 24 * 60 * 60 * 1000) },
+    },
+    orderBy: { createdAt: "desc" },
+    take: NOTIFICATIONS_LIMIT,
+    select: { id: true, action: true, summary: true, createdAt: true },
+  });
+  const alerts: NotificationItem[] = securityEvents.map((event) => ({
+    id: `security-${event.id}`,
+    kind: "message",
+    title: event.action === "MFA_RESET" ? "Alert: reset logowania dwuskładnikowego" : "Alert: zablokowano kolejne próby",
+    description: event.summary ?? "",
+    createdAt: event.createdAt,
+    href: "/admin/logs",
+  }));
+
+  return [...alerts, ...requests]
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, NOTIFICATIONS_LIMIT);
 }
+
+const SECURITY_ALERT_DAYS = 7;
 
 async function getSpecialistNotifications(specialistId: string, locationId: string) {
   const notificationsFrom = new Date(Date.now() - NOTIFICATIONS_DAYS * 24 * 60 * 60 * 1000);
@@ -222,7 +249,7 @@ export async function GET() {
   if (user!.role === "SPECIALIST") {
     notifications = await getSpecialistNotifications(user!.id, user!.locationId);
   } else if (user!.role === "ADMIN" || user!.role === "RECEPTION") {
-    notifications = await getAdminNotifications();
+    notifications = await getAdminNotifications(user!.role === "ADMIN");
   } else {
     return NextResponse.json({ ok: true, notifications: [], unreadCount: 0 });
   }

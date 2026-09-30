@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { PATIENT_PUBLIC_SELECT } from "@/lib/patient-select";
 import type { Prisma } from "@prisma/client";
 import Link from "next/link";
 import {
@@ -270,7 +271,7 @@ export default async function SpecialistHome() {
         startsAt: { gte: todayStart, lt: tomorrowStart },
       },
       orderBy: { startsAt: "asc" },
-      include: { patient: true, service: true },
+      include: { patient: { select: PATIENT_PUBLIC_SELECT }, service: true },
     }),
     prisma.appointment.findMany({
       where: {
@@ -317,7 +318,7 @@ export default async function SpecialistHome() {
       orderBy: { startsAt: "asc" },
       take: 50,
       include: {
-        patient: true,
+        patient: { select: PATIENT_PUBLIC_SELECT },
         service: {
           include: {
             suggestedProducts: { include: { product: { select: { id: true, name: true } } } },

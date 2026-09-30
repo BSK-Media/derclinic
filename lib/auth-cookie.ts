@@ -1,9 +1,14 @@
-import { cookies } from "next/headers";
-import { SignJWT, jwtVerify } from "jose";
+import { cookies, headers } from "next/headers";
+import { normalizeSidebarPermissions, type SidebarPermission } from "@/lib/sidebar-permissions";
+import { prisma } from "@/lib/prisma";
 import {
-  normalizeSidebarPermissions,
-  type SidebarPermission,
-} from "@/lib/sidebar-permissions";
+  SESSION_POLICY,
+  hashSessionId,
+  newSessionId,
+  purgeExpiredSessions,
+  signSessionToken,
+  validateStaffToken,
+} from "@/lib/session-core";
 
 export type Role = "ADMIN" | "RECEPTION" | "SPECIALIST";
 
@@ -13,69 +18,89 @@ export type AuthUser = {
   name: string;
   role: Role;
   sidebarPermissions: SidebarPermission[];
+  // Sesja po stronie serwera (hash identyfikatora) i czas ostatniego step-up MFA.
+  sessionId: string;
+  stepUpAt: Date | null;
 };
 
-const COOKIE_NAME = "bsk_auth";
+const COOKIE_NAME = "bsk_session";
+// Dawne ciasteczko z 30-dniowym, bezstanowym JWT — czyścimy je przy logowaniu/wylogowaniu.
+const LEGACY_COOKIE_NAME = "bsk_auth";
 
-function secretKey() {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret) throw new Error("AUTH_SECRET is not set");
-  return new TextEncoder().encode(secret);
-}
+export const AUTH_COOKIE_NAME = COOKIE_NAME;
 
-export async function signAuthToken(user: AuthUser) {
-  const now = Math.floor(Date.now() / 1000);
-  return await new SignJWT({ ...user })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt(now)
-    .setExpirationTime(now + 60 * 60 * 24 * 30)
-    .sign(secretKey());
-}
-
-export async function verifyAuthToken(token: string): Promise<AuthUser | null> {
-  try {
-    const { payload } = await jwtVerify(token, secretKey());
-    const u = payload as any;
-    if (!u?.id || !u?.email || !u?.role) return null;
-    return {
-      id: String(u.id),
-      email: String(u.email),
-      name: String(u.name ?? ""),
-      role: u.role as Role,
-      sidebarPermissions: normalizeSidebarPermissions(String(u.role), u.sidebarPermissions),
-    };
-  } catch {
-    return null;
-  }
+function cookieOptions(maxAgeSec: number) {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: maxAgeSec,
+  };
 }
 
 export async function getAuthUser(): Promise<AuthUser | null> {
   const token = (await cookies()).get(COOKIE_NAME)?.value;
-  if (!token) return null;
-  return await verifyAuthToken(token);
+  const session = await validateStaffToken(token);
+  if (!session) return null;
+  const { user } = session;
+  return {
+    id: user.id,
+    email: user.email ?? `${user.login}@local`,
+    name: user.name,
+    role: user.role as Role,
+    sidebarPermissions: normalizeSidebarPermissions(user.role, user.sidebarPermissions),
+    sessionId: session.id,
+    stepUpAt: session.stepUpAt,
+  };
 }
 
-export async function setAuthCookie(token: string) {
-  (await cookies()).set({
-    name: COOKIE_NAME,
-    value: token,
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30,
-  });
+async function requestMeta() {
+  try {
+    const h = await headers();
+    const ip = h.get("x-real-ip")?.trim() || h.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+    return { ipAddress: ip?.slice(0, 64) ?? null, userAgent: h.get("user-agent")?.slice(0, 300) ?? null };
+  } catch {
+    return { ipAddress: null, userAgent: null };
+  }
 }
 
-export async function clearAuthCookie() {
-  (await cookies()).set({
-    name: COOKIE_NAME,
-    value: "",
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 0,
+/**
+ * Tworzy pełną sesję pracownika — wolno wołać WYŁĄCZNIE po potwierdzeniu
+ * hasła i drugiego składnika (MFA). Za każdym razem nowy identyfikator sesji.
+ */
+export async function startStaffSession(userId: string, mfaMethod: "TOTP" | "RECOVERY_CODE" | "PASSKEY") {
+  const sid = newSessionId();
+  const now = Date.now();
+  const expiresAt = new Date(now + SESSION_POLICY.staff.absoluteMs);
+  await prisma.staffSession.create({
+    data: {
+      id: hashSessionId(sid),
+      userId,
+      expiresAt,
+      mfaMethod,
+      // Świeże logowanie z MFA liczy się jako step-up.
+      stepUpAt: new Date(now),
+      ...(await requestMeta()),
+    },
   });
+  const jar = await cookies();
+  jar.set({ name: COOKIE_NAME, value: await signSessionToken("staff", userId, sid, expiresAt), ...cookieOptions(SESSION_POLICY.staff.absoluteMs / 1000) });
+  jar.set({ name: LEGACY_COOKIE_NAME, value: "", ...cookieOptions(0) });
+  if (Math.random() < 0.05) void purgeExpiredSessions();
 }
-export const AUTH_COOKIE_NAME = COOKIE_NAME;
+
+/** Wylogowanie: unieważnia bieżącą sesję w bazie i czyści ciasteczko. */
+export async function endStaffSession(reason = "logout") {
+  const current = await getAuthUser();
+  if (current) {
+    await prisma.staffSession.updateMany({
+      where: { id: current.sessionId, revokedAt: null },
+      data: { revokedAt: new Date(), revokedReason: reason },
+    });
+  }
+  const jar = await cookies();
+  jar.set({ name: COOKIE_NAME, value: "", ...cookieOptions(0) });
+  jar.set({ name: LEGACY_COOKIE_NAME, value: "", ...cookieOptions(0) });
+  return current;
+}

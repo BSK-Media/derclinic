@@ -81,18 +81,25 @@ export default function PatientRegisterPage() {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result?.ok) {
-        if (result?.code === "ACCOUNT_EXISTS") {
-          // Standardowe zachowanie jak w innych serwisach — jeśli konto już
-          // istnieje, odsyłamy do logowania zamiast pokazywać błąd i
-          // zostawiać osobę na formularzu rejestracji.
-          router.push(`/panel-klienta/logowanie?istniejace=1&telefon=${digits}`);
-          return;
-        }
         setError(result?.message || "Nie udało się założyć konta");
         return;
       }
-      router.push("/panel-klienta");
-      router.refresh();
+      // Serwer celowo nie mówi, czy konto już istniało (ochrona przed
+      // sprawdzaniem, kto jest pacjentem kliniki). Logujemy się podanym hasłem:
+      // jeśli się uda — konto właśnie powstało.
+      const login = await fetch("/api/patient/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone: `+48${digits}`, password }),
+      })
+        .then((r) => r.json())
+        .catch(() => ({}));
+      if (login?.ok) {
+        router.push("/panel-klienta");
+        router.refresh();
+        return;
+      }
+      router.push(`/panel-klienta/logowanie?istniejace=1&telefon=${digits}`);
     } catch {
       setError("Nie udało się połączyć z serwerem. Spróbuj ponownie.");
     } finally {
@@ -108,8 +115,8 @@ export default function PatientRegisterPage() {
         </div>
         <h1 className="mb-1 text-center text-xl font-semibold text-zinc-900">Załóż konto</h1>
         <p className="mb-6 text-center text-sm text-zinc-500">
-          Jeśli masz już za sobą wizytę w DerClinic, użyj tego samego telefonu i e-maila — automatycznie połączymy
-          konto z historią Twoich wizyt.
+          Jeśli masz już za sobą wizytę w DerClinic, recepcja połączy konto z historią Twoich wizyt po
+          potwierdzeniu tożsamości.
         </p>
 
         <form className="space-y-4" onSubmit={submit}>

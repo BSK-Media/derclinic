@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PATIENT_PUBLIC_SELECT } from "@/lib/patient-select";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole } from "@/lib/api-helpers";
 
@@ -25,7 +26,7 @@ export async function GET() {
       product: true,
       specialist: { select: { id: true, name: true } },
       createdBy: { select: { id: true, name: true } },
-      appointment: { include: { patient: true, service: true } },
+      appointment: { include: { patient: { select: PATIENT_PUBLIC_SELECT }, service: true } },
     },
   });
 

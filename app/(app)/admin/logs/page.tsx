@@ -15,6 +15,7 @@ import {
   auditEntityLabel,
 } from "@/lib/audit-labels";
 import { formatPLNFromGrosze } from "@/lib/money";
+import { toast } from "sonner";
 
 type LogRow = {
   id: string;
@@ -304,6 +305,54 @@ export default function LogsPage() {
     return `/api/admin/logs?${params.toString()}`;
   }, [filterParams]);
 
+  // Eksport przez fetch (nie zwykły link), żeby zadziałało ponowne potwierdzenie
+  // MFA wymagane przy eksporcie danych (components/security-fetch.tsx).
+  const [exporting, setExporting] = React.useState(false);
+  async function downloadCsv() {
+    setExporting(true);
+    try {
+      const response = await fetch(csvUrl);
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        toast.error(result?.message || "Nie udało się pobrać eksportu");
+        return;
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") ?? "";
+      const name = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? "dziennik-zdarzen.csv";
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name;
+      link.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  const [verifying, setVerifying] = React.useState(false);
+  async function verifyIntegrity() {
+    setVerifying(true);
+    try {
+      const result = await fetch("/api/admin/logs/integrity").then((r) => r.json());
+      if (!result?.ok) return void toast.error("Nie udało się sprawdzić dziennika");
+      if (result.invalidCount > 0) {
+        toast.error(
+          `Uwaga: ${result.invalidCount} wpisów zmieniono poza aplikacją (sprawdzono ${result.checked}). Zgłoś to administratorowi bazy.`,
+          { duration: 15000 },
+        );
+      } else {
+        toast.success(
+          `Dziennik nienaruszony: ${result.valid} wpisów z poprawnym podpisem${result.unsigned ? `, ${result.unsigned} sprzed wprowadzenia podpisów` : ""}.`,
+        );
+      }
+      void mutate();
+    } finally {
+      setVerifying(false);
+    }
+  }
+
   const { data, isLoading, isValidating, mutate } = useSWR<LogsResponse>(isAdmin ? listUrl : null, fetcher, {
     keepPreviousData: true,
     revalidateOnFocus: false,
@@ -416,13 +465,22 @@ export default function LogsPage() {
           >
             <RefreshCw className={`h-4 w-4 ${isValidating ? "animate-spin" : ""}`} /> Odśwież
           </button>
-          <a
-            href={csvUrl}
-            download
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50 dark:border-white/10 dark:bg-[#111827] dark:text-zinc-100 dark:hover:bg-white/5"
+          <button
+            type="button"
+            onClick={() => void downloadCsv()}
+            disabled={exporting}
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:opacity-60 dark:border-white/10 dark:bg-[#111827] dark:text-zinc-100 dark:hover:bg-white/5"
           >
-            <Download className="h-4 w-4" /> Eksport CSV
-          </a>
+            <Download className="h-4 w-4" /> {exporting ? "Pobieranie…" : "Eksport CSV"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void verifyIntegrity()}
+            disabled={verifying}
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:opacity-60 dark:border-white/10 dark:bg-[#111827] dark:text-zinc-100 dark:hover:bg-white/5"
+          >
+            <ShieldCheck className="h-4 w-4" /> {verifying ? "Sprawdzanie…" : "Sprawdź integralność"}
+          </button>
           {hasFilters ? (
             <button
               type="button"

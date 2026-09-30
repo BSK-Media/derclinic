@@ -71,7 +71,7 @@ describe("logAudit", () => {
     expect(userFindUnique).not.toHaveBeenCalled();
     const guest = auditCreate.mock.calls[0][0].data;
     const patient = auditCreate.mock.calls[1][0].data;
-    expect(guest).toMatchObject({ actorType: "GUEST", actorId: null, actorName: "Jan Kowalski", actorLogin: "+48123456789" });
+    expect(guest).toMatchObject({ actorType: "GUEST", actorId: null, actorName: "Jan Kowalski", actorLogin: "+48 *** *** 789" });
     expect(patient).toMatchObject({ actorType: "PATIENT", actorId: "p1", actorName: "Ewa Test", actorRole: null });
   });
 

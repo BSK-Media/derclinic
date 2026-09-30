@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit, diffFields } from "@/lib/audit";
 import { validatePassword } from "@/lib/password-policy";
+import { requireStepUp } from "@/lib/mfa";
+import { revokeAllPatientSessions } from "@/lib/session-core";
 
 const PatchSchema = z.object({
   name: z.string().trim().min(2, "Podaj imię i nazwisko").max(100).optional(),
@@ -80,6 +82,8 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
     },
     select: PATIENT_SAFE_SELECT,
   });
+  // Nowe hasło nadane przez recepcję wylogowuje pacjenta ze wszystkich urządzeń.
+  if (parsed.data.password) await revokeAllPatientSessions(params.id, "password_set_by_staff");
 
   const changes = diffFields(
     { name: visiblePatient.name, phone: visiblePatient.phone, email: visiblePatient.email, note: visiblePatient.note },
@@ -109,6 +113,8 @@ export async function DELETE(_req: Request, props: { params: Promise<{ id: strin
   if (error) return error;
   const deny = await requireRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
+  const stepUp = requireStepUp(user!);
+  if (stepUp) return stepUp;
 
   const visiblePatient = await prisma.patient.findFirst({
     where: { id: params.id, ...scopedLocationWhere(user!) },

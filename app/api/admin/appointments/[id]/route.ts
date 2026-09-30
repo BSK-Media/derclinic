@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PATIENT_PUBLIC_SELECT } from "@/lib/patient-select";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import {
@@ -29,7 +30,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
         : scopedLocationWhere(user!)),
     },
     include: {
-      patient: true,
+      patient: { select: PATIENT_PUBLIC_SELECT },
       specialist: {
         select: { id: true, name: true, login: true, payoutPercent: true },
       },

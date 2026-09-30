@@ -1,7 +1,9 @@
 import { headers } from "next/headers";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { sanitizeAuditData } from "@/lib/audit-format";
+import { randomUUID } from "node:crypto";
+import { maskPii, sanitizeAuditData } from "@/lib/audit-format";
+import { signAuditEntry } from "@/lib/audit-signature";
 
 export { diffFields, clip, formatWarsaw } from "@/lib/audit-format";
 
@@ -115,15 +117,20 @@ export async function logAudit(input: LogAuditInput): Promise<void> {
   try {
     const actor = await resolveActor(client, input);
     const data = sanitizeAuditData(input.data);
-    entry = {
+    const base = {
+      id: randomUUID(),
+      createdAt: new Date(),
       ...actor,
+      // Kontakt podany przez gościa/pacjenta (telefon, e-mail) — maskowany.
+      actorLogin: actor.actorType === "STAFF" ? actor.actorLogin : actor.actorLogin ? maskPii(actor.actorLogin) : null,
       action: input.action,
       entity: input.entity,
       entityId: input.entityId ?? null,
-      summary: input.summary ? input.summary.slice(0, 2000) : null,
+      summary: input.summary ? maskPii(input.summary).slice(0, 2000) : null,
       data: data === null ? undefined : (data as Prisma.InputJsonValue),
       ...(await requestContext()),
     };
+    entry = { ...base, signature: signAuditEntry({ ...base, data: base.data ?? null }) };
     await client.auditLog.create({ data: entry });
   } catch (e) {
     let payload = "";

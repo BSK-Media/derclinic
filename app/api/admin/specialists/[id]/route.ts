@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit, diffFields } from "@/lib/audit";
 import { SIDEBAR_PERMISSION_KEYS } from "@/lib/sidebar-permissions";
+import { requireStepUp } from "@/lib/mfa";
+import { revokeAllStaffSessions } from "@/lib/session-core";
 
 const PatchSchema = z.object({
   isVisible: z.boolean().optional(),
@@ -36,6 +38,18 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
     where: { id: params.id },
     select: { isVisible: true, isAvailable: true, phone: true, email: true, sidebarPermissions: true },
   });
+
+  // Zmiana uprawnień = operacja wysokiego ryzyka: ponowne MFA, a po zapisie
+  // unieważnienie aktywnych sesji pracownika.
+  const sortedJson = (value: unknown) =>
+    JSON.stringify(Array.isArray(value) ? [...value].map(String).sort() : (value ?? null));
+  const permissionsChanged =
+    parsed.data.sidebarPermissions !== undefined &&
+    sortedJson(parsed.data.sidebarPermissions) !== sortedJson(before?.sidebarPermissions);
+  if (permissionsChanged) {
+    const stepUp = requireStepUp(user!);
+    if (stepUp) return stepUp;
+  }
 
   const updated = await prisma.user.update({
     where: { id: params.id },
@@ -86,5 +100,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
     summary: `Zmiana ustawień konta „${updated.name}": ${parts.length ? parts.join("; ") : "bez zmian wartości"}`,
     data: { ...data, changes },
   });
+  if (permissionsChanged && params.id !== user!.id) await revokeAllStaffSessions(params.id, "permissions_change");
+
   return NextResponse.json({ ok: true, specialist: updated });
 }

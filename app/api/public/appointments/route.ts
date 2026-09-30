@@ -227,7 +227,6 @@ export async function POST(req: Request) {
         : { type: "GUEST", name: patientName, contact: normalizedPhone };
 
       let accountCreated = false;
-      let alreadyHasAccount = false;
       let bookedAsLoggedIn = false;
       let patientId: string;
 
@@ -235,7 +234,6 @@ export async function POST(req: Request) {
         // Rezerwacja wykonana przez zalogowanego pacjenta — wizyta trafia
         // wprost na jego konto, bez tworzenia nowego rekordu Patient.
         patientId = patientAuth.id;
-        alreadyHasAccount = true;
         bookedAsLoggedIn = true;
         if (normalizedEmail) {
           const filled = await tx.patient.updateMany({
@@ -257,27 +255,38 @@ export async function POST(req: Request) {
       } else {
         const existingPatient = await findExistingPatient(tx, normalizedPhone, normalizedEmail, locationId);
 
-        // Telefon albo e-mail ma już przypisane konto z hasłem — rezerwacja
-        // nie może przejść ani jako gość, ani jako rejestracja na te same
-        // dane; osoba musi się zalogować, żeby dokończyć rezerwację na
-        // właściwym koncie. Sprawdzane też tutaj (nie tylko na froncie), bo
-        // to jest ostateczne, autorytatywne miejsce walidacji.
-        if (existingPatient?.passwordHash) {
-          throw new Error(
-            "Ten numer telefonu lub adres e-mail ma już założone konto. Zaloguj się, aby dokończyć rezerwację.",
-          );
-        }
+        // Odpowiedź NIE może zdradzać, czy dany telefon/e-mail ma konto
+        // (audyt F-12), a osoba niezalogowana nie może ustawić hasła na
+        // cudzej, istniejącej karcie pacjenta — inaczej ktoś znający tylko
+        // numer telefonu przejąłby historię wizyt tej osoby.
+        //  * rezerwacja jako gość trafia na istniejącą kartę (jak w recepcji),
+        //    ale bez nadpisywania danych karty, która ma konto,
+        //  * "załóż konto" tworzy ZAWSZE nową kartę z hasłem — o ile telefon
+        //    ani e-mail nie mają jeszcze konta; wcześniejszą historię gościa
+        //    recepcja łączy potem ręcznie (Pacjenci → Duplikaty),
+        //  * gdy konto już istnieje, prośba o założenie konta jest po cichu
+        //    pomijana, a wizyta zapisuje się normalnie.
+        const accountHolder = passwordHash
+          ? await tx.patient.findFirst({
+              where: {
+                passwordHash: { not: null },
+                OR: [
+                  { phone: normalizedPhone },
+                  ...(normalizedEmail ? [{ email: { equals: normalizedEmail, mode: "insensitive" as const } }] : []),
+                ],
+              },
+              select: { id: true },
+            })
+          : null;
+        const createAccount = Boolean(passwordHash) && !accountHolder;
 
-        if (existingPatient) {
+        if (existingPatient && !createAccount) {
           patientId = existingPatient.id;
-          const patientUpdate: { email?: string; phone?: string; passwordHash?: string } = {};
-          if (normalizedEmail && !existingPatient.email) patientUpdate.email = normalizedEmail;
-          // Uzupełniamy telefon tylko, gdy pacjent trafiony po e-mailu nie miał
-          // go jeszcze zapisanego — nie nadpisujemy istniejącego numeru innym.
-          if (normalizedPhone && !existingPatient.phone) patientUpdate.phone = normalizedPhone;
-          if (passwordHash) {
-            patientUpdate.passwordHash = passwordHash;
-            accountCreated = true;
+          const patientUpdate: { email?: string; phone?: string } = {};
+          // Uzupełniamy brakujące dane kontaktowe wyłącznie na karcie bez konta.
+          if (!existingPatient.passwordHash) {
+            if (normalizedEmail && !existingPatient.email) patientUpdate.email = normalizedEmail;
+            if (normalizedPhone && !existingPatient.phone) patientUpdate.phone = normalizedPhone;
           }
           if (Object.keys(patientUpdate).length > 0) {
             await tx.patient.update({ where: { id: existingPatient.id }, data: patientUpdate });
@@ -287,15 +296,23 @@ export async function POST(req: Request) {
               action: "UPDATE",
               entity: "Patient",
               entityId: existingPatient.id,
-              summary: accountCreated
-                ? "Założenie konta (ustawienie hasła) na istniejącej karcie pacjenta przy rezerwacji online"
-                : "Uzupełnienie danych kontaktowych istniejącej karty pacjenta przy rezerwacji online",
+              summary: "Uzupełnienie danych kontaktowych istniejącej karty pacjenta przy rezerwacji online",
               data: {
                 updatedFields: Object.keys(patientUpdate),
                 email: patientUpdate.email ?? undefined,
                 phone: patientUpdate.phone ?? undefined,
-                accountCreated,
               },
+            });
+          }
+          if (passwordHash && accountHolder) {
+            await logAudit({
+              tx,
+              actor: bookingActor,
+              action: "REGISTER",
+              entity: "PatientAccount",
+              entityId: accountHolder.id,
+              summary: "Prośba o założenie konta przy rezerwacji online pominięta — telefon lub e-mail ma już konto",
+              data: { skipped: true, reason: "account_exists" },
             });
           }
         } else {
@@ -305,12 +322,12 @@ export async function POST(req: Request) {
               phone: normalizedPhone,
               email: normalizedEmail,
               locationId,
-              passwordHash,
+              passwordHash: createAccount ? passwordHash : null,
             },
             select: { id: true },
           });
           patientId = createdPatient.id;
-          accountCreated = Boolean(passwordHash);
+          accountCreated = createAccount;
           await logAudit({
             tx,
             actor: bookingActor,
@@ -319,8 +336,15 @@ export async function POST(req: Request) {
             entityId: createdPatient.id,
             summary: `Nowa karta pacjenta z rezerwacji online: ${patientName} (${normalizedPhone})${
               accountCreated ? " — z założeniem konta" : ""
-            }`,
-            data: { name: patientName, phone: normalizedPhone, email: normalizedEmail, locationId, accountCreated },
+            }${existingPatient ? " — istnieje wcześniejsza karta gościa do połączenia (Pacjenci → Duplikaty)" : ""}`,
+            data: {
+              name: patientName,
+              phone: normalizedPhone,
+              email: normalizedEmail,
+              locationId,
+              accountCreated,
+              previousGuestPatientId: existingPatient?.id ?? undefined,
+            },
           });
         }
       }
@@ -423,8 +447,6 @@ export async function POST(req: Request) {
         ...created,
         loyaltyPointsUsed,
         loyaltyDiscountAmount,
-        accountCreated,
-        alreadyHasAccount,
         bookedAsLoggedIn,
         paymentChoice: effectiveChoice,
         amountPaid: amountDueGrosze,
@@ -436,8 +458,6 @@ export async function POST(req: Request) {
       ok: true,
       appointmentId: appointment.id,
       startsAt: appointment.startsAt,
-      accountCreated: appointment.accountCreated,
-      alreadyHasAccount: appointment.alreadyHasAccount,
       bookedAsLoggedIn: appointment.bookedAsLoggedIn,
       loyaltyPointsUsed: appointment.loyaltyPointsUsed,
       loyaltyDiscountAmount: appointment.loyaltyDiscountAmount,

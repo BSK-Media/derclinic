@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { setPatientAuthCookie, signPatientToken } from "@/lib/patient-auth";
+import { startPatientSession } from "@/lib/patient-auth";
 import { logAudit } from "@/lib/audit";
 import {
   RATE_LIMITS,
@@ -85,13 +85,7 @@ export async function POST(req: Request) {
 
   await resetRateLimit(RATE_LIMITS.patientLoginAccount, phone);
 
-  const token = await signPatientToken({
-    id: patient.id,
-    name: patient.name,
-    phone: patient.phone,
-    email: patient.email,
-  });
-  await setPatientAuthCookie(token);
+  await startPatientSession(patient.id);
 
   await logAudit({
     actor: { type: "PATIENT", id: patient.id, name: patient.name, contact: patient.phone },

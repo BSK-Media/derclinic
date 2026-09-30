@@ -7,6 +7,8 @@
 // nie zdradzać czy dany adres ma konto), ale logujemy ostrzeżenie na serwerze,
 // żeby było widać w logach Vercela, że trzeba dodać klucz.
 
+import { maskPii } from "@/lib/audit-format";
+
 export async function sendEmail(input: { to: string; subject: string; html: string; text?: string }) {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
@@ -14,7 +16,7 @@ export async function sendEmail(input: { to: string; subject: string; html: stri
   if (!apiKey || !from) {
     console.warn(
       "[mailer] RESEND_API_KEY / RESEND_FROM_EMAIL nie są ustawione — e-mail NIE został wysłany. " +
-        `(miał pójść do: ${input.to}, temat: "${input.subject}")`,
+        `(miał pójść do: ${maskPii(input.to)}, temat: "${input.subject}")`,
     );
     return { ok: false as const, skipped: true as const };
   }

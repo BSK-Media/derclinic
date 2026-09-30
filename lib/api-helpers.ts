@@ -63,6 +63,9 @@ export async function requireAuth() {
       assignedLocation: dbUser.assignedLocation,
       locationScopeId,
       sidebarPermissions,
+      // Sesja (do step-up MFA przed operacjami wysokiego ryzyka — lib/mfa.ts).
+      sessionId: u.sessionId,
+      stepUpAt: u.stepUpAt,
     },
     error: null,
   };

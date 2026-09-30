@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PATIENT_PUBLIC_SELECT } from "@/lib/patient-select";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import {
@@ -80,7 +81,7 @@ export async function GET(req: Request) {
             },
         orderBy: deletedOnly ? { deletedAt: "desc" } : { startsAt: "asc" },
         include: {
-          patient: true,
+          patient: { select: PATIENT_PUBLIC_SELECT },
           specialist: { select: { id: true, name: true, login: true } },
           service: true,
           deletedBy: { select: { id: true, name: true, login: true } },
@@ -94,6 +95,8 @@ export async function GET(req: Request) {
         where: { ...locationWhere, name: { not: RESERVATION_PATIENT_NAME } },
         orderBy: { name: "asc" },
         take: 500,
+        // Bez hasha hasła i tokenu resetu.
+        select: PATIENT_PUBLIC_SELECT,
       }),
       prisma.user.findMany({
         where: { role: "SPECIALIST", ...locationWhere },

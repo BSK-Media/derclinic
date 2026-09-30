@@ -83,28 +83,40 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  role             Role     @default(SPECIALIST)
-  login            String   @unique
-  name             String
-  email            String?  @unique
-  passwordHash     String
+  role               Role    @default(SPECIALIST)
+  login              String  @unique
+  name               String
+  email              String? @unique
+  passwordHash       String
   // Hasło nadane przez administratora (albo niespełniające obecnej polityki)
   // jest tymczasowe — przy logowaniu pracownik musi ustawić własne.
   mustChangePassword Boolean @default(false)
-  phone            String?
-  specialistCode   Int?
-  isVisible        Boolean  @default(true)
-  isAvailable      Boolean  @default(false)
-  avatarUrl        String?
-  jobTitle         String?
+
+  // Uwierzytelnianie dwuskładnikowe (audyt F-04) — obowiązkowe dla personelu.
+  // Sekrety TOTP są zaszyfrowane aplikacyjnie (lib/secret-box.ts), nigdy jawnie.
+  mfaEnabledAt               DateTime?
+  mfaTotpSecretEnc           String?
+  // Sekret w trakcie konfiguracji — staje się aktywny po potwierdzeniu kodem.
+  mfaTotpPendingSecretEnc    String?
+  // Ostatni wykorzystany krok czasowy TOTP — ten sam kod nie zadziała drugi raz.
+  mfaTotpLastStep            Int?
+  // Jednorazowe wyzwanie WebAuthn (rejestracja / logowanie kluczem dostępu).
+  webauthnChallenge          String?
+  webauthnChallengeExpiresAt DateTime?
+  phone                      String?
+  specialistCode             Int?
+  isVisible                  Boolean   @default(true)
+  isAvailable                Boolean   @default(false)
+  avatarUrl                  String?
+  jobTitle                   String?
   // Dłuższy opis/biogram wyświetlany na publicznej stronie specjalisty w
   // panelu klienta (osobne pole od krótkiego "specialization").
-  bio              String?  @db.Text
-  location         String?
-  locationId       String   @default("grodzisk-mazowiecki")
-  assignedLocation Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  specialization   String?
-  sourceProfileUrl String?
+  bio                        String?   @db.Text
+  location                   String?
+  locationId                 String    @default("grodzisk-mazowiecki")
+  assignedLocation           Location  @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  specialization             String?
+  sourceProfileUrl           String?
 
   // Indywidualny dostęp do sekcji lewego menu. Null = domyślny zakres pracownika.
   sidebarPermissions Json?
@@ -115,22 +127,25 @@ model User {
   // Domyślna stawka kwotowa za pojedynczy zabieg (grosze); nadpisywana stawkami per zabieg
   baseRate Int?
 
-  appointments           Appointment[]             @relation("AppointmentSpecialist")
-  createdConsumptions    Consumption[]             @relation("ConsumptionCreator")
-  specialistConsumptions Consumption[]             @relation("ConsumptionSpecialist")
-  reviewedConsumptions   Consumption[]             @relation("ConsumptionReviewer")
-  retailSales            RetailSale[]              @relation("RetailSaleSeller")
-  discountApprovals      RetailSale[]              @relation("RetailSaleDiscountApprover")
-  notificationReads      NotificationRead[]
-  serviceRates           SpecialistServiceRate[]
-  warehouseAssignments   SpecialistWarehouse[]
-  approvedAppointments   Appointment[]             @relation("AppointmentApprover")
-  deletedAppointments    Appointment[]             @relation("AppointmentDeleter")
+  appointments                     Appointment[]              @relation("AppointmentSpecialist")
+  createdConsumptions              Consumption[]              @relation("ConsumptionCreator")
+  specialistConsumptions           Consumption[]              @relation("ConsumptionSpecialist")
+  reviewedConsumptions             Consumption[]              @relation("ConsumptionReviewer")
+  retailSales                      RetailSale[]               @relation("RetailSaleSeller")
+  discountApprovals                RetailSale[]               @relation("RetailSaleDiscountApprover")
+  notificationReads                NotificationRead[]
+  serviceRates                     SpecialistServiceRate[]
+  warehouseAssignments             SpecialistWarehouse[]
+  approvedAppointments             Appointment[]              @relation("AppointmentApprover")
+  deletedAppointments              Appointment[]              @relation("AppointmentDeleter")
   decidedPatientDataChangeRequests PatientDataChangeRequest[] @relation("PatientDataChangeDecider")
-  assignedServices       SpecialistService[]
-  workDays               SpecialistWorkDay[]
-  customWorkDays         SpecialistCustomWorkDay[]
-  timeOffs               SpecialistTimeOff[]
+  assignedServices                 SpecialistService[]
+  workDays                         SpecialistWorkDay[]
+  customWorkDays                   SpecialistCustomWorkDay[]
+  timeOffs                         SpecialistTimeOff[]
+  sessions                         StaffSession[]
+  mfaRecoveryCodes                 MfaRecoveryCode[]
+  passkeys                         WebAuthnPasskey[]
 
   @@index([role])
   @@index([locationId])
@@ -168,11 +183,12 @@ model Patient {
   locationId String   @default("grodzisk-mazowiecki")
   location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
 
-  appointments Appointment[]
-  retailSales  RetailSale[]
+  appointments       Appointment[]
+  retailSales        RetailSale[]
   dataChangeRequests PatientDataChangeRequest[]
-  consents     PatientConsent[]
-  consentEvents PatientConsentEvent[]
+  consents           PatientConsent[]
+  consentEvents      PatientConsentEvent[]
+  sessions           PatientSession[]
 
   @@index([name])
   @@index([phone])
@@ -586,10 +602,10 @@ model RetailSale {
   subtotal Int @default(0)
 
   // Zniżka: typ i wpisana wartość (AMOUNT: grosze, PERCENT: całe procenty 0-100)
-  discountType  DiscountType?
-  discountValue Int?
+  discountType   DiscountType?
+  discountValue  Int?
   // Rzeczywista kwota zniżki zastosowana do sprzedaży (grosze)
-  discountAmount Int @default(0)
+  discountAmount Int           @default(0)
 
   // Kwota do zapłaty po zniżce (grosze) — suma płatności musi się z nią zgadzać
   total Int @default(0)
@@ -769,6 +785,11 @@ model AuditLog {
   ipAddress String?
   userAgent String?
 
+  // Podpis HMAC-SHA256 wpisu kluczem spoza bazy (AUDIT_SIGNING_KEY) — pozwala
+  // wykryć modyfikację wpisu bezpośrednio w bazie (audyt F-11). Tabela jest
+  // dodatkowo chroniona wyzwalaczem blokującym UPDATE/DELETE/TRUNCATE.
+  signature String?
+
   @@index([createdAt])
   @@index([actorId, createdAt])
   @@index([entity, createdAt])
@@ -785,6 +806,74 @@ enum AuditActorType {
   GUEST
   // Zadanie systemowe bez człowieka
   SYSTEM
+}
+
+// Sesje po stronie serwera (audyt F-07). Ciasteczko zawiera podpisany token
+// z losowym identyfikatorem sesji; w bazie trzymamy wyłącznie jego hash
+// (SHA-256), więc zrzut bazy nie pozwala przejąć sesji. Sesję można w każdej
+// chwili unieważnić (wylogowanie, zmiana hasła/roli/MFA, decyzja admina).
+model StaffSession {
+  id            String    @id // SHA-256 identyfikatora z tokenu
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+  lastSeenAt    DateTime  @default(now())
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  revokedReason String?
+  // Jak potwierdzono drugi składnik: TOTP / RECOVERY_CODE / PASSKEY
+  mfaMethod     String
+  // Ostatnie ponowne potwierdzenie MFA (step-up) przed operacją wysokiego ryzyka.
+  stepUpAt      DateTime?
+  ipAddress     String?
+  userAgent     String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PatientSession {
+  id            String    @id // SHA-256 identyfikatora z tokenu
+  patientId     String
+  patient       Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+  lastSeenAt    DateTime  @default(now())
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  revokedReason String?
+  ipAddress     String?
+  userAgent     String?
+
+  @@index([patientId])
+  @@index([expiresAt])
+}
+
+// Jednorazowe kody odzyskiwania MFA — przechowywane wyłącznie jako HMAC-SHA256.
+model MfaRecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String    @unique
+  createdAt DateTime  @default(now())
+  usedAt    DateTime?
+
+  @@index([userId])
+}
+
+// Klucze dostępu (passkeys / WebAuthn / FIDO2) — preferowany drugi składnik.
+model WebAuthnPasskey {
+  // Identyfikator poświadczenia (base64url) nadany przez urządzenie.
+  id         String    @id
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publicKey  Bytes
+  counter    Int       @default(0)
+  transports String[]
+  name       String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  @@index([userId])
 }
 
 // Liczniki prób dla ograniczania częstotliwości (logowanie, reset hasła,

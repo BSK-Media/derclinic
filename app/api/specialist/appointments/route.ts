@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PATIENT_PUBLIC_SELECT } from "@/lib/patient-select";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, requireStrictRole } from "@/lib/api-helpers";
@@ -61,7 +62,7 @@ export async function GET(req: Request) {
       where: { specialistId, locationId: user!.role === "ADMIN" ? (user!.locationScopeId ?? undefined) : user!.locationId, deletedAt: null, startsAt: { gte: fromDt, lt: toDt } },
       orderBy: { startsAt: "asc" },
       include: {
-        patient: true,
+        patient: { select: PATIENT_PUBLIC_SELECT },
         service: true,
         consumptions: {
           where: { kind: "APPOINTMENT" },

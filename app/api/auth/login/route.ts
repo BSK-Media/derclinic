@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { setAuthCookie, signAuthToken } from "@/lib/auth-cookie";
 import { logAudit } from "@/lib/audit";
-import { normalizeSidebarPermissions } from "@/lib/sidebar-permissions";
+import { respondMfaRequired } from "@/lib/mfa";
 import { validatePassword } from "@/lib/password-policy";
 import { verifyStaffCredentials } from "@/lib/staff-credentials";
 
@@ -47,32 +46,6 @@ export async function POST(req: Request) {
     );
   }
 
-  const token = await signAuthToken({
-    id: user.id,
-    email: user.email ?? `${user.login}@local`,
-    name: user.name,
-    role: user.role as any,
-    sidebarPermissions: normalizeSidebarPermissions(user.role, user.sidebarPermissions),
-  });
-
-  await setAuthCookie(token);
-
-  await logAudit({
-    actorId: user.id,
-    action: "LOGIN",
-    entity: "User",
-    entityId: user.id,
-    summary: `Logowanie do panelu (konto „${user.login}")`,
-  });
-
-  return NextResponse.json({
-    ok: true,
-    user: {
-      id: user.id,
-      login: user.login,
-      name: user.name,
-      role: user.role,
-      sidebarPermissions: normalizeSidebarPermissions(user.role, user.sidebarPermissions),
-    },
-  });
+  // Hasło poprawne — ale pełna sesja powstaje dopiero po drugim składniku (MFA).
+  return await respondMfaRequired(user);
 }

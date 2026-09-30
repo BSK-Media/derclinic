@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { requireStepUp } from "@/lib/mfa";
 
 // Ten sam kod co prisma/update-test-content.ts, tylko dostępny jako endpoint
 // w panelu admina — dla wygody, gdy nie ma się lokalnego dostępu do bazy
@@ -34,6 +35,9 @@ export async function POST() {
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
+  // Masowa zmiana danych = operacja wysokiego ryzyka: ponowne potwierdzenie MFA.
+  const stepUp = requireStepUp(user!);
+  if (stepUp) return stepUp;
 
   const log: string[] = [];
 

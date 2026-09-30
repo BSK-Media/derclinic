@@ -197,7 +197,9 @@ export default function PublicBookingPage() {
   const [submitError, setSubmitError] = React.useState("");
   const [confirmedAt, setConfirmedAt] = React.useState<string | null>(null);
   const [accountCreated, setAccountCreated] = React.useState(false);
-  const [alreadyHasAccount, setAlreadyHasAccount] = React.useState(false);
+  // Prośba o konto przy rezerwacji, ale logowanie tym hasłem się nie udało —
+  // numer ma już konto (serwer celowo tego nie ujawnia w odpowiedzi rezerwacji).
+  const [accountNotCreated, setAccountNotCreated] = React.useState(false);
   const [bookedAsLoggedIn, setBookedAsLoggedIn] = React.useState(false);
   const [loyaltyPointsUsed, setLoyaltyPointsUsed] = React.useState(0);
   const [loyaltyDiscountAmount, setLoyaltyDiscountAmount] = React.useState(0);
@@ -218,8 +220,6 @@ export default function PublicBookingPage() {
   const [loginPassword, setLoginPassword] = React.useState("");
   const [loginError, setLoginError] = React.useState("");
   const [loginSubmitting, setLoginSubmitting] = React.useState(false);
-  const [phoneAccountWarning, setPhoneAccountWarning] = React.useState(false);
-  const [emailAccountWarning, setEmailAccountWarning] = React.useState(false);
   // Punkty lojalnościowe do wykorzystania jako rabat (1 pkt = 1 zł) — tylko
   // dla zalogowanego pacjenta. Fioletowy akcent w UI, zgodnie z resztą
   // programu punktowego w aplikacji.
@@ -251,62 +251,6 @@ export default function PublicBookingPage() {
   React.useEffect(() => {
     refreshPatientSession();
   }, [refreshPatientSession]);
-
-  // Sprawdzenie "na żywo" (z opóźnieniem), czy podany numer telefonu ma już
-  // założone konto — niezależnie od trybu (gość/rejestracja), żeby nikt nie
-  // mógł zarezerwować się na dane, które są już przypisane do innego konta.
-  React.useEffect(() => {
-    if (loggedInPatient) {
-      setPhoneAccountWarning(false);
-      return;
-    }
-    const digits = phoneDigitsOnly(phone);
-    if (digits.length !== 9) {
-      setPhoneAccountWarning(false);
-      return;
-    }
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      try {
-        const response = await fetch(`/api/public/check-account?phone=${digits}`);
-        const result = await response.json().catch(() => ({}));
-        if (!cancelled) setPhoneAccountWarning(Boolean(result?.phoneHasAccount));
-      } catch {
-        if (!cancelled) setPhoneAccountWarning(false);
-      }
-    }, 500);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [phone, loggedInPatient]);
-
-  // To samo dla adresu e-mail.
-  React.useEffect(() => {
-    if (loggedInPatient) {
-      setEmailAccountWarning(false);
-      return;
-    }
-    const trimmed = email.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(trimmed)) {
-      setEmailAccountWarning(false);
-      return;
-    }
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      try {
-        const response = await fetch(`/api/public/check-account?email=${encodeURIComponent(trimmed)}`);
-        const result = await response.json().catch(() => ({}));
-        if (!cancelled) setEmailAccountWarning(Boolean(result?.emailHasAccount));
-      } catch {
-        if (!cancelled) setEmailAccountWarning(false);
-      }
-    }, 500);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [email, loggedInPatient]);
 
   async function submitInlineLogin() {
     setLoginError("");
@@ -628,35 +572,6 @@ export default function PublicBookingPage() {
       setSubmitError("Niepoprawny adres e-mail");
       return;
     }
-    if (!loggedInPatient) {
-      // Sprawdzamy jeszcze raz tuż przed wysyłką (nie polegamy tylko na
-      // odpytywaniu "na żywo" z opóźnieniem) — nikt nie powinien dokończyć
-      // rezerwacji jako gość ani przez rejestrację na dane, które są już
-      // przypisane do istniejącego konta.
-      try {
-        const response = await fetch(
-          `/api/public/check-account?phone=${phoneDigits}&email=${encodeURIComponent(trimmedEmail)}`,
-        );
-        const result = await response.json().catch(() => ({}));
-        const phoneTaken = Boolean(result?.phoneHasAccount);
-        const emailTaken = Boolean(result?.emailHasAccount);
-        setPhoneAccountWarning(phoneTaken);
-        setEmailAccountWarning(emailTaken);
-        if (phoneTaken || emailTaken) {
-          setSubmitError(
-            (phoneTaken && emailTaken
-              ? "Ten numer telefonu i adres e-mail mają"
-              : phoneTaken
-                ? "Ten numer telefonu ma"
-                : "Ten adres e-mail ma") + " już założone konto. Zaloguj się, aby kontynuować rezerwację.",
-          );
-          return;
-        }
-      } catch {
-        // Brak odpowiedzi z serwera nie powinien blokować rezerwacji —
-        // ostateczna walidacja i tak następuje po stronie API przy zapisie.
-      }
-    }
     if (accountMode === "register" && !loggedInPatient) {
       const passwordIssue = validatePassword(password);
       if (passwordIssue) {
@@ -701,8 +616,20 @@ export default function PublicBookingPage() {
         setSubmitError(result?.message || "Nie udało się zapisać wizyty. Spróbuj ponownie.");
         return;
       }
-      setAccountCreated(Boolean(result.accountCreated));
-      setAlreadyHasAccount(Boolean(result.alreadyHasAccount));
+      if (accountMode === "register" && !loggedInPatient) {
+        // Serwer nie mówi, czy konto powstało (ochrona przed sprawdzaniem, kto
+        // jest pacjentem kliniki). Próbujemy się zalogować podanym hasłem:
+        // udane logowanie = konto założone teraz.
+        const login = await fetch("/api/patient/login", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ phone: `+48${phoneDigitsOnly(phone)}`, password }),
+        })
+          .then((r) => r.json())
+          .catch(() => ({}));
+        setAccountCreated(Boolean(login?.ok));
+        setAccountNotCreated(!login?.ok);
+      }
       setBookedAsLoggedIn(Boolean(result.bookedAsLoggedIn));
       setLoyaltyPointsUsed(Number(result.loyaltyPointsUsed) || 0);
       setLoyaltyDiscountAmount(Number(result.loyaltyDiscountAmount) || 0);
@@ -773,20 +700,20 @@ export default function PublicBookingPage() {
           ) : accountCreated ? (
             <div className="w-full max-w-md space-y-3">
               <p className="rounded-xl bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
-                Konto zostało założone na numer telefonu +48 {phone.trim()}. Zaloguj się, żeby zobaczyć historię
-                wizyt.
+                Konto zostało założone na numer telefonu +48 {phone.trim()} i jesteś już zalogowana/y.
               </p>
-              <Link
-                href="/panel-klienta/logowanie"
+              <a
+                href="/panel-klienta"
                 className="block w-full rounded-xl bg-emerald-600 py-3 text-center text-sm font-semibold text-white transition hover:bg-emerald-700"
               >
-                Zaloguj się do panelu klienta
-              </Link>
+                Przejdź do panelu klienta
+              </a>
             </div>
-          ) : alreadyHasAccount ? (
+          ) : accountNotCreated ? (
             <div className="w-full max-w-md space-y-3">
               <p className="rounded-xl bg-zinc-50 px-4 py-3 text-xs text-zinc-500">
-                Ten numer telefonu ma już założone konto w DerClinic. Zaloguj się, żeby zobaczyć historię wizyt.
+                Wizyta jest zapisana, ale nie udało się zalogować do nowego konta. Jeśli masz już konto w DerClinic,
+                zaloguj się swoim dotychczasowym hasłem — wizyta będzie widoczna po połączeniu kart przez recepcję.
               </p>
               <Link
                 href="/panel-klienta/logowanie"
@@ -1380,19 +1307,6 @@ export default function PublicBookingPage() {
                   placeholder="600 000 000"
                 />
               </div>
-              {phoneAccountWarning ? (
-                <div className="mt-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                  Ten numer telefonu ma już założone konto.{" "}
-                  <button
-                    type="button"
-                    onClick={() => setShowInlineLogin(true)}
-                    className="font-semibold underline hover:no-underline"
-                  >
-                    Zaloguj się
-                  </button>{" "}
-                  zamiast rejestrować się ponownie.
-                </div>
-              ) : null}
             </Field>
             <Field label="E-mail *">
               <input
@@ -1402,19 +1316,6 @@ export default function PublicBookingPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
-              {emailAccountWarning ? (
-                <div className="mt-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                  Ten adres e-mail ma już założone konto.{" "}
-                  <button
-                    type="button"
-                    onClick={() => setShowInlineLogin(true)}
-                    className="font-semibold underline hover:no-underline"
-                  >
-                    Zaloguj się
-                  </button>{" "}
-                  zamiast rejestrować się ponownie.
-                </div>
-              ) : null}
             </Field>
             {accountMode === "register" && !loggedInPatient ? (
               <>

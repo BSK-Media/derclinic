@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { setPatientAuthCookie, signPatientToken } from "@/lib/patient-auth";
 import { logAudit } from "@/lib/audit";
 import { validatePassword } from "@/lib/password-policy";
 import { RATE_LIMITS, clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
@@ -10,6 +9,9 @@ import { RATE_LIMITS, clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate
 function bad(message: string, status = 400, extra?: Record<string, unknown>) {
   return NextResponse.json({ ok: false, message, ...extra }, { status });
 }
+
+const GENERIC_MESSAGE =
+  "Jeśli ten numer telefonu nie miał jeszcze konta, zostało założone. Zaloguj się numerem telefonu i hasłem.";
 
 const BodySchema = z.object({
   firstName: z.string().trim().min(1, "Podaj imię").max(100),
@@ -38,9 +40,10 @@ export async function POST(req: Request) {
   const passwordIssue = validatePassword(password, { name, email, phone });
   if (passwordIssue) return bad(passwordIssue);
 
-  // Krok 1 — czy ten telefon albo e-mail ma już aktywne konto (ustawione
-  // hasło)? Jeśli tak, nie zakładamy drugiego konta — tak jak w typowych
-  // serwisach, odsyłamy do logowania zamiast zwracać mylący błąd.
+  // Hash liczymy zawsze, także gdy konto już istnieje — czas odpowiedzi nie
+  // może zdradzać, czy dany numer jest pacjentem kliniki (audyt F-12).
+  const passwordHash = await bcrypt.hash(password, 10);
+
   const existingAccount = await prisma.patient.findFirst({
     where: {
       passwordHash: { not: null },
@@ -48,70 +51,45 @@ export async function POST(req: Request) {
     },
     select: { id: true },
   });
+
   if (existingAccount) {
-    return bad("To konto już istnieje. Zaloguj się zamiast rejestrować się ponownie.", 409, {
-      code: "ACCOUNT_EXISTS",
+    // Nie zakładamy drugiego konta i NIE mówimy o tym w odpowiedzi — przeglądarka
+    // próbuje się potem zalogować; jeśli to właściciel konta, zna swoje hasło.
+    await logAudit({
+      actor: { type: "GUEST", name, contact: phone },
+      action: "REGISTER",
+      entity: "PatientAccount",
+      entityId: existingAccount.id,
+      summary: "Próba rejestracji na telefon lub e-mail, które mają już konto — pominięta",
+      data: { skipped: true, reason: "account_exists" },
     });
+    return NextResponse.json({ ok: true, message: GENERIC_MESSAGE });
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
-
-  // Krok 2 — czy ten telefon albo e-mail pojawia się już w systemie jako
-  // pacjent bez hasła (np. wcześniejsza rezerwacja jako gość albo rekord
-  // dodany ręcznie w recepcji)? Jeśli tak, dopisujemy hasło do TEGO rekordu
-  // zamiast tworzyć nowy — dzięki temu historia wizyt automatycznie znajdzie
-  // się na koncie. Telefon ma pierwszeństwo (silniejszy identyfikator, tak
-  // samo jak przy rezerwacji online i logowaniu).
+  // Konto zawsze powstaje na NOWEJ karcie pacjenta. Dopisanie hasła do
+  // istniejącej karty gościa (znalezionej po samym numerze telefonu) pozwalało
+  // każdemu, kto zna czyjś numer, przejąć historię wizyt tej osoby. Wcześniejszą
+  // kartę recepcja łączy z kontem po weryfikacji (Pacjenci → Duplikaty).
   const existingGuest = await prisma.patient.findFirst({
     where: {
       passwordHash: null,
       OR: [{ phone }, { email: { equals: email, mode: "insensitive" } }],
     },
     orderBy: { updatedAt: "desc" },
+    select: { id: true },
+  });
+
+  const defaultLocation = await prisma.location.findFirst({
+    where: { isActive: true },
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+  if (!defaultLocation) return bad("Brak aktywnej lokalizacji w systemie. Skontaktuj się z kliniką.", 500);
+
+  const patient = await prisma.patient.create({
+    data: { name, phone, email, passwordHash, locationId: defaultLocation.id },
     select: { id: true, name: true, phone: true, email: true },
   });
-
-  let patient: { id: string; name: string; phone: string | null; email: string | null };
-
-  if (existingGuest) {
-    const update: { name?: string; phone?: string; email?: string; passwordHash: string } = { passwordHash };
-    // Uzupełniamy tylko brakujące dane — nie nadpisujemy istniejącego imienia,
-    // telefonu czy e-maila czymś, co mogło zostać wpisane inaczej.
-    if (!existingGuest.name || existingGuest.name.trim().length === 0) update.name = name;
-    if (!existingGuest.phone) update.phone = phone;
-    if (!existingGuest.email) update.email = email;
-    const updated = await prisma.patient.update({
-      where: { id: existingGuest.id },
-      data: update,
-      select: { id: true, name: true, phone: true, email: true },
-    });
-    patient = updated;
-  } else {
-    // Zupełnie nowy pacjent — rejestracja "z zera", bez wcześniejszej wizyty.
-    // Konto zakładane tym formularzem nie jest przypisane do konkretnej
-    // lokalizacji wybranej w kroku rezerwacji, więc używamy głównej/aktywnej
-    // lokalizacji jako wartości domyślnej (pole jest wymagane w bazie).
-    const defaultLocation = await prisma.location.findFirst({
-      where: { isActive: true },
-      orderBy: { createdAt: "asc" },
-      select: { id: true },
-    });
-    if (!defaultLocation) return bad("Brak aktywnej lokalizacji w systemie. Skontaktuj się z kliniką.", 500);
-
-    const created = await prisma.patient.create({
-      data: { name, phone, email, passwordHash, locationId: defaultLocation.id },
-      select: { id: true, name: true, phone: true, email: true },
-    });
-    patient = created;
-  }
-
-  const token = await signPatientToken({
-    id: patient.id,
-    name: patient.name,
-    phone: patient.phone,
-    email: patient.email,
-  });
-  await setPatientAuthCookie(token);
 
   await logAudit({
     actor: { type: "PATIENT", id: patient.id, name: patient.name, contact: patient.phone },
@@ -119,10 +97,12 @@ export async function POST(req: Request) {
     entity: "PatientAccount",
     entityId: patient.id,
     summary: existingGuest
-      ? `Rejestracja konta w panelu klienta (hasło dopisane do istniejącej karty pacjenta ${patient.name})`
+      ? `Rejestracja konta w panelu klienta (nowa karta ${patient.name}; istnieje wcześniejsza karta gościa do połączenia w Pacjenci → Duplikaty)`
       : `Rejestracja konta w panelu klienta (nowa karta pacjenta ${patient.name})`,
-    data: { mergedWithExistingRecord: Boolean(existingGuest), phone: patient.phone, email: patient.email },
+    data: { previousGuestPatientId: existingGuest?.id ?? undefined, phone: patient.phone, email: patient.email },
   });
 
-  return NextResponse.json({ ok: true });
+  // Sesji nie tworzymy tutaj — odpowiedź musi być identyczna jak dla
+  // istniejącego konta. Przeglądarka loguje się zaraz potem podanym hasłem.
+  return NextResponse.json({ ok: true, message: GENERIC_MESSAGE });
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PATIENT_PUBLIC_SELECT } from "@/lib/patient-select";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
@@ -30,12 +31,17 @@ export async function GET() {
       },
     }),
     prisma.warehouse.findMany({ where: scopedLocationWhere(user!), orderBy: [{ parentId: "asc" }, { name: "asc" }] }),
-    prisma.patient.findMany({ where: scopedLocationWhere(user!), orderBy: { name: "asc" }, take: 500 }),
+    prisma.patient.findMany({
+      where: scopedLocationWhere(user!),
+      orderBy: { name: "asc" },
+      take: 500,
+      select: PATIENT_PUBLIC_SELECT,
+    }),
     prisma.retailSale.findMany({
       where: scopedLocationWhere(user!),
       orderBy: { createdAt: "desc" },
       include: {
-        patient: true,
+        patient: { select: PATIENT_PUBLIC_SELECT },
         soldBy: { select: { id: true, name: true } },
         discountApprovedBy: { select: { id: true, name: true } },
         items: { include: { product: true } },

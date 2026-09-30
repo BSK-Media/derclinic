@@ -6,6 +6,25 @@
 // zapisany raz zostałby w nim na zawsze.
 const SENSITIVE_KEY = /password|passwd|token|secret|hash/i;
 
+// Treść medyczna/opisowa (notatki do wizyt, uwagi pacjenta) nie trafia do
+// dziennika (audyt F-15) — zapisujemy tylko fakt zmiany.
+const MEDICAL_KEY = /^(note|notes|medicalNote|description|comment|contraindications?|allerg\w*)$/i;
+
+// --- Maskowanie danych kontaktowych (audyt F-15) ---------------------------
+// Dziennik ma pokazywać KTO i CO zrobił, a nie przechowywać pełne dane
+// kontaktowe pacjentów. Telefon: "+48 *** *** 789", e-mail: "a***@example.com".
+const EMAIL_PATTERN = /([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g;
+// 9-cyfrowy numer (opcjonalnie z +48 i odstępami); nie łapie dłuższych ciągów cyfr (np. id, kwot w groszach).
+const PHONE_PATTERN = /(?<![\d+])(\+?48[\s-]?)?(\d{3})[\s-]?(\d{3})[\s-]?(\d{3})(?!\d)/g;
+
+export function maskPii(text: string): string {
+  return text
+    .replace(EMAIL_PATTERN, (_m, first: string, domain: string) => `${first}***@${domain}`)
+    .replace(PHONE_PATTERN, (_m, prefix: string | undefined, _a: string, _b: string, last: string) =>
+      `${prefix ? "+48 " : ""}*** *** ${last}`,
+    );
+}
+
 const MAX_STRING = 1000;
 const MAX_ARRAY = 50;
 const MAX_DEPTH = 6;
@@ -15,10 +34,11 @@ function sanitizeValue(value: unknown, depth: number): unknown {
   if (typeof value === "string") {
     // Zdjęcia (data URL base64) są ogromne i nie są "danymi zdarzenia".
     if (value.startsWith("data:")) return "[dane binarne]";
-    if (value.length > MAX_STRING) {
-      return `${value.slice(0, MAX_STRING)}… [+${value.length - MAX_STRING} znaków]`;
+    const masked = maskPii(value);
+    if (masked.length > MAX_STRING) {
+      return `${masked.slice(0, MAX_STRING)}… [+${masked.length - MAX_STRING} znaków]`;
     }
-    return value;
+    return masked;
   }
   if (typeof value !== "object") return value;
   if (depth >= MAX_DEPTH) return "[…]";
@@ -31,7 +51,11 @@ function sanitizeValue(value: unknown, depth: number): unknown {
 
   const out: Record<string, unknown> = {};
   for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
-    out[key] = SENSITIVE_KEY.test(key) ? "[ukryte]" : sanitizeValue(inner, depth + 1);
+    out[key] = SENSITIVE_KEY.test(key)
+      ? "[ukryte]"
+      : MEDICAL_KEY.test(key) && inner !== null && inner !== undefined && typeof inner !== "boolean"
+        ? "[treść ukryta]"
+        : sanitizeValue(inner, depth + 1);
   }
   return out;
 }

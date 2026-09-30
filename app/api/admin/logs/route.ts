@@ -5,6 +5,7 @@ import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit, resolveStaffNames } from "@/lib/audit";
 import { auditActionLabel, auditActorLabel, auditEntityLabel } from "@/lib/audit-labels";
 import { toCsv } from "@/lib/csv";
+import { requireStepUp } from "@/lib/mfa";
 import { parseDateInput, warsawWallTimeToUtc } from "@/lib/warsaw-time";
 
 // Dziennik zdarzeń — WYŁĄCZNIE do odczytu i wyłącznie dla administratora.
@@ -99,6 +100,9 @@ export async function GET(req: Request) {
   const where = buildWhere(params);
 
   if (params.get("format") === "csv") {
+    // Eksport danych wymaga ponownego potwierdzenia MFA.
+    const stepUp = requireStepUp(user!);
+    if (stepUp) return stepUp;
     const rows = await prisma.auditLog.findMany({
       where,
       orderBy: { createdAt: "desc" },

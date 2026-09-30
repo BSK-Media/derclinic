@@ -12,7 +12,7 @@ import { LocationSelect } from "@/components/location-select";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-type U = { id: string; login: string; name: string; role: string; email?: string | null; payoutPercent?: number; location?: string | null; locationId: string };
+type U = { id: string; login: string; name: string; role: string; email?: string | null; payoutPercent?: number; location?: string | null; locationId: string; mfaEnabledAt?: string | null };
 
 export default function AdminUsersPage() {
   const { data, mutate, isLoading } = useSWR("/api/admin/users", fetcher);
@@ -53,6 +53,24 @@ export default function AdminUsersPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // Procedury bezpieczeństwa (wymagają ponownego MFA administratora — okno pojawi się samo).
+  async function security(u: U, action: "reset_mfa" | "revoke_sessions") {
+    const question =
+      action === "reset_mfa"
+        ? `Zresetować logowanie dwuskładnikowe konta „${u.login}”? Pracownik zostanie wylogowany i przy następnym logowaniu skonfiguruje MFA od nowa. Zrób to tylko po potwierdzeniu tożsamości pracownika.`
+        : `Wylogować „${u.login}” ze wszystkich urządzeń?`;
+    if (!confirm(question)) return;
+    const res = await fetch(`/api/admin/users/${u.id}/security`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
+    toast.success(action === "reset_mfa" ? "Zresetowano MFA" : `Wylogowano (${out.revokedSessions} sesji)`);
+    mutate();
   }
 
   async function remove(id: string) {
@@ -126,15 +144,16 @@ export default function AdminUsersPage() {
                 <th className="p-3">Email</th>
                 <th className="p-3">Lokalizacja</th>
                 <th className="p-3">% (specjalista)</th>
+                <th className="p-3">2FA</th>
                 <th className="p-3"></th>
               </tr>
             </thead>
             <tbody>
               {isLoading && (
-                <tr><td className="p-3 text-zinc-500" colSpan={7}>Ładowanie...</td></tr>
+                <tr><td className="p-3 text-zinc-500" colSpan={8}>Ładowanie...</td></tr>
               )}
               {!isLoading && users.length === 0 && (
-                <tr><td className="p-3 text-zinc-500" colSpan={7}>Brak użytkowników.</td></tr>
+                <tr><td className="p-3 text-zinc-500" colSpan={8}>Brak użytkowników.</td></tr>
               )}
               {users.map((u) => (
                 <tr key={u.id} className="border-t">
@@ -144,8 +163,25 @@ export default function AdminUsersPage() {
                   <td className="p-3">{u.email ?? "—"}</td>
                   <td className="p-3">{u.location ?? "—"}</td>
                   <td className="p-3">{u.role === "SPECIALIST" ? (u.payoutPercent ?? 0) + "%" : "—"}</td>
+                  <td className="p-3">
+                    {u.mfaEnabledAt ? (
+                      <span className="text-emerald-600">włączone</span>
+                    ) : (
+                      <span className="text-amber-600">skonfiguruje przy logowaniu</span>
+                    )}
+                  </td>
                   <td className="p-3 text-right">
-                    <Button variant="destructive" size="sm" onClick={() => remove(u.id)}>Usuń</Button>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => security(u, "revoke_sessions")}>
+                        Wyloguj wszędzie
+                      </Button>
+                      {u.mfaEnabledAt ? (
+                        <Button variant="outline" size="sm" onClick={() => security(u, "reset_mfa")}>
+                          Reset 2FA
+                        </Button>
+                      ) : null}
+                      <Button variant="destructive" size="sm" onClick={() => remove(u.id)}>Usuń</Button>
+                    </div>
                   </td>
                 </tr>
               ))}

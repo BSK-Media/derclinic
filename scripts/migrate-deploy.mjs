@@ -36,6 +36,20 @@ function fail(message) {
 
 if (!process.env.DATABASE_URL) fail("Brak zmiennej DATABASE_URL — nie można zastosować migracji.");
 
+// Klucze, od których zależą trwałe dane (audyt F-08/F-10). Bez nich deploy się
+// zatrzymuje — lepiej zostać przy poprzedniej wersji niż zaszyfrować dane
+// kluczem, który zniknie przy zmianie AUTH_SECRET.
+if (process.env.VERCEL_ENV === "production" || process.env.REQUIRE_SECURITY_KEYS === "1") {
+  const required = ["MFA_ENCRYPTION_KEY", "DATA_ENCRYPTION_KEY", "AUDIT_SIGNING_KEY", "STAFF_AUTH_SECRET", "PATIENT_AUTH_SECRET"];
+  const missing = required.filter((name) => (process.env[name] ?? "").length < 32);
+  if (missing.length > 0) {
+    fail(
+      `Brak lub za krótkie (min. 32 znaki) zmienne środowiskowe: ${missing.join(", ")}. ` +
+        "Ustaw je w Vercel → Settings → Environment Variables (Production) i ponów deploy. Opis w env.example.",
+    );
+  }
+}
+
 const first = prisma(["migrate", "deploy"], { capture: true });
 if (first.status === 0) process.exit(0);
 

@@ -17,7 +17,7 @@ export default async function AdminPatientDetailPage(props: { params: Promise<{ 
       where: { patientId: params.id, deletedAt: null },
       orderBy: { startsAt: "desc" },
       include: {
-        specialist: true,
+        specialist: { select: { id: true, name: true } },
         service: true,
         payments: true,
         consumptions: { include: { product: true } },

@@ -35,7 +35,8 @@ export const RATE_LIMITS = {
   forgotPasswordAccount: { scope: "forgot-password-account", limit: 3, windowMs: HOUR },
   resetPasswordIp: { scope: "reset-password-ip", limit: 20, windowMs: HOUR },
   publicBookingIp: { scope: "public-booking-ip", limit: 20, windowMs: HOUR },
-  checkAccountIp: { scope: "check-account-ip", limit: 60, windowMs: 15 * MINUTE },
+  mfaIp: { scope: "mfa-ip", limit: 30, windowMs: 15 * MINUTE },
+  mfaAccount: { scope: "mfa-account", limit: 5, windowMs: 15 * MINUTE },
 } satisfies Record<string, RateLimitRule>;
 
 export async function clientIp(): Promise<string> {

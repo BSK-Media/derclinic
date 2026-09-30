@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { requireStepUp } from "@/lib/mfa";
 import { reconcileLoyaltyPointsForAppointment, resolveAppointmentPrice } from "@/lib/loyalty";
 
 // Jednorazowa (ale bezpieczna do wielokrotnego uruchomienia) synchronizacja
@@ -14,6 +15,9 @@ export async function POST() {
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
+  // Masowa zmiana danych = operacja wysokiego ryzyka: ponowne potwierdzenie MFA.
+  const stepUp = requireStepUp(user!);
+  if (stepUp) return stepUp;
 
   const appointments = await prisma.appointment.findMany({
     where: { status: "COMPLETED", approvalStatus: "APPROVED", deletedAt: null },

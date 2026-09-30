@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAuthUser, setAuthCookie, signAuthToken } from "@/lib/auth-cookie";
+import { getAuthUser } from "@/lib/auth-cookie";
 import { prisma } from "@/lib/db";
 import { normalizeSidebarPermissions } from "@/lib/sidebar-permissions";
 
@@ -16,17 +16,8 @@ export async function GET() {
 
   const sidebarPermissions = normalizeSidebarPermissions(dbu.role, dbu.sidebarPermissions);
 
-  // Odświeżamy token przy każdym wejściu do aplikacji, dzięki czemu zmiana
-  // uprawnień wykonana przez administratora zaczyna obowiązywać po odświeżeniu.
-  const token = await signAuthToken({
-    id: dbu.id,
-    email: dbu.email ?? `${dbu.login}@local`,
-    name: dbu.name,
-    role: dbu.role,
-    sidebarPermissions,
-  });
-  await setAuthCookie(token);
-
+  // Rola i uprawnienia są czytane z bazy przy każdym żądaniu (sesja po stronie
+  // serwera), więc nie trzeba już odświeżać tokenu.
   return NextResponse.json({
     ok: true,
     user: { id: dbu.id, login: dbu.login, name: dbu.name, role: dbu.role, payoutPercent: dbu.payoutPercent, avatarUrl: dbu.avatarUrl, jobTitle: dbu.jobTitle, location: dbu.assignedLocation.name, locationId: dbu.locationId, assignedLocation: dbu.assignedLocation, specialization: dbu.specialization, sidebarPermissions },

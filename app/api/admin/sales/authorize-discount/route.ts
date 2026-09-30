@@ -4,14 +4,15 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { RATE_LIMITS, failureDelay, hitRateLimit, peekRateLimit, resetRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 function bad(message: string, status = 400) {
   return NextResponse.json({ ok: false, message }, { status });
 }
 
 const BodySchema = z.object({
-  login: z.string().min(1),
-  password: z.string().min(1),
+  login: z.string().trim().min(1).max(200),
+  password: z.string().min(1).max(500),
 });
 
 // Weryfikuje hasło administratora, aby zatwierdzić zniżkę w POS.
@@ -28,6 +29,11 @@ export async function POST(req: Request) {
 
   const { login, password } = parsed.data;
 
+  // Ten sam licznik błędnych prób co przy logowaniu administratora — formularz
+  // rabatu nie może służyć do zgadywania jego hasła (audyt F-05).
+  const limit = await peekRateLimit(RATE_LIMITS.staffLoginAccount, login);
+  if (!limit.allowed) return tooManyRequests(limit, "Zbyt wiele błędnych prób. Spróbuj ponownie później.");
+
   const admin = await prisma.user.findUnique({ where: { login } });
   if (!admin?.passwordHash || admin.role !== "ADMIN") {
     await logAudit({
@@ -37,6 +43,7 @@ export async function POST(req: Request) {
       summary: `Nieudana autoryzacja rabatu w POS: „${login}" nie jest kontem administratora`,
       data: { attemptedLogin: login, reason: "not_admin_or_unknown" },
     });
+    await failureDelay((await hitRateLimit(RATE_LIMITS.staffLoginAccount, login)).count);
     return bad("Błędny login lub hasło administratora", 401);
   }
 
@@ -50,9 +57,11 @@ export async function POST(req: Request) {
       summary: `Nieudana autoryzacja rabatu w POS: błędne hasło administratora „${login}"`,
       data: { attemptedLogin: login, reason: "wrong_password" },
     });
+    await failureDelay((await hitRateLimit(RATE_LIMITS.staffLoginAccount, login)).count);
     return bad("Błędny login lub hasło administratora", 401);
   }
 
+  await resetRateLimit(RATE_LIMITS.staffLoginAccount, login);
   await logAudit({
     actorId: user!.id,
     action: "sale.discount_authorize",

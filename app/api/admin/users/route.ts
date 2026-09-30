@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { validatePassword } from "@/lib/password-policy";
+import { requireStepUp } from "@/lib/mfa";
 import { STAFF_BCRYPT_COST } from "@/lib/staff-credentials";
 
 export async function GET() {
@@ -15,7 +16,7 @@ export async function GET() {
 
   const users = await prisma.user.findMany({
     orderBy: [{ role: "asc" }, { name: "asc" }],
-    select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true, location: true, locationId: true, assignedLocation: { select: { id: true, name: true } }, specialization: true, createdAt: true },
+    select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true, location: true, locationId: true, assignedLocation: { select: { id: true, name: true } }, specialization: true, createdAt: true, mfaEnabledAt: true },
   });
   return NextResponse.json({
     ok: true,
@@ -44,6 +45,10 @@ export async function POST(req: Request) {
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
+
+  // Zakładanie kont personelu = operacja wysokiego ryzyka: ponowne MFA.
+  const stepUp = requireStepUp(user!);
+  if (stepUp) return stepUp;
 
   const json = await req.json().catch(() => null);
   const parsed = CreateSchema.safeParse(json);

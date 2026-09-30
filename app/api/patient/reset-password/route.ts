@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { hashPasswordResetToken, setPatientAuthCookie, signPatientToken } from "@/lib/patient-auth";
+import { hashPasswordResetToken, startPatientSession } from "@/lib/patient-auth";
+import { revokeAllPatientSessions } from "@/lib/session-core";
 import { logAudit } from "@/lib/audit";
 import { validatePassword } from "@/lib/password-policy";
 import { RATE_LIMITS, clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
@@ -45,13 +46,9 @@ export async function POST(req: Request) {
     data: { passwordHash, passwordResetTokenHash: null, passwordResetExpiresAt: null },
   });
 
-  const authToken = await signPatientToken({
-    id: patient.id,
-    name: patient.name,
-    phone: patient.phone,
-    email: patient.email,
-  });
-  await setPatientAuthCookie(authToken);
+  // Nowe hasło unieważnia wszystkie dotychczasowe sesje (np. na zgubionym telefonie).
+  await revokeAllPatientSessions(patient.id, "password_reset");
+  await startPatientSession(patient.id);
 
   await logAudit({
     actor: { type: "PATIENT", id: patient.id, name: patient.name, contact: patient.phone },

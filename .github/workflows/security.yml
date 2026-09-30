@@ -1,0 +1,101 @@
+# Bramka bezpieczeństwa (audyt F-16): każdy push na main i każdy pull request.
+# Żeby blokowała merge, w GitHub → Settings → Branches → reguła dla "main"
+# zaznacz "Require status checks to pass" i wybierz wszystkie zadania poniżej.
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Typy, testy i build
+    runs-on: ubuntu-latest
+    env:
+      AUTH_SECRET: ci-only-secret-not-used-in-production-0123456789
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx tsc --noEmit
+      - run: npx vitest run
+      - run: npx next build
+
+  migrations:
+    name: Migracje zgodne ze schematem
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: derclinic
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/derclinic
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Pusta baza + wszystkie migracje = dokładnie schema.prisma (brak zapomnianej migracji).
+      - run: npx prisma migrate deploy
+      - run: npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --exit-code
+
+  dependencies:
+    name: Podatne zależności (SCA) + SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      # Blokuje High/Critical w zależnościach produkcyjnych.
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm sbom --sbom-format cyclonedx --omit=dev > sbom.cdx.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.cdx.json
+
+  secrets:
+    name: Wykrywanie sekretów w repozytorium
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.24.3 \
+            detect --source /repo --redact --no-banner --exit-code 1
+
+  sast:
+    name: Analiza statyczna kodu (Semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: semgrep
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:latest \
+            semgrep scan --config p/typescript --config p/react --config p/nextjs \
+            --severity ERROR --error --metrics off \
+            --exclude node_modules --exclude .next --exclude "*.test.ts"

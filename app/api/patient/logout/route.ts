@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { clearPatientAuthCookie, getPatientAuth } from "@/lib/patient-auth";
+import { endPatientSession } from "@/lib/patient-auth";
 import { logAudit } from "@/lib/audit";
 
 export async function POST() {
-  const patient = await getPatientAuth();
-  await clearPatientAuthCookie();
+  const patient = await endPatientSession("logout");
   if (patient) {
     await logAudit({
       actor: { type: "PATIENT", id: patient.id, name: patient.name, contact: patient.phone },

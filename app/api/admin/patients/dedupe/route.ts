@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { requireStepUp } from "@/lib/mfa";
 
 // Wykrywanie i scalanie zdublowanych pacjentów (ten sam telefon lub e-mail w
 // obrębie jednej lokalizacji). Duplikaty powstają, gdy ktoś zarejestrował się
@@ -155,6 +156,9 @@ export async function POST(req: Request) {
   if (error) return error;
   const deny = requireStrictRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
+  // Masowa zmiana danych = operacja wysokiego ryzyka: ponowne potwierdzenie MFA.
+  const stepUp = requireStepUp(user!);
+  if (stepUp) return stepUp;
 
   const json = await req.json().catch(() => null);
   const parsed = MergeSchema.safeParse(json);

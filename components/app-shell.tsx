@@ -275,7 +275,13 @@ export function AppSidebar() {
           })}
         </nav>
 
-        <div className="mt-2 rounded-2xl border border-white/60 bg-white/70 p-3 shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55">
+        <div className="mt-2 space-y-2 rounded-2xl border border-white/60 bg-white/70 p-3 shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55">
+          <Link
+            href="/account/security"
+            className="block w-full rounded-2xl px-4 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-100/70 dark:text-slate-200 dark:hover:bg-white/5"
+          >
+            Bezpieczeństwo konta
+          </Link>
           <button
             onClick={() => logout()}
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
@@ -384,7 +390,14 @@ function MobileNav() {
                   })}
                 </nav>
 
-                <div className="mt-2 rounded-2xl border border-white/60 bg-white/70 p-3 shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55">
+                <div className="mt-2 space-y-2 rounded-2xl border border-white/60 bg-white/70 p-3 shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55">
+                  <Link
+                    href="/account/security"
+                    onClick={() => setOpen(false)}
+                    className="block w-full rounded-2xl px-4 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-100/70 dark:text-slate-200 dark:hover:bg-white/5"
+                  >
+                    Bezpieczeństwo konta
+                  </Link>
                   <button
                     onClick={() => logout()}
                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"

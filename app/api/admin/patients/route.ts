@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PATIENT_PUBLIC_SELECT } from "@/lib/patient-select";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
@@ -26,6 +27,8 @@ export async function GET(req: Request) {
       : scopedLocationWhere(user!),
     orderBy: { createdAt: "desc" },
     take: 200,
+    // Bez hasha hasła i tokenu resetu.
+    select: PATIENT_PUBLIC_SELECT,
   });
 
   if (patients.length === 0) {
@@ -145,6 +148,8 @@ export async function POST(req: Request) {
       note: parsed.data.note ? parsed.data.note : null,
       locationId: user!.locationScopeId,
     },
+    // Bez hasha hasła i tokenu resetu w odpowiedzi.
+    select: { id: true, createdAt: true, updatedAt: true, name: true, phone: true, email: true, note: true, locationId: true },
   });
 
   await logAudit({

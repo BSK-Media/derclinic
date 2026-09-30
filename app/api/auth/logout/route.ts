@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { clearAuthCookie, getAuthUser } from "@/lib/auth-cookie";
+import { endStaffSession } from "@/lib/auth-cookie";
 import { logAudit } from "@/lib/audit";
 
 export async function POST() {
-  // Kto się wylogowuje — odczytujemy z ciasteczka, zanim je wyczyścimy.
-  const user = await getAuthUser();
-  await clearAuthCookie();
+  // Unieważniamy sesję w bazie (a nie tylko czyścimy ciasteczko) — skopiowany
+  // token przestaje działać natychmiast.
+  const user = await endStaffSession("logout");
   if (user?.id) {
     await logAudit({
       actorId: user.id,

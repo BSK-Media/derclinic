@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { setAuthCookie, signAuthToken } from "@/lib/auth-cookie";
 import { logAudit } from "@/lib/audit";
-import { normalizeSidebarPermissions } from "@/lib/sidebar-permissions";
+import { respondMfaRequired } from "@/lib/mfa";
+import { revokeAllStaffSessions } from "@/lib/session-core";
 import { validatePassword } from "@/lib/password-policy";
 import { STAFF_BCRYPT_COST, verifyStaffCredentials } from "@/lib/staff-credentials";
 
@@ -48,23 +48,9 @@ export async function POST(req: Request) {
     data: { wasTemporary: user.mustChangePassword },
   });
 
-  await setAuthCookie(
-    await signAuthToken({
-      id: user.id,
-      email: user.email ?? `${user.login}@local`,
-      name: user.name,
-      role: user.role as any,
-      sidebarPermissions: normalizeSidebarPermissions(user.role, user.sidebarPermissions),
-    }),
-  );
+  // Zmiana hasła unieważnia wszystkie dotychczasowe sesje tego konta.
+  await revokeAllStaffSessions(user.id, "password_change");
 
-  await logAudit({
-    actorId: user.id,
-    action: "LOGIN",
-    entity: "User",
-    entityId: user.id,
-    summary: `Logowanie do panelu po zmianie hasła (konto „${user.login}")`,
-  });
-
-  return NextResponse.json({ ok: true });
+  // Dalej tak jak przy logowaniu: sesja dopiero po drugim składniku (MFA).
+  return await respondMfaRequired(user);
 }

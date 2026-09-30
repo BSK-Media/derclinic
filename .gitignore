@@ -1,0 +1,10 @@
+# Zależności i artefakty builda
+node_modules/
+.next/
+out/
+*.log
+
+# Sekrety — nigdy do repozytorium (audyt F-16)
+.env
+.env.*
+!env.example

@@ -6,6 +6,8 @@ import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit, diffFields } from "@/lib/audit";
 import { validatePassword } from "@/lib/password-policy";
 import { STAFF_BCRYPT_COST } from "@/lib/staff-credentials";
+import { requireStepUp } from "@/lib/mfa";
+import { revokeAllStaffSessions } from "@/lib/session-core";
 
 const PatchSchema = z.object({
   name: z.string().min(2).optional(),
@@ -39,6 +41,13 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
   const json = await req.json().catch(() => null);
   const parsed = PatchSchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
+
+  // Zmiana roli albo hasła to operacja wysokiego ryzyka — wymaga ponownego MFA.
+  const sensitive = parsed.data.role !== undefined || Boolean(parsed.data.password);
+  if (sensitive) {
+    const stepUp = requireStepUp(user!);
+    if (stepUp) return stepUp;
+  }
 
   const before = await prisma.user.findUnique({
     where: { id: params.id },
@@ -101,6 +110,17 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
     select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true, location: true, locationId: true, assignedLocation: { select: { id: true, name: true } }, specialization: true },
   });
 
+  // Nowa rola lub hasło unieważniają aktywne sesje tego pracownika
+  // (przy zmianie własnego hasła zostaje bieżąca sesja administratora).
+  const roleChanged = data.role !== undefined && data.role !== before?.role;
+  if (roleChanged || data.passwordHash) {
+    await revokeAllStaffSessions(
+      params.id,
+      roleChanged ? "role_change" : "password_set_by_admin",
+      params.id === user!.id ? user!.sessionId : undefined,
+    );
+  }
+
   if (data.locationId) {
     await prisma.specialistWarehouse.deleteMany({
       where: {
@@ -142,6 +162,8 @@ export async function DELETE(_req: Request, props: { params: Promise<{ id: strin
   if (deny) return deny;
 
   if (params.id === user!.id) return NextResponse.json({ ok: false, message: "Nie możesz usunąć własnego konta." }, { status: 400 });
+  const stepUp = requireStepUp(user!);
+  if (stepUp) return stepUp;
 
   const target = await prisma.user.findUnique({
     where: { id: params.id },
