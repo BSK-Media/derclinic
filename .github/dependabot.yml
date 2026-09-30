@@ -1,6 +1,12 @@
 # Automatyczne aktualizacje zależności (audyt bezpieczeństwa, F-02).
-# Poprawki bezpieczeństwa Dependabot otwiera niezależnie od tego harmonogramu,
-# gdy w repozytorium włączone są "Dependabot security updates".
+#
+# Poprawki bezpieczeństwa Dependabot otwiera niezależnie od tego harmonogramu
+# i od reguł "ignore" poniżej, gdy w repozytorium włączone są
+# "Dependabot security updates".
+#
+# Rutynowo proponujemy tylko wersje minor/patch. Duże wersje (np. Prisma 7,
+# zod 4, React 19) zmieniają API i wymagają świadomej migracji z testami,
+# więc nie otwieramy ich automatycznie.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -8,9 +14,15 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
-      # Drobne aktualizacje zbieramy w jeden PR, żeby nie zasypywać repozytorium.
+      # React i jego typy muszą być zawsze w tej samej wersji — osobne PR-y
+      # (react bez react-dom) nie dają się zainstalować.
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
       minor-and-patch:
         update-types: [minor, patch]
   - package-ecosystem: github-actions
