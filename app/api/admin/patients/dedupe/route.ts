@@ -175,7 +175,16 @@ export async function POST(req: Request) {
     const result = await prisma.$transaction(async (tx) => {
       const rows = await tx.patient.findMany({
         where: { id: { in: allIds } },
-        select: { id: true, name: true, phone: true, email: true, note: true, locationId: true, passwordHash: true },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          email: true,
+          note: true,
+          locationId: true,
+          passwordHash: true,
+          googleSub: true,
+        },
       });
       if (rows.length !== allIds.length) {
         throw new Error("Nie znaleziono wszystkich wskazanych pacjentów");
@@ -194,7 +203,20 @@ export async function POST(req: Request) {
         );
       }
 
-      const patientUpdate: { email?: string; phone?: string; note?: string; passwordHash?: string } = {};
+      const distinctGoogleAccounts = new Set(rows.filter((r) => r.googleSub).map((r) => r.googleSub));
+      if (distinctGoogleAccounts.size > 1) {
+        throw new Error(
+          "Więcej niż jeden z tych pacjentów ma konto połączone z (różnymi) kontami Google — scalenie wymaga ręcznej decyzji, które zachować.",
+        );
+      }
+
+      const patientUpdate: {
+        email?: string;
+        phone?: string;
+        note?: string;
+        passwordHash?: string;
+        googleSub?: string;
+      } = {};
       if (!keep.email) {
         const email = merging.find((r) => r.email)?.email;
         if (email) patientUpdate.email = email;
@@ -218,11 +240,20 @@ export async function POST(req: Request) {
         tx.retailSale.updateMany({ where: { patientId: { in: mergeIdsList } }, data: { patientId: keepId } }),
       ]);
 
+      // Logowanie Google przechodzi na kartę docelową — inaczej pacjent po
+      // scaleniu założyłby przy kolejnym logowaniu nową, pustą kartę.
+      if (!keep.googleSub) {
+        const googleSub = merging.find((r) => r.googleSub)?.googleSub;
+        if (googleSub) patientUpdate.googleSub = googleSub;
+      }
+
+      // Najpierw usuwamy scalane karty: googleSub jest unikalny, więc nie może
+      // przez chwilę istnieć na dwóch kartach naraz.
+      await tx.patient.deleteMany({ where: { id: { in: mergeIdsList } } });
+
       if (Object.keys(patientUpdate).length > 0) {
         await tx.patient.update({ where: { id: keepId }, data: patientUpdate });
       }
-
-      await tx.patient.deleteMany({ where: { id: { in: mergeIdsList } } });
 
       return {
         keptPatientId: keepId,

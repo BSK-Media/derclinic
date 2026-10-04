@@ -46,8 +46,11 @@ export async function POST(req: Request) {
 
   const existingAccount = await prisma.patient.findFirst({
     where: {
-      passwordHash: { not: null },
-      OR: [{ phone }, { email: { equals: email, mode: "insensitive" } }],
+      // Konto = karta z hasłem albo z logowaniem Google.
+      AND: [
+        { OR: [{ passwordHash: { not: null } }, { googleSub: { not: null } }] },
+        { OR: [{ phone }, { email: { equals: email, mode: "insensitive" } }] },
+      ],
     },
     select: { id: true },
   });
@@ -73,6 +76,7 @@ export async function POST(req: Request) {
   const existingGuest = await prisma.patient.findFirst({
     where: {
       passwordHash: null,
+      googleSub: null,
       OR: [{ phone }, { email: { equals: email, mode: "insensitive" } }],
     },
     orderBy: { updatedAt: "desc" },

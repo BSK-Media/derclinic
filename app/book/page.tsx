@@ -10,6 +10,7 @@ import { formatPLNFromGrosze } from "@/lib/money";
 import { maxRedeemablePoints, discountForPoints } from "@/lib/loyalty";
 import { requiresFullPrepayment, resolvePaymentDue, depositAmountGrosze, type PaymentChoice } from "@/lib/booking-payment";
 import { PASSWORD_REQUIREMENTS_HINT, validatePassword } from "@/lib/password-policy";
+import { GoogleLoginButton, GoogleLoginDivider, googleErrorMessage } from "@/components/google-login-button";
 
 // Czcionka używana WYŁĄCZNIE w nagłówku (SiteHeader) — potwierdzona wprost z
 // computed CSS elementu .navbar na derclinic.pl: font-family: Raleway, sans-serif,
@@ -310,6 +311,54 @@ export default function PublicBookingPage() {
   // od razu wybieramy wskazany zabieg i przechodzimy dalej — tak samo jak
   // przy ręcznym kliknięciu usługi w kroku 2.
   const appliedServicePreselect = React.useRef(false);
+
+  // Powrót z logowania przez Google w kroku "Dane kontaktowe": pełne
+  // przekierowanie do Google kasuje stan formularza, więc wybór (lokalizacja,
+  // zabieg, specjalista, termin) wraca w adresie (/book?wznow=1&...) i jest tu
+  // odtwarzany. Sam termin i tak jest ponownie sprawdzany przy zapisie wizyty.
+  const [googleError, setGoogleError] = React.useState("");
+  React.useEffect(() => {
+    if (appliedServicePreselect.current) return;
+    if (services.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("wznow") !== "1") return;
+    appliedServicePreselect.current = true;
+    setGoogleError(googleErrorMessage(params.get("google")));
+    window.history.replaceState(null, "", "/book");
+
+    const resumeLocationId = params.get("locationId") || "";
+    const resumeServiceId = params.get("serviceId") || "";
+    const resumeDate = params.get("date") || "";
+    const resumeTime = params.get("time") || "";
+    const resumeSpecialist = specialists.find((s) => s.id === params.get("specialistId"));
+    if (
+      !locations.some((l) => l.id === resumeLocationId) ||
+      !services.some((s) => s.id === resumeServiceId) ||
+      !resumeSpecialist ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(resumeDate) ||
+      !/^\d{2}:\d{2}$/.test(resumeTime)
+    ) {
+      return;
+    }
+    const todayInput = warsawTodayInput();
+    if (resumeDate < todayInput) return;
+
+    setLocationId(resumeLocationId);
+    setServiceId(resumeServiceId);
+    if (params.get("dowolny") === "1") {
+      setSpecialistId(ANY_SPECIALIST);
+      setPickedSpecialist({ id: resumeSpecialist.id, name: resumeSpecialist.name });
+    } else {
+      setSpecialistId(resumeSpecialist.id);
+      setPickedSpecialist(null);
+    }
+    setDate(resumeDate);
+    const idealStart = addDaysToInput(resumeDate, -3);
+    setWeekStart(idealStart < todayInput ? todayInput : idealStart);
+    setTime(resumeTime);
+    setStep(4);
+  }, [services, specialists, locations]);
+
   React.useEffect(() => {
     if (appliedServicePreselect.current) return;
     if (!locationId || services.length === 0) return;
@@ -431,6 +480,20 @@ export default function PublicBookingPage() {
   const selectedSpecialist =
     specialistId && specialistId !== ANY_SPECIALIST ? specialists.find((s) => s.id === specialistId) ?? null : null;
   const isAnySpecialist = specialistId === ANY_SPECIALIST;
+
+  // Adres powrotu po logowaniu przez Google — niesie bieżący wybór, żeby po
+  // przekierowaniu wrócić prosto do kroku "Dane kontaktowe" (patrz efekt "wznow").
+  const googleReturnTo =
+    "/book?" +
+    new URLSearchParams({
+      wznow: "1",
+      locationId,
+      serviceId,
+      specialistId: (isAnySpecialist ? pickedSpecialist?.id : specialistId) || "",
+      ...(isAnySpecialist ? { dowolny: "1" } : {}),
+      date,
+      time,
+    }).toString();
 
   const displaySpecialistName = isAnySpecialist
     ? pickedSpecialist?.name ?? null
@@ -1162,6 +1225,9 @@ export default function PublicBookingPage() {
             </div>
           ) : (
             <>
+              <GoogleLoginButton returnTo={googleReturnTo} />
+              {googleError ? <div className="mt-2 text-xs text-red-600">{googleError}</div> : null}
+              <GoogleLoginDivider />
               <div className="mb-2 grid grid-cols-2 gap-2">
                 <button
                   type="button"

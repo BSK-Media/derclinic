@@ -25,6 +25,7 @@ import {
 import { formatPLNFromGrosze } from "@/lib/money";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
 import { LogoutButton } from "./LogoutButton";
+import { GoogleLoginButton, googleErrorMessage, useGoogleLoginEnabled } from "@/components/google-login-button";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("pl-PL", {
@@ -70,6 +71,7 @@ export type PatientProfile = {
   email: string | null;
   locationName: string | null;
   memberSince: string;
+  googleLinked?: boolean;
 };
 
 const NAV = [
@@ -558,7 +560,10 @@ export function PatientDashboard({
   points,
   loyaltyHistory = [],
   initialTab = "home",
+  googleError = null,
 }: {
+  // Kod błędu po nieudanym łączeniu konta z Google (?google=<kod>).
+  googleError?: string | null;
   profile: PatientProfile;
   upcoming: AppointmentRowData[];
   past: AppointmentRowData[];
@@ -567,6 +572,7 @@ export function PatientDashboard({
   initialTab?: TabId;
 }) {
   const [tab, setTab] = React.useState<TabId>(initialTab);
+  const googleLoginEnabled = useGoogleLoginEnabled();
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
   const standalone = useIsStandalone();
   const firstNameOnly = profile.name.trim().split(/\s+/)[0] || profile.name;
@@ -912,6 +918,26 @@ export function PatientDashboard({
                     Dane konta nie mogą być edytowane samodzielnie. Skorzystaj z formularza obok, aby wysłać prośbę
                     o zmianę — recepcja ją zaakceptuje albo odrzuci.
                   </p>
+                  {profile.googleLinked || googleLoginEnabled ? (
+                  <div className="mt-5 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6">
+                    <div className="mb-1 text-sm font-semibold text-zinc-900">Logowanie przez Google</div>
+                    {profile.googleLinked ? (
+                      <p className="text-xs text-zinc-500">
+                        Konto jest połączone z Google — możesz logować się jednym kliknięciem.
+                      </p>
+                    ) : (
+                      <>
+                        <p className="mb-3 text-xs text-zinc-500">
+                          Połącz konto z Google, żeby logować się bez wpisywania hasła.
+                        </p>
+                        <GoogleLoginButton returnTo="/panel-klienta?tab=profile" label="Połącz konto z Google" />
+                      </>
+                    )}
+                    {googleError ? (
+                      <p className="mt-3 text-xs text-red-600">{googleErrorMessage(googleError)}</p>
+                    ) : null}
+                  </div>
+                  ) : null}
                 </div>
                 <DataChangeRequestCard />
               </div>

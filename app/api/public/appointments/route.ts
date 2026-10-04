@@ -39,7 +39,7 @@ async function findExistingPatient(
   const byPhone = await tx.patient.findFirst({
     where: { phone: normalizedPhone, locationId },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, email: true, phone: true, passwordHash: true },
+    select: { id: true, email: true, phone: true, passwordHash: true, googleSub: true },
   });
   if (byPhone) return byPhone;
 
@@ -47,7 +47,7 @@ async function findExistingPatient(
   return tx.patient.findFirst({
     where: { email: { equals: normalizedEmail, mode: "insensitive" }, locationId },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, email: true, phone: true, passwordHash: true },
+    select: { id: true, email: true, phone: true, passwordHash: true, googleSub: true },
   });
 }
 
@@ -235,6 +235,23 @@ export async function POST(req: Request) {
         // wprost na jego konto, bez tworzenia nowego rekordu Patient.
         patientId = patientAuth.id;
         bookedAsLoggedIn = true;
+        // Konto założone przez Google nie ma jeszcze telefonu — uzupełniamy go
+        // numerem podanym przy rezerwacji.
+        const phoneFilled = await tx.patient.updateMany({
+          where: { id: patientAuth.id, phone: null },
+          data: { phone: normalizedPhone },
+        });
+        if (phoneFilled.count > 0) {
+          await logAudit({
+            tx,
+            actor: bookingActor,
+            action: "UPDATE",
+            entity: "Patient",
+            entityId: patientAuth.id,
+            summary: `Uzupełnienie numeru telefonu pacjenta przy rezerwacji online: ${normalizedPhone}`,
+            data: { changes: { phone: { from: null, to: normalizedPhone } } },
+          });
+        }
         if (normalizedEmail) {
           const filled = await tx.patient.updateMany({
             where: { id: patientAuth.id, email: null },
@@ -269,10 +286,15 @@ export async function POST(req: Request) {
         const accountHolder = passwordHash
           ? await tx.patient.findFirst({
               where: {
-                passwordHash: { not: null },
-                OR: [
-                  { phone: normalizedPhone },
-                  ...(normalizedEmail ? [{ email: { equals: normalizedEmail, mode: "insensitive" as const } }] : []),
+                // Konto = karta z hasłem albo z logowaniem Google.
+                AND: [
+                  { OR: [{ passwordHash: { not: null } }, { googleSub: { not: null } }] },
+                  {
+                    OR: [
+                      { phone: normalizedPhone },
+                      ...(normalizedEmail ? [{ email: { equals: normalizedEmail, mode: "insensitive" as const } }] : []),
+                    ],
+                  },
                 ],
               },
               select: { id: true },
@@ -284,7 +306,7 @@ export async function POST(req: Request) {
           patientId = existingPatient.id;
           const patientUpdate: { email?: string; phone?: string } = {};
           // Uzupełniamy brakujące dane kontaktowe wyłącznie na karcie bez konta.
-          if (!existingPatient.passwordHash) {
+          if (!existingPatient.passwordHash && !existingPatient.googleSub) {
             if (normalizedEmail && !existingPatient.email) patientUpdate.email = normalizedEmail;
             if (normalizedPhone && !existingPatient.phone) patientUpdate.phone = normalizedPhone;
           }

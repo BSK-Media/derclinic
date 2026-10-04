@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { GoogleLoginButton, GoogleLoginDivider, googleErrorMessage } from "@/components/google-login-button";
 
 function sanitizePhoneInput(raw: string) {
   let digitsCount = 0;
@@ -46,6 +47,8 @@ function PatientLoginForm() {
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
+  // Powrót z nieudanego logowania przez Google (?google=<kod>).
+  const googleError = googleErrorMessage(searchParams.get("google"));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -96,6 +99,13 @@ function PatientLoginForm() {
             To konto już istnieje — zaloguj się swoim hasłem zamiast zakładać nowe.
           </div>
         ) : null}
+
+        {googleError ? (
+          <div className="mb-4 rounded-xl bg-amber-50 px-3 py-2.5 text-xs text-amber-800">{googleError}</div>
+        ) : null}
+
+        <GoogleLoginButton returnTo="/panel-klienta" label="Zaloguj się przez Google" />
+        <GoogleLoginDivider />
 
         <form className="space-y-4" onSubmit={submit}>
           <label className="block space-y-1.5">

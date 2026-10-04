@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { PASSWORD_REQUIREMENTS_HINT, validatePassword } from "@/lib/password-policy";
+import { GoogleLoginButton, GoogleLoginDivider } from "@/components/google-login-button";
 
 function sanitizePhoneInput(raw: string) {
   let digitsCount = 0;
@@ -118,6 +119,9 @@ export default function PatientRegisterPage() {
           Jeśli masz już za sobą wizytę w DerClinic, recepcja połączy konto z historią Twoich wizyt po
           potwierdzeniu tożsamości.
         </p>
+
+        <GoogleLoginButton returnTo="/panel-klienta" label="Zarejestruj się przez Google" />
+        <GoogleLoginDivider />
 
         <form className="space-y-4" onSubmit={submit}>
           <div className="grid grid-cols-2 gap-3">

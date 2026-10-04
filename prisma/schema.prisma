@@ -173,6 +173,11 @@ model Patient {
   passwordResetTokenHash String?
   passwordResetExpiresAt DateTime?
 
+  // Logowanie przez Google: stały identyfikator konta Google ("sub" z tokenu).
+  // Karta z googleSub jest kontem tak samo jak karta z hasłem — pacjent może
+  // mieć jedno, drugie albo oba (patrz lib/google-oauth.ts).
+  googleSub String? @unique
+
   // Program lojalnościowy: 1 pkt za każde wydane 10 zł (na podstawie
   // priceFinal zaakceptowanej wizyty), 1 pkt = 1 zł rabatu przy kolejnej
   // rezerwacji. Bieżące saldo trzymane tu dla szybkiego odczytu; pełna,
