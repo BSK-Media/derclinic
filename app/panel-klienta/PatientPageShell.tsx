@@ -111,16 +111,24 @@ export function PatientPageShell({
       <div className="flex-1 lg:ml-[264px]">
         <header className="border-b border-zinc-200 bg-white pt-[env(safe-area-inset-top)]">
           <div className="relative flex items-center justify-between px-4 py-3.5 sm:px-6">
-            <div className="flex items-center gap-2 lg:hidden">
-              <button
-                type="button"
-                onClick={() => setMobileNavOpen(true)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 text-zinc-600"
-                aria-label="Otwórz menu"
-              >
-                <Menu className="h-4.5 w-4.5" />
-              </button>
-            </div>
+            {/* W zainstalowanej aplikacji (PWA) nawigacja jest na dole ekranu,
+                więc zamiast hamburgera pokazujemy powitanie. */}
+            {standalone ? (
+              <div className="max-w-[38%] truncate text-sm text-zinc-600 lg:hidden">
+                Cześć, <span className="font-semibold text-zinc-900">{firstNameOnly}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 lg:hidden">
+                <button
+                  type="button"
+                  onClick={() => setMobileNavOpen(true)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 text-zinc-600"
+                  aria-label="Otwórz menu"
+                >
+                  <Menu className="h-4.5 w-4.5" />
+                </button>
+              </div>
+            )}
             <Link
               href="/panel-klienta"
               className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 lg:hidden"

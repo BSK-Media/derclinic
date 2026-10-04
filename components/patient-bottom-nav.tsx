@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Home, CalendarDays, CalendarPlus, Star, Menu, X, History, IdCard, FileCheck } from "lucide-react";
+import { LogoutButton } from "@/app/panel-klienta/LogoutButton";
 
 // Tryb standalone = aplikacja zainstalowana na ekranie głównym (PWA), nie
 // zwykła karta przeglądarki — dolna nawigacja pokazuje się WYŁĄCZNIE tam.
@@ -161,6 +162,10 @@ export function PatientBottomNav(props: Props) {
                   </Link>
                 );
               })}
+            </div>
+            {/* W PWA nie ma hamburgera u góry — wylogowanie jest dostępne tutaj. */}
+            <div className="border-t border-zinc-100 px-1 pt-3">
+              <LogoutButton />
             </div>
           </div>
         </div>
