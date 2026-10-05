@@ -40,7 +40,7 @@ async function findExistingPatient(
   const byPhone = await tx.patient.findFirst({
     where: { phone: normalizedPhone, locationId },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, email: true, phone: true, passwordHash: true, googleSub: true },
+    select: { id: true, email: true, phone: true, passwordHash: true, googleSub: true, facebookId: true },
   });
   if (byPhone) return byPhone;
 
@@ -48,7 +48,7 @@ async function findExistingPatient(
   return tx.patient.findFirst({
     where: { email: { equals: normalizedEmail, mode: "insensitive" }, locationId },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, email: true, phone: true, passwordHash: true, googleSub: true },
+    select: { id: true, email: true, phone: true, passwordHash: true, googleSub: true, facebookId: true },
   });
 }
 
@@ -287,9 +287,9 @@ export async function POST(req: Request) {
         const accountHolder = passwordHash
           ? await tx.patient.findFirst({
               where: {
-                // Konto = karta z hasłem albo z logowaniem Google.
+                // Konto = karta z hasłem albo z logowaniem przez Google lub Facebooka.
                 AND: [
-                  { OR: [{ passwordHash: { not: null } }, { googleSub: { not: null } }] },
+                  { OR: [{ passwordHash: { not: null } }, { googleSub: { not: null } }, { facebookId: { not: null } }] },
                   {
                     OR: [
                       { phone: normalizedPhone },
@@ -307,7 +307,7 @@ export async function POST(req: Request) {
           patientId = existingPatient.id;
           const patientUpdate: { email?: string; phone?: string } = {};
           // Uzupełniamy brakujące dane kontaktowe wyłącznie na karcie bez konta.
-          if (!existingPatient.passwordHash && !existingPatient.googleSub) {
+          if (!existingPatient.passwordHash && !existingPatient.googleSub && !existingPatient.facebookId) {
             if (normalizedEmail && !existingPatient.email) patientUpdate.email = normalizedEmail;
             if (normalizedPhone && !existingPatient.phone) patientUpdate.phone = normalizedPhone;
           }

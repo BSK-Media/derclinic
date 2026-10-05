@@ -11,6 +11,7 @@ import { maxRedeemablePoints, discountForPoints } from "@/lib/loyalty";
 import { requiresFullPrepayment, resolvePaymentDue, depositAmountGrosze, type PaymentChoice } from "@/lib/booking-payment";
 import { PASSWORD_REQUIREMENTS_HINT, validatePassword } from "@/lib/password-policy";
 import { GoogleLoginButton, GoogleLoginDivider, googleErrorMessage } from "@/components/google-login-button";
+import { FacebookLoginButton, facebookErrorMessage } from "@/components/facebook-login-button";
 
 // Czcionka używana WYŁĄCZNIE w nagłówku (SiteHeader) — potwierdzona wprost z
 // computed CSS elementu .navbar na derclinic.pl: font-family: Raleway, sans-serif,
@@ -323,7 +324,7 @@ export default function PublicBookingPage() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("wznow") !== "1") return;
     appliedServicePreselect.current = true;
-    setGoogleError(googleErrorMessage(params.get("google")));
+    setGoogleError(googleErrorMessage(params.get("google")) || facebookErrorMessage(params.get("facebook")));
     window.history.replaceState(null, "", "/book");
 
     const resumeLocationId = params.get("locationId") || "";
@@ -1226,6 +1227,7 @@ export default function PublicBookingPage() {
           ) : (
             <>
               <GoogleLoginButton returnTo={googleReturnTo} />
+              <FacebookLoginButton returnTo={googleReturnTo} className="mt-2.5" />
               {googleError ? <div className="mt-2 text-xs text-red-600">{googleError}</div> : null}
               <GoogleLoginDivider />
               <div className="mb-2 grid grid-cols-2 gap-2">

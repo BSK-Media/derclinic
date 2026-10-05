@@ -88,12 +88,15 @@ export async function GET(req: Request) {
     return finish();
   }
 
-  // 3. Ten e-mail ma już konto z hasłem. Adresów e-mail nie potwierdzamy, więc
-  //    nie wpuszczamy na nie samym Google — właściciel loguje się hasłem
-  //    i łączy konto w panelu. (Informacja trafia wyłącznie do osoby, która
+  // 3. Ten e-mail ma już konto (hasło albo Facebook). Adresów e-mail nie
+  //    potwierdzamy, więc nie wpuszczamy na nie samym Google — właściciel
+  //    loguje się dotychczasową metodą i łączy konto w panelu. (Informacja trafia wyłącznie do osoby, która
   //    właśnie udowodniła, że ten adres należy do niej.)
   const passwordAccount = await prisma.patient.findFirst({
-    where: { passwordHash: { not: null }, email: { equals: profile.email, mode: "insensitive" } },
+    where: {
+      OR: [{ passwordHash: { not: null } }, { facebookId: { not: null } }],
+      email: { equals: profile.email, mode: "insensitive" },
+    },
     select: { id: true },
   });
   if (passwordAccount) {
@@ -102,8 +105,8 @@ export async function GET(req: Request) {
       action: "LOGIN_FAILED",
       entity: "PatientAccount",
       entityId: passwordAccount.id,
-      summary: "Logowanie przez Google odrzucone — e-mail ma już konto z hasłem, które nie jest połączone z Google",
-      data: { method: "google", reason: "password_account_exists" },
+      summary: "Logowanie przez Google odrzucone — e-mail ma już konto, które nie jest połączone z Google",
+      data: { method: "google", reason: "account_exists" },
     });
     return finish("konto-istnieje", "/panel-klienta/logowanie");
   }
@@ -112,7 +115,12 @@ export async function GET(req: Request) {
   //    rezerwacji (albo prośbą o zmianę danych w panelu).
   const [existingGuest, defaultLocation] = await Promise.all([
     prisma.patient.findFirst({
-      where: { passwordHash: null, googleSub: null, email: { equals: profile.email, mode: "insensitive" } },
+      where: {
+        passwordHash: null,
+        googleSub: null,
+        facebookId: null,
+        email: { equals: profile.email, mode: "insensitive" },
+      },
       orderBy: { updatedAt: "desc" },
       select: { id: true },
     }),

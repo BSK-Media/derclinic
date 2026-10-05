@@ -26,6 +26,11 @@ import { formatPLNFromGrosze } from "@/lib/money";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
 import { LogoutButton } from "./LogoutButton";
 import { GoogleLoginButton, googleErrorMessage, useGoogleLoginEnabled } from "@/components/google-login-button";
+import {
+  FacebookLoginButton,
+  facebookErrorMessage,
+  useFacebookLoginEnabled,
+} from "@/components/facebook-login-button";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("pl-PL", {
@@ -72,6 +77,7 @@ export type PatientProfile = {
   locationName: string | null;
   memberSince: string;
   googleLinked?: boolean;
+  facebookLinked?: boolean;
 };
 
 const NAV = [
@@ -584,9 +590,12 @@ export function PatientDashboard({
   loyaltyHistory = [],
   initialTab = "home",
   googleError = null,
+  facebookError = null,
 }: {
   // Kod błędu po nieudanym łączeniu konta z Google (?google=<kod>).
   googleError?: string | null;
+  // To samo dla Facebooka (?facebook=<kod>).
+  facebookError?: string | null;
   profile: PatientProfile;
   upcoming: AppointmentRowData[];
   past: AppointmentRowData[];
@@ -596,6 +605,7 @@ export function PatientDashboard({
 }) {
   const [tab, setTab] = React.useState<TabId>(initialTab);
   const googleLoginEnabled = useGoogleLoginEnabled();
+  const facebookLoginEnabled = useFacebookLoginEnabled();
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
   const standalone = useIsStandalone();
   const firstNameOnly = profile.name.trim().split(/\s+/)[0] || profile.name;
@@ -966,6 +976,26 @@ export function PatientDashboard({
                     )}
                     {googleError ? (
                       <p className="mt-3 text-xs text-red-600">{googleErrorMessage(googleError)}</p>
+                    ) : null}
+                  </div>
+                  ) : null}
+                  {profile.facebookLinked || facebookLoginEnabled ? (
+                  <div className="mt-5 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6">
+                    <div className="mb-1 text-sm font-semibold text-zinc-900">Logowanie przez Facebooka</div>
+                    {profile.facebookLinked ? (
+                      <p className="text-xs text-zinc-500">
+                        Konto jest połączone z Facebookiem — możesz logować się jednym kliknięciem.
+                      </p>
+                    ) : (
+                      <>
+                        <p className="mb-3 text-xs text-zinc-500">
+                          Połącz konto z Facebookiem, żeby logować się bez wpisywania hasła.
+                        </p>
+                        <FacebookLoginButton returnTo="/panel-klienta?tab=profile" label="Połącz konto z Facebookiem" />
+                      </>
+                    )}
+                    {facebookError ? (
+                      <p className="mt-3 text-xs text-red-600">{facebookErrorMessage(facebookError)}</p>
                     ) : null}
                   </div>
                   ) : null}

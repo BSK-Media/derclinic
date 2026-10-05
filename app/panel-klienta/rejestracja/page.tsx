@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { PASSWORD_REQUIREMENTS_HINT, validatePassword } from "@/lib/password-policy";
 import { GoogleLoginButton, GoogleLoginDivider } from "@/components/google-login-button";
+import { FacebookLoginButton } from "@/components/facebook-login-button";
 
 function sanitizePhoneInput(raw: string) {
   let digitsCount = 0;
@@ -121,6 +122,7 @@ export default function PatientRegisterPage() {
         </p>
 
         <GoogleLoginButton returnTo="/panel-klienta" label="Zarejestruj się przez Google" />
+        <FacebookLoginButton returnTo="/panel-klienta" label="Zarejestruj się przez Facebooka" className="mt-2.5" />
         <GoogleLoginDivider />
 
         <form className="space-y-4" onSubmit={submit}>

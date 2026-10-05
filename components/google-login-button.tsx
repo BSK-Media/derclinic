@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useFacebookLoginEnabled } from "@/components/facebook-login-button";
 
 // Przycisk logowania pacjenta przez Google (panel klienta i rezerwacja online).
 // To zwykły odnośnik do /api/patient/google/start — cały przepływ OAuth dzieje
@@ -13,7 +14,7 @@ export const GOOGLE_ERROR_MESSAGES: Record<string, string> = {
   anulowano: "Logowanie przez Google zostało anulowane.",
   blad: "Nie udało się zalogować przez Google. Spróbuj ponownie.",
   "konto-istnieje":
-    "Ten adres e-mail ma już konto z hasłem. Zaloguj się numerem telefonu i hasłem, a potem połącz konto z Google w zakładce „Dane klienta”.",
+    "Ten adres e-mail ma już konto. Zaloguj się dotychczasową metodą, a potem połącz konto z Google w zakładce „Dane klienta”.",
   zajete: "To konto Google jest już połączone z innym kontem w DerClinic.",
 };
 
@@ -76,10 +77,11 @@ export function GoogleLoginButton({
   );
 }
 
-/** Separator "lub" między przyciskiem Google a formularzem z hasłem. */
+/** Separator "lub" między przyciskami Google/Facebook a formularzem z hasłem. */
 export function GoogleLoginDivider() {
-  const enabled = useGoogleLoginEnabled();
-  if (!enabled) return null;
+  const googleEnabled = useGoogleLoginEnabled();
+  const facebookEnabled = useFacebookLoginEnabled();
+  if (!googleEnabled && !facebookEnabled) return null;
   return (
     <div className="my-4 flex items-center gap-3 text-xs text-zinc-400">
       <span className="h-px flex-1 bg-zinc-200" />

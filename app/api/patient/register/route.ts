@@ -46,9 +46,9 @@ export async function POST(req: Request) {
 
   const existingAccount = await prisma.patient.findFirst({
     where: {
-      // Konto = karta z hasłem albo z logowaniem Google.
+      // Konto = karta z hasłem albo z logowaniem przez Google lub Facebooka.
       AND: [
-        { OR: [{ passwordHash: { not: null } }, { googleSub: { not: null } }] },
+        { OR: [{ passwordHash: { not: null } }, { googleSub: { not: null } }, { facebookId: { not: null } }] },
         { OR: [{ phone }, { email: { equals: email, mode: "insensitive" } }] },
       ],
     },
@@ -77,6 +77,7 @@ export async function POST(req: Request) {
     where: {
       passwordHash: null,
       googleSub: null,
+      facebookId: null,
       OR: [{ phone }, { email: { equals: email, mode: "insensitive" } }],
     },
     orderBy: { updatedAt: "desc" },

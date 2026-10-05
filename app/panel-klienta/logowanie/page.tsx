@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { GoogleLoginButton, GoogleLoginDivider, googleErrorMessage } from "@/components/google-login-button";
+import { FacebookLoginButton, facebookErrorMessage } from "@/components/facebook-login-button";
 
 function sanitizePhoneInput(raw: string) {
   let digitsCount = 0;
@@ -47,8 +48,9 @@ function PatientLoginForm() {
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
-  // Powrót z nieudanego logowania przez Google (?google=<kod>).
-  const googleError = googleErrorMessage(searchParams.get("google"));
+  // Powrót z nieudanego logowania przez Google lub Facebooka (?google=<kod> / ?facebook=<kod>).
+  const googleError =
+    googleErrorMessage(searchParams.get("google")) || facebookErrorMessage(searchParams.get("facebook"));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -105,6 +107,7 @@ function PatientLoginForm() {
         ) : null}
 
         <GoogleLoginButton returnTo="/panel-klienta" label="Zaloguj się przez Google" />
+        <FacebookLoginButton returnTo="/panel-klienta" label="Zaloguj się przez Facebooka" className="mt-2.5" />
         <GoogleLoginDivider />
 
         <form className="space-y-4" onSubmit={submit}>

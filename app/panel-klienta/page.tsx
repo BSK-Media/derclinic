@@ -18,7 +18,7 @@ function formatMemberSince(date: Date) {
 
 export default async function PatientDashboardPage(
   props: {
-    searchParams: Promise<{ tab?: string; google?: string }>;
+    searchParams: Promise<{ tab?: string; google?: string; facebook?: string }>;
   }
 ) {
   const searchParams = await props.searchParams;
@@ -35,6 +35,7 @@ export default async function PatientDashboardPage(
         createdAt: true,
         loyaltyPoints: true,
         googleSub: true,
+        facebookId: true,
         location: { select: { name: true } },
       },
     }),
@@ -112,8 +113,10 @@ export default async function PatientDashboardPage(
         locationName: patient.location?.name ?? null,
         memberSince: formatMemberSince(patient.createdAt),
         googleLinked: Boolean(patient.googleSub),
+        facebookLinked: Boolean(patient.facebookId),
       }}
       googleError={typeof searchParams?.google === "string" ? searchParams.google : null}
+      facebookError={typeof searchParams?.facebook === "string" ? searchParams.facebook : null}
       upcoming={upcoming}
       past={past}
       points={points}

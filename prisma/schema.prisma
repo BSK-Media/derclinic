@@ -178,6 +178,11 @@ model Patient {
   // mieć jedno, drugie albo oba (patrz lib/google-oauth.ts).
   googleSub String? @unique
 
+  // Logowanie przez Facebooka: stały identyfikator użytkownika w naszej
+  // aplikacji Facebooka ("id" z Graph API). Te same zasady co przy Google
+  // (patrz lib/facebook-oauth.ts).
+  facebookId String? @unique
+
   // Program lojalnościowy: 1 pkt za każde wydane 10 zł (na podstawie
   // priceFinal zaakceptowanej wizyty), 1 pkt = 1 zł rabatu przy kolejnej
   // rezerwacji. Bieżące saldo trzymane tu dla szybkiego odczytu; pełna,

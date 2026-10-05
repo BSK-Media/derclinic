@@ -184,6 +184,7 @@ export async function POST(req: Request) {
           locationId: true,
           passwordHash: true,
           googleSub: true,
+          facebookId: true,
         },
       });
       if (rows.length !== allIds.length) {
@@ -210,12 +211,20 @@ export async function POST(req: Request) {
         );
       }
 
+      const distinctFacebookAccounts = new Set(rows.filter((r) => r.facebookId).map((r) => r.facebookId));
+      if (distinctFacebookAccounts.size > 1) {
+        throw new Error(
+          "Więcej niż jeden z tych pacjentów ma konto połączone z (różnymi) kontami Facebooka — scalenie wymaga ręcznej decyzji, które zachować.",
+        );
+      }
+
       const patientUpdate: {
         email?: string;
         phone?: string;
         note?: string;
         passwordHash?: string;
         googleSub?: string;
+        facebookId?: string;
       } = {};
       if (!keep.email) {
         const email = merging.find((r) => r.email)?.email;
@@ -240,14 +249,18 @@ export async function POST(req: Request) {
         tx.retailSale.updateMany({ where: { patientId: { in: mergeIdsList } }, data: { patientId: keepId } }),
       ]);
 
-      // Logowanie Google przechodzi na kartę docelową — inaczej pacjent po
+      // Logowanie przez Google i Facebooka przechodzi na kartę docelową — inaczej pacjent po
       // scaleniu założyłby przy kolejnym logowaniu nową, pustą kartę.
       if (!keep.googleSub) {
         const googleSub = merging.find((r) => r.googleSub)?.googleSub;
         if (googleSub) patientUpdate.googleSub = googleSub;
       }
+      if (!keep.facebookId) {
+        const facebookId = merging.find((r) => r.facebookId)?.facebookId;
+        if (facebookId) patientUpdate.facebookId = facebookId;
+      }
 
-      // Najpierw usuwamy scalane karty: googleSub jest unikalny, więc nie może
+      // Najpierw usuwamy scalane karty: googleSub i facebookId są unikalne, więc żaden nie może
       // przez chwilę istnieć na dwóch kartach naraz.
       await tx.patient.deleteMany({ where: { id: { in: mergeIdsList } } });
 
