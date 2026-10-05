@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import useSWR from "swr";
 import {
   ArrowDown,
@@ -149,7 +150,10 @@ function StatusBadge({ status }: { status: InventoryProduct["status"] }) {
   return <Badge className={styles}>{status}</Badge>;
 }
 
-export default function WarehouseDetailsPage({ params }: { params: { id: string } }) {
+export default function WarehouseDetailsPage() {
+  // W tej wersji Next.js `params` przekazywane do strony jest obietnicą, więc
+  // `params.id` było puste — id magazynu bierzemy z adresu przez useParams.
+  const params = useParams<{ id: string }>();
   const { data, error, isLoading, mutate } = useSWR(`/api/admin/inventory/${params.id}`, fetcher);
   const products: InventoryProduct[] = data?.products ?? [];
   const catalogProducts: CatalogProduct[] = data?.catalogProducts ?? [];

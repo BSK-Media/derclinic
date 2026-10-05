@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import useSWR from "swr";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -105,11 +106,10 @@ function fieldValue(service: Service, field: EditableField) {
   return value || "—";
 }
 
-export default function ServiceDetailsPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default function ServiceDetailsPage() {
+  // W tej wersji Next.js `params` przekazywane do strony jest obietnicą, więc
+  // `params.id` było puste i strona zawsze pokazywała "Nie znaleziono usługi".
+  const params = useParams<{ id: string }>();
   const { data, error, isLoading, mutate } = useSWR<ServiceResponse>(
     "/api/admin/services",
     fetcher,
