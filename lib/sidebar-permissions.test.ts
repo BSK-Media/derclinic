@@ -38,3 +38,28 @@ describe("uprawnienie logs (dziennik zdarzeń) — tylko administrator", () => {
     expect(firstAllowedSidebarHref("RECEPTION", ["logs"])).toBe("/access-denied");
   });
 });
+
+describe("uprawnienia push i email (powiadomienia, poczta) — tylko administrator", () => {
+  it("admin ma dostęp, pracownicy nie — także przez zapisane uprawnienia", () => {
+    for (const permission of ["push", "email"] as const) {
+      expect(hasSidebarPermission("ADMIN", undefined, permission)).toBe(true);
+      expect(hasSidebarPermission("RECEPTION", null, permission)).toBe(false);
+      expect(hasSidebarPermission("SPECIALIST", null, permission)).toBe(false);
+      expect(hasSidebarPermission("RECEPTION", ["settings", permission], permission)).toBe(false);
+    }
+  });
+
+  it("ścieżki stron i API są przypisane do właściwych sekcji", () => {
+    expect(sidebarPermissionForPath("/admin/push")).toBe("push");
+    expect(sidebarPermissionForPath("/api/admin/push/send")).toBe("push");
+    expect(sidebarPermissionForPath("/admin/email")).toBe("email");
+    expect(sidebarPermissionForPath("/api/admin/email/test")).toBe("email");
+    expect(sidebarHref("push", "ADMIN")).toBe("/admin/push");
+    expect(sidebarHref("email", "ADMIN")).toBe("/admin/email");
+  });
+
+  it("ustawienia zostają dostępne dla pracowników", () => {
+    expect(hasSidebarPermission("RECEPTION", null, "settings")).toBe(true);
+    expect(sidebarPermissionForPath("/admin/settings")).toBe("settings");
+  });
+});

@@ -19,6 +19,10 @@ export const SIDEBAR_PERMISSION_KEYS = [
   // nadawany pracownikom, nawet gdyby trafił do zapisanych uprawnień
   // (patrz ADMIN_ONLY_PERMISSIONS i normalizeSidebarPermissions).
   "logs",
+  // Powiadomienia push i poczta e-mail (ustawienia wysyłki, ręczna wysyłka,
+  // dzienniki) — tak jak logi, wyłącznie administrator.
+  "push",
+  "email",
 ] as const;
 
 export type SidebarPermission = (typeof SIDEBAR_PERMISSION_KEYS)[number];
@@ -45,12 +49,18 @@ const ALL_PERMISSIONS = [...SIDEBAR_PERMISSION_KEYS];
 
 // Sekcje, do których nie ma dostępu żaden pracownik niebędący adminem —
 // odfiltrowywane także z uprawnień zapisanych w bazie/tokenie.
-const ADMIN_ONLY_PERMISSIONS: readonly SidebarPermission[] = ["logs"];
+const ADMIN_ONLY_PERMISSIONS: readonly SidebarPermission[] = ["logs", "push", "email"];
 
 // Dotychczasowy zakres menu dla pracowników, z wyłączeniem sekcji zastrzeżonych
 // domyślnie dla administratora.
 const DEFAULT_NON_ADMIN_PERMISSIONS: SidebarPermission[] = SIDEBAR_PERMISSION_KEYS.filter(
-  (key) => key !== "analytics" && key !== "specialists" && key !== "locations" && key !== "pos" && key !== "loyalty" && key !== "logs",
+  (key) =>
+    key !== "analytics" &&
+    key !== "specialists" &&
+    key !== "locations" &&
+    key !== "pos" &&
+    key !== "loyalty" &&
+    !ADMIN_ONLY_PERMISSIONS.includes(key),
 );
 
 export function normalizeSidebarPermissions(role: string, value: unknown): SidebarPermission[] {
@@ -162,6 +172,12 @@ export function sidebarPermissionForPath(pathname: string): SidebarPermission | 
   if (path.startsWith("/admin/logs") || path.startsWith("/api/admin/logs")) {
     return "logs";
   }
+  if (path.startsWith("/admin/push") || path.startsWith("/api/admin/push")) {
+    return "push";
+  }
+  if (path.startsWith("/admin/email") || path.startsWith("/api/admin/email")) {
+    return "email";
+  }
   if (path.startsWith("/admin/settings") || path.startsWith("/admin/profile")) {
     return "settings";
   }
@@ -195,6 +211,8 @@ export function sidebarHref(permission: SidebarPermission, role: string) {
     settings: "/admin/settings",
     loyalty: "/admin/loyalty",
     logs: "/admin/logs",
+    push: "/admin/push",
+    email: "/admin/email",
   };
 
   return hrefs[permission];

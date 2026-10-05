@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth-provider";
 import { EMAIL_STATUS_LABELS, EMAIL_TYPE_INFO, emailTypeLabel } from "@/lib/email-types";
@@ -209,10 +208,7 @@ export default function PushSettingsPage() {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
       <div>
-        <Link href="/admin/settings" className="text-sm text-slate-500 hover:text-slate-800 dark:hover:text-white">
-          ← Ustawienia
-        </Link>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Powiadomienia push</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Powiadomienia push</h1>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           Powiadomienia na telefon i komputer — automatyczne (jak e-maile) oraz wysyłane ręcznie.
         </p>
@@ -226,7 +222,7 @@ export default function PushSettingsPage() {
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Kto odbiera powiadomienia</h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Powiadomienia dostaje tylko ten, kto sam je włączył na swoim urządzeniu: klient w panelu klienta
-              (zakładka Zgody), pracownik w Ustawieniach.
+              (zakładka Zgody), pracownik w Ustawieniach (na dole menu).
             </p>
             <dl className="mt-4 grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/5">
