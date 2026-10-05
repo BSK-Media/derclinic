@@ -631,7 +631,9 @@ export function PatientDashboard({
           </div>
         </button>
 
-        <nav className="mt-4 flex-1 space-y-1 px-1">
+        {/* min-h-0 + overflow-y-auto: przy niskim oknie lista zakładek się
+            przewija, a logo i wylogowanie zostają na miejscu. */}
+        <nav className="mt-4 min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-1 [scrollbar-width:thin]">
           {NAV.map(({ id, label, icon: Icon }) => {
             const active = tab === id;
             return (
@@ -744,7 +746,7 @@ export function PatientDashboard({
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <nav className="mt-2 flex-1 space-y-1 px-1">
+              <nav className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-1 [scrollbar-width:thin]">
                 {NAV.map(({ id, label, icon: Icon }) => {
                   const active = tab === id;
                   return (

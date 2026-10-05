@@ -248,7 +248,9 @@ export function AppSidebar() {
       <div className="flex h-full flex-col">
         <LogoBlock />
 
-        <nav className="mt-3 flex-1 space-y-1 px-1">
+        {/* min-h-0 + overflow-y-auto: przy niskim oknie lista zakładek się
+            przewija, a logo i przyciski na dole zostają na miejscu. */}
+        <nav className="mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-1 [scrollbar-width:thin]">
           {visibleNav.map((item) => {
             const href = sidebarHref(item.permission, user!.role);
             const active =
