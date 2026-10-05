@@ -62,6 +62,8 @@ async function authorize(req: NextRequest, requestHeaders: Headers): Promise<Nex
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/api/auth/logout") ||
     pathname.startsWith("/api/auth/change-password") ||
+    pathname.startsWith("/api/auth/forgot-password") ||
+    pathname.startsWith("/api/auth/reset-password") ||
     pathname.startsWith("/api/auth/mfa/") ||
     pathname.startsWith("/api/public/") ||
     pathname.startsWith("/api/patient/") ||

@@ -92,6 +92,12 @@ model User {
   // jest tymczasowe — przy logowaniu pracownik musi ustawić własne.
   mustChangePassword Boolean @default(false)
 
+  // Reset hasła przez link z e-maila ("Nie pamiętam hasła" na ekranie
+  // logowania personelu): hash jednorazowego tokenu i jego data wygaśnięcia —
+  // tak samo jak u pacjenta. Nowe hasło nie omija MFA.
+  passwordResetTokenHash String?
+  passwordResetExpiresAt DateTime?
+
   // Uwierzytelnianie dwuskładnikowe (audyt F-04) — obowiązkowe dla personelu.
   // Sekrety TOTP są zaszyfrowane aplikacyjnie (lib/secret-box.ts), nigdy jawnie.
   mfaEnabledAt               DateTime?
@@ -150,6 +156,7 @@ model User {
   @@index([role])
   @@index([locationId])
   @@index([specialistCode])
+  @@index([passwordResetTokenHash])
 }
 
 model Patient {

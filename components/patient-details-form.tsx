@@ -81,6 +81,22 @@ export function PatientDetailsForm({
 
   const [newPassword, setNewPassword] = React.useState("");
   const [settingPassword, setSettingPassword] = React.useState(false);
+  const [sendingResetLink, setSendingResetLink] = React.useState(false);
+
+  async function sendPasswordResetLink() {
+    setSendingResetLink(true);
+    try {
+      const response = await fetch(`/api/admin/patients/${patient.id}/password-reset-link`, { method: "POST" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.ok) {
+        toast.error(result?.message || "Nie udało się wysłać linku");
+        return;
+      }
+      toast.success(`Link do ustawienia hasła wysłany na ${result.email} (ważny godzinę)`);
+    } finally {
+      setSendingResetLink(false);
+    }
+  }
 
   async function setPatientPassword(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -289,9 +305,23 @@ export function PatientDetailsForm({
       <Card className="p-4">
         <div className="mb-2 text-base font-medium">Hasło do panelu klienta</div>
         <p className="mb-3 text-sm text-zinc-500">
-          Ustaw ręcznie nowe hasło pacjentowi — przydatne, gdy wysyłka maila z linkiem do resetu nie
-          dochodzi. Ze względów bezpieczeństwa obecnego hasła nie da się tu podejrzeć.
+          Wyślij klientowi link, którym sam ustawi nowe hasło, albo ustaw je ręcznie. Ze względów
+          bezpieczeństwa obecnego hasła nie da się tu podejrzeć.
         </p>
+        <div className="mb-4 flex flex-wrap items-center gap-3 border-b pb-4">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={sendPasswordResetLink}
+            disabled={sendingResetLink || !values.email}
+          >
+            {sendingResetLink ? "Wysyłanie…" : "Wyślij link do resetu hasła"}
+          </Button>
+          <span className="text-sm text-zinc-500">
+            {values.email ? `Na adres ${values.email}` : "Klient nie ma adresu e-mail w karcie."}
+          </span>
+        </div>
         <form onSubmit={setPatientPassword} className="flex flex-wrap items-end gap-2">
           <div className="min-w-[220px] flex-1">
             <Input

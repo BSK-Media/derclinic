@@ -70,7 +70,7 @@ export const EMAIL_TYPE_INFO: readonly EmailTypeInfo[] = [
   {
     type: "PASSWORD_RESET",
     label: "Reset hasła",
-    description: "Link do ustawienia nowego hasła w panelu klienta.",
+    description: "Link do ustawienia nowego hasła — dla klienta (panel klienta) albo pracownika (panel).",
     audience: "SYSTEM",
     toggleable: false,
   },

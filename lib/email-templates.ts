@@ -229,6 +229,23 @@ export function passwordResetEmail(data: { patientName: string; resetUrl: string
   };
 }
 
+export function staffPasswordResetEmail(data: { name: string; login: string; resetUrl: string }): EmailContent {
+  return {
+    subject: `Reset hasła do panelu — ${BRAND}`,
+    ...layout({
+      heading: "Ustaw nowe hasło do panelu",
+      paragraphs: [
+        greeting(data.name),
+        "Otrzymaliśmy prośbę o zresetowanie hasła do panelu DerClinic OS. Link poniżej jest ważny przez godzinę.",
+      ],
+      rows: [["Login", data.login]],
+      button: { label: "Ustaw nowe hasło", url: data.resetUrl },
+      footnote:
+        "Po ustawieniu hasła zalogujesz się jak zwykle, z kodem z aplikacji uwierzytelniającej. Jeśli to nie Ty prosiłaś/eś o reset, zignoruj tę wiadomość i powiadom administratora.",
+    }),
+  };
+}
+
 export function testEmail(data: { sentBy: string; from: string | null }): EmailContent {
   return {
     subject: `Wiadomość testowa — ${BRAND}`,

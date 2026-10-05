@@ -24,6 +24,15 @@ const ROLE_LABELS: Record<Role, string> = {
   SPECIALIST: "Specjalista",
 };
 
+// Losowe hasło tymczasowe, np. "k7Qm-9xTz-4pLw-Vb2R" — bez znaków łatwych do
+// pomylenia przy przepisywaniu (0/O, 1/l/I).
+function generateTemporaryPassword() {
+  const alphabet = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  const chars = Array.from(bytes, (byte) => alphabet[byte % alphabet.length]);
+  return [0, 4, 8, 12].map((start) => chars.slice(start, start + 4).join("")).join("-");
+}
+
 export default function AdminUsersPage() {
   const { user: me } = useAuth();
   const { data, mutate, isLoading } = useSWR("/api/admin/users", fetcher);
@@ -37,6 +46,8 @@ export default function AdminUsersPage() {
   const [locationId, setLocationId] = useState("grodzisk-mazowiecki");
   const [saving, setSaving] = useState(false);
   const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
+  // Hasło tymczasowe po resecie — pokazywane administratorowi tylko raz.
+  const [temporary, setTemporary] = useState<{ login: string; name: string; password: string } | null>(null);
 
   async function create() {
     const passwordIssue = validatePassword(password, { login, name, email });
@@ -100,6 +111,32 @@ export default function AdminUsersPage() {
     }
   }
 
+  // Reset hasła pracownika: system losuje hasło tymczasowe, administrator
+  // przekazuje je pracownikowi, a ten przy pierwszym logowaniu ustawia własne.
+  // (Wymaga ponownego MFA administratora — okno pojawi się samo.)
+  async function resetPassword(u: U) {
+    if (
+      !confirm(
+        `Zresetować hasło konta „${u.login}” (${u.name})?\n\nDotychczasowe hasło przestanie działać, a pracownik zostanie wylogowany ze wszystkich urządzeń. Zobaczysz hasło tymczasowe do przekazania pracownikowi.`,
+      )
+    ) {
+      return;
+    }
+    let password = generateTemporaryPassword();
+    while (validatePassword(password, { login: u.login, name: u.name, email: u.email })) {
+      password = generateTemporaryPassword();
+    }
+    const res = await fetch(`/api/admin/users/${u.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się zresetować hasła.");
+    setTemporary({ login: u.login, name: u.name, password });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   // Procedury bezpieczeństwa (wymagają ponownego MFA administratora — okno pojawi się samo).
   async function security(u: U, action: "reset_mfa" | "revoke_sessions") {
     const question =
@@ -141,6 +178,38 @@ export default function AdminUsersPage() {
           Zakładanie kont i role. Administratorów może być kilku — każdy ma pełny dostęp do systemu.
         </p>
       </div>
+
+      {temporary ? (
+        <Card className="space-y-3 border-emerald-300 p-4 dark:border-emerald-500/40" role="status">
+          <div className="font-medium">
+            Hasło tymczasowe dla konta „{temporary.login}” ({temporary.name})
+          </div>
+          <div className="select-all rounded-lg border bg-zinc-50 p-3 text-center font-mono text-lg dark:bg-zinc-900">
+            {temporary.password}
+          </div>
+          <p className="text-sm text-zinc-500">
+            Przekaż je pracownikowi bezpiecznym kanałem. Przy pierwszym logowaniu ustawi własne hasło. Po
+            zamknięciu tego okna hasła nie da się ponownie wyświetlić — w razie potrzeby zresetuj je jeszcze raz.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                navigator.clipboard
+                  ?.writeText(temporary.password)
+                  .then(() => toast.success("Skopiowano hasło"))
+                  .catch(() => toast.error("Nie udało się skopiować — zaznacz hasło ręcznie."))
+              }
+            >
+              Kopiuj hasło
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setTemporary(null)}>
+              Zamknij
+            </Button>
+          </div>
+        </Card>
+      ) : null}
 
       <Card className="p-4 space-y-4">
         <div className="font-medium">Dodaj konto</div>
@@ -261,6 +330,11 @@ export default function AdminUsersPage() {
                         <Button variant="outline" size="sm" onClick={() => security(u, "revoke_sessions")}>
                           Wyloguj wszędzie
                         </Button>
+                        {!isMe ? (
+                          <Button variant="outline" size="sm" onClick={() => resetPassword(u)}>
+                            Resetuj hasło
+                          </Button>
+                        ) : null}
                         {u.mfaEnabledAt && !isMe ? (
                           <Button variant="outline" size="sm" onClick={() => security(u, "reset_mfa")}>
                             Reset 2FA

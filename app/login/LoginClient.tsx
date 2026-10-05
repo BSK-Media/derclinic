@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { startAuthentication, browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -231,6 +232,9 @@ export default function LoginClient() {
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Logowanie..." : "Zaloguj"}
               </Button>
+              <Link href="/login/zapomniane-haslo" className="block text-center text-sm text-zinc-500 underline">
+                Nie pamiętam hasła
+              </Link>
             </form>
           ) : null}
 
