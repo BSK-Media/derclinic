@@ -1,4 +1,5 @@
 {
   "buildCommand": "npm run db:deploy && next build",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "regions": ["fra1"]
 }
