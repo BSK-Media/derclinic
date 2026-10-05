@@ -20,11 +20,13 @@ export async function GET() {
   const [settings, logs, weekCounts] = await Promise.all([
     getEmailSettings(),
     prisma.emailLog.findMany({
+      // Dziennik jest wspólny z powiadomieniami push — tu tylko e-maile.
+      where: { channel: "EMAIL" },
       orderBy: { createdAt: "desc" },
       take: 100,
       select: { id: true, createdAt: true, type: true, recipient: true, subject: true, status: true, error: true },
     }),
-    prisma.emailLog.groupBy({ by: ["status"], where: { createdAt: { gte: weekAgo } }, _count: { _all: true } }),
+    prisma.emailLog.groupBy({ by: ["status"], where: { channel: "EMAIL", createdAt: { gte: weekAgo } }, _count: { _all: true } }),
   ]);
 
   const mailer = mailerConfig();

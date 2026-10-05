@@ -69,3 +69,44 @@ self.addEventListener("fetch", (event) => {
 
   // Wszystko inne (API, dane) — zawsze świeżo z sieci, bez cache'owania.
 });
+
+// --- Powiadomienia push ------------------------------------------------------
+// Serwer (lib/push.ts) wysyła JSON { title, body, url, tag }. Ten sam plik
+// obsługuje klientów (zakres "/") i personel (osobny zakres bez żadnych stron,
+// patrz components/push-toggle.tsx).
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : "" };
+  }
+  const title = data.title || "DerClinic";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: data.tag || undefined,
+      data: { url: data.url || "/panel-klienta" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = new URL((event.notification.data && event.notification.data.url) || "/", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      // Jeśli aplikacja jest już otwarta — przechodzimy w niej pod właściwy adres.
+      for (const client of windows) {
+        if (new URL(client.url).origin === self.location.origin && "focus" in client) {
+          if ("navigate" in client) client.navigate(target).catch(() => {});
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(target);
+    }),
+  );
+});

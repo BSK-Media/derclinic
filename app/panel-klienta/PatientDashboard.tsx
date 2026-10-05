@@ -26,6 +26,7 @@ import { formatPLNFromGrosze } from "@/lib/money";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
 import { LogoutButton } from "./LogoutButton";
 import { GoogleLoginButton, googleErrorMessage, useGoogleLoginEnabled } from "@/components/google-login-button";
+import { PushToggleCard } from "@/components/push-toggle";
 import {
   FacebookLoginButton,
   facebookErrorMessage,
@@ -490,6 +491,12 @@ function ConsentsPanel() {
         );
       })}
 
+      <PushToggleCard
+        audience="patient"
+        description="Potwierdzenia, zmiany i odwołania wizyt oraz przypomnienie dzień przed wizytą — prosto na ten telefon lub komputer."
+        className="rounded-2xl border border-zinc-200 bg-white p-5 text-zinc-900 shadow-sm sm:p-6"
+      />
+
       <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-5 sm:p-6">
         <div className="text-sm font-semibold text-zinc-900">Zgoda na wizerunek</div>
         <p className="mt-1 text-xs text-zinc-500">
@@ -789,6 +796,13 @@ export function PatientDashboard({
               <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                 <h1 className="text-2xl font-bold text-zinc-900 sm:text-3xl">Twoje centrum wizyt</h1>
               </div>
+
+              <PushToggleCard
+                audience="patient"
+                onlyWhenOff
+                description="Włącz, żeby dostawać przypomnienia o wizytach i informacje o zmianach terminu."
+                className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 text-zinc-900"
+              />
 
               <div className="grid gap-4 lg:grid-cols-3">
                 <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm sm:p-6 lg:col-span-2">

@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { disablePushOnThisDevice } from "@/components/push-toggle";
 import type { SidebarPermission } from "@/lib/sidebar-permissions";
 
 export type Role = "ADMIN" | "RECEPTION" | "SPECIALIST";
@@ -30,6 +31,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = React.useCallback(async () => {
+    // Po wylogowaniu to urządzenie nie powinno już dostawać powiadomień personelu.
+    await disablePushOnThisDevice("staff");
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
     setUser(null);
     window.location.href = "/login";

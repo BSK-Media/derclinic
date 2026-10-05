@@ -223,13 +223,13 @@ export default function EmailSettingsPage() {
         toast.error(result?.message || "Nie udało się uruchomić przypomnień.");
         return;
       }
-      if (result.disabled) toast.error("Przypomnienia są wyłączone w ustawieniach poniżej.");
-      else if (result.notConfigured) toast.error("Wysyłka nie jest skonfigurowana — przypomnienia nie poszły.");
-      else {
-        toast.success(
-          `Jutrzejsze wizyty z adresem e-mail: ${result.due}. Wysłano: ${result.sent}, wysłane wcześniej: ${result.alreadySent}, błędy: ${result.failed}.`,
-        );
-      }
+      // Przypomnienia idą dwoma kanałami: e-mailem i powiadomieniem push.
+      const emailNote = result.disabled
+        ? "e-maile wyłączone w ustawieniach"
+        : result.notConfigured
+          ? "e-maile nie poszły (wysyłka nieskonfigurowana)"
+          : `e-maile: ${result.sent}, wysłane wcześniej: ${result.alreadySent}, błędy: ${result.failed}`;
+      toast.success(`Jutrzejsze wizyty: ${result.due}. Push: ${result.pushSent ?? 0}; ${emailNote}.`);
       await load({ keepSettings: true });
     } finally {
       setRunningReminders(false);

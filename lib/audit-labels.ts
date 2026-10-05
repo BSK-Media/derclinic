@@ -32,6 +32,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   EXPORT: "Eksport",
   EMAIL_TEST: "Testowy e-mail",
   EMAIL_REMINDERS: "Wysyłka przypomnień",
+  PUSH_SEND: "Ręczne powiadomienie push",
   "sale.create": "Sprzedaż",
   "sale.discount_authorize": "Autoryzacja rabatu",
   "stock.transfer": "Przesunięcie magazynowe",
@@ -73,6 +74,8 @@ export const AUDIT_ENTITY_LABELS: Record<string, string> = {
   Security: "Bezpieczeństwo",
   Email: "Poczta e-mail",
   EmailSettings: "Ustawienia poczty e-mail",
+  Push: "Powiadomienia push",
+  PushSettings: "Ustawienia powiadomień push",
 };
 
 export const AUDIT_PAYMENT_METHOD_LABELS: Record<string, string> = {

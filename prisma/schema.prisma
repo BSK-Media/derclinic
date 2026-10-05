@@ -150,6 +150,7 @@ model User {
   customWorkDays                   SpecialistCustomWorkDay[]
   timeOffs                         SpecialistTimeOff[]
   sessions                         StaffSession[]
+  pushSubscriptions                PushSubscription[]
   mfaRecoveryCodes                 MfaRecoveryCode[]
   passkeys                         WebAuthnPasskey[]
 
@@ -206,6 +207,7 @@ model Patient {
   consents           PatientConsent[]
   consentEvents      PatientConsentEvent[]
   sessions           PatientSession[]
+  pushSubscriptions  PushSubscription[]
 
   @@index([name])
   @@index([phone])
@@ -930,6 +932,8 @@ model EmailSettings {
 
   // Rodzaje wiadomości wyłączone przez administratora (patrz lib/email-types.ts).
   disabledTypes    String[] @default([])
+  // To samo dla powiadomień push (te same rodzaje, osobne przełączniki).
+  disabledPushTypes String[] @default([])
   // Adresy, na które idą powiadomienia dla personelu (np. recepcja).
   staffRecipients  String[] @default([])
   // Czy o nowej rezerwacji online powiadamiać też specjalistę, którego dotyczy.
@@ -944,6 +948,8 @@ model EmailLog {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
 
+  // EMAIL albo PUSH — dziennik jest wspólny dla obu kanałów.
+  channel    String  @default("EMAIL")
   type       String
   recipient  String
   subject    String
@@ -961,4 +967,39 @@ model EmailLog {
   @@index([createdAt])
   @@index([type, createdAt])
   @@index([appointmentId])
+}
+
+// Urządzenia, które zgodziły się na powiadomienia push (Web Push). Jeden wiersz
+// na przeglądarkę/zainstalowaną aplikację; należy do pacjenta ALBO pracownika.
+// Wpis znika, gdy użytkownik wyłączy powiadomienia, wyloguje się na tym
+// urządzeniu albo usługa push zgłosi, że subskrypcja wygasła.
+model PushSubscription {
+  id         String    @id @default(cuid())
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  endpoint  String  @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+
+  patientId String?
+  patient   Patient? @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([userId])
+}
+
+// Para kluczy VAPID identyfikująca naszą aplikację wobec usług push. Tworzona
+// automatycznie przy pierwszym użyciu (jeden wiersz o id "default"), chyba że
+// klucze podano w zmiennych środowiskowych. Klucz prywatny jest zaszyfrowany
+// aplikacyjnie (lib/secret-box.ts). Zmiana kluczy unieważnia wszystkie
+// subskrypcje, dlatego trzymamy je trwale w bazie.
+model PushConfig {
+  id                 String   @id
+  createdAt          DateTime @default(now())
+  vapidPublicKey     String
+  vapidPrivateKeyEnc String
 }

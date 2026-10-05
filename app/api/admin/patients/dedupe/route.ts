@@ -248,6 +248,8 @@ export async function POST(req: Request) {
         tx.appointment.updateMany({ where: { patientId: { in: mergeIdsList } }, data: { patientId: keepId } }),
         tx.retailSale.updateMany({ where: { patientId: { in: mergeIdsList } }, data: { patientId: keepId } }),
       ]);
+      // Urządzenia z włączonymi powiadomieniami push też przechodzą na kartę docelową.
+      await tx.pushSubscription.updateMany({ where: { patientId: { in: mergeIdsList } }, data: { patientId: keepId } });
 
       // Logowanie przez Google i Facebooka przechodzi na kartę docelową — inaczej pacjent po
       // scaleniu założyłby przy kolejnym logowaniu nową, pustą kartę.

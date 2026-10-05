@@ -11,6 +11,7 @@ export const EMAIL_TYPES = [
   "STAFF_DATA_CHANGE_REQUEST",
   "PASSWORD_RESET",
   "TEST",
+  "MANUAL",
 ] as const;
 
 export type EmailType = (typeof EMAIL_TYPES)[number];
@@ -78,6 +79,13 @@ export const EMAIL_TYPE_INFO: readonly EmailTypeInfo[] = [
     type: "TEST",
     label: "Wiadomość testowa",
     description: "Wysyłana ręcznie z panelu admina.",
+    audience: "SYSTEM",
+    toggleable: false,
+  },
+  {
+    type: "MANUAL",
+    label: "Powiadomienie ręczne",
+    description: "Powiadomienie push napisane i wysłane przez administratora.",
     audience: "SYSTEM",
     toggleable: false,
   },

@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth-provider";
+import { PushToggleCard } from "@/components/push-toggle";
 
 type UserOption = {
   id: string;
@@ -171,6 +172,33 @@ export default function SettingsPage() {
 
       {user?.role === "ADMIN" ? (
         <AdminAvatarManager currentUserId={user.id} onOwnAvatarChanged={refresh} />
+      ) : null}
+
+      <PushToggleCard
+        audience="staff"
+        description={
+          user?.role === "SPECIALIST"
+            ? "Powiadomienie, gdy klient umówi do Ciebie wizytę online. Włącza się osobno na każdym urządzeniu."
+            : "Powiadomienia o nowych rezerwacjach online i prośbach klientów o zmianę danych. Włącza się osobno na każdym urządzeniu."
+        }
+        className="rounded-3xl border border-white/60 bg-white/80 p-6 text-slate-900 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 dark:text-white"
+      />
+
+      {user?.role === "ADMIN" ? (
+        <section className="flex flex-col gap-4 rounded-3xl border border-white/60 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Powiadomienia push</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Które powiadomienia są włączone, ile urządzeń je odbiera oraz ręczna wysyłka powiadomienia do klientów.
+            </p>
+          </div>
+          <Link
+            href="/admin/push"
+            className="shrink-0 rounded-full bg-emerald-600 px-5 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+          >
+            Otwórz
+          </Link>
+        </section>
       ) : null}
 
       {user?.role === "ADMIN" ? (
