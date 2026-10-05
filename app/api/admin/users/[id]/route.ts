@@ -68,6 +68,21 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
     },
   });
 
+  if (!before) return NextResponse.json({ ok: false, message: "Nie znaleziono pracownika" }, { status: 404 });
+
+  // Administrator nie może sam sobie odebrać uprawnień — dzięki temu w systemie
+  // zawsze zostaje co najmniej jeden administrator (ten, który wykonuje zmianę).
+  // Odebrać je może mu tylko inny administrator.
+  if (params.id === user!.id && parsed.data.role !== undefined && parsed.data.role !== "ADMIN") {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: "Nie możesz odebrać sobie uprawnień administratora — może to zrobić inny administrator.",
+      },
+      { status: 400 },
+    );
+  }
+
   const data: any = {};
   if (parsed.data.name !== undefined) data.name = parsed.data.name;
   if (parsed.data.role !== undefined) data.role = parsed.data.role;

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
@@ -69,23 +70,41 @@ export async function POST(req: Request) {
 
   const passwordHash = await bcrypt.hash(password, STAFF_BCRYPT_COST);
 
-  const created = await prisma.user.create({
-    data: {
-      login,
-      name,
-      role: role as any,
-      email: email ? email : null,
-      passwordHash,
-      // Hasło zna administrator — pracownik musi ustawić własne przy pierwszym logowaniu.
-      mustChangePassword: true,
-      payoutPercent: role === "SPECIALIST" ? (payoutPercent ?? 50) : 0,
-      locationId: assignedLocation.id,
-      location: assignedLocation.name,
-      specialization: specialization || null,
-      avatarUrl: avatarUrl || null,
-    },
-    select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true, location: true, locationId: true, assignedLocation: { select: { id: true, name: true } }, specialization: true },
-  });
+  let created;
+  try {
+    created = await prisma.user.create({
+      data: {
+        login,
+        name,
+        role: role as any,
+        email: email ? email : null,
+        passwordHash,
+        // Hasło zna administrator — pracownik musi ustawić własne przy pierwszym logowaniu.
+        mustChangePassword: true,
+        payoutPercent: role === "SPECIALIST" ? (payoutPercent ?? 50) : 0,
+        locationId: assignedLocation.id,
+        location: assignedLocation.name,
+        specialization: specialization || null,
+        avatarUrl: avatarUrl || null,
+      },
+      select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true, location: true, locationId: true, assignedLocation: { select: { id: true, name: true } }, specialization: true },
+    });
+  } catch (e) {
+    // Login i e-mail są unikalne — zamiast ogólnego błędu mówimy, co jest zajęte.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      const target = String((e.meta as { target?: unknown } | undefined)?.target ?? "");
+      return NextResponse.json(
+        {
+          ok: false,
+          message: target.includes("email")
+            ? "Ten adres e-mail jest już przypisany do innego konta pracownika."
+            : "Ten login jest już zajęty — wybierz inny.",
+        },
+        { status: 409 },
+      );
+    }
+    throw e;
+  }
 
   await logAudit({
     actorId: user!.id,

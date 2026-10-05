@@ -2,6 +2,7 @@
 
 import useSWR from "swr";
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,34 +10,48 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { LocationSelect } from "@/components/location-select";
+import { useAuth } from "@/components/auth-provider";
+import { validatePassword } from "@/lib/password-policy";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-type U = { id: string; login: string; name: string; role: string; email?: string | null; payoutPercent?: number; location?: string | null; locationId: string; mfaEnabledAt?: string | null };
+type Role = "ADMIN" | "RECEPTION" | "SPECIALIST";
+type U = { id: string; login: string; name: string; role: Role; email?: string | null; payoutPercent?: number; location?: string | null; locationId: string; mfaEnabledAt?: string | null };
+
+const ROLE_LABELS: Record<Role, string> = {
+  ADMIN: "Administrator",
+  RECEPTION: "Recepcja",
+  SPECIALIST: "Specjalista",
+};
 
 export default function AdminUsersPage() {
+  const { user: me } = useAuth();
   const { data, mutate, isLoading } = useSWR("/api/admin/users", fetcher);
 
   const [login, setLogin] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState("SPECIALIST");
+  const [role, setRole] = useState<Role>("SPECIALIST");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [payoutPercent, setPayoutPercent] = useState("50");
   const [locationId, setLocationId] = useState("grodzisk-mazowiecki");
   const [saving, setSaving] = useState(false);
+  const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
 
   async function create() {
+    const passwordIssue = validatePassword(password, { login, name, email });
+    if (passwordIssue) return toast.error(passwordIssue);
+
     setSaving(true);
     try {
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          login,
-          name,
+          login: login.trim(),
+          name: name.trim(),
           role,
-          email,
+          email: email.trim(),
           password,
           payoutPercent: role === "SPECIALIST" ? Number(payoutPercent) : undefined,
           locationId,
@@ -44,14 +59,44 @@ export default function AdminUsersPage() {
       });
       const out = await res.json().catch(() => ({}));
       if (!res.ok || !out?.ok) {
-        toast.error(out?.message || "Błąd");
+        toast.error(out?.message || "Nie udało się założyć konta.");
         return;
       }
-      toast.success("Użytkownik dodany");
+      toast.success(`Konto „${login.trim()}” założone (${ROLE_LABELS[role]}).`);
       setLogin(""); setName(""); setEmail(""); setPassword(""); setPayoutPercent("50");
       mutate();
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Zmiana roli, w tym nadanie i odebranie uprawnień administratora (wymaga
+  // ponownego MFA administratora — okno pojawi się samo).
+  async function changeRole(u: U, nextRole: Role) {
+    if (nextRole === u.role) return;
+    const lines = [`Zmienić rolę konta „${u.login}” (${u.name}) z „${ROLE_LABELS[u.role]}” na „${ROLE_LABELS[nextRole]}”?`];
+    if (nextRole === "ADMIN") {
+      lines.push("Administrator ma pełny dostęp: wszystkie lokalizacje, dane pacjentów, rozliczenia, konta pracowników i logi.");
+    }
+    if (u.role === "SPECIALIST") {
+      lines.push("Uwaga: to konto przestanie być specjalistą — zniknie z rezerwacji online i z listy specjalistów w kalendarzu.");
+    }
+    lines.push("Pracownik zostanie wylogowany i zaloguje się ponownie z nową rolą.");
+    if (!confirm(lines.join("\n\n"))) return;
+
+    setChangingRoleId(u.id);
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ role: nextRole }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się zmienić roli.");
+      toast.success(`${u.name}: rola zmieniona na „${ROLE_LABELS[nextRole]}”.`);
+      mutate();
+    } finally {
+      setChangingRoleId(null);
     }
   }
 
@@ -73,35 +118,44 @@ export default function AdminUsersPage() {
     mutate();
   }
 
-  async function remove(id: string) {
-    if (!confirm("Usunąć użytkownika?")) return;
-    const res = await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
+  async function remove(u: U) {
+    if (!confirm(`Trwale usunąć konto „${u.login}” (${u.name})? Tej operacji nie można cofnąć.`)) return;
+    const res = await fetch(`/api/admin/users/${u.id}`, { method: "DELETE" });
     const out = await res.json().catch(() => ({}));
-    if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
+    if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się usunąć konta.");
     toast.success("Usunięto");
     mutate();
   }
 
   const users: U[] = data?.users ?? [];
+  const adminCount = users.filter((u) => u.role === "ADMIN").length;
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Użytkownicy</h1>
+      <div>
+        <Link href="/admin/settings" className="text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-white">
+          ← Ustawienia
+        </Link>
+        <h1 className="mt-2 text-2xl font-semibold">Konta pracowników</h1>
+        <p className="mt-1 text-sm text-zinc-500">
+          Zakładanie kont i role. Administratorów może być kilku — każdy ma pełny dostęp do systemu.
+        </p>
+      </div>
 
       <Card className="p-4 space-y-4">
         <div className="font-medium">Dodaj konto</div>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-2">
             <Label>Login</Label>
-            <Input value={login} onChange={(e) => setLogin(e.target.value)} placeholder="np. anna" />
+            <Input value={login} onChange={(e) => setLogin(e.target.value)} placeholder="np. anna.kowalska" autoComplete="off" />
           </div>
           <div className="space-y-2">
             <Label>Imię i nazwisko</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="np. dr Anna Kowalska" />
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="np. Anna Kowalska" />
           </div>
           <div className="space-y-2">
             <Label>Rola</Label>
-            <Select value={role} onValueChange={setRole}>
+            <Select value={role} onValueChange={(value) => setRole(value as Role)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="ADMIN">Administrator</SelectItem>
@@ -109,14 +163,22 @@ export default function AdminUsersPage() {
                 <SelectItem value="SPECIALIST">Specjalista</SelectItem>
               </SelectContent>
             </Select>
+            {role === "ADMIN" ? (
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                Administrator ma pełny dostęp, także do kont pracowników i logów.
+              </p>
+            ) : null}
           </div>
           <div className="space-y-2">
             <Label>Email (opcjonalnie)</Label>
-            <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@..." />
+            <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@..." type="email" />
           </div>
           <div className="space-y-2">
-            <Label>Hasło</Label>
-            <Input value={password} onChange={(e) => setPassword(e.target.value)} type="password" />
+            <Label>Hasło startowe</Label>
+            <Input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="new-password" />
+            <p className="text-xs text-zinc-500">
+              Tymczasowe — przy pierwszym logowaniu pracownik ustawi własne hasło i logowanie dwuskładnikowe.
+            </p>
           </div>
           <div className="space-y-2">
             <Label>% rozliczenia (specjalista)</Label>
@@ -127,13 +189,15 @@ export default function AdminUsersPage() {
             <LocationSelect value={locationId} onChange={setLocationId} />
           </div>
         </div>
-        <Button onClick={create} disabled={saving || !login || !name || !password}>
-          {saving ? "Zapisywanie..." : "Dodaj"}
+        <Button onClick={create} disabled={saving || login.trim().length < 2 || name.trim().length < 2 || !password}>
+          {saving ? "Zapisywanie..." : "Dodaj konto"}
         </Button>
       </Card>
 
       <div className="rounded-xl border bg-white shadow-sm dark:bg-zinc-950">
-        <div className="p-4 border-b font-medium">Lista</div>
+        <div className="p-4 border-b font-medium">
+          Lista{users.length ? ` — ${users.length} kont, w tym administratorów: ${adminCount}` : ""}
+        </div>
         <div className="overflow-auto">
           <table className="w-full text-sm">
             <thead className="text-left text-zinc-500">
@@ -155,36 +219,61 @@ export default function AdminUsersPage() {
               {!isLoading && users.length === 0 && (
                 <tr><td className="p-3 text-zinc-500" colSpan={8}>Brak użytkowników.</td></tr>
               )}
-              {users.map((u) => (
-                <tr key={u.id} className="border-t">
-                  <td className="p-3 font-medium">{u.login}</td>
-                  <td className="p-3">{u.name}</td>
-                  <td className="p-3">{u.role}</td>
-                  <td className="p-3">{u.email ?? "—"}</td>
-                  <td className="p-3">{u.location ?? "—"}</td>
-                  <td className="p-3">{u.role === "SPECIALIST" ? (u.payoutPercent ?? 0) + "%" : "—"}</td>
-                  <td className="p-3">
-                    {u.mfaEnabledAt ? (
-                      <span className="text-emerald-600">włączone</span>
-                    ) : (
-                      <span className="text-amber-600">skonfiguruje przy logowaniu</span>
-                    )}
-                  </td>
-                  <td className="p-3 text-right">
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <Button variant="outline" size="sm" onClick={() => security(u, "revoke_sessions")}>
-                        Wyloguj wszędzie
-                      </Button>
+              {users.map((u) => {
+                const isMe = u.id === me?.id;
+                return (
+                  <tr key={u.id} className="border-t">
+                    <td className="p-3 font-medium">
+                      {u.login}
+                      {isMe ? <span className="ml-2 text-xs font-normal text-zinc-500">(Ty)</span> : null}
+                    </td>
+                    <td className="p-3">{u.name}</td>
+                    <td className="p-3">
+                      {isMe ? (
+                        // Własnej roli nie da się zmienić — może to zrobić inny administrator.
+                        <span title="Swoją rolę może zmienić tylko inny administrator">{ROLE_LABELS[u.role] ?? u.role}</span>
+                      ) : (
+                        <select
+                          value={u.role}
+                          disabled={changingRoleId === u.id}
+                          onChange={(e) => changeRole(u, e.target.value as Role)}
+                          aria-label={`Rola konta ${u.login}`}
+                          className="h-9 rounded-lg border border-zinc-200 bg-white px-2 text-sm text-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+                        >
+                          <option value="ADMIN">Administrator</option>
+                          <option value="RECEPTION">Recepcja</option>
+                          <option value="SPECIALIST">Specjalista</option>
+                        </select>
+                      )}
+                    </td>
+                    <td className="p-3">{u.email ?? "—"}</td>
+                    <td className="p-3">{u.location ?? "—"}</td>
+                    <td className="p-3">{u.role === "SPECIALIST" ? (u.payoutPercent ?? 0) + "%" : "—"}</td>
+                    <td className="p-3">
                       {u.mfaEnabledAt ? (
-                        <Button variant="outline" size="sm" onClick={() => security(u, "reset_mfa")}>
-                          Reset 2FA
+                        <span className="text-emerald-600">włączone</span>
+                      ) : (
+                        <span className="text-amber-600">skonfiguruje przy logowaniu</span>
+                      )}
+                    </td>
+                    <td className="p-3 text-right">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => security(u, "revoke_sessions")}>
+                          Wyloguj wszędzie
                         </Button>
-                      ) : null}
-                      <Button variant="destructive" size="sm" onClick={() => remove(u.id)}>Usuń</Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {u.mfaEnabledAt && !isMe ? (
+                          <Button variant="outline" size="sm" onClick={() => security(u, "reset_mfa")}>
+                            Reset 2FA
+                          </Button>
+                        ) : null}
+                        {!isMe ? (
+                          <Button variant="destructive" size="sm" onClick={() => remove(u)}>Usuń</Button>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
