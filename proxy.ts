@@ -64,7 +64,10 @@ async function authorize(req: NextRequest, requestHeaders: Headers): Promise<Nex
     pathname.startsWith("/api/auth/change-password") ||
     pathname.startsWith("/api/auth/mfa/") ||
     pathname.startsWith("/api/public/") ||
-    pathname.startsWith("/api/patient/")
+    pathname.startsWith("/api/patient/") ||
+    // Zadania cykliczne (Vercel Cron) — bez sesji, autoryzowane sekretem
+    // CRON_SECRET sprawdzanym w samym endpoincie.
+    pathname.startsWith("/api/cron/")
   ) {
     return null;
   }

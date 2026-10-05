@@ -30,6 +30,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   CONSENT: "Zmiana zgody",
   BOOK: "Rezerwacja",
   EXPORT: "Eksport",
+  EMAIL_TEST: "Testowy e-mail",
+  EMAIL_REMINDERS: "Wysyłka przypomnień",
   "sale.create": "Sprzedaż",
   "sale.discount_authorize": "Autoryzacja rabatu",
   "stock.transfer": "Przesunięcie magazynowe",
@@ -69,6 +71,8 @@ export const AUDIT_ENTITY_LABELS: Record<string, string> = {
   AuditLog: "Dziennik zdarzeń",
   SpecialistMessage: "Wiadomość do specjalisty",
   Security: "Bezpieczeństwo",
+  Email: "Poczta e-mail",
+  EmailSettings: "Ustawienia poczty e-mail",
 };
 
 export const AUDIT_PAYMENT_METHOD_LABELS: Record<string, string> = {

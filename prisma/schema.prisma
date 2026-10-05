@@ -907,3 +907,46 @@ model NotificationRead {
   @@unique([userId, notificationId])
   @@index([userId])
 }
+
+// Ustawienia wysyłki e-maili (panel admina → Poczta e-mail). Jeden wiersz
+// o id "default"; brak wiersza oznacza ustawienia domyślne: wszystkie rodzaje
+// wiadomości włączone, brak dodatkowych odbiorców powiadomień. Klucz API i
+// adres nadawcy NIE są tu trzymane — to zmienne środowiskowe (env.example).
+model EmailSettings {
+  id        String   @id
+  updatedAt DateTime @updatedAt
+
+  // Rodzaje wiadomości wyłączone przez administratora (patrz lib/email-types.ts).
+  disabledTypes    String[] @default([])
+  // Adresy, na które idą powiadomienia dla personelu (np. recepcja).
+  staffRecipients  String[] @default([])
+  // Czy o nowej rezerwacji online powiadamiać też specjalistę, którego dotyczy.
+  notifySpecialist Boolean  @default(true)
+  // Adres, na który trafi odpowiedź klienta na naszą wiadomość (opcjonalnie).
+  replyTo          String?
+}
+
+// Dziennik wysyłek e-mail — co, do kogo i z jakim skutkiem. Treści wiadomości
+// nie zapisujemy (mogą zawierać np. link do resetu hasła), tylko temat.
+model EmailLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  type       String
+  recipient  String
+  subject    String
+  // SENT / FAILED / SKIPPED (SKIPPED = brak konfiguracji Resend)
+  status     String
+  error      String?
+  providerId String?
+  // Ustawiany tylko dla wysłanych wiadomości, które nie mogą pójść dwa razy
+  // (np. przypomnienie o tej samej wizycie).
+  dedupeKey  String? @unique
+
+  appointmentId String?
+  patientId     String?
+
+  @@index([createdAt])
+  @@index([type, createdAt])
+  @@index([appointmentId])
+}

@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { appBaseUrl, notifyAppointmentBooked } from "@/lib/email-notifications";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
@@ -475,6 +476,11 @@ export async function POST(req: Request) {
         amountRemaining: Math.max(0, priceFinal - amountDueGrosze),
       };
     });
+
+    // Potwierdzenie dla klienta i powiadomienie personelu — po wysłaniu
+    // odpowiedzi, żeby poczta nie wydłużała rezerwacji.
+    const baseUrl = appBaseUrl(req);
+    after(() => notifyAppointmentBooked(appointment.id, { source: "online", baseUrl }));
 
     return NextResponse.json({
       ok: true,

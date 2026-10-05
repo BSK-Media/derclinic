@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { appBaseUrl, notifyDataChangeRequest } from "@/lib/email-notifications";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getPatientAuth } from "@/lib/patient-auth";
@@ -85,6 +86,10 @@ export async function POST(req: Request) {
     summary: `Prośba o zmianę danych (${FIELD_LABELS[parsed.data.field]}): „${currentValue ?? "—"}" → „${newValue}"`,
     data: { patientId: auth.id, field: parsed.data.field, currentValue, newValue },
   });
+
+  // Powiadomienie dla recepcji — po wysłaniu odpowiedzi.
+  const baseUrl = appBaseUrl(req);
+  after(() => notifyDataChangeRequest(request.id, { baseUrl }));
 
   return NextResponse.json({ ok: true, request });
 }

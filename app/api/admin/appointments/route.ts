@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { appBaseUrl, notifyAppointmentBooked } from "@/lib/email-notifications";
 import { PATIENT_PUBLIC_SELECT } from "@/lib/patient-select";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
@@ -426,6 +427,12 @@ export async function POST(req: Request) {
       hasNote: parsed.data.note ? true : undefined,
     },
   });
+
+  // Potwierdzenie dla klienta (blokada terminu w kalendarzu to nie wizyta).
+  if (!parsed.data.reservation) {
+    const baseUrl = appBaseUrl(req);
+    after(() => notifyAppointmentBooked(appt.id, { source: "staff", baseUrl }));
+  }
 
   return NextResponse.json({ ok: true, appointment: appt });
 }

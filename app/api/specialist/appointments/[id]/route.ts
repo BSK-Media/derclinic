@@ -1,4 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import {
+  appBaseUrl,
+  notifyAppointmentCanceled,
+  notifyAppointmentChanged,
+} from "@/lib/email-notifications";
 import { PATIENT_PUBLIC_SELECT } from "@/lib/patient-select";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
@@ -142,6 +147,14 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
       approvalReset: changes?.status ? true : undefined,
     },
   });
+
+  // E-mail do klienta: odwołanie albo zmiana terminu (po odpowiedzi).
+  const baseUrl = appBaseUrl(req);
+  if (appt.status === "CANCELED" && existing.status !== "CANCELED") {
+    after(() => notifyAppointmentCanceled(appt.id, { baseUrl }));
+  } else if (appt.startsAt.getTime() !== existing.startsAt.getTime()) {
+    after(() => notifyAppointmentChanged(appt.id, { previousStartsAt: existing.startsAt, baseUrl }));
+  }
 
   return NextResponse.json({ ok: true, appointment: appt });
 }

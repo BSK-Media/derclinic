@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { generatePasswordResetToken, PASSWORD_RESET_TOKEN_TTL_MS } from "@/lib/patient-auth";
-import { sendEmail } from "@/lib/mailer";
+import { sendTrackedEmail } from "@/lib/email-notifications";
+import { passwordResetEmail } from "@/lib/email-templates";
 import { logAudit } from "@/lib/audit";
 import { RATE_LIMITS, clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
@@ -50,18 +51,12 @@ export async function POST(req: Request) {
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
     const resetUrl = `${baseUrl}/panel-klienta/reset-hasla?token=${token}`;
-    const firstName = patient.name?.trim().split(/\s+/)[0] || "";
 
-    await sendEmail({
+    await sendTrackedEmail({
+      ...passwordResetEmail({ patientName: patient.name ?? "", resetUrl }),
+      type: "PASSWORD_RESET",
       to: patient.email,
-      subject: "Reset hasła — DerClinic",
-      html: `
-        <p>Cześć${firstName ? " " + firstName : ""},</p>
-        <p>Otrzymaliśmy prośbę o zresetowanie hasła do panelu klienta DerClinic.</p>
-        <p><a href="${resetUrl}">Kliknij tutaj, aby ustawić nowe hasło</a> (link ważny przez godzinę).</p>
-        <p>Jeśli to nie Ty prosiłaś/eś o reset hasła, możesz zignorować tę wiadomość.</p>
-      `,
-      text: `Link do zresetowania hasła (ważny 1h): ${resetUrl}`,
+      patientId: patient.id,
     });
   }
 
