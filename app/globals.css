@@ -29,6 +29,31 @@ body {
 }
 
 /*
+ * Strony tylko-jasne (panel klienta, rezerwacja online — oznaczone atrybutem
+ * data-light-only w ich layoutach) mają wyglądać tak samo niezależnie od
+ * ustawień odwiedzającego: ciemnego motywu systemu, ciemnego motywu
+ * przeglądarki i jej "wymuszonego ciemnego trybu stron". "only light"
+ * wyłącza przemalowywanie przez przeglądarkę, a jawne kolory tekstu i list
+ * rozwijanych gwarantują czytelność, gdyby mimo to coś odziedziczyło jasny
+ * tekst (kiedyś pozycje listy bywały białe na białym tle).
+ */
+html:has([data-light-only]) {
+  color-scheme: only light !important;
+  background-color: #fafafa !important;
+}
+
+[data-light-only] {
+  color-scheme: only light;
+  color: #18181b;
+}
+
+[data-light-only] option,
+[data-light-only] optgroup {
+  background-color: #ffffff;
+  color: #18181b;
+}
+
+/*
  * Spójne powierzchnie w motywie ciemnym.
  * Dashboard korzysta z granatowego #0b1220, dlatego zastępujemy nim
  * neutralne czernie używane przez starsze karty, tabele, pola i modale.

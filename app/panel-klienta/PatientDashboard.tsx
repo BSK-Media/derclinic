@@ -291,7 +291,7 @@ function DataChangeRequestCard() {
             <select
               value={field}
               onChange={(e) => setField(e.target.value as "NAME" | "PHONE" | "EMAIL")}
-              className="h-10 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-emerald-400"
+              className="h-10 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-900 outline-none focus:border-emerald-400"
             >
               <option value="PHONE">Telefon</option>
               <option value="EMAIL">E-mail</option>
