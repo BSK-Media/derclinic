@@ -394,13 +394,13 @@ function ConsentToggle({ granted, onClick, disabled }: { granted: boolean; onCli
       onClick={onClick}
       disabled={disabled}
       className={
-        "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition disabled:opacity-60 " +
+        "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 ease-out disabled:opacity-60 " +
         (granted ? "bg-emerald-600" : "bg-zinc-200")
       }
     >
       <span
         className={
-          "inline-block h-5 w-5 transform rounded-full bg-white shadow transition " +
+          "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ease-out " +
           (granted ? "translate-x-6" : "translate-x-1")
         }
       />
@@ -411,25 +411,48 @@ function ConsentToggle({ granted, onClick, disabled }: { granted: boolean; onCli
 function ConsentsPanel() {
   const { data, mutate, isLoading } = useSWR("/api/patient/consents", dataChangeRequestFetcher);
   const consents: ConsentRow[] = data?.consents ?? [];
-  const [savingType, setSavingType] = React.useState<ConsentType | null>(null);
+  // Zapisy w toku — ref zamiast stanu, bo przełącznik nie ma się wyszarzać
+  // na czas zapisu, a jedynie ignorować kolejne kliknięcia tej samej zgody.
+  const savingTypes = React.useRef(new Set<ConsentType>());
 
+  // Przełącznik przesuwa się od razu (optimistic update), a zapis idzie w tle.
+  // Gdy się nie powiedzie, SWR przywraca poprzedni stan.
   async function setConsent(type: ConsentType, granted: boolean) {
-    setSavingType(type);
+    if (savingTypes.current.has(type)) return;
+    savingTypes.current.add(type);
+
+    const now = new Date().toISOString();
+    const previous = consents.find((c) => c.type === type);
+    const optimisticRow: ConsentRow = {
+      type,
+      granted,
+      grantedAt: granted ? now : previous?.grantedAt ?? null,
+      revokedAt: granted ? null : now,
+    };
+
     try {
-      const res = await fetch("/api/patient/consents", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type, granted }),
-      });
-      const out = await res.json().catch(() => ({}));
-      if (!res.ok || !out?.ok) {
-        toast.error(out?.message || "Nie udało się zapisać zgody");
-        return;
-      }
+      await mutate(
+        async () => {
+          const res = await fetch("/api/patient/consents", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ type, granted }),
+          });
+          const out = await res.json().catch(() => ({}));
+          if (!res.ok || !out?.ok) throw new Error(out?.message || "Nie udało się zapisać zgody");
+        },
+        {
+          optimisticData: { ...data, consents: [...consents.filter((c) => c.type !== type), optimisticRow] },
+          rollbackOnError: true,
+          populateCache: false,
+          revalidate: true,
+        },
+      );
       toast.success(granted ? "Zgoda zapisana" : "Zgoda wycofana");
-      mutate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Nie udało się zapisać zgody");
     } finally {
-      setSavingType(null);
+      savingTypes.current.delete(type);
     }
   }
 
@@ -453,7 +476,7 @@ function ConsentsPanel() {
               </div>
               <ConsentToggle
                 granted={granted}
-                disabled={isLoading || savingType === type}
+                disabled={isLoading}
                 onClick={() => setConsent(type, !granted)}
               />
             </div>
