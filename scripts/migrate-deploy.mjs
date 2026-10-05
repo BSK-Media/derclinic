@@ -15,12 +15,37 @@ import { spawnSync } from "node:child_process";
 const BASELINE_MIGRATION = "0_init";
 const BASELINE_SCHEMA = "prisma/migrations/0_init/baseline-schema.prisma.txt";
 
-function prisma(args, { capture = false } = {}) {
+// Migracje muszą iść BEZPOŚREDNIM połączeniem z bazą, nie przez pooler
+// (PgBouncer). Prisma zabezpiecza migracje blokadą pg_advisory_lock, która
+// jest przypisana do sesji — a pooler w trybie transakcyjnym potrafi założyć
+// ją na jednym połączeniu i "zwolnić" na innym. Blokada zostaje wtedy
+// zawieszona i kolejny deploy pada z P1002 (timeout na advisory lock).
+// Adres bezpośredni: DIRECT_URL / DATABASE_URL_UNPOOLED, a gdy ich nie ma —
+// dla Neon wyprowadzany z DATABASE_URL (ten sam host bez "-pooler").
+function directDatabaseUrl() {
+  const explicit = process.env.DIRECT_URL || process.env.DATABASE_URL_UNPOOLED;
+  if (explicit) return explicit;
+  try {
+    const url = new URL(process.env.DATABASE_URL);
+    if (!url.hostname.includes("-pooler.")) return null;
+    url.hostname = url.hostname.replace("-pooler.", ".");
+    url.searchParams.delete("pgbouncer");
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+const directUrl = process.env.DATABASE_URL ? directDatabaseUrl() : null;
+const baseEnv = directUrl ? { ...process.env, DATABASE_URL: directUrl } : process.env;
+if (directUrl) console.log("ℹ️  Migracje: bezpośrednie połączenie z bazą (z pominięciem poolera).");
+
+function prisma(args, { capture = false, env = {} } = {}) {
   const result = spawnSync("npx", ["prisma", ...args], {
     stdio: capture ? ["inherit", "pipe", "pipe"] : "inherit",
     encoding: "utf8",
     shell: process.platform === "win32",
-    env: process.env,
+    env: { ...baseEnv, ...env },
   });
   if (capture) {
     if (result.stdout) process.stdout.write(result.stdout);
@@ -50,7 +75,27 @@ if (process.env.VERCEL_ENV === "production" || process.env.REQUIRE_SECURITY_KEYS
   }
 }
 
-const first = prisma(["migrate", "deploy"], { capture: true });
+// `migrate deploy` odporne na zawieszoną blokadę migracji: kilka prób w
+// odstępach (prawdziwy równoległy deploy zdąży skończyć), a jeśli blokada
+// nadal wisi — ostatnia próba bez niej. To bezpieczne: Prisma i tak zapisuje
+// rozpoczęcie każdej migracji w _prisma_migrations i odmawia pracy, gdy
+// znajdzie migrację w toku.
+const LOCK_RETRIES = 3;
+const LOCK_RETRY_DELAY_MS = 15_000;
+
+function migrateDeploy() {
+  let result;
+  for (let attempt = 1; attempt <= LOCK_RETRIES; attempt += 1) {
+    result = prisma(["migrate", "deploy"], { capture: true });
+    if (result.status === 0 || !result.output.includes("advisory lock")) return result;
+    console.log(`\n⏳ Blokada migracji jest zajęta (próba ${attempt}/${LOCK_RETRIES}).`);
+    if (attempt < LOCK_RETRIES) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, LOCK_RETRY_DELAY_MS);
+  }
+  console.log("\n⚠️  Blokada migracji nadal zajęta — wygląda na zawieszoną. Ostatnia próba bez blokady.");
+  return prisma(["migrate", "deploy"], { capture: true, env: { PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK: "1" } });
+}
+
+const first = migrateDeploy();
 if (first.status === 0) process.exit(0);
 
 if (!first.output.includes("P3005")) fail("`prisma migrate deploy` nie powiódł się (szczegóły powyżej).");
@@ -86,4 +131,4 @@ if (prisma(["migrate", "resolve", "--applied", BASELINE_MIGRATION]).status !== 0
   fail(`Nie udało się oznaczyć migracji ${BASELINE_MIGRATION} jako zastosowanej.`);
 }
 
-if (prisma(["migrate", "deploy"]).status !== 0) fail("`prisma migrate deploy` nie powiódł się po baseline.");
+if (migrateDeploy().status !== 0) fail("`prisma migrate deploy` nie powiódł się po baseline.");
