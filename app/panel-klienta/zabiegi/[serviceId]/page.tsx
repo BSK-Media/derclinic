@@ -166,9 +166,12 @@ export default async function PatientServicePage(props: { params: Promise<{ serv
                 </Link>
                 <Link
                   href={`/panel-klienta/specjalisci/${s.id}`}
-                  className="flex shrink-0 items-center gap-1.5 rounded-xl border border-emerald-600 px-3.5 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50"
+                  aria-label={`Przeczytaj o specjaliście: ${s.name}`}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center gap-1.5 rounded-full border border-emerald-600 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50 sm:h-auto sm:w-auto sm:rounded-xl sm:px-3.5 sm:py-2"
                 >
-                  Przeczytaj o specjaliście <ArrowRight className="h-3.5 w-3.5" />
+                  {/* Na telefonie sama strzałka — pełny napis nachodził na imię i nazwisko. */}
+                  <span className="hidden sm:inline">Przeczytaj o specjaliście</span>
+                  <ArrowRight className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                 </Link>
               </div>
             ))}
