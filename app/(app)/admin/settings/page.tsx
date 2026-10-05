@@ -188,6 +188,23 @@ export default function SettingsPage() {
       {user?.role === "ADMIN" ? (
         <section className="flex flex-col gap-4 rounded-3xl border border-white/60 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 sm:flex-row sm:items-center sm:justify-between">
           <div>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Aktywne sesje</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Kto jest teraz zalogowany (personel i klienci), z jakiego urządzenia — i zdalne zakończenie sesji.
+            </p>
+          </div>
+          <Link
+            href="/admin/sessions"
+            className="shrink-0 rounded-full bg-emerald-600 px-5 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+          >
+            Otwórz
+          </Link>
+        </section>
+      ) : null}
+
+      {user?.role === "ADMIN" ? (
+        <section className="flex flex-col gap-4 rounded-3xl border border-white/60 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 sm:flex-row sm:items-center sm:justify-between">
+          <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Konta pracowników</h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Zakładanie kont nowym pracownikom, nadawanie i odbieranie uprawnień administratora, reset 2FA.
