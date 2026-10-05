@@ -19,7 +19,7 @@ export default async function PatientSpecialistPage(props: { params: Promise<{ s
   const auth = await getPatientAuth();
   if (!auth) redirect(`/panel-klienta/logowanie`);
 
-  const [patient, specialist] = await Promise.all([
+  const [patient, specialist, upcomingCount] = await Promise.all([
     prisma.patient.findUnique({ where: { id: auth.id }, select: { name: true } }),
     prisma.user.findFirst({
       where: { id: params.specialistId, role: "SPECIALIST", isVisible: true },
@@ -37,14 +37,13 @@ export default async function PatientSpecialistPage(props: { params: Promise<{ s
         },
       },
     }),
+    prisma.appointment.count({
+      where: { patientId: auth.id, deletedAt: null, status: { not: "CANCELED" }, startsAt: { gte: new Date() } },
+    }),
   ]);
 
   if (!patient) redirect("/panel-klienta/logowanie");
   if (!specialist) notFound();
-
-  const upcomingCount = await prisma.appointment.count({
-    where: { patientId: auth.id, deletedAt: null, status: { not: "CANCELED" }, startsAt: { gte: new Date() } },
-  });
 
   const byCategory = new Map<string, { id: string; name: string; durationMin: number }[]>();
   for (const { service } of specialist.assignedServices) {

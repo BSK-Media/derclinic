@@ -20,7 +20,8 @@ export default async function PatientServicePage(props: { params: Promise<{ serv
   const auth = await getPatientAuth();
   if (!auth) redirect(`/panel-klienta/logowanie`);
 
-  const [patient, service] = await Promise.all([
+  const now = new Date();
+  const [patient, service, upcomingCount, hasUpcomingForService] = await Promise.all([
     prisma.patient.findUnique({ where: { id: auth.id }, select: { name: true } }),
     prisma.service.findUnique({
       where: { id: params.serviceId },
@@ -48,26 +49,22 @@ export default async function PatientServicePage(props: { params: Promise<{ serv
         },
       },
     }),
-  ]);
-
-  if (!patient) redirect("/panel-klienta/logowanie");
-  if (!service) notFound();
-
-  const now = new Date();
-  const [upcomingCount, hasUpcomingForService] = await Promise.all([
     prisma.appointment.count({
       where: { patientId: auth.id, deletedAt: null, status: { not: "CANCELED" }, startsAt: { gte: now } },
     }),
     prisma.appointment.count({
       where: {
         patientId: auth.id,
-        serviceId: service.id,
+        serviceId: params.serviceId,
         deletedAt: null,
         status: { not: "CANCELED" },
         startsAt: { gte: now },
       },
     }),
   ]);
+
+  if (!patient) redirect("/panel-klienta/logowanie");
+  if (!service) notFound();
 
   const specialists = service.specialistAssignments.map((a) => a.specialist).filter((s) => s.isVisible);
   const locationName = specialists[0]?.assignedLocation?.name ?? null;

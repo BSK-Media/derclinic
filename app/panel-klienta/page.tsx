@@ -25,21 +25,19 @@ export default async function PatientDashboardPage(
   const auth = await getPatientAuth();
   if (!auth) redirect("/panel-klienta/logowanie");
 
-  const patient = await prisma.patient.findUnique({
-    where: { id: auth.id },
-    select: {
-      name: true,
-      phone: true,
-      email: true,
-      createdAt: true,
-      loyaltyPoints: true,
-      googleSub: true,
-      location: { select: { name: true } },
-    },
-  });
-  if (!patient) redirect("/panel-klienta/logowanie");
-
-  const [appointments, loyaltyTransactions] = await Promise.all([
+  const [patient, appointments, loyaltyTransactions] = await Promise.all([
+    prisma.patient.findUnique({
+      where: { id: auth.id },
+      select: {
+        name: true,
+        phone: true,
+        email: true,
+        createdAt: true,
+        loyaltyPoints: true,
+        googleSub: true,
+        location: { select: { name: true } },
+      },
+    }),
     prisma.appointment.findMany({
       where: { patientId: auth.id, deletedAt: null },
       orderBy: { startsAt: "asc" },
@@ -74,6 +72,7 @@ export default async function PatientDashboardPage(
       },
     }),
   ]);
+  if (!patient) redirect("/panel-klienta/logowanie");
 
   const now = new Date();
   // Rosnąco — najbliższa wizyta jest pierwsza na liście "nadchodzące".

@@ -45,40 +45,42 @@ export default async function PatientAppointmentCardPage(props: { params: Promis
   const auth = await getPatientAuth();
   if (!auth) redirect("/panel-klienta/logowanie");
 
-  const patient = await prisma.patient.findUnique({ where: { id: auth.id }, select: { name: true } });
-  if (!patient) redirect("/panel-klienta/logowanie");
-
-  // Ważne: wizyta jest pobierana WYŁĄCZNIE po (id, patientId) należącym do
-  // zalogowanego pacjenta — nie da się w ten sposób podejrzeć cudzej karty
-  // wizyty, nawet znając jej id.
-  const appointment = await prisma.appointment.findFirst({
-    where: { id: params.appointmentId, patientId: auth.id, deletedAt: null },
-    select: {
-      id: true,
-      startsAt: true,
-      status: true,
-      priceEstimate: true,
-      priceFinal: true,
-      customServiceName: true,
-      photoBefore: true,
-      photoAfter: true,
-      patient: { select: { name: true } },
-      specialist: { select: { name: true, jobTitle: true, specialization: true } },
-      service: { select: { name: true } },
-      location: { select: { name: true } },
-      consumptions: {
-        where: { status: { not: "REJECTED" } },
-        select: { quantity: true, unit: true, product: { select: { name: true } } },
+  // Trzy zapytania równolegle — po kolei każde dokładało swój czas do
+  // otwarcia strony.
+  const [patient, appointment, upcomingCount] = await Promise.all([
+    prisma.patient.findUnique({ where: { id: auth.id }, select: { name: true } }),
+    // Ważne: wizyta jest pobierana WYŁĄCZNIE po (id, patientId) należącym do
+    // zalogowanego pacjenta — nie da się w ten sposób podejrzeć cudzej karty
+    // wizyty, nawet znając jej id.
+    prisma.appointment.findFirst({
+      where: { id: params.appointmentId, patientId: auth.id, deletedAt: null },
+      select: {
+        id: true,
+        startsAt: true,
+        status: true,
+        priceEstimate: true,
+        priceFinal: true,
+        customServiceName: true,
+        photoBefore: true,
+        photoAfter: true,
+        patient: { select: { name: true } },
+        specialist: { select: { name: true, jobTitle: true, specialization: true } },
+        service: { select: { name: true } },
+        location: { select: { name: true } },
+        consumptions: {
+          where: { status: { not: "REJECTED" } },
+          select: { quantity: true, unit: true, product: { select: { name: true } } },
+        },
+        payments: { select: { method: true, amount: true } },
       },
-      payments: { select: { method: true, amount: true } },
-    },
-  });
+    }),
+    prisma.appointment.count({
+      where: { patientId: auth.id, deletedAt: null, status: { not: "CANCELED" }, startsAt: { gte: new Date() } },
+    }),
+  ]);
 
+  if (!patient) redirect("/panel-klienta/logowanie");
   if (!appointment) notFound();
-
-  const upcomingCount = await prisma.appointment.count({
-    where: { patientId: auth.id, deletedAt: null, status: { not: "CANCELED" }, startsAt: { gte: new Date() } },
-  });
 
   const serviceName = appointment.customServiceName || appointment.service?.name || "Zabieg";
   const price = appointment.priceFinal ?? appointment.priceEstimate;
