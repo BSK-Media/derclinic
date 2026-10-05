@@ -47,13 +47,14 @@ export default async function PatientAppointmentCardPage(props: { params: Promis
 
   // Trzy zapytania równolegle — po kolei każde dokładało swój czas do
   // otwarcia strony.
-  const [patient, appointment, upcomingCount] = await Promise.all([
+  const ownAppointment = { id: params.appointmentId, patientId: auth.id, deletedAt: null };
+  const [patient, appointment, upcomingCount, hasPhotoBefore, hasPhotoAfter] = await Promise.all([
     prisma.patient.findUnique({ where: { id: auth.id }, select: { name: true } }),
     // Ważne: wizyta jest pobierana WYŁĄCZNIE po (id, patientId) należącym do
     // zalogowanego pacjenta — nie da się w ten sposób podejrzeć cudzej karty
     // wizyty, nawet znając jej id.
     prisma.appointment.findFirst({
-      where: { id: params.appointmentId, patientId: auth.id, deletedAt: null },
+      where: ownAppointment,
       select: {
         id: true,
         startsAt: true,
@@ -61,8 +62,6 @@ export default async function PatientAppointmentCardPage(props: { params: Promis
         priceEstimate: true,
         priceFinal: true,
         customServiceName: true,
-        photoBefore: true,
-        photoAfter: true,
         patient: { select: { name: true } },
         specialist: { select: { name: true, jobTitle: true, specialization: true } },
         service: { select: { name: true } },
@@ -77,6 +76,10 @@ export default async function PatientAppointmentCardPage(props: { params: Promis
     prisma.appointment.count({
       where: { patientId: auth.id, deletedAt: null, status: { not: "CANCELED" }, startsAt: { gte: new Date() } },
     }),
+    // Samych zdjęć (wielomegabajtowy base64) tu nie ładujemy — sprawdzamy tylko,
+    // czy istnieją; przeglądarka pobiera je osobno z /api/patient/appointments.
+    prisma.appointment.count({ where: { ...ownAppointment, photoBefore: { not: null } } }),
+    prisma.appointment.count({ where: { ...ownAppointment, photoAfter: { not: null } } }),
   ]);
 
   if (!patient) redirect("/panel-klienta/logowanie");
@@ -85,7 +88,8 @@ export default async function PatientAppointmentCardPage(props: { params: Promis
   const serviceName = appointment.customServiceName || appointment.service?.name || "Zabieg";
   const price = appointment.priceFinal ?? appointment.priceEstimate;
   const paidTotal = appointment.payments.reduce((sum, p) => sum + p.amount, 0);
-  const hasPhotos = Boolean(appointment.photoBefore || appointment.photoAfter);
+  const hasPhotos = hasPhotoBefore > 0 || hasPhotoAfter > 0;
+  const photoUrl = (slot: "before" | "after") => `/api/patient/appointments/${appointment.id}/photo?slot=${slot}`;
 
   return (
     <PatientPageShell patientName={patient.name} upcomingCount={upcomingCount}>
@@ -205,8 +209,8 @@ export default async function PatientAppointmentCardPage(props: { params: Promis
         <div className="mt-6">
           <AppointmentPhotos
             appointmentId={appointment.id}
-            photoBefore={appointment.photoBefore}
-            photoAfter={appointment.photoAfter}
+            photoBefore={hasPhotoBefore > 0 ? photoUrl("before") : null}
+            photoAfter={hasPhotoAfter > 0 ? photoUrl("after") : null}
             readOnly
           />
         </div>

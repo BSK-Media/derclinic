@@ -5,6 +5,7 @@ import { getPatientAuth } from "@/lib/patient-auth";
 import { prisma } from "@/lib/db";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { PatientPageShell } from "../../PatientPageShell";
+import { SpecialistAvatar } from "../../SpecialistAvatar";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,6 @@ export default async function PatientServicePage(props: { params: Promise<{ serv
               select: {
                 id: true,
                 name: true,
-                avatarUrl: true,
                 jobTitle: true,
                 specialization: true,
                 isVisible: true,
@@ -157,13 +157,7 @@ export default async function PatientServicePage(props: { params: Promise<{ serv
               <div key={s.id} className="flex items-center gap-4 py-3.5 first:pt-0 last:pb-0">
                 <Link href={`/panel-klienta/specjalisci/${s.id}`} className="flex min-w-0 flex-1 items-center gap-4">
                   <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full bg-zinc-100">
-                    {s.avatarUrl ? (
-                      <img src={s.avatarUrl} alt={s.name} className="h-full w-full object-cover" />
-                    ) : (
-                      <span className="flex h-full w-full items-center justify-center text-zinc-400">
-                        <UserIcon className="h-5 w-5" />
-                      </span>
-                    )}
+                    <SpecialistAvatar specialistId={s.id} name={s.name} iconClassName="h-5 w-5" />
                   </span>
                   <div className="min-w-0">
                     <div className="font-medium text-zinc-900 hover:text-emerald-700">{s.name}</div>

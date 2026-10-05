@@ -4,6 +4,7 @@ import { ArrowLeft, Clock, User as UserIcon, ArrowRight } from "lucide-react";
 import { getPatientAuth } from "@/lib/patient-auth";
 import { prisma } from "@/lib/db";
 import { PatientPageShell } from "../../PatientPageShell";
+import { SpecialistAvatar } from "../../SpecialistAvatar";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,6 @@ export default async function PatientSpecialistPage(props: { params: Promise<{ s
       select: {
         id: true,
         name: true,
-        avatarUrl: true,
         jobTitle: true,
         specialization: true,
         bio: true,
@@ -64,13 +64,7 @@ export default async function PatientSpecialistPage(props: { params: Promise<{ s
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="flex items-center gap-4">
           <span className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full bg-zinc-100">
-            {specialist.avatarUrl ? (
-              <img src={specialist.avatarUrl} alt={specialist.name} className="h-full w-full object-cover" />
-            ) : (
-              <span className="flex h-full w-full items-center justify-center text-zinc-400">
-                <UserIcon className="h-8 w-8" />
-              </span>
-            )}
+            <SpecialistAvatar specialistId={specialist.id} name={specialist.name} iconClassName="h-8 w-8" />
           </span>
           <div className="min-w-0">
             <h1 className="text-xl font-bold text-zinc-900 sm:text-2xl">{specialist.name}</h1>
