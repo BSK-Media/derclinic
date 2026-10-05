@@ -14,6 +14,21 @@ body {
 }
 
 /*
+ * Safari na iOS automatycznie przybliża stronę po kliknięciu pola formularza,
+ * jeśli jego czcionka jest mniejsza niż 16px (a nasze pola używają text-sm,
+ * czyli 14px) — i po zamknięciu klawiatury nie wraca do pierwotnej skali.
+ * Na ekranach dotykowych wymuszamy więc 16px; na desktopie pola zostają
+ * bez zmian. !important jest potrzebne, żeby wygrać z klasami Tailwinda.
+ */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/*
  * Spójne powierzchnie w motywie ciemnym.
  * Dashboard korzysta z granatowego #0b1220, dlatego zastępujemy nim
  * neutralne czernie używane przez starsze karty, tabele, pola i modale.
