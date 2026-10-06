@@ -1,5 +1,6 @@
 "use client";
 
+import { hasSidebarPermission } from "@/lib/sidebar-permissions";
 import { isAdminLike } from "@/lib/roles";
 import * as React from "react";
 import Link from "next/link";
@@ -186,6 +187,25 @@ export default function SettingsPage() {
         className="rounded-3xl border border-white/60 bg-white/80 p-6 text-slate-900 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 dark:text-white"
       />
 
+
+      {user && hasSidebarPermission(user.role, user.sidebarPermissions, "locations") ? (
+        <section className="flex flex-col gap-4 rounded-3xl border border-white/60 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Lokalizacje</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              {user.role === "ADMIN"
+                ? "Podgląd placówek i ich analityki oraz dodawanie nowych lokalizacji."
+                : "Podgląd placówek i ich analityki."}
+            </p>
+          </div>
+          <Link
+            href="/admin/locations"
+            className="shrink-0 rounded-full bg-emerald-600 px-5 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+          >
+            Otwórz
+          </Link>
+        </section>
+      ) : null}
 
       {isAdminLike(user?.role) ? (
         <section className="flex flex-col gap-4 rounded-3xl border border-white/60 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 sm:flex-row sm:items-center sm:justify-between">

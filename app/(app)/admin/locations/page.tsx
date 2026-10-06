@@ -1,6 +1,5 @@
 "use client";
 
-import { isAdminLike } from "@/lib/roles";
 import Link from "next/link";
 import * as React from "react";
 import useSWR, { mutate as mutateCache } from "swr";
@@ -104,12 +103,15 @@ export default function LocationsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Lokalizacje</h1>
+          <Link href="/admin/settings" className="text-sm text-slate-500 hover:text-slate-800 dark:hover:text-white">
+            ← Ustawienia
+          </Link>
+          <h1 className="mt-2 text-2xl font-semibold">Lokalizacje</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Wybierz placówkę, aby zobaczyć jej pełną analitykę.
+            Wybierz placówkę, aby zobaczyć jej pełną analitykę. Nowe lokalizacje dodaje administrator.
           </p>
         </div>
-        {isAdminLike(user?.role) ? (
+        {user?.role === "ADMIN" ? (
           <Button onClick={() => setFormOpen((current) => !current)}>
             {formOpen ? <X className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
             {formOpen ? "Anuluj" : "Dodaj lokalizację"}
@@ -117,7 +119,7 @@ export default function LocationsPage() {
         ) : null}
       </div>
 
-      {formOpen && isAdminLike(user?.role) ? (
+      {formOpen && user?.role === "ADMIN" ? (
         <Card className="p-4 sm:p-5">
           <form className="flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={createLocation}>
             <div className="flex-1 space-y-2">
@@ -162,7 +164,7 @@ export default function LocationsPage() {
                   <MapPin className="h-5 w-5" />
                 </div>
                 <div className="flex items-center gap-1">
-                  {isAdminLike(user?.role) ? (
+                  {user?.role === "ADMIN" ? (
                     <button
                       type="button"
                       onClick={() => {

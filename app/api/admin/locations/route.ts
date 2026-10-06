@@ -38,7 +38,7 @@ const CreateSchema = z.object({
 export async function POST(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);

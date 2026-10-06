@@ -40,7 +40,7 @@ export async function DELETE(req: Request, props: { params: Promise<{ id: string
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN"]);
   if (deny) return deny;
 
   const parsed = DeleteSchema.safeParse(await req.json().catch(() => null));
