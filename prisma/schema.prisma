@@ -148,6 +148,7 @@ model User {
   decidedPatientDataChangeRequests PatientDataChangeRequest[] @relation("PatientDataChangeDecider")
   decidedImageConsentRevocations   ImageConsentRevocationRequest[] @relation("ImageConsentRevocationDecider")
   operators                        StaffOperator[]            @relation("StaffOperators")
+  newsletterCampaigns              NewsletterCampaign[]
   assignedServices                 SpecialistService[]
   workDays                         SpecialistWorkDay[]
   customWorkDays                   SpecialistCustomWorkDay[]
@@ -907,6 +908,32 @@ model StaffOperator {
   sessions StaffSession[]
 
   @@index([userId])
+}
+
+// Newsletter: kampania e-mail do klientów ze zgodą marketingową (zakładka
+// Newsletter). Treść pisze się w edytorze wizualnym albo jako HTML.
+model NewsletterCampaign {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subject String
+  // Tekst widoczny w podglądzie skrzynki obok tematu (opcjonalny).
+  preheader String?
+  // Treść HTML (już po oczyszczeniu z skryptów) — to, co trafia do klientów.
+  html String
+
+  // DRAFT — do edycji; SENT — wysyłka rozpoczęta (można dokończyć brakujące).
+  status String @default("DRAFT")
+  sentAt DateTime?
+  // Ilu adresatów zakwalifikowano przy pierwszej wysyłce i ilu dostało wiadomość.
+  recipientCount Int @default(0)
+  sentCount      Int @default(0)
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
 }
 
 model PatientSession {

@@ -123,7 +123,7 @@ const NAV: NavItem[] = [
   { label: "Punkty lojalnościowe", permission: "loyalty", icon: <span className="text-lg">⭐</span> },
   { label: "Logi", permission: "logs", icon: <span className="text-lg">🧾</span> },
   { label: "Powiadomienia push", permission: "push", icon: <span className="text-lg">🔔</span> },
-  { label: "Poczta e-mail", permission: "email", icon: <span className="text-lg">✉️</span> },
+  { label: "Newsletter", permission: "newsletter", icon: <span className="text-lg">📰</span> },
   // Ustawienia zawsze na samym końcu menu.
   { label: "Ustawienia", permission: "settings", icon: <span className="text-lg">⚙️</span> },
 ];

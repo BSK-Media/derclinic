@@ -70,6 +70,8 @@ async function authorize(req: NextRequest, requestHeaders: Headers): Promise<Nex
     pathname.startsWith("/api/auth/operator/") ||
     pathname.startsWith("/api/public/") ||
     pathname.startsWith("/api/patient/") ||
+    // Wypisanie z newslettera z linku w wiadomości (podpisany token, bez logowania).
+    pathname.startsWith("/api/newsletter/") ||
     // Zadania cykliczne (Vercel Cron) — bez sesji, autoryzowane sekretem
     // CRON_SECRET sprawdzanym w samym endpoincie.
     pathname.startsWith("/api/cron/")

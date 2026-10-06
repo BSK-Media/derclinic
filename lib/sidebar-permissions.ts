@@ -23,6 +23,9 @@ export const SIDEBAR_PERMISSION_KEYS = [
   // dzienniki) — tak jak logi, wyłącznie administrator.
   "push",
   "email",
+  // Newsletter (wiadomości e-mail do klientów ze zgodą marketingową) — jak push
+  // i poczta, tylko administrator i manager.
+  "newsletter",
 ] as const;
 
 export type SidebarPermission = (typeof SIDEBAR_PERMISSION_KEYS)[number];
@@ -49,7 +52,7 @@ const ALL_PERMISSIONS = [...SIDEBAR_PERMISSION_KEYS];
 
 // Sekcje, do których nie ma dostępu żaden pracownik niebędący adminem —
 // odfiltrowywane także z uprawnień zapisanych w bazie/tokenie.
-const ADMIN_ONLY_PERMISSIONS: readonly SidebarPermission[] = ["logs", "push", "email"];
+const ADMIN_ONLY_PERMISSIONS: readonly SidebarPermission[] = ["logs", "push", "email", "newsletter"];
 
 // Dotychczasowy zakres menu dla pracowników, z wyłączeniem sekcji zastrzeżonych
 // domyślnie dla administratora.
@@ -180,6 +183,9 @@ export function sidebarPermissionForPath(pathname: string): SidebarPermission | 
   if (path.startsWith("/admin/email") || path.startsWith("/api/admin/email")) {
     return "email";
   }
+  if (path.startsWith("/admin/newsletter") || path.startsWith("/api/admin/newsletter")) {
+    return "newsletter";
+  }
   if (path.startsWith("/admin/settings") || path.startsWith("/admin/profile")) {
     return "settings";
   }
@@ -215,6 +221,7 @@ export function sidebarHref(permission: SidebarPermission, role: string) {
     logs: "/admin/logs",
     push: "/admin/push",
     email: "/admin/email",
+    newsletter: "/admin/newsletter",
   };
 
   return hrefs[permission];

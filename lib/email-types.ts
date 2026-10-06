@@ -9,6 +9,7 @@ export const EMAIL_TYPES = [
   "PATIENT_REMINDER",
   "STAFF_NEW_ONLINE_BOOKING",
   "STAFF_DATA_CHANGE_REQUEST",
+  "NEWSLETTER",
   "STAFF_IMAGE_CONSENT_REVOCATION",
   "PATIENT_IMAGE_CONSENT_DECISION",
   "PASSWORD_RESET",
@@ -69,6 +70,13 @@ export const EMAIL_TYPE_INFO: readonly EmailTypeInfo[] = [
     label: "Prośba o zmianę danych",
     description: "Gdy klient poprosi w panelu o zmianę imienia, telefonu lub adresu e-mail.",
     audience: "STAFF",
+    toggleable: true,
+  },
+  {
+    type: "NEWSLETTER",
+    label: "Newsletter",
+    description: "Wiadomości marketingowe pisane w zakładce Newsletter — tylko do klientów ze zgodą marketingową.",
+    audience: "PATIENT",
     toggleable: true,
   },
   {

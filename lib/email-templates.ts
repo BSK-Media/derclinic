@@ -268,6 +268,50 @@ export function imageConsentDecisionEmail(
   };
 }
 
+/**
+ * Newsletter: treść napisana w edytorze (już oczyszczona) w ramce DerClinic,
+ * z linkiem do wypisania się w stopce — wymaganym przy wiadomościach marketingowych.
+ */
+export function newsletterEmail(data: {
+  subject: string;
+  preheader?: string | null;
+  bodyHtml: string;
+  bodyText: string;
+  unsubscribeUrl: string;
+  panelUrl: string;
+}): EmailContent {
+  const preheader = data.preheader?.trim()
+    ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(data.preheader.trim())}</div>`
+    : "";
+  const html = `<!doctype html>
+<html lang="pl">
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+${preheader}
+<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;background:#f4f4f5;padding:24px 12px;">
+<tr><td align="center">
+<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;">
+<tr><td style="background:${ACCENT};padding:18px 28px;color:#ffffff;font-size:18px;font-weight:700;">${BRAND}</td></tr>
+<tr><td style="padding:28px;color:#3f3f46;font-size:15px;line-height:1.6;">${data.bodyHtml}</td></tr>
+<tr><td style="padding:16px 28px;background:#fafafa;color:#a1a1aa;font-size:12px;line-height:1.6;">
+Otrzymujesz tę wiadomość, bo wyraziłaś/eś zgodę na informacje marketingowe od ${BRAND}.
+<a href="${escapeHtml(data.unsubscribeUrl)}" style="color:#71717a;">Wypisz się z newslettera</a>
+· <a href="${escapeHtml(data.panelUrl)}" style="color:#71717a;">Ustawienia zgód w panelu klienta</a>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+  const text = [
+    data.bodyText,
+    "",
+    "---",
+    `Otrzymujesz tę wiadomość, bo wyraziłaś/eś zgodę na informacje marketingowe od ${BRAND}.`,
+    `Wypisz się z newslettera: ${data.unsubscribeUrl}`,
+  ].join("\n");
+  return { subject: data.subject, html, text };
+}
+
 export function passwordResetEmail(data: { patientName: string; resetUrl: string }): EmailContent {
   return {
     subject: `Reset hasła — ${BRAND}`,

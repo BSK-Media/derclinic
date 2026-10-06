@@ -2,6 +2,7 @@
 
 import { isAdminLike } from "@/lib/roles";
 import * as React from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth-provider";
 import { EMAIL_STATUS_LABELS, EMAIL_TYPE_INFO, emailTypeLabel } from "@/lib/email-types";
@@ -249,7 +250,10 @@ export default function EmailSettingsPage() {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Poczta e-mail</h1>
+        <Link href="/admin/settings" className="text-sm text-slate-500 hover:text-slate-800 dark:hover:text-white">
+          ← Ustawienia
+        </Link>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Poczta e-mail</h1>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           Wiadomości do klientów, powiadomienia dla personelu i kontrola, czy wysyłka działa.
         </p>
