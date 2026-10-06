@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getAuthUser } from "@/lib/auth-cookie";
+import { getAuthUser, getStaffSession } from "@/lib/auth-cookie";
 import {
   firstAllowedSidebarHref,
   hasSidebarPermission,
@@ -10,7 +10,11 @@ export default async function Home() {
   const user = await getAuthUser();
 
   if (!user) {
-    redirect("/login");
+    // Konto wspólne (recepcja): hasło i 2FA są za nami, brakuje tylko PIN-u.
+    // getAuthUser takiej sesji nie zwraca, więc bez tego sprawdzenia "/"
+    // odsyłałoby z powrotem na logowanie.
+    const session = await getStaffSession();
+    redirect(session?.operatorPending ? "/login/pin" : "/login");
   }
 
   if (hasSidebarPermission(user.role, user.sidebarPermissions, "appointments")) {
