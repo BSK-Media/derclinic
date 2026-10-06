@@ -7,6 +7,7 @@ import { formatPLNFromGrosze } from "@/lib/money";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
 import { AppointmentPhotos } from "@/components/appointment-photos";
 import { PatientPageShell } from "../../PatientPageShell";
+import { AddToCalendarButton } from "../../AddToCalendarButton";
 
 export const dynamic = "force-dynamic";
 
@@ -107,9 +108,14 @@ export default async function PatientAppointmentCardPage(props: { params: Promis
             {formatDate(appointment.startsAt)}, {formatTime(appointment.startsAt)}
           </p>
         </div>
-        <span className="inline-block rounded-full bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-600">
-          {appointmentStatusLabel(appointment.status, appointment.startsAt)}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {appointment.status !== "CANCELED" && appointment.startsAt.getTime() > Date.now() ? (
+            <AddToCalendarButton appointmentId={appointment.id} />
+          ) : null}
+          <span className="inline-block rounded-full bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-600">
+            {appointmentStatusLabel(appointment.status, appointment.startsAt)}
+          </span>
+        </div>
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">

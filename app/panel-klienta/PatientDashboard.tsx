@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { LogoutButton } from "./LogoutButton";
 import { DeleteAccountCard } from "./DeleteAccountCard";
+import { AddToCalendarButton } from "./AddToCalendarButton";
 import { GoogleLoginButton, googleErrorMessage, useGoogleLoginEnabled } from "@/components/google-login-button";
 import { PushToggleCard } from "@/components/push-toggle";
 import {
@@ -111,6 +112,8 @@ function AppointmentRow({
   const isFullyPaid = price !== null && price !== undefined && price > 0 && paidTotal >= price;
   const isPartiallyPaid = paidTotal > 0 && !isFullyPaid;
   const remaining = price !== null && price !== undefined ? Math.max(0, price - paidTotal) : null;
+  // Do kalendarza dodajemy tylko nadchodzące, nieodwołane wizyty.
+  const canAddToCalendar = appointment.status !== "CANCELED" && new Date(appointment.startsAt).getTime() > Date.now();
   return (
     <div
       className={
@@ -162,6 +165,7 @@ function AppointmentRow({
         </div>
       </div>
       <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-zinc-100 pt-3">
+        {canAddToCalendar ? <AddToCalendarButton appointmentId={appointment.id} /> : null}
         <Link
           href={`/panel-klienta/zabiegi/${appointment.serviceId}`}
           className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
