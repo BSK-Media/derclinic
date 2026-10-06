@@ -29,7 +29,7 @@ export async function POST(req: Request) {
 
   const user = await prisma.user.findFirst({
     where: { passwordResetTokenHash: hashPasswordResetToken(parsed.data.token) },
-    select: { id: true, login: true, name: true, email: true, passwordResetExpiresAt: true },
+    select: { id: true, login: true, name: true, email: true, passwordResetExpiresAt: true, mfaEnabledAt: true },
   });
   if (!user || !user.passwordResetExpiresAt || user.passwordResetExpiresAt.getTime() < Date.now()) {
     return bad("Link do resetu hasła jest nieprawidłowy albo wygasł. Poproś o nowy.");
@@ -59,5 +59,5 @@ export async function POST(req: Request) {
     summary: `Pracownik ustawił nowe hasło linkiem z e-maila (konto „${user.login}")`,
   });
 
-  return NextResponse.json({ ok: true, login: user.login });
+  return NextResponse.json({ ok: true, login: user.login, mfaEnabled: Boolean(user.mfaEnabledAt) });
 }

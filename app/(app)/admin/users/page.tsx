@@ -50,8 +50,13 @@ export default function AdminUsersPage() {
   const [temporary, setTemporary] = useState<{ login: string; name: string; password: string } | null>(null);
 
   async function create() {
-    const passwordIssue = validatePassword(password, { login, name, email });
-    if (passwordIssue) return toast.error(passwordIssue);
+    if (!password && !email.trim()) {
+      return toast.error("Podaj adres e-mail (pracownik dostanie link do ustawienia hasła) albo hasło startowe.");
+    }
+    if (password) {
+      const passwordIssue = validatePassword(password, { login, name, email });
+      if (passwordIssue) return toast.error(passwordIssue);
+    }
 
     setSaving(true);
     try {
@@ -73,7 +78,22 @@ export default function AdminUsersPage() {
         toast.error(out?.message || "Nie udało się założyć konta.");
         return;
       }
-      toast.success(`Konto „${login.trim()}” założone (${ROLE_LABELS[role]}).`);
+      const created = `Konto „${login.trim()}” założone (${ROLE_LABELS[role]}).`;
+      if (out.emailSent) {
+        toast.success(`${created} Wysłano e-mail z loginem i linkiem do ustawienia hasła na ${email.trim()}.`);
+      } else if (email.trim()) {
+        // Konto istnieje, ale wiadomość nie wyszła — admin musi przekazać dostęp sam.
+        toast.warning(
+          `${created} Nie udało się wysłać e-maila powitalnego (szczegóły: Poczta e-mail → dziennik wysyłek). ${
+            out.startPasswordSet
+              ? "Przekaż pracownikowi login i hasło startowe."
+              : "Użyj „Resetuj hasło” na liście, żeby dostać hasło tymczasowe do przekazania."
+          }`,
+          { duration: 15000 },
+        );
+      } else {
+        toast.success(`${created} Przekaż pracownikowi login i hasło startowe.`);
+      }
       setLogin(""); setName(""); setEmail(""); setPassword(""); setPayoutPercent("50");
       mutate();
     } finally {
@@ -239,14 +259,19 @@ export default function AdminUsersPage() {
             ) : null}
           </div>
           <div className="space-y-2">
-            <Label>Email (opcjonalnie)</Label>
+            <Label>Email</Label>
             <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@..." type="email" />
+            <p className="text-xs text-zinc-500">
+              Na ten adres pracownik dostanie login i link do ustawienia własnego hasła (ważny 3 dni).
+            </p>
           </div>
           <div className="space-y-2">
-            <Label>Hasło startowe</Label>
+            <Label>Hasło startowe{email.trim() ? " (opcjonalnie)" : ""}</Label>
             <Input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="new-password" />
             <p className="text-xs text-zinc-500">
-              Tymczasowe — przy pierwszym logowaniu pracownik ustawi własne hasło i logowanie dwuskładnikowe.
+              {email.trim()
+                ? "Możesz zostawić puste — pracownik ustawi hasło linkiem z e-maila. Wpisane hasło jest tymczasowe."
+                : "Wymagane, gdy nie podajesz adresu e-mail. Tymczasowe — przy pierwszym logowaniu pracownik ustawi własne hasło i logowanie dwuskładnikowe."}
             </p>
           </div>
           <div className="space-y-2">
@@ -258,7 +283,7 @@ export default function AdminUsersPage() {
             <LocationSelect value={locationId} onChange={setLocationId} />
           </div>
         </div>
-        <Button onClick={create} disabled={saving || login.trim().length < 2 || name.trim().length < 2 || !password}>
+        <Button onClick={create} disabled={saving || login.trim().length < 2 || name.trim().length < 2 || (!password && !email.trim())}>
           {saving ? "Zapisywanie..." : "Dodaj konto"}
         </Button>
       </Card>

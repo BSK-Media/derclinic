@@ -2,12 +2,22 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { validatePassword } from "@/lib/password-policy";
 import { requireStepUp } from "@/lib/mfa";
 import { STAFF_BCRYPT_COST } from "@/lib/staff-credentials";
+import { generatePasswordResetToken } from "@/lib/patient-auth";
+import { appBaseUrl, sendTrackedEmail } from "@/lib/email-notifications";
+import { staffAccountCreatedEmail } from "@/lib/email-templates";
+
+// Link z wiadomości powitalnej żyje dłużej niż zwykły reset hasła (1 godz.) —
+// nowy pracownik rzadko otwiera pocztę od razu.
+const WELCOME_LINK_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+
+const ROLE_LABELS = { ADMIN: "Administrator", RECEPTION: "Recepcja", SPECIALIST: "Specjalista" } as const;
 
 export async function GET() {
   const { user, error } = await requireAuth();
@@ -30,7 +40,8 @@ const CreateSchema = z.object({
   name: z.string().min(2),
   role: z.enum(["ADMIN", "RECEPTION", "SPECIALIST"]),
   email: z.string().email().optional().or(z.literal("")),
-  password: z.string().min(1).max(500),
+  // Puste = bez hasła startowego: pracownik ustawia hasło linkiem z e-maila.
+  password: z.string().max(500).optional().or(z.literal("")),
   payoutPercent: z.number().int().min(0).max(100).optional(),
   locationId: z.string().min(1),
   specialization: z.string().optional().or(z.literal("")),
@@ -65,10 +76,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, message: "Wybierz prawidłową lokalizację" }, { status: 400 });
   }
 
-  const passwordIssue = validatePassword(password, { login, name, email });
-  if (passwordIssue) return NextResponse.json({ ok: false, message: passwordIssue }, { status: 400 });
+  if (!password && !email) {
+    return NextResponse.json(
+      { ok: false, message: "Podaj adres e-mail (pracownik dostanie link do ustawienia hasła) albo hasło startowe." },
+      { status: 400 },
+    );
+  }
+  if (password) {
+    const passwordIssue = validatePassword(password, { login, name, email });
+    if (passwordIssue) return NextResponse.json({ ok: false, message: passwordIssue }, { status: 400 });
+  }
 
-  const passwordHash = await bcrypt.hash(password, STAFF_BCRYPT_COST);
+  // Bez hasła startowego konto dostaje losowe hasło, którego nikt nie zna —
+  // zalogować się da dopiero po ustawieniu własnego linkiem z e-maila.
+  const passwordHash = await bcrypt.hash(password || randomBytes(32).toString("base64url"), STAFF_BCRYPT_COST);
+  const welcome = email ? generatePasswordResetToken() : null;
 
   let created;
   try {
@@ -81,6 +103,8 @@ export async function POST(req: Request) {
         passwordHash,
         // Hasło zna administrator — pracownik musi ustawić własne przy pierwszym logowaniu.
         mustChangePassword: true,
+        passwordResetTokenHash: welcome?.tokenHash ?? null,
+        passwordResetExpiresAt: welcome ? new Date(Date.now() + WELCOME_LINK_TTL_MS) : null,
         payoutPercent: role === "SPECIALIST" ? (payoutPercent ?? 50) : 0,
         locationId: assignedLocation.id,
         location: assignedLocation.name,
@@ -106,14 +130,35 @@ export async function POST(req: Request) {
     throw e;
   }
 
+  // Wiadomość powitalna: login i link do ustawienia własnego hasła.
+  let emailSent = false;
+  if (welcome && email) {
+    const baseUrl = appBaseUrl(req);
+    const result = await sendTrackedEmail({
+      ...staffAccountCreatedEmail({
+        name,
+        login,
+        roleLabel: ROLE_LABELS[role],
+        setPasswordUrl: `${baseUrl}/login/reset-hasla?token=${welcome.token}`,
+        loginUrl: `${baseUrl}/login`,
+      }),
+      type: "STAFF_ACCOUNT_CREATED",
+      to: email,
+    });
+    emailSent = result.ok;
+  }
+  const startPasswordSet = Boolean(password);
+
   await logAudit({
     actorId: user!.id,
     action: "CREATE",
     entity: "User",
     entityId: created.id,
-    summary: `Utworzenie konta pracownika „${login}" (${name}, rola ${role})`,
-    data: { login, name, role, email: email || null, locationId: assignedLocation.id },
+    summary: `Utworzenie konta pracownika „${login}" (${name}, rola ${role})${
+      !email ? "" : emailSent ? " — wysłano e-mail z linkiem do ustawienia hasła" : " — e-mail powitalny nie został wysłany"
+    }`,
+    data: { login, name, role, email: email || null, locationId: assignedLocation.id, welcomeEmailSent: emailSent, startPasswordSet },
   });
 
-  return NextResponse.json({ ok: true, user: created });
+  return NextResponse.json({ ok: true, user: created, emailSent, startPasswordSet });
 }

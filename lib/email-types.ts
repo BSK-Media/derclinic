@@ -10,6 +10,7 @@ export const EMAIL_TYPES = [
   "STAFF_NEW_ONLINE_BOOKING",
   "STAFF_DATA_CHANGE_REQUEST",
   "PASSWORD_RESET",
+  "STAFF_ACCOUNT_CREATED",
   "TEST",
   "MANUAL",
 ] as const;
@@ -72,6 +73,13 @@ export const EMAIL_TYPE_INFO: readonly EmailTypeInfo[] = [
     type: "PASSWORD_RESET",
     label: "Reset hasła",
     description: "Link do ustawienia nowego hasła — dla klienta (panel klienta) albo pracownika (panel).",
+    audience: "SYSTEM",
+    toggleable: false,
+  },
+  {
+    type: "STAFF_ACCOUNT_CREATED",
+    label: "Nowe konto pracownika",
+    description: "Po założeniu konta przez administratora — login i link do ustawienia własnego hasła.",
     audience: "SYSTEM",
     toggleable: false,
   },

@@ -28,6 +28,8 @@ function ResetForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [doneLogin, setDoneLogin] = useState<string | null>(null);
+  // Nowe konto (link z wiadomości powitalnej) nie ma jeszcze 2FA.
+  const [mfaEnabled, setMfaEnabled] = useState(true);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,6 +48,7 @@ function ResetForm() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) return setError(data?.message || "Nie udało się ustawić nowego hasła");
+      setMfaEnabled(data.mfaEnabled !== false);
       setDoneLogin(data.login ?? "");
     } catch {
       setError("Nie udało się połączyć z serwerem. Spróbuj ponownie.");
@@ -73,8 +76,10 @@ function ResetForm() {
           {doneLogin !== null ? (
             <div className="space-y-4">
               <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-200">
-                Zaloguj się nowym hasłem{doneLogin ? ` (login: ${doneLogin})` : ""}. Przy logowaniu podasz jak zwykle
-                kod z aplikacji uwierzytelniającej.
+                Zaloguj się nowym hasłem{doneLogin ? ` (login: ${doneLogin})` : ""}.{" "}
+                {mfaEnabled
+                  ? "Przy logowaniu podasz jak zwykle kod z aplikacji uwierzytelniającej."
+                  : "Przy pierwszym logowaniu skonfigurujesz logowanie dwuskładnikowe (aplikacja uwierzytelniająca w telefonie)."}
               </p>
               <Link
                 href="/login"

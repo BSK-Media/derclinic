@@ -246,6 +246,33 @@ export function staffPasswordResetEmail(data: { name: string; login: string; res
   };
 }
 
+export function staffAccountCreatedEmail(data: {
+  name: string;
+  login: string;
+  roleLabel: string;
+  setPasswordUrl: string;
+  loginUrl: string;
+}): EmailContent {
+  return {
+    subject: `Twoje konto w panelu — ${BRAND}`,
+    ...layout({
+      heading: "Założono Ci konto w panelu",
+      paragraphs: [
+        greeting(data.name),
+        "Administrator założył Ci konto w panelu DerClinic OS. Ustaw własne hasło, korzystając z przycisku poniżej — link jest ważny przez 3 dni.",
+      ],
+      rows: [
+        ["Login", data.login],
+        ["Rola", data.roleLabel],
+        ["Adres logowania", data.loginUrl],
+      ],
+      button: { label: "Ustaw hasło", url: data.setPasswordUrl },
+      footnote:
+        "Przy pierwszym logowaniu skonfigurujesz też logowanie dwuskładnikowe (aplikacja uwierzytelniająca w telefonie). Jeśli link wygaśnie, użyj opcji „Nie pamiętam hasła” na ekranie logowania albo poproś administratora o reset hasła.",
+    }),
+  };
+}
+
 export function testEmail(data: { sentBy: string; from: string | null }): EmailContent {
   return {
     subject: `Wiadomość testowa — ${BRAND}`,
