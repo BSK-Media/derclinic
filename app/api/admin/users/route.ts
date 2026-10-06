@@ -140,7 +140,6 @@ export async function POST(req: Request) {
         login,
         roleLabel: ROLE_LABELS[role],
         setPasswordUrl: `${baseUrl}/login/reset-hasla?token=${welcome.token}`,
-        loginUrl: `${baseUrl}/login`,
       }),
       type: "STAFF_ACCOUNT_CREATED",
       to: email,
