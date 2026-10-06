@@ -5,7 +5,7 @@ import useSWR from "swr";
 import { toast } from "sonner";
 import { RichHtmlEditor } from "@/components/rich-html-editor";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type CampaignRow = {
   id: string;
@@ -58,6 +58,14 @@ export default function NewsletterPage() {
   const [html, setHtml] = React.useState("");
   const [busy, setBusy] = React.useState<null | "save" | "test" | "send">(null);
   const [previewOpen, setPreviewOpen] = React.useState(false);
+  // Potwierdzenie w oknie aplikacji (zamiast okienka przeglądarki).
+  const [confirmAction, setConfirmAction] = React.useState<null | {
+    title: string;
+    message: string;
+    confirmLabel: string;
+    destructive?: boolean;
+    run: () => void;
+  }>(null);
   // Zmienia się przy każdym wyborze kampanii — wymusza ponowne załadowanie edytora.
   const [editorKey, setEditorKey] = React.useState(0);
 
@@ -130,17 +138,19 @@ export default function NewsletterPage() {
     if (await save()) toast.success("Szkic zapisany");
   }
 
+  function askSendAll() {
+    const remaining = loaded?.status === "SENT" ? Math.max(0, recipients - loaded.sentCount) : recipients;
+    setConfirmAction({
+      title: loaded?.status === "SENT" ? "Dokończyć wysyłkę?" : "Wysłać newsletter?",
+      message: `„${subject}” zostanie wysłany do ${remaining} ${
+        remaining === 1 ? "klienta" : "klientów"
+      } ze zgodą marketingową. Tej operacji nie można cofnąć — sprawdź wcześniej wiadomość próbną.`,
+      confirmLabel: "Wyślij",
+      run: () => send("all"),
+    });
+  }
+
   async function send(mode: "test" | "all") {
-    if (mode === "all") {
-      const remaining = loaded?.status === "SENT" ? Math.max(0, recipients - loaded.sentCount) : recipients;
-      if (
-        !confirm(
-          `Wysłać „${subject}” do ${remaining} ${remaining === 1 ? "klienta" : "klientów"} ze zgodą marketingową?\n\nTej operacji nie można cofnąć. Sprawdź wcześniej wiadomość próbną.`,
-        )
-      ) {
-        return;
-      }
-    }
     const id = readOnly ? (selectedId as string) : await save();
     if (!id) return;
     setBusy(mode === "test" ? "test" : "send");
@@ -169,9 +179,19 @@ export default function NewsletterPage() {
     }
   }
 
+  function askRemove() {
+    if (!selectedId || selectedId === "new") return;
+    setConfirmAction({
+      title: "Usunąć szkic?",
+      message: `Szkic „${subject}” zostanie usunięty bezpowrotnie.`,
+      confirmLabel: "Usuń",
+      destructive: true,
+      run: remove,
+    });
+  }
+
   async function remove() {
     if (!selectedId || selectedId === "new") return;
-    if (!confirm(`Usunąć szkic „${subject}”?`)) return;
     const res = await fetch(`/api/admin/newsletter/${selectedId}`, { method: "DELETE" });
     const out = await res.json().catch(() => ({}));
     if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się usunąć szkicu.");
@@ -313,7 +333,7 @@ export default function NewsletterPage() {
                   </Button>
                 ) : null}
                 <Button
-                  onClick={() => send("all")}
+                  onClick={askSendAll}
                   disabled={busy !== null || !mailConfigured || remainingToSend === 0}
                 >
                   {busy === "send"
@@ -323,7 +343,7 @@ export default function NewsletterPage() {
                       : `Wyślij do klientów (${recipients})`}
                 </Button>
                 {!readOnly && selectedId !== "new" ? (
-                  <Button variant="destructive" onClick={remove} disabled={busy !== null} className="ml-auto">
+                  <Button variant="destructive" onClick={askRemove} disabled={busy !== null} className="ml-auto">
                     Usuń szkic
                   </Button>
                 ) : null}
@@ -332,6 +352,30 @@ export default function NewsletterPage() {
           )}
         </section>
       </div>
+
+      <Dialog open={confirmAction !== null} onOpenChange={(open) => (!open ? setConfirmAction(null) : undefined)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{confirmAction?.title}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-slate-600 dark:text-slate-300">{confirmAction?.message}</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmAction(null)}>
+              Anuluj
+            </Button>
+            <Button
+              variant={confirmAction?.destructive ? "destructive" : "default"}
+              onClick={() => {
+                const action = confirmAction;
+                setConfirmAction(null);
+                action?.run();
+              }}
+            >
+              {confirmAction?.confirmLabel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-3xl">

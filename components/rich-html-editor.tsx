@@ -1,6 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // Edytor treści wiadomości w stylu WordPressa: przełącznik „Wizualny / Kod".
 //  * Wizualny — edycja w ramce iframe (designMode) z paskiem narzędzi,
@@ -50,6 +54,47 @@ export function RichHtmlEditor({
 
   const getDoc = () => frameRef.current?.contentDocument ?? null;
 
+  // Okno „Wstaw link / obraz" w aplikacji (zamiast okienka przeglądarki).
+  // Zaznaczenie z edytora zapamiętujemy przed otwarciem okna, bo fokus je gubi.
+  const [insertDialog, setInsertDialog] = React.useState<null | "link" | "image">(null);
+  const [insertUrl, setInsertUrl] = React.useState("");
+  const [insertText, setInsertText] = React.useState("");
+  const savedRange = React.useRef<Range | null>(null);
+
+  function openInsertDialog(kind: "link" | "image") {
+    const doc = getDoc();
+    const selection = doc?.getSelection();
+    savedRange.current = selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null;
+    setInsertUrl("");
+    setInsertText(kind === "link" ? (selection?.toString() ?? "") : "");
+    setInsertDialog(kind);
+  }
+
+  function confirmInsert() {
+    const doc = getDoc();
+    const url = insertUrl.trim();
+    if (!doc || !url || !insertDialog) return;
+    const safeUrl = /^(https?:\/\/|mailto:|tel:|\/)/i.test(url) ? url : `https://${url}`;
+    const esc = (value: string) =>
+      value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    frameRef.current?.contentWindow?.focus();
+    const selection = doc.getSelection();
+    if (selection && savedRange.current) {
+      selection.removeAllRanges();
+      selection.addRange(savedRange.current);
+    }
+    if (insertDialog === "image") {
+      exec(doc, "insertHTML", `<img src="${esc(safeUrl)}" alt="${esc(insertText.trim())}" style="max-width:100%;height:auto;">`);
+    } else if (selection && !selection.isCollapsed && !insertText.trim()) {
+      exec(doc, "createLink", safeUrl);
+    } else {
+      const label = insertText.trim() || safeUrl;
+      exec(doc, "insertHTML", `<a href="${esc(safeUrl)}">${esc(label)}</a>`);
+    }
+    onChange(doc.body.innerHTML);
+    setInsertDialog(null);
+  }
+
   // Ramka (po załadowaniu) dostaje aktualną treść i włącza edycję.
   const initFrame = React.useCallback(() => {
     const doc = getDoc();
@@ -84,23 +129,9 @@ export function RichHtmlEditor({
     { label: "⬌", title: "Wyśrodkuj", run: (d) => exec(d, "justifyCenter") },
     { label: "➡", title: "Do prawej", run: (d) => exec(d, "justifyRight") },
     "sep",
-    {
-      label: "Link",
-      title: "Wstaw link",
-      run: (d) => {
-        const url = window.prompt("Adres linku (https://…)");
-        if (url) exec(d, "createLink", url);
-      },
-    },
+    { label: "Link", title: "Wstaw link", run: () => openInsertDialog("link") },
     { label: "Bez linku", title: "Usuń link", run: (d) => exec(d, "unlink") },
-    {
-      label: "Obraz",
-      title: "Wstaw obraz z adresu URL",
-      run: (d) => {
-        const url = window.prompt("Adres obrazu (https://…)");
-        if (url) exec(d, "insertImage", url);
-      },
-    },
+    { label: "Obraz", title: "Wstaw obraz z adresu URL", run: () => openInsertDialog("image") },
     { label: "―", title: "Linia pozioma", run: (d) => exec(d, "insertHorizontalRule") },
     "sep",
     { label: "↶", title: "Cofnij", run: (d) => exec(d, "undo") },
@@ -212,6 +243,53 @@ export function RichHtmlEditor({
           placeholder="<p>Treść wiadomości w HTML…</p>"
         />
       )}
+
+      <Dialog open={insertDialog !== null} onOpenChange={(open) => (!open ? setInsertDialog(null) : undefined)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{insertDialog === "image" ? "Wstaw obraz" : "Wstaw link"}</DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              confirmInsert();
+            }}
+          >
+            <div className="space-y-1">
+              <Label htmlFor="insert-url">{insertDialog === "image" ? "Adres obrazu (URL)" : "Adres linku"}</Label>
+              <Input
+                id="insert-url"
+                value={insertUrl}
+                onChange={(e) => setInsertUrl(e.target.value)}
+                placeholder="https://…"
+                autoFocus
+                autoComplete="off"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="insert-text">
+                {insertDialog === "image" ? "Opis obrazu (opcjonalnie)" : "Tekst linku (opcjonalnie)"}
+              </Label>
+              <Input
+                id="insert-text"
+                value={insertText}
+                onChange={(e) => setInsertText(e.target.value)}
+                placeholder={insertDialog === "image" ? "np. Zdjęcie zabiegu" : "np. Umów wizytę"}
+                autoComplete="off"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setInsertDialog(null)}>
+                Anuluj
+              </Button>
+              <Button type="submit" disabled={!insertUrl.trim()}>
+                Wstaw
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
