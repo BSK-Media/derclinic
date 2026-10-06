@@ -136,7 +136,7 @@ function AppointmentRow({
           </div>
         </div>
         {/* ml-auto: gdy blok zawija się pod tytuł (wąski ekran), ma stać przy prawej krawędzi, jak przyciski niżej. */}
-        <div className="ml-auto flex flex-col items-end text-right">
+        <div className="ml-auto flex flex-col items-start text-left">
           <span className="inline-block rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600">
             {appointmentStatusLabel(appointment.status, appointment.startsAt)}
           </span>
@@ -144,7 +144,7 @@ function AppointmentRow({
             <div className="mt-1.5 text-sm font-semibold text-emerald-700">{formatPLNFromGrosze(price)}</div>
           ) : null}
           {price ? (
-            <div className="mt-1 flex flex-col items-end gap-0.5">
+            <div className="mt-1 flex flex-col items-start gap-0.5">
               {isFullyPaid ? (
                 <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
                   Opłacone w całości
