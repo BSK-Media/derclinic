@@ -65,6 +65,9 @@ async function authorize(req: NextRequest, requestHeaders: Headers): Promise<Nex
     pathname.startsWith("/api/auth/forgot-password") ||
     pathname.startsWith("/api/auth/reset-password") ||
     pathname.startsWith("/api/auth/mfa/") ||
+    // Wybór osoby PIN-em na koncie wspólnym — sesja jeszcze "czeka na PIN",
+    // więc endpointy same sprawdzają sesję.
+    pathname.startsWith("/api/auth/operator/") ||
     pathname.startsWith("/api/public/") ||
     pathname.startsWith("/api/patient/") ||
     // Zadania cykliczne (Vercel Cron) — bez sesji, autoryzowane sekretem
@@ -81,6 +84,20 @@ async function authorize(req: NextRequest, requestHeaders: Headers): Promise<Nex
     }
     const url = req.nextUrl.clone();
     url.pathname = "/login";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  // Konto wspólne (recepcja) bez podanego PIN-u: nic poza ekranem PIN i wylogowaniem.
+  if (session.operatorPending) {
+    if (pathname.startsWith("/api")) {
+      return NextResponse.json(
+        { ok: false, code: "PIN_REQUIRED", message: "Podaj PIN, aby kontynuować." },
+        { status: 403 },
+      );
+    }
+    const url = req.nextUrl.clone();
+    url.pathname = "/login/pin";
     url.search = "";
     return NextResponse.redirect(url);
   }

@@ -147,6 +147,7 @@ model User {
   deletedAppointments              Appointment[]              @relation("AppointmentDeleter")
   decidedPatientDataChangeRequests PatientDataChangeRequest[] @relation("PatientDataChangeDecider")
   decidedImageConsentRevocations   ImageConsentRevocationRequest[] @relation("ImageConsentRevocationDecider")
+  operators                        StaffOperator[]            @relation("StaffOperators")
   assignedServices                 SpecialistService[]
   workDays                         SpecialistWorkDay[]
   customWorkDays                   SpecialistCustomWorkDay[]
@@ -879,9 +880,33 @@ model StaffSession {
   stepUpAt      DateTime?
   ipAddress     String?
   userAgent     String?
+  // Konto wspólne (recepcja): która osoba jest przy komputerze — wybierana PIN-em
+  // po zalogowaniu. Puste, gdy konto nie ma operatorów albo PIN nie został podany.
+  operatorId    String?
+  operator      StaffOperator? @relation(fields: [operatorId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([expiresAt])
+  @@index([operatorId])
+}
+
+// Osoba pracująca na wspólnym koncie (np. dwie recepcjonistki na jednym
+// loginie). Po zalogowaniu hasłem i MFA konto z operatorami wymaga jeszcze
+// 6-cyfrowego PIN-u; to, który PIN został podany, trafia do dziennika zdarzeń.
+model StaffOperator {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation("StaffOperators", fields: [userId], references: [id], onDelete: Cascade)
+
+  name    String
+  pinHash String
+
+  sessions StaffSession[]
+
+  @@index([userId])
 }
 
 model PatientSession {

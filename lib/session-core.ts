@@ -79,6 +79,8 @@ const staffUserSelect = {
   role: true,
   sidebarPermissions: true,
   mfaEnabledAt: true,
+  // Czy konto jest wspólne (ma operatorów z PIN-em) — wtedy sesja czeka na PIN.
+  operators: { select: { id: true }, take: 1 },
 } as const;
 
 export async function validateStaffToken(token: string | undefined | null) {
@@ -88,7 +90,7 @@ export async function validateStaffToken(token: string | undefined | null) {
 
   const session = await prisma.staffSession.findUnique({
     where: { id: hashSessionId(parsed.sid) },
-    include: { user: { select: staffUserSelect } },
+    include: { user: { select: staffUserSelect }, operator: { select: { id: true, name: true } } },
   });
   if (!session || session.userId !== parsed.subject) return null;
   if (!isActive(session, SESSION_POLICY.staff.idleMs)) return null;
@@ -100,7 +102,25 @@ export async function validateStaffToken(token: string | undefined | null) {
       .update({ where: { id: session.id }, data: { lastSeenAt: new Date() } })
       .catch(() => {});
   }
-  return session;
+  // Konto wspólne: sesja jest pełna dopiero po podaniu PIN-u osoby przy komputerze.
+  const operatorPending = !session.operatorId && session.user.operators.length > 0;
+  return { ...session, operatorPending };
+}
+
+/**
+ * Imię osoby wybranej PIN-em w sesji z ciasteczka (konto wspólne) — do
+ * podpisywania wpisów dziennika. Bez sprawdzania aktywności sesji; zwraca
+ * null, gdy token jest nieczytelny, sesja jest cudza albo nie ma operatora.
+ */
+export async function sessionOperatorName(token: string | undefined | null, userId: string) {
+  if (!token) return null;
+  const parsed = await readToken("staff", token);
+  if (!parsed || parsed.subject !== userId) return null;
+  const session = await prisma.staffSession.findUnique({
+    where: { id: hashSessionId(parsed.sid) },
+    select: { userId: true, operator: { select: { name: true } } },
+  });
+  return session && session.userId === userId ? (session.operator?.name ?? null) : null;
 }
 
 export async function validatePatientToken(token: string | undefined | null) {

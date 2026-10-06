@@ -40,6 +40,7 @@ export async function GET() {
         mfaMethod: true,
         ipAddress: true,
         userAgent: true,
+        operator: { select: { name: true } },
         user: { select: { id: true, name: true, login: true, role: true } },
       },
     }),

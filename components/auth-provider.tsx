@@ -5,13 +5,15 @@ import { disablePushOnThisDevice } from "@/components/push-toggle";
 import type { SidebarPermission } from "@/lib/sidebar-permissions";
 
 export type Role = "ADMIN" | "MANAGER" | "RECEPTION" | "SPECIALIST";
-export type MeUser = { id: string; login: string; name: string; role: Role; payoutPercent?: number; avatarUrl?: string | null; jobTitle?: string | null; location?: string | null; locationId: string; assignedLocation: { id: string; name: string }; specialization?: string | null; sidebarPermissions: SidebarPermission[] } | null;
+export type MeUser = { id: string; login: string; name: string; role: Role; payoutPercent?: number; avatarUrl?: string | null; jobTitle?: string | null; location?: string | null; locationId: string; assignedLocation: { id: string; name: string }; specialization?: string | null; sidebarPermissions: SidebarPermission[]; operatorName?: string | null } | null;
 
 type Ctx = {
   user: MeUser;
   loading: boolean;
   refresh: () => Promise<void>;
   logout: () => Promise<void>;
+  // Konto wspólne: zdejmuje bieżącą osobę — następna podaje swój PIN.
+  switchOperator: () => Promise<void>;
 };
 
 const AuthContext = React.createContext<Ctx | null>(null);
@@ -38,11 +40,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.location.href = "/login";
   }, []);
 
+  const switchOperator = React.useCallback(async () => {
+    await fetch("/api/auth/operator/switch", { method: "POST" }).catch(() => null);
+    window.location.href = "/login/pin";
+  }, []);
+
   React.useEffect(() => {
     refresh();
   }, [refresh]);
 
-  return <AuthContext.Provider value={{ user, loading, refresh, logout }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, loading, refresh, logout, switchOperator }}>{children}</AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

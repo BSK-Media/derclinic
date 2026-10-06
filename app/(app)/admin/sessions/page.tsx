@@ -17,6 +17,7 @@ type SessionBase = {
 type StaffSession = SessionBase & {
   mfaMethod: string;
   current: boolean;
+  operator: { name: string } | null;
   user: { id: string; name: string; login: string; role: "ADMIN" | "MANAGER" | "RECEPTION" | "SPECIALIST" };
 };
 type PatientSession = SessionBase & { patient: { id: string; name: string } };
@@ -205,7 +206,7 @@ export default function ActiveSessionsPage() {
               {data.staff.map((session) => (
                 <SessionRow
                   key={session.id}
-                  title={session.user.name}
+                  title={session.operator ? `${session.user.name} — teraz: ${session.operator.name}` : session.user.name}
                   subtitle={`${ROLE_LABELS[session.user.role] ?? session.user.role} · login ${session.user.login} · 2FA: ${
                     MFA_LABELS[session.mfaMethod] ?? session.mfaMethod
                   }`}

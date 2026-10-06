@@ -21,6 +21,9 @@ export type AuthUser = {
   // Sesja po stronie serwera (hash identyfikatora) i czas ostatniego step-up MFA.
   sessionId: string;
   stepUpAt: Date | null;
+  // Konto wspólne (recepcja): osoba wybrana PIN-em po zalogowaniu.
+  operatorId: string | null;
+  operatorName: string | null;
 };
 
 const COOKIE_NAME = "bsk_session";
@@ -39,10 +42,20 @@ function cookieOptions(maxAgeSec: number) {
   };
 }
 
-export async function getAuthUser(): Promise<AuthUser | null> {
+/**
+ * Sesja pracownika z ciasteczka — także ta, która czeka jeszcze na PIN
+ * (operatorPending). Do obsługi ekranu PIN i wylogowania; do reszty służy getAuthUser.
+ */
+export async function getStaffSession() {
   const token = (await cookies()).get(COOKIE_NAME)?.value;
-  const session = await validateStaffToken(token);
+  return await validateStaffToken(token);
+}
+
+export async function getAuthUser(): Promise<AuthUser | null> {
+  const session = await getStaffSession();
   if (!session) return null;
+  // Konto wspólne bez podanego PIN-u nie ma dostępu do niczego poza ekranem PIN.
+  if (session.operatorPending) return null;
   const { user } = session;
   return {
     id: user.id,
@@ -52,6 +65,8 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     sidebarPermissions: normalizeSidebarPermissions(user.role, user.sidebarPermissions),
     sessionId: session.id,
     stepUpAt: session.stepUpAt,
+    operatorId: session.operator?.id ?? null,
+    operatorName: session.operator?.name ?? null,
   };
 }
 
@@ -92,15 +107,16 @@ export async function startStaffSession(userId: string, mfaMethod: "TOTP" | "REC
 
 /** Wylogowanie: unieważnia bieżącą sesję w bazie i czyści ciasteczko. */
 export async function endStaffSession(reason = "logout") {
-  const current = await getAuthUser();
+  // Raw session: wylogować trzeba także sesję czekającą na PIN.
+  const current = await getStaffSession();
   if (current) {
     await prisma.staffSession.updateMany({
-      where: { id: current.sessionId, revokedAt: null },
+      where: { id: current.id, revokedAt: null },
       data: { revokedAt: new Date(), revokedReason: reason },
     });
   }
   const jar = await cookies();
   jar.set({ name: COOKIE_NAME, value: "", ...cookieOptions(0) });
   jar.set({ name: LEGACY_COOKIE_NAME, value: "", ...cookieOptions(0) });
-  return current;
+  return current ? { id: current.userId, operatorName: current.operator?.name ?? null } : null;
 }

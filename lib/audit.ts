@@ -1,4 +1,5 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { sessionOperatorName } from "@/lib/session-core";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { randomUUID } from "node:crypto";
@@ -62,6 +63,16 @@ async function requestContext(): Promise<{ ipAddress: string | null; userAgent: 
   }
 }
 
+async function currentOperatorName(userId: string): Promise<string | null> {
+  try {
+    const token = (await cookies()).get("bsk_session")?.value;
+    return await sessionOperatorName(token, userId);
+  } catch {
+    // poza kontekstem żądania (skrypt, test) — bez operatora
+    return null;
+  }
+}
+
 async function resolveActor(
   client: Prisma.TransactionClient | typeof prisma,
   input: LogAuditInput,
@@ -73,10 +84,12 @@ async function resolveActor(
       where: { id: actor.id },
       select: { name: true, login: true, role: true },
     });
+    // Konto wspólne (recepcja): do nazwy konta dopisujemy osobę wybraną PIN-em.
+    const operatorName = await currentOperatorName(actor.id);
     return {
       actorType: "STAFF",
       actorId: actor.id,
-      actorName: user?.name ?? null,
+      actorName: user?.name ? (operatorName ? `${user.name} (${operatorName})` : user.name) : null,
       actorLogin: user?.login ?? null,
       actorRole: user?.role ?? null,
     };

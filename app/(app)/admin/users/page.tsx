@@ -13,6 +13,7 @@ import { LocationSelect } from "@/components/location-select";
 import { useAuth } from "@/components/auth-provider";
 import { validatePassword } from "@/lib/password-policy";
 import { manageableRoles } from "@/lib/roles";
+import { OperatorsDialog } from "@/components/operators-dialog";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -52,6 +53,8 @@ export default function AdminUsersPage() {
   const [locationId, setLocationId] = useState("grodzisk-mazowiecki");
   const [saving, setSaving] = useState(false);
   const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
+  // Konto wspólne recepcji: osoby i ich PIN-y (tylko administrator).
+  const [operatorsFor, setOperatorsFor] = useState<{ id: string; login: string; name: string } | null>(null);
   // Hasło tymczasowe po resecie — pokazywane administratorowi tylko raz.
   const [temporary, setTemporary] = useState<{ login: string; name: string; password: string } | null>(null);
 
@@ -385,6 +388,15 @@ export default function AdminUsersPage() {
                             Resetuj hasło
                           </Button>
                         ) : null}
+                        {isAdmin && u.role === "RECEPTION" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setOperatorsFor({ id: u.id, login: u.login, name: u.name })}
+                          >
+                            Osoby i PIN-y
+                          </Button>
+                        ) : null}
                         {isAdmin && u.mfaEnabledAt && !isMe ? (
                           <Button variant="outline" size="sm" onClick={() => security(u, "reset_mfa")}>
                             Reset 2FA
@@ -402,6 +414,13 @@ export default function AdminUsersPage() {
           </table>
         </div>
       </div>
+
+      <OperatorsDialog
+        account={operatorsFor}
+        onOpenChange={(open) => {
+          if (!open) setOperatorsFor(null);
+        }}
+      />
     </div>
   );
 }

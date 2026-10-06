@@ -37,6 +37,8 @@ export const RATE_LIMITS = {
   publicBookingIp: { scope: "public-booking-ip", limit: 20, windowMs: HOUR },
   mfaIp: { scope: "mfa-ip", limit: 30, windowMs: 15 * MINUTE },
   mfaAccount: { scope: "mfa-account", limit: 5, windowMs: 15 * MINUTE },
+  operatorPinIp: { scope: "operator-pin-ip", limit: 30, windowMs: 15 * MINUTE },
+  operatorPinAccount: { scope: "operator-pin-account", limit: 5, windowMs: 15 * MINUTE },
   emailTest: { scope: "email-test", limit: 10, windowMs: HOUR },
   pushManual: { scope: "push-manual", limit: 30, windowMs: HOUR },
 } satisfies Record<string, RateLimitRule>;

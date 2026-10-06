@@ -183,6 +183,7 @@ function LogoBlock({ showThemeToggle = true }: { showThemeToggle?: boolean }) {
         </div>
         <div className="truncate text-xs text-slate-500 dark:text-slate-400">
           {user?.name ?? "Użytkownik"} • {user?.role ?? "—"}
+          {user?.operatorName ? ` • ${user.operatorName}` : ""}
         </div>
       </div>
       {showThemeToggle ? (
@@ -235,7 +236,7 @@ function NotificationGlyph({ kind }: { kind: HeaderNotification["kind"] }) {
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, logout, switchOperator } = useAuth();
   const visibleNav = user
     ? NAV.filter(
         (item) =>
@@ -287,6 +288,14 @@ export function AppSidebar() {
           >
             Bezpieczeństwo konta
           </Link>
+          {user?.operatorName ? (
+            <button
+              onClick={() => switchOperator()}
+              className="w-full rounded-2xl px-4 py-2 text-center text-sm font-medium text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-white/5"
+            >
+              Zmień osobę ({user.operatorName})
+            </button>
+          ) : null}
           <button
             onClick={() => logout()}
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
@@ -301,7 +310,7 @@ export function AppSidebar() {
 
 function MobileNav() {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, logout, switchOperator } = useAuth();
   const [open, setOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
@@ -403,6 +412,14 @@ function MobileNav() {
                   >
                     Bezpieczeństwo konta
                   </Link>
+                  {user?.operatorName ? (
+                    <button
+                      onClick={() => switchOperator()}
+                      className="w-full rounded-2xl px-4 py-2 text-center text-sm font-medium text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-white/5"
+                    >
+                      Zmień osobę ({user.operatorName})
+                    </button>
+                  ) : null}
                   <button
                     onClick={() => logout()}
                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
