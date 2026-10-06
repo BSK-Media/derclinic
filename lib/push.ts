@@ -276,4 +276,16 @@ export const pushContent = {
     body: `${patientName} prosi o zmianę danych kontaktowych.`,
     url: "/admin/patients/data-change-requests",
   }),
+  staffImageConsentRevocation: (patientName: string): PushPayload => ({
+    title: "Cofnięcie zgody na wizerunek",
+    body: `${patientName} prosi o cofnięcie zgody na wizerunek.`,
+    url: "/admin/patients/image-consent-requests",
+  }),
+  imageConsentDecision: (approved: boolean): PushPayload => ({
+    title: approved ? "Zgoda na wizerunek cofnięta" : "Prośba o cofnięcie zgody odrzucona",
+    body: approved
+      ? "Zaakceptowaliśmy Twoją prośbę o cofnięcie zgody na wizerunek."
+      : "Nie zrealizowaliśmy prośby o cofnięcie zgody na wizerunek.",
+    url: "/panel-klienta?tab=consents",
+  }),
 };

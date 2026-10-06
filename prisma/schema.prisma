@@ -145,6 +145,7 @@ model User {
   approvedAppointments             Appointment[]              @relation("AppointmentApprover")
   deletedAppointments              Appointment[]              @relation("AppointmentDeleter")
   decidedPatientDataChangeRequests PatientDataChangeRequest[] @relation("PatientDataChangeDecider")
+  decidedImageConsentRevocations   ImageConsentRevocationRequest[] @relation("ImageConsentRevocationDecider")
   assignedServices                 SpecialistService[]
   workDays                         SpecialistWorkDay[]
   customWorkDays                   SpecialistCustomWorkDay[]
@@ -208,6 +209,7 @@ model Patient {
   appointments       Appointment[]
   retailSales        RetailSale[]
   dataChangeRequests PatientDataChangeRequest[]
+  imageConsentRevocationRequests ImageConsentRevocationRequest[]
   consents           PatientConsent[]
   consentEvents      PatientConsentEvent[]
   sessions           PatientSession[]
@@ -555,6 +557,8 @@ model Appointment {
   consumptions Consumption[]
   payments     Payment[]
 
+  imageConsentRevocationRequests ImageConsentRevocationRequest[]
+
   @@index([specialistId, startsAt])
   @@index([locationId, startsAt])
   @@index([patientId, startsAt])
@@ -726,6 +730,30 @@ model PatientDataChangeRequest {
   rejectionReason String?
 
   @@index([patientId])
+  @@index([status, createdAt])
+}
+
+// Prośba klienta o cofnięcie zgody na wizerunek przy konkretnej wizycie
+// (Appointment.imageConsent). Klient nie cofa zgody sam — recepcja albo admin
+// akceptuje (wtedy imageConsent = false) albo odrzuca prośbę z powodem.
+model ImageConsentRevocationRequest {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  status          ApprovalStatus @default(PENDING)
+  decidedAt       DateTime?
+  decidedById     String?
+  decidedBy       User?          @relation("ImageConsentRevocationDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  rejectionReason String?
+
+  @@index([patientId])
+  @@index([appointmentId])
   @@index([status, createdAt])
 }
 

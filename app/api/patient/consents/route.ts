@@ -58,10 +58,16 @@ export async function GET() {
       service: { select: { name: true } },
     },
   });
+  const pendingRevocations = await prisma.imageConsentRevocationRequest.findMany({
+    where: { patientId: auth.id, status: "PENDING", appointmentId: { in: imageRows.map((row) => row.id) } },
+    select: { appointmentId: true },
+  });
+  const pendingIds = new Set(pendingRevocations.map((row) => row.appointmentId));
   const imageConsents = imageRows.map((row) => ({
     id: row.id,
     startsAt: row.startsAt.toISOString(),
     serviceName: row.customServiceName || row.service.name,
+    revocationPending: pendingIds.has(row.id),
   }));
 
   return NextResponse.json({ ok: true, consents, imageConsents });

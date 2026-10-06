@@ -18,7 +18,9 @@ import {
   appointmentChangedEmail,
   appointmentReminderEmail,
   bookingConfirmationEmail,
+  imageConsentDecisionEmail,
   staffDataChangeRequestEmail,
+  staffImageConsentRevocationEmail,
   staffNewBookingEmail,
   type AppointmentEmailData,
   type EmailContent,
@@ -340,6 +342,107 @@ export async function notifyDataChangeRequest(requestId: string, options: { base
     }
   } catch (e) {
     console.error("[email] notifyDataChangeRequest", e);
+  }
+}
+
+/**
+ * Prośba klienta o cofnięcie zgody na wizerunek: push dla recepcji i adminów
+ * (admin widzi też powiadomienie w panelu), e-mail tylko do recepcji z
+ * lokalizacji wizyty — administrator maila nie dostaje.
+ */
+export async function notifyImageConsentRevocationRequest(requestId: string, options: { baseUrl: string }) {
+  try {
+    const request = await prisma.imageConsentRevocationRequest.findUnique({
+      where: { id: requestId },
+      select: {
+        patientId: true,
+        patient: { select: { name: true } },
+        appointment: {
+          select: {
+            startsAt: true,
+            locationId: true,
+            customServiceName: true,
+            service: { select: { name: true } },
+          },
+        },
+      },
+    });
+    if (!request) return;
+    const staff = await prisma.user.findMany({
+      where: {
+        OR: [{ role: "ADMIN" }, { role: "RECEPTION", locationId: request.appointment.locationId ?? undefined }],
+      },
+      select: { id: true, role: true, email: true },
+    });
+    await sendPushToStaff(
+      staff.map((member) => member.id),
+      pushContent.staffImageConsentRevocation(request.patient.name),
+      { type: "STAFF_IMAGE_CONSENT_REVOCATION", recipientLabel: "Personel", patientId: request.patientId },
+    );
+
+    const settings = await getEmailSettings();
+    const content = staffImageConsentRevocationEmail(
+      {
+        patientName: request.patient.name,
+        serviceName: request.appointment.customServiceName || request.appointment.service.name,
+        startsAt: request.appointment.startsAt,
+      },
+      options.baseUrl,
+    );
+    const recipients = uniqueEmails(staff.filter((member) => member.role === "RECEPTION").map((m) => m.email));
+    for (const to of recipients) {
+      await sendTrackedEmail({
+        ...content,
+        type: "STAFF_IMAGE_CONSENT_REVOCATION",
+        to,
+        patientId: request.patientId,
+        settings,
+      });
+    }
+  } catch (e) {
+    console.error("[email] notifyImageConsentRevocationRequest", e);
+  }
+}
+
+/** Decyzja recepcji ws. cofnięcia zgody na wizerunek — wiadomość do klienta (e-mail + push). */
+export async function notifyImageConsentDecision(requestId: string, options: { baseUrl: string }) {
+  try {
+    const request = await prisma.imageConsentRevocationRequest.findUnique({
+      where: { id: requestId },
+      select: {
+        status: true,
+        rejectionReason: true,
+        patientId: true,
+        patient: { select: { name: true, email: true } },
+        appointment: { select: { startsAt: true, customServiceName: true, service: { select: { name: true } } } },
+      },
+    });
+    if (!request || request.status === "PENDING") return;
+    const approved = request.status === "APPROVED";
+
+    await sendPushToPatient(request.patientId, pushContent.imageConsentDecision(approved), {
+      type: "PATIENT_IMAGE_CONSENT_DECISION",
+      recipientLabel: request.patient.name,
+    });
+    if (!request.patient.email) return;
+
+    await sendTrackedEmail({
+      ...imageConsentDecisionEmail(
+        {
+          patientName: request.patient.name,
+          serviceName: request.appointment.customServiceName || request.appointment.service.name,
+          startsAt: request.appointment.startsAt,
+          approved,
+          rejectionReason: request.rejectionReason,
+        },
+        options.baseUrl,
+      ),
+      type: "PATIENT_IMAGE_CONSENT_DECISION",
+      to: request.patient.email,
+      patientId: request.patientId,
+    });
+  } catch (e) {
+    console.error("[email] notifyImageConsentDecision", e);
   }
 }
 

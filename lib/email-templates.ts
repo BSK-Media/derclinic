@@ -214,6 +214,60 @@ export function staffDataChangeRequestEmail(
   };
 }
 
+export function staffImageConsentRevocationEmail(
+  data: { patientName: string; serviceName: string; startsAt: Date },
+  baseUrl: string,
+): EmailContent {
+  return {
+    subject: `Prośba o cofnięcie zgody na wizerunek: ${data.patientName}`,
+    ...layout({
+      heading: "Klient prosi o cofnięcie zgody na wizerunek",
+      paragraphs: [
+        "W panelu klienta złożono prośbę o cofnięcie zgody na wykorzystanie wizerunku. Zaakceptuj albo odrzuć ją w panelu.",
+      ],
+      rows: [
+        ["Klient", data.patientName],
+        ["Zabieg", data.serviceName],
+        ["Termin", formatAppointmentDate(data.startsAt)],
+      ],
+      button: { label: "Otwórz prośby", url: `${baseUrl}/admin/patients/image-consent-requests` },
+    }),
+  };
+}
+
+export function imageConsentDecisionEmail(
+  data: {
+    patientName: string;
+    serviceName: string;
+    startsAt: Date;
+    approved: boolean;
+    rejectionReason?: string | null;
+  },
+  baseUrl: string,
+): EmailContent {
+  return {
+    subject: data.approved
+      ? `Cofnięto zgodę na wizerunek — ${BRAND}`
+      : `Prośba o cofnięcie zgody na wizerunek — ${BRAND}`,
+    ...layout({
+      heading: data.approved ? "Zgoda na wizerunek została cofnięta" : "Prośba o cofnięcie zgody została odrzucona",
+      paragraphs: [
+        greeting(data.patientName),
+        data.approved
+          ? "Zaakceptowaliśmy Twoją prośbę — zgoda na wykorzystanie wizerunku przy poniższym zabiegu została cofnięta."
+          : "Nie mogliśmy zrealizować Twojej prośby o cofnięcie zgody na wykorzystanie wizerunku przy poniższym zabiegu.",
+        ...(!data.approved && data.rejectionReason ? [`Powód: ${data.rejectionReason}`] : []),
+      ],
+      rows: [
+        ["Zabieg", data.serviceName],
+        ["Termin", formatAppointmentDate(data.startsAt)],
+      ],
+      button: { label: "Otwórz panel klienta", url: `${baseUrl}/panel-klienta?tab=consents` },
+      footnote: data.approved ? undefined : "W razie pytań skontaktuj się z nami.",
+    }),
+  };
+}
+
 export function passwordResetEmail(data: { patientName: string; resetUrl: string }): EmailContent {
   return {
     subject: `Reset hasła — ${BRAND}`,

@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { LogoutButton } from "./LogoutButton";
 import { DeleteAccountCard } from "./DeleteAccountCard";
 import { GoogleLoginButton, googleErrorMessage, useGoogleLoginEnabled } from "@/components/google-login-button";
@@ -420,7 +422,34 @@ function ConsentToggle({ granted, onClick, disabled }: { granted: boolean; onCli
 function ConsentsPanel() {
   const { data, mutate, isLoading } = useSWR("/api/patient/consents", dataChangeRequestFetcher);
   const consents: ConsentRow[] = data?.consents ?? [];
-  const imageConsents: { id: string; startsAt: string; serviceName: string }[] = data?.imageConsents ?? [];
+  type ImageConsentItem = { id: string; startsAt: string; serviceName: string; revocationPending: boolean };
+  const imageConsents: ImageConsentItem[] = data?.imageConsents ?? [];
+  const [revokeTarget, setRevokeTarget] = React.useState<ImageConsentItem | null>(null);
+  const [sendingRevoke, setSendingRevoke] = React.useState(false);
+
+  // "Dalej" w oknie potwierdzenia: zgoda zostaje, dopóki recepcja nie
+  // zaakceptuje prośby. "Cofnij" tylko zamyka okno i niczego nie zmienia.
+  async function sendRevocationRequest() {
+    if (!revokeTarget) return;
+    setSendingRevoke(true);
+    try {
+      const res = await fetch("/api/patient/image-consent-requests", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ appointmentId: revokeTarget.id }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) {
+        toast.error(out?.message || "Nie udało się wysłać prośby");
+        return;
+      }
+      toast.success("Prośba została wysłana do recepcji");
+      setRevokeTarget(null);
+      mutate();
+    } finally {
+      setSendingRevoke(false);
+    }
+  }
   // Zapisy w toku — ref zamiast stanu, bo przełącznik nie ma się wyszarzać
   // na czas zapisu, a jedynie ignorować kolejne kliknięcia tej samej zgody.
   const savingTypes = React.useRef(new Set<ConsentType>());
@@ -527,14 +556,57 @@ function ConsentsPanel() {
             <ul className="mt-2 divide-y divide-zinc-200 rounded-xl border border-zinc-200 bg-white">
               {imageConsents.map((item) => (
                 <li key={item.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-                  <span className="min-w-0 truncate font-medium text-zinc-900">{item.serviceName}</span>
-                  <span className="shrink-0 text-xs text-zinc-500">{formatConsentDate(item.startsAt)}</span>
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-zinc-900">{item.serviceName}</div>
+                    <div className="text-xs text-zinc-500">{formatConsentDate(item.startsAt)}</div>
+                  </div>
+                  {item.revocationPending ? (
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+                      Prośba wysłana
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setRevokeTarget(item)}
+                      className="shrink-0 rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+                    >
+                      Cofnij zgodę
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
           </>
         )}
       </details>
+
+      <Dialog open={revokeTarget !== null} onOpenChange={(open) => (!open && !sendingRevoke ? setRevokeTarget(null) : undefined)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cofnięcie zgody na wizerunek</DialogTitle>
+          </DialogHeader>
+          {revokeTarget ? (
+            <div className="space-y-3 text-sm text-zinc-600">
+              <div className="rounded-xl bg-zinc-50 p-3">
+                <div className="font-medium text-zinc-900">{revokeTarget.serviceName}</div>
+                <div className="text-xs text-zinc-500">{formatConsentDate(revokeTarget.startsAt)}</div>
+              </div>
+              <p>
+                Prośba o cofnięcie zgody zostanie wysłana do recepcji. Po jej zaakceptowaniu otrzymasz wiadomość
+                mailową.
+              </p>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" disabled={sendingRevoke} onClick={() => setRevokeTarget(null)}>
+              Cofnij
+            </Button>
+            <Button disabled={sendingRevoke} onClick={sendRevocationRequest}>
+              {sendingRevoke ? "Wysyłanie…" : "Dalej"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

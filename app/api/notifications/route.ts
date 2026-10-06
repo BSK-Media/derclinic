@@ -69,6 +69,24 @@ async function getAdminNotifications(includeSecurityAlerts: boolean): Promise<No
     href: "/admin/patients/data-change-requests",
   }));
 
+  const pendingImageConsent = await prisma.imageConsentRevocationRequest.findMany({
+    where: { status: "PENDING" },
+    orderBy: { createdAt: "desc" },
+    take: NOTIFICATIONS_LIMIT,
+    include: {
+      patient: { select: { name: true } },
+      appointment: { select: { customServiceName: true, service: { select: { name: true } } } },
+    },
+  });
+  const imageConsentRequests: NotificationItem[] = pendingImageConsent.map((request) => ({
+    id: `image-consent-${request.id}`,
+    kind: "message",
+    title: "Prośba o cofnięcie zgody na wizerunek",
+    description: `${request.patient.name} — ${serviceName(request.appointment)}`,
+    createdAt: request.createdAt,
+    href: "/admin/patients/image-consent-requests",
+  }));
+
   // Alerty bezpieczeństwa z ostatnich 7 dni (audyt F-04/F-05): reset MFA,
   // blokady po przekroczeniu limitu prób logowania / kodów.
   const securityEvents = !includeSecurityAlerts ? [] : await prisma.auditLog.findMany({
@@ -89,7 +107,7 @@ async function getAdminNotifications(includeSecurityAlerts: boolean): Promise<No
     href: "/admin/logs",
   }));
 
-  return [...alerts, ...requests]
+  return [...alerts, ...requests, ...imageConsentRequests]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .slice(0, NOTIFICATIONS_LIMIT);
 }
