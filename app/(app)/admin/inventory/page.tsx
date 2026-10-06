@@ -1,5 +1,6 @@
 "use client";
 
+import { isAdminLike } from "@/lib/roles";
 import * as React from "react";
 import Link from "next/link";
 import useSWR from "swr";
@@ -48,7 +49,7 @@ export default function InventoryPage() {
   const { user } = useAuth();
   const { data, error, isLoading, mutate } = useSWR("/api/admin/inventory", fetcher);
   const { data: locationsData, isLoading: locationsLoading } = useSWR(
-    user?.role === "ADMIN" ? "/api/admin/locations" : null,
+    isAdminLike(user?.role) ? "/api/admin/locations" : null,
     fetcher,
   );
   const warehouses: WarehouseSummary[] = data?.warehouses ?? [];
@@ -132,7 +133,7 @@ export default function InventoryPage() {
             Wybierz magazyn, aby sprawdzić jego stan i zarządzać produktami.
           </p>
         </div>
-        {user?.role === "ADMIN" ? (
+        {isAdminLike(user?.role) ? (
           <Button onClick={openCreateDialog} className="gap-2 bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:text-white">
             <Plus className="h-4 w-4" />
             Dodaj magazyn
@@ -177,7 +178,7 @@ export default function InventoryPage() {
                     Wartość zakupu: <span className="font-semibold text-slate-700 dark:text-slate-200">{money(warehouse.totalValue)}</span>
                   </div>
                 </Link>
-                {user?.role === "ADMIN" ? (
+                {isAdminLike(user?.role) ? (
                   <div className="border-t border-slate-100 px-5 py-3 dark:border-white/10">
                     <button
                       type="button"

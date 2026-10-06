@@ -36,7 +36,7 @@ export async function PATCH(req: Request, props: RouteParams) {
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);
@@ -92,7 +92,7 @@ export async function DELETE(_req: Request, props: RouteParams) {
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION"]);
   if (deny) return deny;
 
   const { appointment, payment } = await loadAppointmentWithPayment(params.id, params.paymentId, user!.locationScopeId);

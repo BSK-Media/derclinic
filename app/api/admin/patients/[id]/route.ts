@@ -44,7 +44,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION"]);
   if (deny) return deny;
 
   const visiblePatient = await prisma.patient.findFirst({
@@ -111,7 +111,7 @@ export async function DELETE(_req: Request, props: { params: Promise<{ id: strin
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
   const stepUp = requireStepUp(user!);
   if (stepUp) return stepUp;

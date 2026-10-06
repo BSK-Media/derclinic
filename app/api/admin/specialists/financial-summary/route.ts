@@ -6,7 +6,7 @@ import { resolveSettlementRange } from "@/lib/settlement-range";
 export async function GET(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const period = resolveSettlementRange(new URL(req.url));

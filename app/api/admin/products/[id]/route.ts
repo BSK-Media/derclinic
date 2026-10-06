@@ -21,7 +21,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const product = await prisma.product.findUnique({
@@ -51,7 +51,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);
@@ -152,7 +152,7 @@ export async function DELETE(_req: Request, props: { params: Promise<{ id: strin
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const target = await prisma.product.findUnique({

@@ -14,7 +14,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION"]);
   if (deny) return deny;
 
   const patient = await prisma.patient.findFirst({

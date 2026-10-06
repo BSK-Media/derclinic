@@ -12,7 +12,7 @@ const TOGGLEABLE_TYPES = EMAIL_TYPE_INFO.filter((info) => info.toggleable).map((
 export async function GET() {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const [disabledPushTypes, patientDevices, patients, staffDevices, staff, marketingPatients, logs] = await Promise.all([
@@ -45,7 +45,7 @@ const SettingsSchema = z.object({ disabledPushTypes: z.array(z.string()).max(20)
 export async function PUT(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const parsed = SettingsSchema.safeParse(await req.json().catch(() => null));

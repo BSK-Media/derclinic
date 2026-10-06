@@ -65,6 +65,8 @@ const DEFAULT_NON_ADMIN_PERMISSIONS: SidebarPermission[] = SIDEBAR_PERMISSION_KE
 
 export function normalizeSidebarPermissions(role: string, value: unknown): SidebarPermission[] {
   if (role === "ADMIN") return [...ALL_PERMISSIONS];
+  // Manager: wszystko oprócz dziennika zdarzeń (logów) — niezależnie od zapisanych uprawnień.
+  if (role === "MANAGER") return ALL_PERMISSIONS.filter((key) => key !== "logs");
 
   if (!Array.isArray(value)) {
     return role === "RECEPTION"

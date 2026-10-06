@@ -14,7 +14,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const visibleWarehouse = await prisma.warehouse.findFirst({
@@ -58,7 +58,7 @@ export async function DELETE(req: Request, props: { params: Promise<{ id: string
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const parsed = DeleteSchema.safeParse(await req.json().catch(() => null));

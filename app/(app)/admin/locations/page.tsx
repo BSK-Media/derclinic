@@ -1,5 +1,6 @@
 "use client";
 
+import { isAdminLike } from "@/lib/roles";
 import Link from "next/link";
 import * as React from "react";
 import useSWR, { mutate as mutateCache } from "swr";
@@ -108,7 +109,7 @@ export default function LocationsPage() {
             Wybierz placówkę, aby zobaczyć jej pełną analitykę.
           </p>
         </div>
-        {user?.role === "ADMIN" ? (
+        {isAdminLike(user?.role) ? (
           <Button onClick={() => setFormOpen((current) => !current)}>
             {formOpen ? <X className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
             {formOpen ? "Anuluj" : "Dodaj lokalizację"}
@@ -116,7 +117,7 @@ export default function LocationsPage() {
         ) : null}
       </div>
 
-      {formOpen && user?.role === "ADMIN" ? (
+      {formOpen && isAdminLike(user?.role) ? (
         <Card className="p-4 sm:p-5">
           <form className="flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={createLocation}>
             <div className="flex-1 space-y-2">
@@ -161,7 +162,7 @@ export default function LocationsPage() {
                   <MapPin className="h-5 w-5" />
                 </div>
                 <div className="flex items-center gap-1">
-                  {user?.role === "ADMIN" ? (
+                  {isAdminLike(user?.role) ? (
                     <button
                       type="button"
                       onClick={() => {

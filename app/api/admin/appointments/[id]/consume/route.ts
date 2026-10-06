@@ -54,7 +54,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);
@@ -135,7 +135,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION"]);
   if (deny) return deny;
 
   const { appointment: appt, error: appointmentError } = await loadActiveAppointment(params.id, user!.locationScopeId);
@@ -200,7 +200,7 @@ export async function DELETE(req: Request, props: { params: Promise<{ id: string
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION"]);
   if (deny) return deny;
 
   const { appointment: appt, error: appointmentError } = await loadActiveAppointment(params.id, user!.locationScopeId);

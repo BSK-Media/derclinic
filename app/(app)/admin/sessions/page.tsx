@@ -17,7 +17,7 @@ type SessionBase = {
 type StaffSession = SessionBase & {
   mfaMethod: string;
   current: boolean;
-  user: { id: string; name: string; login: string; role: "ADMIN" | "RECEPTION" | "SPECIALIST" };
+  user: { id: string; name: string; login: string; role: "ADMIN" | "MANAGER" | "RECEPTION" | "SPECIALIST" };
 };
 type PatientSession = SessionBase & { patient: { id: string; name: string } };
 type Policy = { staffIdleHours: number; staffMaxHours: number; patientIdleDays: number; patientMaxDays: number };
@@ -26,7 +26,7 @@ type Response = { ok: boolean; message?: string; staff: StaffSession[]; patients
 const SECTION =
   "rounded-3xl border border-white/60 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55";
 
-const ROLE_LABELS = { ADMIN: "Administrator", RECEPTION: "Recepcja", SPECIALIST: "Specjalista" } as const;
+const ROLE_LABELS = { ADMIN: "Administrator", MANAGER: "Manager", RECEPTION: "Recepcja", SPECIALIST: "Specjalista" } as const;
 const MFA_LABELS: Record<string, string> = { TOTP: "kod z aplikacji", RECOVERY_CODE: "kod odzyskiwania", PASSKEY: "klucz dostępu" };
 
 const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then((response) => response.json());

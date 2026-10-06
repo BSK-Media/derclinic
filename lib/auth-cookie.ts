@@ -10,7 +10,7 @@ import {
   validateStaffToken,
 } from "@/lib/session-core";
 
-export type Role = "ADMIN" | "RECEPTION" | "SPECIALIST";
+export type Role = "ADMIN" | "MANAGER" | "RECEPTION" | "SPECIALIST";
 
 export type AuthUser = {
   id: string;

@@ -1,5 +1,6 @@
 "use client";
 
+import { isAdminLike } from "@/lib/roles";
 import * as React from "react";
 import useSWR from "swr";
 import Link from "next/link";
@@ -72,7 +73,7 @@ export default function SpecialistDetailPage() {
   const [to, setTo] = React.useState(() => toDateInput(now));
   const customRangeInvalid = range === "custom" && (!from || !to || from > to);
   const { user } = useAuth();
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = isAdminLike(user?.role);
 
   const overviewQuery = React.useMemo(() => {
     const params = new URLSearchParams({ range });
@@ -217,7 +218,7 @@ export default function SpecialistDetailPage() {
         <SpecialistSchedule specialistId={id} />
       ) : (
         <>
-          {user?.role === "ADMIN" ? (
+          {isAdminLike(user?.role) ? (
             <SidebarPermissionsSection
               specialistId={id}
               permissions={specialist?.sidebarPermissions}
@@ -334,7 +335,7 @@ export default function SpecialistDetailPage() {
             ) : null}
           </div>
 
-          {user?.role === "ADMIN" ? (
+          {isAdminLike(user?.role) ? (
             <>
               <WarehousesSection
                 specialistId={id}

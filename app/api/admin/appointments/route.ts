@@ -30,7 +30,7 @@ function parseRangeDate(
 export async function GET(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION"]);
   if (deny) return deny;
 
   const url = new URL(req.url);
@@ -218,7 +218,7 @@ function normalizePhone(value: string) {
 export async function POST(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);

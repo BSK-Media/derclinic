@@ -117,7 +117,16 @@ async function authorize(req: NextRequest, requestHeaders: Headers): Promise<Nex
 
   // Nieznane podstrony administracyjne (np. zarządzanie kontami użytkowników)
   // pozostają zastrzeżone wyłącznie dla administratora.
-  if ((pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) && !permission && role !== "ADMIN") {
+  // Manager dodatkowo zarządza kontami niższych ról (/admin/users) — zakres
+  // ról i lokalizacji pilnują same endpointy.
+  const managerUserAdmin =
+    role === "MANAGER" && (pathname.startsWith("/admin/users") || pathname.startsWith("/api/admin/users"));
+  if (
+    (pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) &&
+    !permission &&
+    role !== "ADMIN" &&
+    !managerUserAdmin
+  ) {
     return rejectAccess(req, user);
   }
 
@@ -125,7 +134,7 @@ async function authorize(req: NextRequest, requestHeaders: Headers): Promise<Nex
     const receptionAppointments =
       role === "RECEPTION" &&
       (pathname.startsWith("/specialist/appointments") || pathname.startsWith("/api/specialist/appointments"));
-    if (role !== "SPECIALIST" && role !== "ADMIN" && !receptionAppointments) {
+    if (role !== "SPECIALIST" && role !== "ADMIN" && role !== "MANAGER" && !receptionAppointments) {
       return rejectAccess(req, user);
     }
   }

@@ -16,7 +16,7 @@ const DOUBLE_PREFIX = /^\+4848(\d{9})$/;
 export async function POST() {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
   // Masowa zmiana danych = operacja wysokiego ryzyka: ponowne potwierdzenie MFA.
   const stepUp = requireStepUp(user!);

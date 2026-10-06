@@ -7,7 +7,7 @@ import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 export async function GET(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const q = (new URL(req.url).searchParams.get("q") ?? "").trim().slice(0, 100);

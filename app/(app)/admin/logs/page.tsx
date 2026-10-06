@@ -48,6 +48,7 @@ const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then((r) => r
 const WHO_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "", label: "Wszyscy" },
   { value: "role:ADMIN", label: "Administrator" },
+  { value: "role:MANAGER", label: "Manager" },
   { value: "role:RECEPTION", label: "Recepcja" },
   { value: "role:SPECIALIST", label: "Specjalista" },
   { value: "type:PATIENT", label: "Pacjent (panel klienta)" },

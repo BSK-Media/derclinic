@@ -1,5 +1,6 @@
 "use client";
 
+import { isAdminLike } from "@/lib/roles";
 import useSWR from "swr";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -118,7 +119,7 @@ export default function ServicesPage(props: ServicesPageProps) {
     : searchParams?.serviceId;
   const handledServiceId = useRef<string | null>(null);
   const { user } = useAuth();
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = isAdminLike(user?.role);
   const { data, mutate, isLoading } = useSWR("/api/admin/services", fetcher);
   const services: Service[] = data?.services ?? [];
   const specialists: Specialist[] = data?.specialists ?? [];

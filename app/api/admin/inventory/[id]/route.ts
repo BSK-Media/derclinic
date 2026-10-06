@@ -10,7 +10,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const warehouse = await prisma.warehouse.findFirst({ where: { id: params.id, ...scopedLocationWhere(user!) } });

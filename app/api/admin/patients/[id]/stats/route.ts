@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { resolveSettlementRange } from "@/lib/settlement-range";
+import { isAdminLike } from "@/lib/roles";
 
 export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION"]);
   if (deny) return deny;
 
   const requestUrl = new URL(req.url);
@@ -108,7 +109,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   return NextResponse.json({
     ok: true,
     stats: {
-      totalSpent: user!.role === "ADMIN" ? totalSpent : 0,
+      totalSpent: isAdminLike(user!.role) ? totalSpent : 0,
       treatmentsCount: appointments.length,
       latestTreatments,
     },

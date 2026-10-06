@@ -1,3 +1,4 @@
+import { isAdminLike } from "@/lib/roles";
 import { NextResponse, after } from "next/server";
 import {
   appBaseUrl,
@@ -24,7 +25,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN", "RECEPTION", "SPECIALIST"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION", "SPECIALIST"]);
   if (deny) return deny;
 
   const appt = await prisma.appointment.findFirst({
@@ -109,7 +110,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);
@@ -242,7 +243,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
           ? undefined
           : parsed.data.priceFinal,
       priceEstimate:
-        user!.role !== "ADMIN" || parsed.data.priceEstimate === undefined
+        !isAdminLike(user!.role) || parsed.data.priceEstimate === undefined
           ? undefined
           : parsed.data.priceEstimate,
       note:
@@ -305,7 +306,7 @@ export async function DELETE(req: Request, props: { params: Promise<{ id: string
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);

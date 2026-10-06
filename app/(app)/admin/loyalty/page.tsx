@@ -1,5 +1,6 @@
 "use client";
 
+import { isAdminLike } from "@/lib/roles";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -19,7 +20,7 @@ export default function LoyaltyExplainerPage() {
   const [backfilling, setBackfilling] = React.useState(false);
 
   React.useEffect(() => {
-    if (!loading && user && user.role !== "ADMIN") {
+    if (!loading && user && !isAdminLike(user.role)) {
       router.replace("/admin");
     }
   }, [loading, user, router]);
@@ -40,7 +41,7 @@ export default function LoyaltyExplainerPage() {
     }
   }
 
-  if (loading || !user || user.role !== "ADMIN") return null;
+  if (loading || !user || !isAdminLike(user.role)) return null;
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">

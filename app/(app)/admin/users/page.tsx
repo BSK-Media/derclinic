@@ -12,14 +12,16 @@ import { Card } from "@/components/ui/card";
 import { LocationSelect } from "@/components/location-select";
 import { useAuth } from "@/components/auth-provider";
 import { validatePassword } from "@/lib/password-policy";
+import { manageableRoles } from "@/lib/roles";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-type Role = "ADMIN" | "RECEPTION" | "SPECIALIST";
+type Role = "ADMIN" | "MANAGER" | "RECEPTION" | "SPECIALIST";
 type U = { id: string; login: string; name: string; role: Role; email?: string | null; payoutPercent?: number; location?: string | null; locationId: string; mfaEnabledAt?: string | null };
 
 const ROLE_LABELS: Record<Role, string> = {
   ADMIN: "Administrator",
+  MANAGER: "Manager",
   RECEPTION: "Recepcja",
   SPECIALIST: "Specjalista",
 };
@@ -36,6 +38,10 @@ function generateTemporaryPassword() {
 export default function AdminUsersPage() {
   const { user: me } = useAuth();
   const { data, mutate, isLoading } = useSWR("/api/admin/users", fetcher);
+  // Administrator zarządza wszystkim; manager zakłada i obsługuje tylko recepcję
+  // i specjalistów w swojej lokalizacji.
+  const isAdmin = me?.role === "ADMIN";
+  const creatableRoles = manageableRoles(me?.role);
 
   const [login, setLogin] = useState("");
   const [name, setName] = useState("");
@@ -70,7 +76,8 @@ export default function AdminUsersPage() {
           email: email.trim(),
           password,
           payoutPercent: role === "SPECIALIST" ? Number(payoutPercent) : undefined,
-          locationId,
+          // Administrator nie ma lokalizacji, a manager zakłada konta w swojej.
+          locationId: isAdmin && role !== "ADMIN" ? locationId : undefined,
         }),
       });
       const out = await res.json().catch(() => ({}));
@@ -247,14 +254,21 @@ export default function AdminUsersPage() {
             <Select value={role} onValueChange={(value) => setRole(value as Role)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="ADMIN">Administrator</SelectItem>
-                <SelectItem value="RECEPTION">Recepcja</SelectItem>
-                <SelectItem value="SPECIALIST">Specjalista</SelectItem>
+                {creatableRoles.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {ROLE_LABELS[value]}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             {role === "ADMIN" ? (
               <p className="text-xs text-amber-700 dark:text-amber-300">
                 Administrator ma pełny dostęp, także do kont pracowników i logów.
+              </p>
+            ) : null}
+            {role === "MANAGER" ? (
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                Manager ma dostęp do wszystkiego poza logami, w swojej lokalizacji, i zakłada konta recepcji i specjalistów.
               </p>
             ) : null}
           </div>
@@ -274,14 +288,21 @@ export default function AdminUsersPage() {
                 : "Wymagane, gdy nie podajesz adresu e-mail. Tymczasowe — przy pierwszym logowaniu pracownik ustawi własne hasło i logowanie dwuskładnikowe."}
             </p>
           </div>
-          <div className="space-y-2">
-            <Label>% rozliczenia (specjalista)</Label>
-            <Input value={payoutPercent} onChange={(e) => setPayoutPercent(e.target.value)} disabled={role !== "SPECIALIST"} />
-          </div>
-          <div className="space-y-2">
-            <Label>Lokalizacja *</Label>
-            <LocationSelect value={locationId} onChange={setLocationId} />
-          </div>
+          {role === "SPECIALIST" ? (
+            <div className="space-y-2">
+              <Label>% rozliczenia</Label>
+              <Input value={payoutPercent} onChange={(e) => setPayoutPercent(e.target.value)} />
+            </div>
+          ) : null}
+          {isAdmin && role !== "ADMIN" ? (
+            <div className="space-y-2">
+              <Label>Lokalizacja *</Label>
+              <LocationSelect value={locationId} onChange={setLocationId} />
+            </div>
+          ) : null}
+          {!isAdmin ? (
+            <p className="self-end text-xs text-zinc-500">Konto zostanie założone w Twojej lokalizacji.</p>
+          ) : null}
         </div>
         <Button onClick={create} disabled={saving || login.trim().length < 2 || name.trim().length < 2 || (!password && !email.trim())}>
           {saving ? "Zapisywanie..." : "Dodaj konto"}
@@ -326,6 +347,9 @@ export default function AdminUsersPage() {
                       {isMe ? (
                         // Własnej roli nie da się zmienić — może to zrobić inny administrator.
                         <span title="Swoją rolę może zmienić tylko inny administrator">{ROLE_LABELS[u.role] ?? u.role}</span>
+                      ) : !isAdmin ? (
+                        // Rolę zmienia tylko administrator.
+                        <span>{ROLE_LABELS[u.role] ?? u.role}</span>
                       ) : (
                         <select
                           value={u.role}
@@ -335,13 +359,14 @@ export default function AdminUsersPage() {
                           className="h-9 rounded-lg border border-zinc-200 bg-white px-2 text-sm text-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
                         >
                           <option value="ADMIN">Administrator</option>
+                          <option value="MANAGER">Manager</option>
                           <option value="RECEPTION">Recepcja</option>
                           <option value="SPECIALIST">Specjalista</option>
                         </select>
                       )}
                     </td>
                     <td className="p-3">{u.email ?? "—"}</td>
-                    <td className="p-3">{u.location ?? "—"}</td>
+                    <td className="p-3">{u.role === "ADMIN" ? "Wszystkie" : (u.location ?? "—")}</td>
                     <td className="p-3">{u.role === "SPECIALIST" ? (u.payoutPercent ?? 0) + "%" : "—"}</td>
                     <td className="p-3">
                       {u.mfaEnabledAt ? (
@@ -360,12 +385,12 @@ export default function AdminUsersPage() {
                             Resetuj hasło
                           </Button>
                         ) : null}
-                        {u.mfaEnabledAt && !isMe ? (
+                        {isAdmin && u.mfaEnabledAt && !isMe ? (
                           <Button variant="outline" size="sm" onClick={() => security(u, "reset_mfa")}>
                             Reset 2FA
                           </Button>
                         ) : null}
-                        {!isMe ? (
+                        {isAdmin && !isMe ? (
                           <Button variant="destructive" size="sm" onClick={() => remove(u)}>Usuń</Button>
                         ) : null}
                       </div>

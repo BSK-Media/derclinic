@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { isAdminLike } from "@/lib/roles";
 import { PatientDetailsForm } from "@/components/patient-details-form";
 import { PatientStatistics } from "@/components/patient-statistics";
 import { PatientHistoryTabs } from "@/components/patient-history-tabs";
@@ -8,7 +9,7 @@ import { getEffectiveAuth } from "@/lib/effective-auth";
 export default async function AdminPatientDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const { user } = await getEffectiveAuth();
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = isAdminLike(user?.role);
   const patient = await prisma.patient.findUnique({ where: { id: params.id } });
   if (!patient) return <div className="p-6 text-sm">Nie znaleziono pacjenta.</div>;
 

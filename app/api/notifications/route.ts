@@ -266,7 +266,7 @@ export async function GET() {
   let notifications: NotificationItem[];
   if (user!.role === "SPECIALIST") {
     notifications = await getSpecialistNotifications(user!.id, user!.locationId);
-  } else if (user!.role === "ADMIN" || user!.role === "RECEPTION") {
+  } else if (user!.role === "ADMIN" || user!.role === "MANAGER" || user!.role === "RECEPTION") {
     notifications = await getAdminNotifications(user!.role === "ADMIN");
   } else {
     return NextResponse.json({ ok: true, notifications: [], unreadCount: 0 });

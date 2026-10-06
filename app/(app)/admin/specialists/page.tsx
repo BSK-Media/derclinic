@@ -1,5 +1,6 @@
 "use client";
 
+import { isAdminLike } from "@/lib/roles";
 import * as React from "react";
 import { useAuth } from "@/components/auth-provider";
 import Link from "next/link";
@@ -87,7 +88,7 @@ export default function SpecialistsPage() {
   const specialists: Specialist[] = data?.specialists ?? [];
 
   const { user } = useAuth();
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = isAdminLike(user?.role);
   const [activeTab, setActiveTab] = React.useState<"list" | "settlements">("list");
   React.useEffect(() => {
     if (!isAdmin && activeTab === "settlements") setActiveTab("list");

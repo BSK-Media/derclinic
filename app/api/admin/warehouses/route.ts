@@ -7,7 +7,7 @@ import { logAudit } from "@/lib/audit";
 export async function GET() {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const warehouses = await prisma.warehouse.findMany({
@@ -27,7 +27,7 @@ const CreateSchema = z.object({
 export async function POST(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);

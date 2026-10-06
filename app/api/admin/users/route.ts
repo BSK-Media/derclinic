@@ -12,20 +12,26 @@ import { STAFF_BCRYPT_COST } from "@/lib/staff-credentials";
 import { generatePasswordResetToken } from "@/lib/patient-auth";
 import { appBaseUrl, sendTrackedEmail } from "@/lib/email-notifications";
 import { staffAccountCreatedEmail } from "@/lib/email-templates";
+import { STAFF_ROLE_LABELS, manageableRoles } from "@/lib/roles";
 
 // Link z wiadomości powitalnej żyje dłużej niż zwykły reset hasła (1 godz.) —
 // nowy pracownik rzadko otwiera pocztę od razu.
 const WELCOME_LINK_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
-const ROLE_LABELS = { ADMIN: "Administrator", RECEPTION: "Recepcja", SPECIALIST: "Specjalista" } as const;
+const ROLE_LABELS = STAFF_ROLE_LABELS;
 
 export async function GET() {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
+  // Manager widzi tylko konta niższych ról ze swojej lokalizacji.
   const users = await prisma.user.findMany({
+    where:
+      user!.role === "ADMIN"
+        ? {}
+        : { role: { in: manageableRoles(user!.role) as ("RECEPTION" | "SPECIALIST")[] }, locationId: user!.locationId },
     orderBy: [{ role: "asc" }, { name: "asc" }],
     select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true, location: true, locationId: true, assignedLocation: { select: { id: true, name: true } }, specialization: true, createdAt: true, mfaEnabledAt: true },
   });
@@ -38,12 +44,13 @@ export async function GET() {
 const CreateSchema = z.object({
   login: z.string().min(2),
   name: z.string().min(2),
-  role: z.enum(["ADMIN", "RECEPTION", "SPECIALIST"]),
+  role: z.enum(["ADMIN", "MANAGER", "RECEPTION", "SPECIALIST"]),
   email: z.string().email().optional().or(z.literal("")),
   // Puste = bez hasła startowego: pracownik ustawia hasło linkiem z e-maila.
   password: z.string().max(500).optional().or(z.literal("")),
   payoutPercent: z.number().int().min(0).max(100).optional(),
-  locationId: z.string().min(1),
+  // Administrator nie ma przypisanej lokalizacji — dla niego pole jest pomijane.
+  locationId: z.string().min(1).optional(),
   specialization: z.string().optional().or(z.literal("")),
   avatarUrl: z
     .string()
@@ -55,7 +62,7 @@ const CreateSchema = z.object({
 export async function POST(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   // Zakładanie kont personelu = operacja wysokiego ryzyka: ponowne MFA.
@@ -68,8 +75,25 @@ export async function POST(req: Request) {
 
   const { login, name, role, email, password, payoutPercent, locationId, specialization, avatarUrl } = parsed.data;
 
+  // Manager zakłada wyłącznie konta niższych ról (recepcja, specjalista) i tylko
+  // w swojej lokalizacji; konta managera i administratora tworzy administrator.
+  if (!manageableRoles(user!.role).includes(role)) {
+    return NextResponse.json(
+      { ok: false, message: "Nie masz uprawnień do zakładania kont z tą rolą." },
+      { status: 403 },
+    );
+  }
+
+  // Administrator nie ma lokalizacji (widzi wszystkie) — w bazie dostaje
+  // pierwszą aktywną, żeby spełnić wymóg kolumny; nie ogranicza to jego dostępu.
+  const requestedLocationId =
+    user!.role === "MANAGER" ? user!.locationId : role === "ADMIN" ? undefined : locationId;
+  if (role !== "ADMIN" && !requestedLocationId) {
+    return NextResponse.json({ ok: false, message: "Wybierz prawidłową lokalizację" }, { status: 400 });
+  }
   const assignedLocation = await prisma.location.findFirst({
-    where: { id: locationId, isActive: true },
+    where: requestedLocationId ? { id: requestedLocationId, isActive: true } : { isActive: true },
+    orderBy: { createdAt: "asc" },
     select: { id: true, name: true },
   });
   if (!assignedLocation) {

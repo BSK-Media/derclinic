@@ -3,6 +3,7 @@ import { PATIENT_PUBLIC_SELECT } from "@/lib/patient-select";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, requireStrictRole } from "@/lib/api-helpers";
+import { isAdminLike } from "@/lib/roles";
 
 const CreateAppointmentSchema = z
   .object({
@@ -45,7 +46,7 @@ export async function GET(req: Request) {
   if (error) return error;
 
   // Admin może podejrzeć panel konkretnego specjalisty.
-  const deny = await requireRole(user!.role, ["SPECIALIST", "RECEPTION", "ADMIN"]);
+  const deny = await requireRole(user!.role, ["SPECIALIST", "RECEPTION", "ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const url = new URL(req.url);
@@ -55,7 +56,7 @@ export async function GET(req: Request) {
 
   const fromDt = parseRangeDate(from, new Date(Date.now() - 1000 * 60 * 60 * 24 * 7));
   const toDt = parseRangeDate(to, new Date(Date.now() + 1000 * 60 * 60 * 24 * 14), true);
-  const specialistId = user!.role === "ADMIN" && specialistIdParam ? specialistIdParam : user!.id;
+  const specialistId = isAdminLike(user!.role) && specialistIdParam ? specialistIdParam : user!.id;
 
   const [appointments, services] = await Promise.all([
     prisma.appointment.findMany({

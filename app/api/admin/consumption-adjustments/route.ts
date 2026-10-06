@@ -6,7 +6,7 @@ import { requireAuth, requireRole } from "@/lib/api-helpers";
 export async function GET() {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const pending = await prisma.consumption.findMany({

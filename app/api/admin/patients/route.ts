@@ -4,11 +4,12 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { isAdminLike } from "@/lib/roles";
 
 export async function GET(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION"]);
   if (deny) return deny;
 
   const url = new URL(req.url);
@@ -55,7 +56,7 @@ export async function GET(req: Request) {
   });
 
   const retailSales =
-    user!.role === "ADMIN"
+    isAdminLike(user!.role)
       ? await prisma.retailSale.findMany({
           where: {
             patientId: { in: patients.map((patient) => patient.id) },
@@ -86,13 +87,13 @@ export async function GET(req: Request) {
     if (!totals.lastVisitAt) totals.lastVisitAt = appointment.startsAt;
     if (appointment.status === "COMPLETED" && appointment.approvalStatus === "APPROVED") {
       totals.completedVisits += 1;
-      if (user!.role === "ADMIN") {
+      if (isAdminLike(user!.role)) {
         totals.totalSpent += appointment.priceFinal ?? appointment.priceEstimate ?? 0;
       }
     }
     totalsByPatient.set(appointment.patientId, totals);
   }
-  if (user!.role === "ADMIN") {
+  if (isAdminLike(user!.role)) {
     for (const [patientId, purchasesTotal] of purchasesByPatient) {
       const totals = totalsByPatient.get(patientId) ?? {
         totalSpent: 0,
@@ -106,7 +107,7 @@ export async function GET(req: Request) {
 
   const patientsWithStats = patients.map((patient) => ({
     ...patient,
-    ...(user!.role === "ADMIN"
+    ...(isAdminLike(user!.role)
       ? { totalSpent: totalsByPatient.get(patient.id)?.totalSpent ?? 0 }
       : {}),
     completedVisits: totalsByPatient.get(patient.id)?.completedVisits ?? 0,
@@ -126,7 +127,7 @@ const CreateSchema = z.object({
 export async function POST(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);

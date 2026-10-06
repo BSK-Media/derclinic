@@ -1,5 +1,6 @@
 "use client";
 
+import { isAdminLike } from "@/lib/roles";
 import * as React from "react";
 import Link from "next/link";
 import useSWR from "swr";
@@ -188,7 +189,7 @@ function StatCard({
 export default function AdminDashboard() {
   const [period, setPeriod] = React.useState<Period>("30d");
   const { user } = useAuth();
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = isAdminLike(user?.role);
 
   const { data: dash } = useSWR(`/api/dashboard?period=${period}`, fetcher, {
     keepPreviousData: true,

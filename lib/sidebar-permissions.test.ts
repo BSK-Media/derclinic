@@ -63,3 +63,19 @@ describe("uprawnienia push i email (powiadomienia, poczta) — tylko administrat
     expect(sidebarPermissionForPath("/admin/settings")).toBe("settings");
   });
 });
+
+describe("rola MANAGER — wszystko oprócz logów", () => {
+  it("ma wszystkie sekcje poza logs, niezależnie od zapisanych uprawnień", () => {
+    const perms = normalizeSidebarPermissions("MANAGER", ["patients"]);
+    expect(perms).not.toContain("logs");
+    for (const key of ["dashboard", "analytics", "pos", "locations", "settings", "push", "email", "loyalty"] as const) {
+      expect(perms).toContain(key);
+    }
+    expect(hasSidebarPermission("MANAGER", null, "logs")).toBe(false);
+    expect(hasSidebarPermission("MANAGER", null, "analytics")).toBe(true);
+  });
+
+  it("pierwsza dostępna strona to panel administracyjny", () => {
+    expect(firstAllowedSidebarHref("MANAGER", null)).toBe("/admin");
+  });
+});

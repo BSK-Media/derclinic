@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
+import { isAdminLike } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,7 @@ const isBillable = (a: { status: string; approvalStatus: string }) =>
 export async function GET(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION"]);
   if (deny) return deny;
 
   const url = new URL(req.url);
@@ -319,7 +320,7 @@ export async function GET(req: Request) {
     percent: row.coveragePercent,
   }));
 
-  const isAdminUser = user!.role === "ADMIN";
+  const isAdminUser = isAdminLike(user!.role);
 
   return NextResponse.json({
     ok: true,

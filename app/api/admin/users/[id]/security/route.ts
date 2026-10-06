@@ -5,6 +5,7 @@ import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { requireStepUp, resetUserMfa } from "@/lib/mfa";
 import { revokeAllStaffSessions } from "@/lib/session-core";
+import { canManageAccount } from "@/lib/roles";
 
 const BodySchema = z.object({ action: z.enum(["reset_mfa", "revoke_sessions"]) });
 
@@ -17,7 +18,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
   const stepUp = requireStepUp(user!);
   if (stepUp) return stepUp;
@@ -27,9 +28,17 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
 
   const target = await prisma.user.findUnique({
     where: { id: params.id },
-    select: { id: true, login: true, name: true },
+    select: { id: true, login: true, name: true, role: true, locationId: true },
   });
   if (!target) return NextResponse.json({ ok: false, message: "Nie znaleziono pracownika" }, { status: 404 });
+
+  // Manager może tylko wylogować konto niższej roli ze swojej lokalizacji;
+  // reset MFA zostaje po stronie administratora.
+  if (user!.role !== "ADMIN") {
+    if (parsed.data.action === "reset_mfa" || !canManageAccount(user!, target)) {
+      return NextResponse.json({ ok: false, message: "Brak uprawnień do tej operacji." }, { status: 403 });
+    }
+  }
 
   if (parsed.data.action === "reset_mfa") {
     if (target.id === user!.id) {

@@ -104,7 +104,7 @@ function suggestKeepId(group: PatientRow[]) {
 export async function GET() {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const patients = await prisma.patient.findMany({
@@ -154,7 +154,7 @@ const MergeSchema = z.object({
 export async function POST(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
   // Masowa zmiana danych = operacja wysokiego ryzyka: ponowne potwierdzenie MFA.
   const stepUp = requireStepUp(user!);

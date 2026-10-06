@@ -8,10 +8,11 @@ import { validatePassword } from "@/lib/password-policy";
 import { STAFF_BCRYPT_COST } from "@/lib/staff-credentials";
 import { requireStepUp } from "@/lib/mfa";
 import { revokeAllStaffSessions } from "@/lib/session-core";
+import { canManageAccount } from "@/lib/roles";
 
 const PatchSchema = z.object({
   name: z.string().min(2).optional(),
-  role: z.enum(["ADMIN", "RECEPTION", "SPECIALIST"]).optional(),
+  role: z.enum(["ADMIN", "MANAGER", "RECEPTION", "SPECIALIST"]).optional(),
   email: z.string().email().optional().or(z.literal("")).optional(),
   payoutPercent: z.number().int().min(0).max(100).optional(),
   phone: z.string().optional().or(z.literal("")).optional(),
@@ -35,7 +36,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);
@@ -69,6 +70,23 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
   });
 
   if (!before) return NextResponse.json({ ok: false, message: "Nie znaleziono pracownika" }, { status: 404 });
+
+  // Manager zarządza tylko kontami niższych ról ze swojej lokalizacji, nie
+  // zmienia ról ani lokalizacji — to zostaje po stronie administratora.
+  if (user!.role !== "ADMIN") {
+    if (!canManageAccount(user!, before)) {
+      return NextResponse.json({ ok: false, message: "Brak uprawnień do tego konta." }, { status: 403 });
+    }
+    if (
+      parsed.data.role !== undefined ||
+      (parsed.data.locationId !== undefined && parsed.data.locationId !== before.locationId)
+    ) {
+      return NextResponse.json(
+        { ok: false, message: "Rolę i lokalizację konta zmienia administrator." },
+        { status: 403 },
+      );
+    }
+  }
 
   // Administrator nie może sam sobie odebrać uprawnień — dzięki temu w systemie
   // zawsze zostaje co najmniej jeden administrator (ten, który wykonuje zmianę).

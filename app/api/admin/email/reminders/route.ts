@@ -11,7 +11,7 @@ export const maxDuration = 60;
 export async function POST(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const summary = await sendDueReminders({ baseUrl: appBaseUrl(req), budgetMs: 50_000 });

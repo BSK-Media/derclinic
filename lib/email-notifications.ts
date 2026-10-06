@@ -209,7 +209,7 @@ export async function notifyAppointmentBooked(
         where: {
           OR: [
             { role: "ADMIN" },
-            { role: "RECEPTION", locationId: appointment.locationId },
+            { role: { in: ["MANAGER", "RECEPTION"] }, locationId: appointment.locationId },
             ...(settings.notifySpecialist ? [{ id: appointment.specialistId }] : []),
           ],
         },
@@ -316,7 +316,7 @@ export async function notifyDataChangeRequest(requestId: string, options: { base
     });
     if (!request) return;
     const staff = await prisma.user.findMany({
-      where: { role: { in: ["ADMIN", "RECEPTION"] } },
+      where: { role: { in: ["ADMIN", "MANAGER", "RECEPTION"] } },
       select: { id: true },
     });
     await sendPushToStaff(
@@ -370,7 +370,10 @@ export async function notifyImageConsentRevocationRequest(requestId: string, opt
     if (!request) return;
     const staff = await prisma.user.findMany({
       where: {
-        OR: [{ role: "ADMIN" }, { role: "RECEPTION", locationId: request.appointment.locationId ?? undefined }],
+        OR: [
+          { role: "ADMIN" },
+          { role: { in: ["MANAGER", "RECEPTION"] }, locationId: request.appointment.locationId ?? undefined },
+        ],
       },
       select: { id: true, role: true, email: true },
     });

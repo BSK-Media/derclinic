@@ -6,7 +6,7 @@ import { useAuth } from "@/components/auth-provider";
 import { LocationSelect } from "@/components/location-select";
 import { validatePassword } from "@/lib/password-policy";
 
-type RoleT = "ADMIN" | "RECEPTION" | "SPECIALIST";
+type RoleT = "ADMIN" | "MANAGER" | "RECEPTION" | "SPECIALIST";
 
 type EmployeeRow = {
   id: string;
@@ -258,8 +258,10 @@ function AdminEmployeeEditor({ myId }: { myId: string }) {
     }
     setSaving(true);
     try {
-      if (!locationId) return toast.error("Wybierz lokalizację pracownika.");
-      const body: Record<string, unknown> = { name, locationId, specialization };
+      // Administrator nie ma przypisanej lokalizacji — jej nie zmieniamy.
+      const editsAdmin = employees.find((e) => e.id === selectedId)?.role === "ADMIN";
+      if (!editsAdmin && !locationId) return toast.error("Wybierz lokalizację pracownika.");
+      const body: Record<string, unknown> = { name, specialization, ...(editsAdmin ? {} : { locationId }) };
       if (avatarChanged) body.avatarUrl = avatar ?? "";
       const res = await fetch(`/api/admin/users/${selectedId}`, {
         method: "PATCH",
@@ -395,10 +397,12 @@ function AdminEmployeeEditor({ myId }: { myId: string }) {
                 </div>
               </div>
 
-              <div>
-                <label className={fieldLabelCls}>Lokalizacja</label>
-                <LocationSelect value={locationId} onChange={setLocationId} className={inputCls} />
-              </div>
+              {employees.find((e) => e.id === selectedId)?.role !== "ADMIN" ? (
+                <div>
+                  <label className={fieldLabelCls}>Lokalizacja</label>
+                  <LocationSelect value={locationId} onChange={setLocationId} className={inputCls} />
+                </div>
+              ) : null}
 
               <div>
                 <label className={fieldLabelCls}>Specjalizacja</label>
@@ -462,7 +466,8 @@ function CreateEmployeeForm({ onCreated }: { onCreated: (emp: EmployeeRow) => vo
           name,
           role,
           password,
-          locationId,
+          // Administrator nie ma przypisanej lokalizacji (widzi wszystkie).
+          locationId: role === "ADMIN" ? undefined : locationId,
           specialization,
           avatarUrl: avatar ?? "",
         }),
@@ -543,14 +548,17 @@ function CreateEmployeeForm({ onCreated }: { onCreated: (emp: EmployeeRow) => vo
         <select value={role} onChange={(e) => setRole(e.target.value as RoleT)} className={inputCls}>
           <option value="SPECIALIST">Specjalista</option>
           <option value="RECEPTION">Recepcja</option>
+          <option value="MANAGER">Manager</option>
           <option value="ADMIN">Administrator</option>
         </select>
       </div>
 
-      <div>
-        <label className={fieldLabelCls}>Lokalizacja</label>
-        <LocationSelect value={locationId} onChange={setLocationId} className={inputCls} />
-      </div>
+      {role !== "ADMIN" ? (
+        <div>
+          <label className={fieldLabelCls}>Lokalizacja</label>
+          <LocationSelect value={locationId} onChange={setLocationId} className={inputCls} />
+        </div>
+      ) : null}
 
       <div>
         <label className={fieldLabelCls}>Specjalizacja</label>

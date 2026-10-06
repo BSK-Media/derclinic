@@ -13,7 +13,7 @@ const TOGGLEABLE_TYPES = EMAIL_TYPE_INFO.filter((info) => info.toggleable).map((
 export async function GET() {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -57,7 +57,7 @@ const SettingsSchema = z.object({
 export async function PUT(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const parsed = SettingsSchema.safeParse(await req.json().catch(() => null));

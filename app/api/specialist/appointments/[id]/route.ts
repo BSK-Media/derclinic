@@ -1,3 +1,4 @@
+import { canAccessSpecialistAppointment, isAdminLike } from "@/lib/roles";
 import { NextResponse, after } from "next/server";
 import {
   appBaseUrl,
@@ -19,7 +20,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["SPECIALIST", "RECEPTION", "ADMIN"]);
+  const deny = await requireRole(user!.role, ["SPECIALIST", "RECEPTION", "ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const appt = await prisma.appointment.findFirst({
@@ -35,7 +36,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     return NextResponse.json({ ok: false, message: "Nie znaleziono" }, { status: 404 });
   }
 
-  if (user!.role !== "ADMIN" && appt.specialistId !== user!.id) {
+  if (!canAccessSpecialistAppointment(user!, { ...appt, locationId: user!.locationId })) {
     return NextResponse.json({ ok: false, message: "Brak uprawnień" }, { status: 403 });
   }
 
@@ -55,7 +56,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = requireStrictRole(user!.role, ["SPECIALIST", "ADMIN"]);
+  const deny = requireStrictRole(user!.role, ["SPECIALIST", "ADMIN", "MANAGER"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);
@@ -82,7 +83,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
   });
   if (!existing || existing.deletedAt)
     return NextResponse.json({ ok: false, message: "Nie znaleziono" }, { status: 404 });
-  if (user!.role !== "ADMIN" && existing.specialistId !== user!.id) {
+  if (!canAccessSpecialistAppointment(user!, { ...existing, locationId: user!.locationId })) {
     return NextResponse.json({ ok: false, message: "Brak uprawnień" }, { status: 403 });
   }
 

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { formatPLNFromGrosze } from "@/lib/money";
+import { isAdminLike } from "@/lib/roles";
 
 function bad(message: string, status = 400) {
   return NextResponse.json({ ok: false, message }, { status });
@@ -12,7 +13,7 @@ function bad(message: string, status = 400) {
 export async function GET() {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION"]);
   if (deny) return deny;
 
   const warehouseRelationWhere = user!.locationScopeId
@@ -57,7 +58,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION"]);
   if (deny) return deny;
 
   const body = await req.json().catch(() => null);
@@ -127,7 +128,7 @@ export async function POST(req: Request) {
       where: { id: discount.approvedById },
       select: { id: true, role: true },
     });
-    if (!approver || approver.role !== "ADMIN") {
+    if (!approver || !isAdminLike(approver.role)) {
       return bad("Zniżka nie została poprawnie zatwierdzona przez administratora", 403);
     }
     if (discount.type === "PERCENT") {

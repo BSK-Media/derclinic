@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { RATE_LIMITS, failureDelay, hitRateLimit, peekRateLimit, resetRateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { isAdminLike } from "@/lib/roles";
 
 function bad(message: string, status = 400) {
   return NextResponse.json({ ok: false, message }, { status });
@@ -20,7 +21,7 @@ const BodySchema = z.object({
 export async function POST(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
-  const deny = await requireRole(user!.role, ["ADMIN", "RECEPTION"]);
+  const deny = await requireRole(user!.role, ["ADMIN", "MANAGER", "RECEPTION"]);
   if (deny) return deny;
 
   const json = await req.json().catch(() => null);
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
   if (!limit.allowed) return tooManyRequests(limit, "Zbyt wiele błędnych prób. Spróbuj ponownie później.");
 
   const admin = await prisma.user.findUnique({ where: { login } });
-  if (!admin?.passwordHash || admin.role !== "ADMIN") {
+  if (!admin?.passwordHash || !isAdminLike(admin.role)) {
     await logAudit({
       actorId: user!.id,
       action: "LOGIN_FAILED",

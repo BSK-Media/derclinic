@@ -1,5 +1,6 @@
 "use client";
 
+import { isAdminLike } from "@/lib/roles";
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -10,12 +11,13 @@ type UserOption = {
   id: string;
   name: string;
   login: string;
-  role: "ADMIN" | "RECEPTION" | "SPECIALIST";
+  role: "ADMIN" | "MANAGER" | "RECEPTION" | "SPECIALIST";
   avatarUrl: string | null;
 };
 
 const ROLE_LABELS: Record<UserOption["role"], string> = {
   ADMIN: "Administrator",
+  MANAGER: "Manager",
   RECEPTION: "Recepcja",
   SPECIALIST: "Pracownik",
 };
@@ -202,12 +204,14 @@ export default function SettingsPage() {
         </section>
       ) : null}
 
-      {user?.role === "ADMIN" ? (
+      {isAdminLike(user?.role) ? (
         <section className="flex flex-col gap-4 rounded-3xl border border-white/60 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Konta pracowników</h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Zakładanie kont nowym pracownikom, nadawanie i odbieranie uprawnień administratora, reset 2FA.
+              {user?.role === "ADMIN"
+                ? "Zakładanie kont nowym pracownikom, nadawanie i odbieranie uprawnień, reset 2FA."
+                : "Zakładanie kont recepcji i specjalistów w Twojej lokalizacji oraz reset ich haseł."}
             </p>
           </div>
           <Link

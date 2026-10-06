@@ -1,5 +1,6 @@
 "use client";
 
+import { isAdminLike } from "@/lib/roles";
 import * as React from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth-provider";
@@ -129,7 +130,7 @@ export default function EmailSettingsPage() {
   }, []);
 
   React.useEffect(() => {
-    if (user?.role !== "ADMIN") return;
+    if (!isAdminLike(user?.role)) return;
     let active = true;
     (async () => {
       await load();
@@ -235,7 +236,7 @@ export default function EmailSettingsPage() {
     }
   }
 
-  if (user && user.role !== "ADMIN") {
+  if (user && !isAdminLike(user.role)) {
     return (
       <div className="mx-auto w-full max-w-4xl">
         <div className={SECTION}>Ta sekcja jest dostępna wyłącznie dla administratora.</div>
