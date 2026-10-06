@@ -65,7 +65,7 @@ const METHOD_LABELS: Record<string, string> = {
   VOUCHER: "Voucher",
 };
 
-const PIE_COLORS = ["#10b981", "#6366f1", "#f59e0b", "#ef4444", "#0ea5e9"];
+const PIE_COLORS = ["#7C3AED", "#6366f1", "#f59e0b", "#ef4444", "#0ea5e9"];
 const DOW_LABELS = ["Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd"];
 const HEATMAP_HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 7:00–20:00
 
@@ -191,7 +191,7 @@ export function AnalyticsDashboard({
   }));
   const statusData = data
     ? [
-        { name: "Zakończone", value: data.statusCounts.COMPLETED, color: "#10b981" },
+        { name: "Zakończone", value: data.statusCounts.COMPLETED, color: "#22c55e" },
         { name: "Zaplanowane", value: data.statusCounts.SCHEDULED, color: "#6366f1" },
         { name: "Odwołane", value: data.statusCounts.CANCELED, color: "#f59e0b" },
         { name: "No-show", value: data.statusCounts.NO_SHOW, color: "#ef4444" },
@@ -444,7 +444,7 @@ export function AnalyticsDashboard({
                           type="monotone"
                           dataKey="revenuePLN"
                           name="Przychód"
-                          stroke="#10b981"
+                          stroke="#7C3AED"
                           strokeWidth={2}
                           dot={false}
                         />
@@ -542,7 +542,7 @@ export function AnalyticsDashboard({
                                     key={h}
                                     title={`${d} ${h}:00 — ${v} wizyt`}
                                     className="aspect-square rounded-sm border border-zinc-100 dark:border-zinc-800"
-                                    style={{ backgroundColor: `rgba(16,185,129,${alpha})` }}
+                                    style={{ backgroundColor: `rgba(124, 58, 237,${alpha})` }}
                                   />
                                 );
                               })}
@@ -805,7 +805,7 @@ export function AnalyticsDashboard({
                     type="monotone"
                     dataKey="revenuePLN"
                     name="Przychód"
-                    stroke="#10b981"
+                    stroke="#7C3AED"
                     strokeWidth={2}
                     dot={false}
                   />
@@ -904,7 +904,7 @@ export function AnalyticsDashboard({
                               key={h}
                               title={`${d} ${h}:00 — ${v} wizyt`}
                               className="aspect-square rounded-sm border border-zinc-100 dark:border-zinc-800"
-                              style={{ backgroundColor: `rgba(16,185,129,${alpha})` }}
+                              style={{ backgroundColor: `rgba(124, 58, 237,${alpha})` }}
                             />
                           );
                         })}

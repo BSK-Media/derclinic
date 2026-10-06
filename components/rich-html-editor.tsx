@@ -16,7 +16,7 @@ const FRAME_CSS = `
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
          font-size: 15px; line-height: 1.6; color: #3f3f46; margin: 0; padding: 16px; min-height: 240px; }
   img { max-width: 100%; height: auto; }
-  a { color: #059669; }
+  a { color: #7C3AED; }
   blockquote { border-left: 3px solid #d4d4d8; margin: 12px 0; padding: 2px 14px; color: #52525b; }
   h1, h2, h3 { color: #18181b; line-height: 1.3; }
   table { border-collapse: collapse; } td, th { border: 1px solid #e4e4e7; padding: 6px 10px; }
@@ -347,7 +347,7 @@ export function RichHtmlEditor({
               Kolor
               <input
                 type="color"
-                defaultValue="#059669"
+                defaultValue="#7C3AED"
                 onChange={(e) => run((doc) => exec(doc, "foreColor", e.target.value))}
                 className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0"
                 aria-label="Kolor tekstu"

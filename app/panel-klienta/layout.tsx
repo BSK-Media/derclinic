@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#059669",
+  themeColor: "#7C3AED",
   viewportFit: "cover",
   // Panel klienta ma tylko jasny wygląd — patrz data-light-only w globals.css.
   colorScheme: "only light",

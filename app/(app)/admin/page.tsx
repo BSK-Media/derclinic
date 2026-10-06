@@ -25,7 +25,7 @@ import { formatPLNFromGrosze } from "@/lib/money";
 import { useAuth } from "@/components/auth-provider";
 
 const DONUT_COLORS = [
-  "#10b981",
+  "#7C3AED",
   "#3b82f6",
   "#8b5cf6",
   "#f59e0b",
@@ -209,7 +209,7 @@ export default function AdminDashboard() {
 
   const chartColors = {
     bar: isDark ? "#e2e8f0" : "#0f172a", // jasne słupki w dark, ciemne w light
-    line: isDark ? "#34d399" : "#059669",
+    line: isDark ? "#A78BFA" : "#7C3AED",
     grid: isDark ? "rgba(255,255,255,0.12)" : "rgba(15,23,42,0.12)",
     tick: isDark ? "#94a3b8" : "#64748b",
     cursor: isDark ? "rgba(255,255,255,0.08)" : "rgba(15,23,42,0.06)",

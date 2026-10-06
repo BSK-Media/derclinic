@@ -63,7 +63,7 @@ function formatDate(iso: string | null) {
 function previewDoc(html: string) {
   return `<!doctype html><html><body style="margin:0;background:#f4f4f5;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;">
 <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:16px;overflow:hidden;">
-<div style="background:#059669;padding:18px 28px;color:#fff;font-size:18px;font-weight:700;">DerClinic</div>
+<div style="background:#7C3AED;padding:18px 28px;color:#fff;font-size:18px;font-weight:700;">DerClinic</div>
 <div style="padding:28px;color:#3f3f46;font-size:15px;line-height:1.6;">${html}</div>
 <div style="padding:16px 28px;background:#fafafa;color:#a1a1aa;font-size:12px;">Otrzymujesz tę wiadomość, bo wyraziłaś/eś zgodę na informacje marketingowe od DerClinic. Wypisz się z newslettera · Ustawienia zgód w panelu klienta</div>
 </div></body></html>`;

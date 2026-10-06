@@ -110,7 +110,7 @@ function sameDay(a: Date, b: Date) {
 const STATUS_DOT: Record<string, string> = {
   SCHEDULED: "bg-indigo-500",
   AWAITING: "bg-orange-500",
-  COMPLETED: "bg-emerald-500",
+  COMPLETED: "bg-green-500",
   CANCELED: "bg-red-400",
   NO_SHOW: "bg-amber-500",
 };
@@ -121,7 +121,7 @@ const STATUS_BLOCK: Record<string, string> = {
   AWAITING:
     "border-orange-300 bg-orange-50 text-orange-900 dark:border-orange-500/40 dark:bg-orange-500/15 dark:text-orange-100",
   COMPLETED:
-    "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-100",
+    "border-green-300 bg-green-50 text-green-900 dark:border-green-500/40 dark:bg-green-500/15 dark:text-green-100",
   CANCELED:
     "border-red-300 bg-red-50 text-red-900 dark:border-red-500/40 dark:bg-red-500/15 dark:text-red-100",
   NO_SHOW:

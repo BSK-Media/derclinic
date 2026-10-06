@@ -175,8 +175,8 @@ function PatientLoginForm() {
           color: #18181b;
         }
         .input:focus {
-          border-color: #10b981;
-          box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
+          border-color: #7C3AED;
+          box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
         }
         .phone-input-group {
           display: flex;
@@ -184,8 +184,8 @@ function PatientLoginForm() {
           gap: 0.5rem;
         }
         .phone-input-group:focus-within {
-          border-color: #10b981;
-          box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
+          border-color: #7C3AED;
+          box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
         }
       `}</style>
     </div>

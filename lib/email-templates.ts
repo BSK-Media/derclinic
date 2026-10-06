@@ -13,7 +13,7 @@ export type AppointmentEmailData = {
 };
 
 const BRAND = "DerClinic";
-const ACCENT = "#059669";
+const ACCENT = "#7C3AED";
 
 export function escapeHtml(value: string) {
   return value
