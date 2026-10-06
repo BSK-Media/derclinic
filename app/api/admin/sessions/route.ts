@@ -63,7 +63,12 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
-    staff: staff.map((session) => ({ ...session, current: session.id === user!.sessionId })),
+    staff: staff.map((session) => ({
+      ...session,
+      // Osoba wybrana PIN-em dotyczy tylko kont recepcji.
+      operator: session.user.role === "RECEPTION" ? session.operator : null,
+      current: session.id === user!.sessionId,
+    })),
     patients,
     patientTotal,
     policy: {

@@ -103,8 +103,12 @@ export async function validateStaffToken(token: string | undefined | null) {
       .catch(() => {});
   }
   // Konto wspólne: sesja jest pełna dopiero po podaniu PIN-u osoby przy komputerze.
-  const operatorPending = !session.operatorId && session.user.operators.length > 0;
-  return { ...session, operatorPending };
+  // PIN-y dotyczą wyłącznie kont recepcji: po zmianie roli (np. z powrotem na
+  // administratora) osoby zostają w bazie, ale konto przestaje ich wymagać
+  // i nie pokazuje ich w panelu.
+  const usesOperators = session.user.role === "RECEPTION";
+  const operatorPending = usesOperators && !session.operatorId && session.user.operators.length > 0;
+  return { ...session, operator: usesOperators ? session.operator : null, operatorPending };
 }
 
 /**
@@ -118,9 +122,10 @@ export async function sessionOperatorName(token: string | undefined | null, user
   if (!parsed || parsed.subject !== userId) return null;
   const session = await prisma.staffSession.findUnique({
     where: { id: hashSessionId(parsed.sid) },
-    select: { userId: true, operator: { select: { name: true } } },
+    select: { userId: true, operator: { select: { name: true } }, user: { select: { role: true } } },
   });
-  return session && session.userId === userId ? (session.operator?.name ?? null) : null;
+  if (!session || session.userId !== userId || session.user.role !== "RECEPTION") return null;
+  return session.operator?.name ?? null;
 }
 
 export async function validatePatientToken(token: string | undefined | null) {
