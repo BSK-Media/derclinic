@@ -52,6 +52,7 @@ export const AUDIT_ENTITY_LABELS: Record<string, string> = {
   ImageConsentRevocationRequest: "Prośba o cofnięcie zgody na wizerunek",
   PatientPhoneFix: "Naprawa numerów telefonów",
   LoyaltyBackfill: "Synchronizacja punktów",
+  LoyaltyPoints: "Punkty lojalnościowe",
   User: "Konto pracownika",
   UserAvatar: "Zdjęcie profilowe",
   Specialist: "Specjalista",

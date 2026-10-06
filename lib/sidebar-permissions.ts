@@ -174,6 +174,9 @@ export function sidebarPermissionForPath(pathname: string): SidebarPermission | 
   ) {
     return "analytics";
   }
+  if (path.startsWith("/admin/loyalty") || path.startsWith("/api/admin/loyalty")) {
+    return "loyalty";
+  }
   if (path.startsWith("/admin/logs") || path.startsWith("/api/admin/logs")) {
     return "logs";
   }

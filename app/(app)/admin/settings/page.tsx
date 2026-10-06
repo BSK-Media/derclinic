@@ -190,6 +190,23 @@ export default function SettingsPage() {
       {isAdminLike(user?.role) ? (
         <section className="flex flex-col gap-4 rounded-3xl border border-white/60 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 sm:flex-row sm:items-center sm:justify-between">
           <div>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Program lojalnościowy</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Zasady naliczania punktów i rabatu oraz synchronizacja punktów za historyczne wizyty.
+            </p>
+          </div>
+          <Link
+            href="/admin/settings/loyalty"
+            className="shrink-0 rounded-full bg-emerald-600 px-5 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+          >
+            Otwórz
+          </Link>
+        </section>
+      ) : null}
+
+      {isAdminLike(user?.role) ? (
+        <section className="flex flex-col gap-4 rounded-3xl border border-white/60 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 sm:flex-row sm:items-center sm:justify-between">
+          <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Poczta e-mail</h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Które wiadomości wysyła system, odbiorcy powiadomień dla personelu, wiadomość próbna i dziennik wysyłek.
