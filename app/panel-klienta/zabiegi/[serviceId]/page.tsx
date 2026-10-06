@@ -16,13 +16,19 @@ function formatDuration(min: number) {
   return rest ? `${h} godz. ${rest} min` : `${h} godz.`;
 }
 
+function formatVisitDate(date: Date) {
+  const day = date.toLocaleDateString("pl-PL", { timeZone: "Europe/Warsaw", day: "numeric", month: "numeric" });
+  const time = date.toLocaleTimeString("pl-PL", { timeZone: "Europe/Warsaw", hour: "2-digit", minute: "2-digit" });
+  return `wizyta ${day}, ${time}`;
+}
+
 export default async function PatientServicePage(props: { params: Promise<{ serviceId: string }> }) {
   const params = await props.params;
   const auth = await getPatientAuth();
   if (!auth) redirect(`/panel-klienta/logowanie`);
 
   const now = new Date();
-  const [patient, service, upcomingCount, hasUpcomingForService] = await Promise.all([
+  const [patient, service, upcomingCount, upcomingForService] = await Promise.all([
     prisma.patient.findUnique({ where: { id: auth.id }, select: { name: true } }),
     prisma.service.findUnique({
       where: { id: params.serviceId },
@@ -52,7 +58,8 @@ export default async function PatientServicePage(props: { params: Promise<{ serv
     prisma.appointment.count({
       where: { patientId: auth.id, deletedAt: null, status: { not: "CANCELED" }, startsAt: { gte: now } },
     }),
-    prisma.appointment.count({
+    // Nadchodzące wizyty klienta na ten zabieg — wskazują "mojego" specjalistę.
+    prisma.appointment.findMany({
       where: {
         patientId: auth.id,
         serviceId: params.serviceId,
@@ -60,13 +67,25 @@ export default async function PatientServicePage(props: { params: Promise<{ serv
         status: { not: "CANCELED" },
         startsAt: { gte: now },
       },
+      orderBy: { startsAt: "asc" },
+      select: { specialistId: true, startsAt: true },
     }),
   ]);
+  const hasUpcomingForService = upcomingForService.length;
 
   if (!patient) redirect("/panel-klienta/logowanie");
   if (!service) notFound();
 
-  const specialists = service.specialistAssignments.map((a) => a.specialist).filter((s) => s.isVisible);
+  // Najbliższa wizyta u każdego specjalisty, do którego klient jest zapisany.
+  const myVisitBySpecialist = new Map<string, Date>();
+  for (const visit of upcomingForService) {
+    if (!myVisitBySpecialist.has(visit.specialistId)) myVisitBySpecialist.set(visit.specialistId, visit.startsAt);
+  }
+  // Specjalista, do którego klient jest zapisany, wyświetlany jest na samej górze.
+  const specialists = service.specialistAssignments
+    .map((a) => a.specialist)
+    .filter((s) => s.isVisible)
+    .sort((a, b) => Number(myVisitBySpecialist.has(b.id)) - Number(myVisitBySpecialist.has(a.id)));
   const locationName = specialists[0]?.assignedLocation?.name ?? null;
 
   return (
@@ -153,13 +172,27 @@ export default async function PatientServicePage(props: { params: Promise<{ serv
           </div>
         ) : (
           <div className="divide-y divide-zinc-100">
-            {specialists.map((s) => (
-              <div key={s.id} className="flex items-center gap-4 py-3.5 first:pt-0 last:pb-0">
+            {specialists.map((s) => {
+              const myVisit = myVisitBySpecialist.get(s.id);
+              return (
+              <div
+                key={s.id}
+                className={
+                  myVisit
+                    ? "my-1 flex items-center gap-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3.5"
+                    : "flex items-center gap-4 py-3.5 first:pt-0 last:pb-0"
+                }
+              >
                 <Link href={`/panel-klienta/specjalisci/${s.id}`} className="flex min-w-0 flex-1 items-center gap-4">
                   <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full bg-zinc-100">
                     <SpecialistAvatar specialistId={s.id} name={s.name} iconClassName="h-5 w-5" />
                   </span>
                   <div className="min-w-0">
+                    {myVisit ? (
+                      <div className="mb-1 inline-flex items-center rounded-full bg-emerald-600 px-2.5 py-0.5 text-[11px] font-semibold text-white">
+                        Twój specjalista · {formatVisitDate(myVisit)}
+                      </div>
+                    ) : null}
                     <div className="font-medium text-zinc-900 hover:text-emerald-700">{s.name}</div>
                     <div className="truncate text-xs text-zinc-500">{s.jobTitle || s.specialization || ""}</div>
                   </div>
@@ -174,7 +207,8 @@ export default async function PatientServicePage(props: { params: Promise<{ serv
                   <ArrowRight className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                 </Link>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
