@@ -6,7 +6,7 @@ import { logAudit } from "@/lib/audit";
 import { appBaseUrl, getEmailSettings, sendTrackedEmail } from "@/lib/email-notifications";
 import { newsletterEmail } from "@/lib/email-templates";
 import { htmlToText, newsletterUnsubscribeToken } from "@/lib/newsletter";
-import { newsletterRecipientsWhere } from "@/lib/newsletter-recipients";
+import { audienceFromCampaign, newsletterRecipientsWhere } from "@/lib/newsletter-recipients";
 import { mailerConfig } from "@/lib/mailer";
 
 // Wysyłka idzie po kolei (limit żądań na sekundę u dostawcy poczty), a jedno
@@ -70,7 +70,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
 
   const prefix = `newsletter:${campaign.id}:`;
   const recipients = await prisma.patient.findMany({
-    where: newsletterRecipientsWhere(user!.locationScopeId),
+    where: newsletterRecipientsWhere(user!.locationScopeId, audienceFromCampaign(campaign)),
     orderBy: { createdAt: "asc" },
     select: { id: true, email: true },
   });

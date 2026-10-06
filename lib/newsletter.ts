@@ -1,12 +1,15 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { getKey } from "@/lib/auth-keys";
+import { AudienceSchema } from "@/lib/newsletter-recipients";
 
 /** Treść zapisywana z edytora (szkic kampanii). */
 export const CampaignInput = z.object({
   subject: z.string().trim().min(1, "Podaj temat wiadomości").max(150, "Temat jest za długi (maks. 150 znaków)"),
   preheader: z.string().trim().max(200, "Podgląd jest za długi (maks. 200 znaków)").optional().or(z.literal("")),
   html: z.string().max(1_000_000, "Treść jest za duża"),
+  // Do kogo wysłać (patrz lib/newsletter-recipients.ts). Pominięte = bez zmian.
+  audience: AudienceSchema.optional(),
 });
 
 // Newsletter: oczyszczanie treści HTML pisanej w edytorze, tekstowa wersja

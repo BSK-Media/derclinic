@@ -51,6 +51,13 @@ export async function POST(req: Request) {
       subject: parsed.data.subject,
       preheader: parsed.data.preheader || null,
       html: sanitizeNewsletterHtml(parsed.data.html),
+      ...(parsed.data.audience
+        ? {
+            audienceType: parsed.data.audience.type,
+            audienceListIds: parsed.data.audience.listIds,
+            audiencePatientIds: parsed.data.audience.patientIds,
+          }
+        : {}),
       createdById: user!.id,
     },
     select: { id: true },

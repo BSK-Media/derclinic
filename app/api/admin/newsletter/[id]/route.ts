@@ -42,6 +42,13 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
       subject: parsed.data.subject,
       preheader: parsed.data.preheader || null,
       html: sanitizeNewsletterHtml(parsed.data.html),
+      ...(parsed.data.audience
+        ? {
+            audienceType: parsed.data.audience.type,
+            audienceListIds: parsed.data.audience.listIds,
+            audiencePatientIds: parsed.data.audience.patientIds,
+          }
+        : {}),
     },
   });
   return NextResponse.json({ ok: true });

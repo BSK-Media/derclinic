@@ -150,6 +150,7 @@ model User {
   operators                        StaffOperator[]            @relation("StaffOperators")
   newsletterCampaigns              NewsletterCampaign[]
   newsletterImages                 NewsletterImage[]
+  newsletterLists                  NewsletterList[]
   assignedServices                 SpecialistService[]
   workDays                         SpecialistWorkDay[]
   customWorkDays                   SpecialistCustomWorkDay[]
@@ -215,6 +216,7 @@ model Patient {
   dataChangeRequests PatientDataChangeRequest[]
   imageConsentRevocationRequests ImageConsentRevocationRequest[]
   consents           PatientConsent[]
+  newsletterListMemberships NewsletterListMember[]
   consentEvents      PatientConsentEvent[]
   sessions           PatientSession[]
   pushSubscriptions  PushSubscription[]
@@ -931,10 +933,43 @@ model NewsletterCampaign {
   recipientCount Int @default(0)
   sentCount      Int @default(0)
 
+  // Do kogo idzie wysyłka: ALL — wszyscy ze zgodą marketingową; LISTS —
+  // członkowie wybranych list; PATIENTS — ręcznie wybrani klienci. W każdym
+  // przypadku dostają tylko klienci ze zgodą marketingową i adresem e-mail.
+  audienceType       String   @default("ALL")
+  audienceListIds    String[] @default([])
+  audiencePatientIds String[] @default([])
+
   createdById String?
   createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
+}
+
+// Własna lista odbiorców newslettera (np. "Klientki botoksu", "VIP"), do której
+// ręcznie dodajemy klientów.
+model NewsletterList {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  name String
+
+  members NewsletterListMember[]
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+}
+
+model NewsletterListMember {
+  listId    String
+  list      NewsletterList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  patientId String
+  patient   Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+
+  @@id([listId, patientId])
+  @@index([patientId])
 }
 
 // Zdjęcie wgrane w edytorze newslettera. Trzymamy je w bazie i serwujemy pod

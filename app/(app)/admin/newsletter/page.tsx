@@ -5,6 +5,8 @@ import useSWR from "swr";
 import { toast } from "sonner";
 import { RichHtmlEditor } from "@/components/rich-html-editor";
 import { prepareImageForUpload } from "@/lib/client-image";
+import { NewsletterClientPicker } from "@/components/newsletter-client-picker";
+import { NewsletterListDialog } from "@/components/newsletter-list-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -19,7 +21,16 @@ type CampaignRow = {
   sentCount: number;
 };
 
-type Campaign = CampaignRow & { preheader: string | null; html: string };
+type Campaign = CampaignRow & {
+  preheader: string | null;
+  html: string;
+  audienceType?: "ALL" | "LISTS" | "PATIENTS";
+  audienceListIds?: string[];
+  audiencePatientIds?: string[];
+};
+
+type AudienceType = "ALL" | "LISTS" | "PATIENTS";
+type ListRow = { id: string; name: string; members: number; subscribed: number };
 
 const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then((r) => r.json());
 
@@ -64,6 +75,18 @@ export default function NewsletterPage() {
   const recipients: number = data?.recipients ?? 0;
   const mailConfigured: boolean = data?.mailConfigured ?? true;
 
+  // Własne listy odbiorców oraz wybór odbiorców bieżącej wiadomości.
+  const { data: listsData, mutate: mutateLists } = useSWR("/api/admin/newsletter/lists", fetcher);
+  const lists: ListRow[] = listsData?.lists ?? [];
+  const [audienceType, setAudienceType] = React.useState<AudienceType>("ALL");
+  const [audienceListIds, setAudienceListIds] = React.useState<string[]>([]);
+  const [audiencePatientIds, setAudiencePatientIds] = React.useState<string[]>([]);
+  // Ilu klientów faktycznie dostanie wysyłkę (po zgodzie marketingowej i e-mailu).
+  const [audienceCount, setAudienceCount] = React.useState<number | null>(null);
+  const [listDialogId, setListDialogId] = React.useState<string | null>(null);
+  const [newListName, setNewListName] = React.useState("");
+  const [creatingList, setCreatingList] = React.useState(false);
+
   // null = nic nie wybrane; "new" = nowy szkic; inaczej id kampanii.
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [loaded, setLoaded] = React.useState<Campaign | null>(null);
@@ -85,12 +108,64 @@ export default function NewsletterPage() {
 
   const readOnly = loaded?.status === "SENT";
 
-  function startNew(initial?: { subject: string; preheader: string | null; html: string }) {
+  const audience = React.useMemo(
+    () => ({ type: audienceType, listIds: audienceListIds, patientIds: audiencePatientIds }),
+    [audienceType, audienceListIds, audiencePatientIds],
+  );
+
+  // Aktualna liczba odbiorców dla wybranego grona (z krótkim opóźnieniem przy klikaniu).
+  React.useEffect(() => {
+    if (!selectedId) return;
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      const res = await fetch("/api/admin/newsletter/audience", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(audience),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!cancelled && res.ok && out?.ok) setAudienceCount(out.count);
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [audience, selectedId]);
+
+  function applyAudience(source?: Pick<Campaign, "audienceType" | "audienceListIds" | "audiencePatientIds">) {
+    setAudienceType(source?.audienceType ?? "ALL");
+    setAudienceListIds(source?.audienceListIds ?? []);
+    setAudiencePatientIds(source?.audiencePatientIds ?? []);
+  }
+
+  async function createList() {
+    const name = newListName.trim();
+    if (name.length < 2) return toast.error("Podaj nazwę listy (min. 2 znaki)");
+    setCreatingList(true);
+    try {
+      const res = await fetch("/api/admin/newsletter/lists", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się utworzyć listy.");
+      setNewListName("");
+      await mutateLists();
+      // Od razu otwieramy listę, żeby dodać do niej klientów.
+      setListDialogId(out.list.id);
+    } finally {
+      setCreatingList(false);
+    }
+  }
+
+  function startNew(initial?: Partial<Campaign> & { subject: string; preheader: string | null; html: string }) {
     setSelectedId("new");
     setLoaded(null);
     setSubject(initial?.subject ?? "");
     setPreheader(initial?.preheader ?? "");
     setHtml(initial?.html ?? STARTER_HTML);
+    applyAudience(initial);
     setEditorKey((k) => k + 1);
   }
 
@@ -104,6 +179,7 @@ export default function NewsletterPage() {
     setSubject(campaign.subject);
     setPreheader(campaign.preheader ?? "");
     setHtml(campaign.html);
+    applyAudience(campaign);
     setEditorKey((k) => k + 1);
   }
 
@@ -118,7 +194,7 @@ export default function NewsletterPage() {
       const res = await fetch(isNew ? "/api/admin/newsletter" : `/api/admin/newsletter/${selectedId}`, {
         method: isNew ? "POST" : "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ subject, preheader, html }),
+        body: JSON.stringify({ subject, preheader, html, audience }),
       });
       const out = await res.json().catch(() => ({}));
       if (!res.ok || !out?.ok) {
@@ -153,7 +229,7 @@ export default function NewsletterPage() {
   }
 
   function askSendAll() {
-    const remaining = loaded?.status === "SENT" ? Math.max(0, recipients - loaded.sentCount) : recipients;
+    const remaining = remainingToSend;
     setConfirmAction({
       title: loaded?.status === "SENT" ? "Dokończyć wysyłkę?" : "Wysłać newsletter?",
       message: `„${subject}” zostanie wysłany do ${remaining} ${
@@ -215,7 +291,8 @@ export default function NewsletterPage() {
     mutate();
   }
 
-  const remainingToSend = loaded?.status === "SENT" ? Math.max(0, recipients - loaded.sentCount) : recipients;
+  const targetCount = audienceCount ?? 0;
+  const remainingToSend = loaded?.status === "SENT" ? Math.max(0, targetCount - loaded.sentCount) : targetCount;
 
   return (
     <div className="space-y-6">
@@ -271,6 +348,49 @@ export default function NewsletterPage() {
               </li>
             ))}
           </ul>
+
+          {/* Własne listy odbiorców — do nich dodajemy konkretnych klientów. */}
+          <div className="mt-6 border-t border-slate-200 pt-4 dark:border-white/10">
+            <h2 className="mb-1 text-sm font-semibold text-slate-900 dark:text-white">Listy odbiorców</h2>
+            <p className="mb-3 text-xs text-slate-500">
+              Np. „Klientki botoksu” albo „VIP”. Przy wysyłce wybierasz jedną lub kilka list.
+            </p>
+            <ul className="space-y-2">
+              {lists.map((list) => (
+                <li key={list.id}>
+                  <button
+                    type="button"
+                    onClick={() => setListDialogId(list.id)}
+                    className="w-full rounded-2xl border border-slate-200 p-3 text-left transition hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
+                  >
+                    <div className="truncate text-sm font-medium text-slate-900 dark:text-white">{list.name}</div>
+                    <div className="mt-0.5 text-xs text-slate-500">
+                      {list.members} {list.members === 1 ? "klient" : "klientów"} · {list.subscribed} ze zgodą
+                    </div>
+                  </button>
+                </li>
+              ))}
+              {lists.length === 0 ? <li className="text-xs text-slate-400">Brak list.</li> : null}
+            </ul>
+            <form
+              className="mt-3 flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void createList();
+              }}
+            >
+              <input
+                value={newListName}
+                onChange={(e) => setNewListName(e.target.value)}
+                maxLength={80}
+                placeholder="Nazwa nowej listy"
+                className={INPUT}
+              />
+              <Button type="submit" variant="outline" disabled={creatingList || newListName.trim().length < 2}>
+                Dodaj
+              </Button>
+            </form>
+          </div>
         </section>
 
         <section className={SECTION}>
@@ -325,6 +445,81 @@ export default function NewsletterPage() {
                 <RichHtmlEditor key={editorKey} value={html} onChange={setHtml} uploadImage={uploadImage} />
               )}
 
+              {/* Odbiorcy: wszyscy ze zgodą, wybrane listy albo ręcznie wybrani klienci. */}
+              <div className="rounded-2xl border border-slate-200 p-4 dark:border-white/10">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-sm font-semibold text-slate-900 dark:text-white">Odbiorcy</div>
+                  <div className="text-xs text-slate-500">
+                    Wiadomość dostanie:{" "}
+                    <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                      {audienceCount === null ? "…" : audienceCount}
+                    </span>{" "}
+                    {audienceCount === 1 ? "klient" : "klientów"} (ze zgodą marketingową i adresem e-mail)
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  {(
+                    [
+                      { value: "ALL", label: `Wszyscy klienci ze zgodą marketingową (${recipients})` },
+                      { value: "LISTS", label: "Wybrane listy odbiorców" },
+                      { value: "PATIENTS", label: "Wybrani klienci" },
+                    ] as { value: AudienceType; label: string }[]
+                  ).map((option) => (
+                    <label key={option.value} className="flex cursor-pointer items-center gap-2">
+                      <input
+                        type="radio"
+                        name="audience-type"
+                        checked={audienceType === option.value}
+                        disabled={readOnly}
+                        onChange={() => setAudienceType(option.value)}
+                        className="h-4 w-4 accent-emerald-600"
+                      />
+                      <span className="text-slate-800 dark:text-slate-200">{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {audienceType === "LISTS" ? (
+                  <div className="mt-3 space-y-1.5 rounded-xl bg-slate-50 p-3 dark:bg-white/5">
+                    {lists.length === 0 ? (
+                      <div className="text-xs text-slate-500">
+                        Nie masz jeszcze żadnej listy — utwórz ją w panelu „Listy odbiorców” po lewej.
+                      </div>
+                    ) : null}
+                    {lists.map((list) => (
+                      <label key={list.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={audienceListIds.includes(list.id)}
+                          disabled={readOnly}
+                          onChange={(e) =>
+                            setAudienceListIds((prev) =>
+                              e.target.checked ? [...prev, list.id] : prev.filter((id) => id !== list.id),
+                            )
+                          }
+                          className="h-4 w-4 accent-emerald-600"
+                        />
+                        <span className="flex-1 truncate">{list.name}</span>
+                        <span className="text-xs text-slate-500">
+                          {list.subscribed} z {list.members} ze zgodą
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
+
+                {audienceType === "PATIENTS" ? (
+                  <div className="mt-3">
+                    <NewsletterClientPicker
+                      selectedIds={audiencePatientIds}
+                      onChange={setAudiencePatientIds}
+                      disabled={readOnly}
+                    />
+                  </div>
+                ) : null}
+              </div>
+
               <div className="flex flex-wrap items-center gap-2">
                 {!readOnly ? (
                   <Button variant="outline" onClick={saveClicked} disabled={busy !== null}>
@@ -333,7 +528,16 @@ export default function NewsletterPage() {
                 ) : (
                   <Button
                     variant="outline"
-                    onClick={() => startNew({ subject: subject, preheader, html })}
+                    onClick={() =>
+                      startNew({
+                        subject,
+                        preheader,
+                        html,
+                        audienceType,
+                        audienceListIds,
+                        audiencePatientIds,
+                      })
+                    }
                   >
                     Duplikuj jako nowy szkic
                   </Button>
@@ -354,7 +558,7 @@ export default function NewsletterPage() {
                     ? "Wysyłanie…"
                     : readOnly
                       ? `Dokończ wysyłkę (${remainingToSend})`
-                      : `Wyślij do klientów (${recipients})`}
+                      : `Wyślij do klientów (${targetCount})`}
                 </Button>
                 {!readOnly && selectedId !== "new" ? (
                   <Button variant="destructive" onClick={askRemove} disabled={busy !== null} className="ml-auto">
@@ -366,6 +570,18 @@ export default function NewsletterPage() {
           )}
         </section>
       </div>
+
+      <NewsletterListDialog
+        listId={listDialogId}
+        onOpenChange={(open) => {
+          if (!open) setListDialogId(null);
+        }}
+        onChanged={() => {
+          void mutateLists();
+          // Skład listy zmienia liczbę odbiorców bieżącej wiadomości.
+          setAudienceListIds((ids) => [...ids]);
+        }}
+      />
 
       <Dialog open={confirmAction !== null} onOpenChange={(open) => (!open ? setConfirmAction(null) : undefined)}>
         <DialogContent className="max-w-md">
