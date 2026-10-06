@@ -36,6 +36,7 @@ export default async function PatientDashboardPage(
         loyaltyPoints: true,
         googleSub: true,
         facebookId: true,
+        passwordHash: true,
         location: { select: { name: true } },
       },
     }),
@@ -114,6 +115,7 @@ export default async function PatientDashboardPage(
         memberSince: formatMemberSince(patient.createdAt),
         googleLinked: Boolean(patient.googleSub),
         facebookLinked: Boolean(patient.facebookId),
+        hasPassword: Boolean(patient.passwordHash),
       }}
       googleError={typeof searchParams?.google === "string" ? searchParams.google : null}
       facebookError={typeof searchParams?.facebook === "string" ? searchParams.facebook : null}

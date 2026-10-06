@@ -25,6 +25,7 @@ import {
 import { formatPLNFromGrosze } from "@/lib/money";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
 import { LogoutButton } from "./LogoutButton";
+import { DeleteAccountCard } from "./DeleteAccountCard";
 import { GoogleLoginButton, googleErrorMessage, useGoogleLoginEnabled } from "@/components/google-login-button";
 import { PushToggleCard } from "@/components/push-toggle";
 import {
@@ -79,6 +80,7 @@ export type PatientProfile = {
   memberSince: string;
   googleLinked?: boolean;
   facebookLinked?: boolean;
+  hasPassword?: boolean;
 };
 
 const NAV = [
@@ -1015,6 +1017,7 @@ export function PatientDashboard({
                     ) : null}
                   </div>
                   ) : null}
+                  <DeleteAccountCard hasPassword={Boolean(profile.hasPassword)} />
                 </div>
                 <DataChangeRequestCard />
               </div>

@@ -191,6 +191,10 @@ model Patient {
   // (patrz lib/facebook-oauth.ts).
   facebookId String? @unique
 
+  // Klient usunął konto w panelu: dostęp (hasło, Google/Facebook, sesje, push)
+  // jest odebrany, ale karta z historią wizyt, zgodami i punktami zostaje.
+  accountDeletedAt DateTime?
+
   // Program lojalnościowy: 1 pkt za każde wydane 10 zł (na podstawie
   // priceFinal zaakceptowanej wizyty), 1 pkt = 1 zł rabatu przy kolejnej
   // rezerwacji. Bieżące saldo trzymane tu dla szybkiego odczytu; pełna,
