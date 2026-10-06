@@ -513,7 +513,13 @@ export function AppHeader() {
             >
               <span className="text-slate-700 dark:text-slate-200">🔔</span>
               {unreadCount > 0 ? (
-                <span className="absolute right-2.5 top-2.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-[#0b1220]" />
+                // Liczba nieprzeczytanych powiadomień (od 10 w górę "9+").
+                <span
+                  aria-label={`${unreadCount} nieprzeczytanych powiadomień`}
+                  className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-bold leading-none text-white ring-2 ring-white dark:ring-[#0b1220]"
+                >
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
               ) : null}
             </button>
 

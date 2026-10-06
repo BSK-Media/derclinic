@@ -7,7 +7,7 @@ import { resolveStaffNames } from "@/lib/audit";
 
 const TIME_ZONE = "Europe/Warsaw";
 const NOTIFICATIONS_DAYS = 30;
-const NOTIFICATIONS_LIMIT = 6;
+const NOTIFICATIONS_LIMIT = 20;
 
 type NotificationKind = "new" | "changed" | "canceled" | "approved" | "rejected" | "message";
 
