@@ -135,8 +135,8 @@ function AppointmentRow({
             </span>
           </div>
         </div>
-        {/* ml-auto: gdy blok zawija się pod tytuł (wąski ekran), ma stać przy prawej krawędzi, jak przyciski niżej. */}
-        <div className="ml-auto flex flex-col items-start text-left">
+        {/* Gdy blok zawija się pod tytuł (wąski ekran), zaczyna się od lewej krawędzi, jak tekst nad nim. */}
+        <div className="flex flex-col items-start text-left">
           <span className="inline-block rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600">
             {appointmentStatusLabel(appointment.status, appointment.startsAt)}
           </span>
