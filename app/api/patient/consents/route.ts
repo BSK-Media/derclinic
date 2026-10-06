@@ -40,7 +40,31 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({ ok: true, consents });
+  // Zgoda na wizerunek jest per wizyta — lista zabiegów, na które klient ją
+  // wyraził (bez odwołanych i usuniętych wizyt oraz blokad czasu w kalendarzu).
+  const imageRows = await prisma.appointment.findMany({
+    where: {
+      patientId: auth.id,
+      imageConsent: true,
+      deletedAt: null,
+      status: { not: "CANCELED" },
+      service: { name: { not: "__DERCLINIC_REZERWACJA_CZASU__" } },
+    },
+    orderBy: { startsAt: "desc" },
+    select: {
+      id: true,
+      startsAt: true,
+      customServiceName: true,
+      service: { select: { name: true } },
+    },
+  });
+  const imageConsents = imageRows.map((row) => ({
+    id: row.id,
+    startsAt: row.startsAt.toISOString(),
+    serviceName: row.customServiceName || row.service.name,
+  }));
+
+  return NextResponse.json({ ok: true, consents, imageConsents });
 }
 
 export async function POST(req: Request) {

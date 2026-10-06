@@ -420,6 +420,7 @@ function ConsentToggle({ granted, onClick, disabled }: { granted: boolean; onCli
 function ConsentsPanel() {
   const { data, mutate, isLoading } = useSWR("/api/patient/consents", dataChangeRequestFetcher);
   const consents: ConsentRow[] = data?.consents ?? [];
+  const imageConsents: { id: string; startsAt: string; serviceName: string }[] = data?.imageConsents ?? [];
   // Zapisy w toku — ref zamiast stanu, bo przełącznik nie ma się wyszarzać
   // na czas zapisu, a jedynie ignorować kolejne kliknięcia tej samej zgody.
   const savingTypes = React.useRef(new Set<ConsentType>());
@@ -499,13 +500,41 @@ function ConsentsPanel() {
         className="rounded-2xl border border-zinc-200 bg-white p-5 text-zinc-900 shadow-sm sm:p-6"
       />
 
-      <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-5 sm:p-6">
-        <div className="text-sm font-semibold text-zinc-900">Zgoda na wizerunek</div>
-        <p className="mt-1 text-xs text-zinc-500">
+      <details className="group rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-5 sm:p-6">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+          <div className="text-sm font-semibold text-zinc-900">
+            Zgoda na wizerunek
+            {imageConsents.length > 0 ? (
+              <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                {imageConsents.length}
+              </span>
+            ) : null}
+          </div>
+          <span className="text-xs text-zinc-400 group-open:hidden">Pokaż zabiegi</span>
+          <span className="hidden text-xs text-zinc-400 group-open:inline">Ukryj</span>
+        </summary>
+        <p className="mt-2 text-xs text-zinc-500">
           Zgoda na wykorzystanie zdjęć przed/po zabiegu w panelu klienta i mediach społecznościowych jest wyrażana
           osobno przy każdej rezerwacji wizyty — zaznaczasz ją w formularzu rezerwacji online.
         </p>
-      </div>
+        {isLoading ? null : imageConsents.length === 0 ? (
+          <p className="mt-3 text-xs text-zinc-400">Nie wyrażono jeszcze zgody na wizerunek przy żadnym zabiegu.</p>
+        ) : (
+          <>
+            <div className="mt-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              Zabiegi, na które wyrażono zgodę
+            </div>
+            <ul className="mt-2 divide-y divide-zinc-200 rounded-xl border border-zinc-200 bg-white">
+              {imageConsents.map((item) => (
+                <li key={item.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+                  <span className="min-w-0 truncate font-medium text-zinc-900">{item.serviceName}</span>
+                  <span className="shrink-0 text-xs text-zinc-500">{formatConsentDate(item.startsAt)}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </details>
     </div>
   );
 }
