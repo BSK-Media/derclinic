@@ -39,11 +39,34 @@ export function RichHtmlEditor({
   value,
   onChange,
   minHeight = 320,
+  uploadImage,
 }: {
   value: string;
   onChange: (html: string) => void;
   minHeight?: number;
+  // Wgrywa plik i zwraca publiczny adres obrazu. Gdy podany, okno „Wstaw obraz”
+  // pozwala wybrać zdjęcie z dysku zamiast wpisywać adres.
+  uploadImage?: (file: File) => Promise<string>;
 }) {
+  const [uploading, setUploading] = React.useState(false);
+  const [uploadError, setUploadError] = React.useState("");
+  const [uploadedPreview, setUploadedPreview] = React.useState<string | null>(null);
+  const [showUrlField, setShowUrlField] = React.useState(false);
+
+  async function onPickFile(file: File | null) {
+    if (!file || !uploadImage) return;
+    setUploadError("");
+    setUploading(true);
+    try {
+      const url = await uploadImage(file);
+      setInsertUrl(url);
+      setUploadedPreview(url);
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : "Nie udało się wgrać zdjęcia.");
+    } finally {
+      setUploading(false);
+    }
+  }
   const [mode, setMode] = React.useState<Mode>("visual");
   const frameRef = React.useRef<HTMLIFrameElement | null>(null);
   // Najnowsza wartość dla zdarzeń ramki, które powstają poza cyklem renderowania.
@@ -66,6 +89,9 @@ export function RichHtmlEditor({
     const selection = doc?.getSelection();
     savedRange.current = selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null;
     setInsertUrl("");
+    setUploadedPreview(null);
+    setUploadError("");
+    setShowUrlField(false);
     setInsertText(kind === "link" ? (selection?.toString() ?? "") : "");
     setInsertDialog(kind);
   }
@@ -256,17 +282,62 @@ export function RichHtmlEditor({
               confirmInsert();
             }}
           >
-            <div className="space-y-1">
-              <Label htmlFor="insert-url">{insertDialog === "image" ? "Adres obrazu (URL)" : "Adres linku"}</Label>
-              <Input
-                id="insert-url"
-                value={insertUrl}
-                onChange={(e) => setInsertUrl(e.target.value)}
-                placeholder="https://…"
-                autoFocus
-                autoComplete="off"
-              />
-            </div>
+            {insertDialog === "image" && uploadImage ? (
+              <div className="space-y-2">
+                <Label htmlFor="insert-file">Zdjęcie z dysku</Label>
+                <label
+                  htmlFor="insert-file"
+                  className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm text-slate-600 transition hover:bg-slate-100 dark:border-white/20 dark:bg-white/5 dark:text-slate-300"
+                >
+                  {uploadedPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={uploadedPreview} alt="Wgrane zdjęcie" className="max-h-40 rounded-lg object-contain" />
+                  ) : null}
+                  <span className="font-medium">
+                    {uploading ? "Wgrywanie…" : uploadedPreview ? "Zmień zdjęcie" : "Kliknij, aby wybrać zdjęcie"}
+                  </span>
+                  <span className="text-xs text-slate-400">JPG, PNG, GIF lub WebP</span>
+                </label>
+                <input
+                  id="insert-file"
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    void onPickFile(e.target.files?.[0] ?? null);
+                    e.target.value = "";
+                  }}
+                />
+                {uploadError ? (
+                  <p role="alert" className="text-xs text-red-600">
+                    {uploadError}
+                  </p>
+                ) : null}
+                {!showUrlField ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowUrlField(true)}
+                    className="text-xs text-slate-500 underline underline-offset-2"
+                  >
+                    albo wpisz adres obrazu
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+            {insertDialog !== "image" || !uploadImage || showUrlField ? (
+              <div className="space-y-1">
+                <Label htmlFor="insert-url">{insertDialog === "image" ? "Adres obrazu (URL)" : "Adres linku"}</Label>
+                <Input
+                  id="insert-url"
+                  value={insertUrl}
+                  onChange={(e) => setInsertUrl(e.target.value)}
+                  placeholder="https://…"
+                  autoFocus={insertDialog !== "image" || !uploadImage}
+                  autoComplete="off"
+                />
+              </div>
+            ) : null}
             <div className="space-y-1">
               <Label htmlFor="insert-text">
                 {insertDialog === "image" ? "Opis obrazu (opcjonalnie)" : "Tekst linku (opcjonalnie)"}
@@ -283,7 +354,7 @@ export function RichHtmlEditor({
               <Button type="button" variant="outline" onClick={() => setInsertDialog(null)}>
                 Anuluj
               </Button>
-              <Button type="submit" disabled={!insertUrl.trim()}>
+              <Button type="submit" disabled={!insertUrl.trim() || uploading}>
                 Wstaw
               </Button>
             </DialogFooter>

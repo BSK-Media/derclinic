@@ -4,6 +4,7 @@ import * as React from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
 import { RichHtmlEditor } from "@/components/rich-html-editor";
+import { prepareImageForUpload } from "@/lib/client-image";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -29,6 +30,19 @@ const INPUT =
 
 const STARTER_HTML =
   "<h2>Nowość w DerClinic</h2><p>Dzień dobry!</p><p>Napisz tutaj treść wiadomości…</p>";
+
+// Wgranie zdjęcia z dysku do edytora — zwraca publiczny adres obrazu do wstawienia w treść.
+async function uploadImage(original: File): Promise<string> {
+  const file = await prepareImageForUpload(original);
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch("/api/admin/newsletter/images", { method: "POST", body: form });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok || !out?.ok || typeof out.url !== "string") {
+    throw new Error(out?.message || "Nie udało się wgrać zdjęcia.");
+  }
+  return out.url;
+}
 
 function formatDate(iso: string | null) {
   return iso ? new Date(iso).toLocaleString("pl-PL", { timeZone: "Europe/Warsaw" }) : "—";
@@ -308,7 +322,7 @@ export default function NewsletterPage() {
                   className="h-[480px] w-full rounded-2xl border border-slate-200 bg-white dark:border-white/10"
                 />
               ) : (
-                <RichHtmlEditor key={editorKey} value={html} onChange={setHtml} />
+                <RichHtmlEditor key={editorKey} value={html} onChange={setHtml} uploadImage={uploadImage} />
               )}
 
               <div className="flex flex-wrap items-center gap-2">

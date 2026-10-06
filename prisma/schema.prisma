@@ -149,6 +149,7 @@ model User {
   decidedImageConsentRevocations   ImageConsentRevocationRequest[] @relation("ImageConsentRevocationDecider")
   operators                        StaffOperator[]            @relation("StaffOperators")
   newsletterCampaigns              NewsletterCampaign[]
+  newsletterImages                 NewsletterImage[]
   assignedServices                 SpecialistService[]
   workDays                         SpecialistWorkDay[]
   customWorkDays                   SpecialistCustomWorkDay[]
@@ -934,6 +935,21 @@ model NewsletterCampaign {
   createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
+}
+
+// Zdjęcie wgrane w edytorze newslettera. Trzymamy je w bazie i serwujemy pod
+// stałym, publicznym adresem (/api/newsletter/images/<id>), bo wiadomości
+// e-mail muszą wskazywać obraz adresem URL — obrazy "data:" blokuje m.in. Gmail.
+model NewsletterImage {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  mimeType String
+  size     Int
+  data     Bytes
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
 }
 
 model PatientSession {
