@@ -24,6 +24,13 @@ const FRAME_CSS = `
 
 type Mode = "visual" | "code";
 
+// Szerokość treści w wiadomości e-mail (kontener 600 px minus marginesy) —
+// obraz nie powinien być szerszy, bo w poczcie i tak zostałby przycięty.
+const EMAIL_CONTENT_WIDTH = 544;
+const MIN_IMAGE_WIDTH = 24;
+
+type Rect = { left: number; top: number; width: number; height: number };
+
 type ToolbarButton = {
   label: string;
   title: string;
@@ -69,6 +76,89 @@ export function RichHtmlEditor({
   }
   const [mode, setMode] = React.useState<Mode>("visual");
   const frameRef = React.useRef<HTMLIFrameElement | null>(null);
+
+  // Zaznaczony obraz: ramka z uchwytami do zmiany rozmiaru przeciąganiem (jak w
+  // Outlooku) i małe menu z gotowymi rozmiarami. Nakładka jest elementem panelu,
+  // nie treści wiadomości — nie trafia do wysyłanego HTML-a.
+  const selectedImgRef = React.useRef<HTMLImageElement | null>(null);
+  const [imgRect, setImgRect] = React.useState<Rect | null>(null);
+  const dragRef = React.useRef<{ startX: number; startW: number; dir: 1 | -1 } | null>(null);
+
+  const refreshRect = React.useCallback(() => {
+    const img = selectedImgRef.current;
+    if (!img || !img.isConnected) {
+      selectedImgRef.current = null;
+      setImgRect(null);
+      return;
+    }
+    const r = img.getBoundingClientRect();
+    setImgRect({ left: r.left, top: r.top, width: r.width, height: r.height });
+  }, []);
+
+  function selectImage(img: HTMLImageElement | null) {
+    selectedImgRef.current = img;
+    refreshRect();
+  }
+
+  function applyImageWidth(img: HTMLImageElement, width: number) {
+    const w = Math.max(MIN_IMAGE_WIDTH, Math.min(EMAIL_CONTENT_WIDTH, Math.round(width)));
+    img.style.width = `${w}px`;
+    img.style.height = "auto";
+    img.style.maxWidth = "100%";
+    // Atrybut width, bo Outlook (desktop) ignoruje szerokość z CSS przy obrazach.
+    img.setAttribute("width", String(w));
+    img.removeAttribute("height");
+    refreshRect();
+  }
+
+  function commitImageChange() {
+    const doc = frameRef.current?.contentDocument;
+    if (doc) onChangeRef.current(doc.body.innerHTML);
+  }
+
+  function startResize(e: React.PointerEvent<HTMLDivElement>, dir: 1 | -1) {
+    const img = selectedImgRef.current;
+    if (!img) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = { startX: e.clientX, startW: img.getBoundingClientRect().width, dir };
+  }
+
+  function moveResize(e: React.PointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    const img = selectedImgRef.current;
+    if (!drag || !img) return;
+    applyImageWidth(img, drag.startW + drag.dir * (e.clientX - drag.startX));
+  }
+
+  function endResize() {
+    if (!dragRef.current) return;
+    dragRef.current = null;
+    commitImageChange();
+  }
+
+  function setImagePercent(percent: number) {
+    const img = selectedImgRef.current;
+    if (!img) return;
+    applyImageWidth(img, (EMAIL_CONTENT_WIDTH * percent) / 100);
+    commitImageChange();
+  }
+
+  function setImageOriginal() {
+    const img = selectedImgRef.current;
+    if (!img) return;
+    applyImageWidth(img, img.naturalWidth || EMAIL_CONTENT_WIDTH);
+    commitImageChange();
+  }
+
+  function removeSelectedImage() {
+    const img = selectedImgRef.current;
+    if (!img) return;
+    img.remove();
+    selectImage(null);
+    commitImageChange();
+  }
   // Najnowsza wartość dla zdarzeń ramki, które powstają poza cyklem renderowania.
   const valueRef = React.useRef(value);
   valueRef.current = value;
@@ -127,10 +217,23 @@ export function RichHtmlEditor({
     if (!doc) return;
     doc.designMode = "on";
     doc.body.innerHTML = valueRef.current;
-    const emit = () => onChangeRef.current(doc.body.innerHTML);
+    selectedImgRef.current = null;
+    setImgRect(null);
+    const emit = () => {
+      onChangeRef.current(doc.body.innerHTML);
+      refreshRect();
+    };
     doc.addEventListener("input", emit);
     doc.addEventListener("keyup", emit);
-  }, []);
+    // Kliknięcie w obraz zaznacza go (ramka + uchwyty), kliknięcie obok zdejmuje zaznaczenie.
+    doc.addEventListener("click", (event) => {
+      const target = event.target as HTMLElement | null;
+      selectImage(target && target.tagName === "IMG" ? (target as HTMLImageElement) : null);
+    });
+    doc.defaultView?.addEventListener("scroll", refreshRect);
+    doc.defaultView?.addEventListener("resize", refreshRect);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshRect]);
 
   function switchMode(next: Mode) {
     if (next === mode) return;
@@ -138,6 +241,8 @@ export function RichHtmlEditor({
       const doc = getDoc();
       if (doc) onChange(doc.body.innerHTML);
     }
+    selectedImgRef.current = null;
+    setImgRect(null);
     setMode(next);
   }
 
@@ -249,15 +354,73 @@ export function RichHtmlEditor({
               />
             </label>
           </div>
-          <iframe
-            ref={frameRef}
-            title="Edytor wiadomości"
-            sandbox="allow-same-origin"
-            srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>${FRAME_CSS}</style></head><body></body></html>`}
-            onLoad={initFrame}
-            style={{ height: minHeight }}
-            className="block w-full bg-white"
-          />
+          <div className="relative">
+            <iframe
+              ref={frameRef}
+              title="Edytor wiadomości"
+              sandbox="allow-same-origin"
+              srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>${FRAME_CSS}</style></head><body></body></html>`}
+              onLoad={initFrame}
+              style={{ height: minHeight }}
+              className="block w-full bg-white"
+            />
+            {imgRect ? (
+              <div
+                className="pointer-events-none absolute z-10 outline outline-2 outline-emerald-500"
+                style={{ left: imgRect.left, top: imgRect.top, width: imgRect.width, height: imgRect.height }}
+              >
+                {(
+                  [
+                    { pos: "-left-1.5 -top-1.5 cursor-nwse-resize", dir: -1 },
+                    { pos: "-right-1.5 -top-1.5 cursor-nesw-resize", dir: 1 },
+                    { pos: "-bottom-1.5 -left-1.5 cursor-nesw-resize", dir: -1 },
+                    { pos: "-bottom-1.5 -right-1.5 cursor-nwse-resize", dir: 1 },
+                  ] as const
+                ).map((handle) => (
+                  <div
+                    key={handle.pos}
+                    onPointerDown={(e) => startResize(e, handle.dir)}
+                    onPointerMove={moveResize}
+                    onPointerUp={endResize}
+                    onPointerCancel={endResize}
+                    style={{ touchAction: "none" }}
+                    className={`pointer-events-auto absolute h-3 w-3 rounded-sm border border-white bg-emerald-600 ${handle.pos}`}
+                  />
+                ))}
+                <div
+                  className="pointer-events-auto absolute left-0 flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 text-xs shadow-md dark:border-white/10 dark:bg-[#0b1220]"
+                  style={imgRect.top < 44 ? { top: "100%", marginTop: 8 } : { bottom: "100%", marginBottom: 8 }}
+                  onMouseDown={(e) => e.preventDefault()}
+                >
+                  <span className="px-1 tabular-nums text-slate-500">{Math.round(imgRect.width)} px</span>
+                  {[25, 50, 75, 100].map((percent) => (
+                    <button
+                      key={percent}
+                      type="button"
+                      onClick={() => setImagePercent(percent)}
+                      className="rounded-md px-2 py-1 hover:bg-slate-100 dark:hover:bg-white/10"
+                    >
+                      {percent}%
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={setImageOriginal}
+                    className="rounded-md px-2 py-1 hover:bg-slate-100 dark:hover:bg-white/10"
+                  >
+                    Oryginał
+                  </button>
+                  <button
+                    type="button"
+                    onClick={removeSelectedImage}
+                    className="rounded-md px-2 py-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
+                  >
+                    Usuń
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
         </>
       ) : (
         <textarea
