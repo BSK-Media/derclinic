@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { PatientAppointmentsMobile } from "@/components/patient-appointments-mobile";
@@ -134,6 +136,7 @@ export function PatientHistoryTabs({
   purchases: PatientPurchase[];
 }) {
   const [tab, setTab] = React.useState<"appointments" | "purchases">("appointments");
+  const router = useRouter();
 
   return (
     <div className="rounded-xl border bg-white shadow-sm dark:bg-zinc-950">
@@ -189,8 +192,22 @@ export function PatientHistoryTabs({
                   </tr>
                 )}
                 {appointments.map((a) => (
-                  <tr key={a.id} className="border-t">
-                    <td className="p-3">{formatDateTime(a.startsAt)}</td>
+                  // Cały wiersz otwiera szczegóły wizyty; link w pierwszej kolumnie
+                  // zapewnia też klawiaturę i otwieranie w nowej karcie.
+                  <tr
+                    key={a.id}
+                    onClick={() => router.push(`/admin/appointments/${a.id}`)}
+                    className="cursor-pointer border-t transition hover:bg-zinc-50 dark:hover:bg-white/5"
+                  >
+                    <td className="p-3">
+                      <Link
+                        href={`/admin/appointments/${a.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-medium text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-300"
+                      >
+                        {formatDateTime(a.startsAt)}
+                      </Link>
+                    </td>
                     <td className="p-3">{a.serviceName}</td>
                     <td className="p-3">{a.specialistName}</td>
                     <td className="p-3">{appointmentStatusLabel(a.status)}</td>
