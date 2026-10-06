@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfirm } from "@/components/confirm-provider";
 import React from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
@@ -113,6 +114,7 @@ function EncryptionBackfill() {
 
 export default function AccountSecurityPage() {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const { data, mutate } = useSWR<SecurityState>("/api/me/security", fetcher);
   const [recoveryCodes, setRecoveryCodes] = React.useState<string[] | null>(null);
   const [totpSetup, setTotpSetup] = React.useState<{ qrSvg: string; secret: string } | null>(null);
@@ -132,7 +134,7 @@ export default function AccountSecurityPage() {
 
   const regenerateCodes = () =>
     run(async () => {
-      if (!confirm("Wygenerować nowe kody? Dotychczasowe kody przestaną działać.")) return;
+      if (!(await confirm("Wygenerować nowe kody? Dotychczasowe kody przestaną działać."))) return;
       const result = await postJson("/api/me/security/recovery-codes");
       if (!result.ok) return void toast.error(result.message || "Nie udało się wygenerować kodów");
       setRecoveryCodes(result.recoveryCodes);
@@ -177,7 +179,7 @@ export default function AccountSecurityPage() {
 
   const removePasskey = (id: string, name: string) =>
     run(async () => {
-      if (!confirm(`Usunąć klucz dostępu „${name}”?`)) return;
+      if (!(await confirm({ message: `Usunąć klucz dostępu „${name}”?`, destructive: true, confirmLabel: "Usuń" }))) return;
       const result = await postJson(`/api/me/security/passkeys?id=${encodeURIComponent(id)}`, undefined, "DELETE");
       if (!result.ok) return void toast.error(result.message || "Nie udało się usunąć klucza");
       toast.success("Usunięto klucz dostępu");

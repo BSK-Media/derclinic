@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfirm } from "@/components/confirm-provider";
 import useSWR from "swr";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -39,6 +40,7 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 };
 
 export default function AdminAppointmentDetail() {
+  const confirm = useConfirm();
   const params = useParams<{ id: string }>();
   const id = params.id;
 
@@ -223,7 +225,7 @@ export default function AdminAppointmentDetail() {
   }
 
   async function deleteConsumption(consumptionId: string) {
-    if (!window.confirm("Usunąć to zużycie? Ilość wróci na stan magazynu.")) return;
+    if (!(await confirm({ message: "Usunąć to zużycie? Ilość wróci na stan magazynu.", destructive: true, confirmLabel: "Usuń" }))) return;
     setConsumptionSavingId(consumptionId);
     try {
       const res = await fetch(
@@ -303,7 +305,7 @@ export default function AdminAppointmentDetail() {
 
   async function deletePayment(p: any) {
     const label = `${PAYMENT_METHOD_LABELS[p.method] ?? p.method} • ${formatPLNFromGrosze(p.amount)}`;
-    if (!window.confirm(`Czy na pewno usunąć płatność: ${label}?`)) return;
+    if (!(await confirm({ message: `Czy na pewno usunąć płatność: ${label}?`, destructive: true, confirmLabel: "Usuń" }))) return;
     setPaymentBusyId(p.id);
     try {
       const res = await fetch(`/api/admin/appointments/${id}/payments/${p.id}`, {

@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/components/auth-provider";
 import { SecurityFetchProvider } from "@/components/security-fetch";
+import { ConfirmProvider } from "@/components/confirm-provider";
 
 // Panel klienta i rezerwacja online mają tylko jasny wygląd (nie używają klas
 // "dark:"). Bez wymuszenia jasnego motywu u osoby z ciemnym motywem systemu
@@ -25,7 +26,7 @@ export function Providers({ children, nonce }: { children: React.ReactNode; nonc
           forcedTheme={lightOnly ? "light" : undefined}
           nonce={nonce}
         >
-          {children}
+          <ConfirmProvider>{children}</ConfirmProvider>
         </ThemeProvider>
       </AuthProvider>
     </SecurityFetchProvider>

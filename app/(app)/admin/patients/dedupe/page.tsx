@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfirm } from "@/components/confirm-provider";
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -30,6 +31,7 @@ function formatDate(iso: string) {
 }
 
 function GroupCard({ group, onMerged }: { group: Group; onMerged: () => void }) {
+  const confirm = useConfirm();
   const [keepId, setKeepId] = React.useState(group.suggestedKeepId);
   const [merging, setMerging] = React.useState(false);
 
@@ -37,10 +39,13 @@ function GroupCard({ group, onMerged }: { group: Group; onMerged: () => void }) 
     const mergeIds = group.patients.filter((p) => p.id !== keepId).map((p) => p.id);
     if (mergeIds.length === 0) return;
     const keptPatient = group.patients.find((p) => p.id === keepId);
-    const confirmed = window.confirm(
-      `Scalić ${group.patients.length} rekordy w jeden (zachowany: ${keptPatient?.name ?? "?"})? ` +
+    const confirmed = await confirm({
+      message:
+        `Scalić ${group.patients.length} rekordy w jeden (zachowany: ${keptPatient?.name ?? "?"})? ` +
         `Wizyty i sprzedaże pozostałych zostaną przeniesione, a ich rekordy usunięte. Tej operacji nie da się cofnąć.`,
-    );
+      destructive: true,
+      confirmLabel: "Scal",
+    });
     if (!confirmed) return;
 
     setMerging(true);

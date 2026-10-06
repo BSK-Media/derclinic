@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfirm } from "@/components/confirm-provider";
 import * as React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -151,6 +152,7 @@ function StatusBadge({ status }: { status: InventoryProduct["status"] }) {
 }
 
 export default function WarehouseDetailsPage() {
+  const confirm = useConfirm();
   // W tej wersji Next.js `params` przekazywane do strony jest obietnicą, więc
   // `params.id` było puste — id magazynu bierzemy z adresu przez useParams.
   const params = useParams<{ id: string }>();
@@ -353,9 +355,11 @@ export default function WarehouseDetailsPage() {
   }
 
   async function removeProduct(product: InventoryProduct) {
-    const confirmed = window.confirm(
-      `Czy usunąć cały stan produktu „${product.name}” z magazynu „${warehouse?.name ?? ""}”?`,
-    );
+    const confirmed = await confirm({
+      message: `Czy usunąć cały stan produktu „${product.name}” z magazynu „${warehouse?.name ?? ""}”?`,
+      destructive: true,
+      confirmLabel: "Usuń stan",
+    });
     if (!confirmed) return;
 
     setRemovingId(product.productId);

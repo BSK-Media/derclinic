@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfirm } from "@/components/confirm-provider";
 import * as React from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
@@ -22,6 +23,7 @@ export function OperatorsDialog({
   account: { id: string; login: string; name: string } | null;
   onOpenChange: (open: boolean) => void;
 }) {
+  const confirm = useConfirm();
   const url = account ? `/api/admin/users/${account.id}/operators` : null;
   const { data, mutate, isLoading } = useSWR(url, fetcher);
   const operators: Operator[] = data?.operators ?? [];
@@ -80,9 +82,11 @@ export function OperatorsDialog({
   async function remove(operator: Operator) {
     if (!url) return;
     if (
-      !confirm(
-        `Usunąć osobę „${operator.name}” z konta „${account?.login}”?\n\nJej PIN przestanie działać, a jeśli teraz pracuje na koncie, system poprosi o PIN ponownie.`,
-      )
+      !(await confirm({
+        message: `Usunąć osobę „${operator.name}” z konta „${account?.login}”?\n\nJej PIN przestanie działać, a jeśli teraz pracuje na koncie, system poprosi o PIN ponownie.`,
+        destructive: true,
+        confirmLabel: "Usuń osobę",
+      }))
     ) {
       return;
     }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfirm } from "@/components/confirm-provider";
 import * as React from "react";
 import Link from "next/link";
 import useSWR from "swr";
@@ -228,6 +229,7 @@ function StockBreakdown({ product, warehouses }: { product: Product; warehouses:
 }
 
 export default function ProductsPage() {
+  const confirm = useConfirm();
   const { data, error, isLoading, mutate } = useSWR("/api/admin/products", fetcher);
   const products: Product[] = data?.products ?? [];
   const warehouses: Warehouse[] = data?.warehouses ?? [];
@@ -429,9 +431,11 @@ export default function ProductsPage() {
     if (available <= 0) return toast.error("W wybranym magazynie nie ma tego produktu");
 
     const warehouse = warehouses.find((item) => item.id === removeWarehouseId);
-    const confirmed = window.confirm(
-      `Czy usunąć cały stan produktu „${removeProduct.name}” z magazynu „${warehouse?.name ?? ""}”?`,
-    );
+    const confirmed = await confirm({
+      message: `Czy usunąć cały stan produktu „${removeProduct.name}” z magazynu „${warehouse?.name ?? ""}”?`,
+      destructive: true,
+      confirmLabel: "Usuń stan",
+    });
     if (!confirmed) return;
 
     setRemoveSaving(true);

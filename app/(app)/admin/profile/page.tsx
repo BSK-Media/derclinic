@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfirm } from "@/components/confirm-provider";
 import * as React from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth-provider";
@@ -192,6 +193,7 @@ export default function ProfilePage() {
 }
 
 function AdminEmployeeEditor({ myId }: { myId: string }) {
+  const confirm = useConfirm();
   const [employees, setEmployees] = React.useState<EmployeeRow[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [selectedId, setSelectedId] = React.useState<string>("");
@@ -291,9 +293,11 @@ function AdminEmployeeEditor({ myId }: { myId: string }) {
       toast.error("Nie możesz usunąć własnego konta.");
       return;
     }
-    const sure = window.confirm(
-      `Czy na pewno chcesz trwale usunąć pracownika "${emp.name}" (login: ${emp.login})? Tej operacji nie można cofnąć.`
-    );
+    const sure = await confirm({
+      message: `Czy na pewno chcesz trwale usunąć pracownika „${emp.name}” (login: ${emp.login})? Tej operacji nie można cofnąć.`,
+      destructive: true,
+      confirmLabel: "Usuń pracownika",
+    });
     if (!sure) return;
     setDeleting(true);
     try {

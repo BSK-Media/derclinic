@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfirm } from "@/components/confirm-provider";
 import useSWR from "swr";
 import { useState } from "react";
 import Link from "next/link";
@@ -38,6 +39,7 @@ function generateTemporaryPassword() {
 
 export default function AdminUsersPage() {
   const { user: me } = useAuth();
+  const confirm = useConfirm();
   const { data, mutate, isLoading } = useSWR("/api/admin/users", fetcher);
   // Administrator zarządza wszystkim; manager zakłada i obsługuje tylko recepcję
   // i specjalistów w swojej lokalizacji.
@@ -123,7 +125,7 @@ export default function AdminUsersPage() {
       lines.push("Uwaga: to konto przestanie być specjalistą — zniknie z rezerwacji online i z listy specjalistów w kalendarzu.");
     }
     lines.push("Pracownik zostanie wylogowany i zaloguje się ponownie z nową rolą.");
-    if (!confirm(lines.join("\n\n"))) return;
+    if (!(await confirm({ title: "Zmiana roli", message: lines.join("\n\n"), confirmLabel: "Zmień rolę" }))) return;
 
     setChangingRoleId(u.id);
     try {
@@ -146,9 +148,11 @@ export default function AdminUsersPage() {
   // (Wymaga ponownego MFA administratora — okno pojawi się samo.)
   async function resetPassword(u: U) {
     if (
-      !confirm(
-        `Zresetować hasło konta „${u.login}” (${u.name})?\n\nDotychczasowe hasło przestanie działać, a pracownik zostanie wylogowany ze wszystkich urządzeń. Zobaczysz hasło tymczasowe do przekazania pracownikowi.`,
-      )
+      !(await confirm({
+        title: "Reset hasła",
+        message: `Zresetować hasło konta „${u.login}” (${u.name})?\n\nDotychczasowe hasło przestanie działać, a pracownik zostanie wylogowany ze wszystkich urządzeń. Zobaczysz hasło tymczasowe do przekazania pracownikowi.`,
+        confirmLabel: "Resetuj hasło",
+      }))
     ) {
       return;
     }
@@ -173,7 +177,7 @@ export default function AdminUsersPage() {
       action === "reset_mfa"
         ? `Zresetować logowanie dwuskładnikowe konta „${u.login}”? Pracownik zostanie wylogowany i przy następnym logowaniu skonfiguruje MFA od nowa. Zrób to tylko po potwierdzeniu tożsamości pracownika.`
         : `Wylogować „${u.login}” ze wszystkich urządzeń?`;
-    if (!confirm(question)) return;
+    if (!(await confirm({ message: question, confirmLabel: action === "reset_mfa" ? "Resetuj 2FA" : "Wyloguj", destructive: action === "reset_mfa" }))) return;
     const res = await fetch(`/api/admin/users/${u.id}/security`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -186,7 +190,7 @@ export default function AdminUsersPage() {
   }
 
   async function remove(u: U) {
-    if (!confirm(`Trwale usunąć konto „${u.login}” (${u.name})? Tej operacji nie można cofnąć.`)) return;
+    if (!(await confirm({ message: `Trwale usunąć konto „${u.login}” (${u.name})? Tej operacji nie można cofnąć.`, destructive: true, confirmLabel: "Usuń konto" }))) return;
     const res = await fetch(`/api/admin/users/${u.id}`, { method: "DELETE" });
     const out = await res.json().catch(() => ({}));
     if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się usunąć konta.");

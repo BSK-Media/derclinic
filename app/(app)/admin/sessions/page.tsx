@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfirm } from "@/components/confirm-provider";
 import * as React from "react";
 import Link from "next/link";
 import useSWR from "swr";
@@ -135,6 +136,7 @@ function SessionRow({
 }
 
 export default function ActiveSessionsPage() {
+  const confirm = useConfirm();
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
   const { data, isLoading, mutate } = useSWR<Response>(isAdmin ? "/api/admin/sessions" : null, fetcher, {
@@ -145,7 +147,7 @@ export default function ActiveSessionsPage() {
 
   // Wymaga ponownego MFA administratora — okno z kodem pojawi się samo.
   async function revoke(kind: "staff" | "patient", id: string, who: string) {
-    if (!confirm(`Zakończyć sesję: ${who}?\n\nTa osoba zostanie wylogowana na tym jednym urządzeniu.`)) return;
+    if (!(await confirm({ message: `Zakończyć sesję: ${who}?\n\nTa osoba zostanie wylogowana na tym jednym urządzeniu.`, confirmLabel: "Zakończ sesję", destructive: true }))) return;
     setRevokingId(id);
     try {
       const response = await fetch("/api/admin/sessions", {

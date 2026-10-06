@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfirm } from "@/components/confirm-provider";
 import { isAdminLike } from "@/lib/roles";
 import * as React from "react";
 import { toast } from "sonner";
@@ -92,6 +93,7 @@ function StatusPill({ status }: { status: string }) {
 }
 
 export default function PushSettingsPage() {
+  const confirm = useConfirm();
   const { user } = useAuth();
   const [stats, setStats] = React.useState<Stats | null>(null);
   const [disabled, setDisabled] = React.useState<string[]>([]);
@@ -167,7 +169,7 @@ export default function PushSettingsPage() {
     if (audience !== "patient") {
       const count = audience === "all" ? stats?.patients : stats?.marketingPatients;
       const group = audience === "all" ? "wszystkich klientów z włączonymi powiadomieniami" : "klientów ze zgodą marketingową";
-      if (!confirm(`Wysłać to powiadomienie do ${group} (${count ?? 0})?\n\n„${title.trim()}”\n${body.trim()}`)) return;
+      if (!(await confirm({ title: "Wysłać powiadomienie?", message: `Wysłać to powiadomienie do ${group} (${count ?? 0})?\n\n„${title.trim()}”\n${body.trim()}`, confirmLabel: "Wyślij" }))) return;
     }
 
     setSending(true);
