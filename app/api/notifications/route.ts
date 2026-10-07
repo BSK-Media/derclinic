@@ -52,7 +52,11 @@ function serviceName(appointment: { customServiceName: string | null; service: {
 // Powiadomienia dla recepcji/admina — oczekujące prośby pacjentów o zmianę
 // danych kontaktowych (patrz PatientDataChangeRequest), a dla administratora
 // także alerty bezpieczeństwa.
-async function getAdminNotifications(includeSecurityAlerts: boolean): Promise<NotificationItem[]> {
+async function getAdminNotifications(
+  includeSecurityAlerts: boolean,
+  // null = bez powiadomień o płatnościach; "all" = wszystkie lokalizacje; inaczej id lokalizacji (manager).
+  paymentsScope: string | null,
+): Promise<NotificationItem[]> {
   const pending = await prisma.patientDataChangeRequest.findMany({
     where: { status: "PENDING" },
     orderBy: { createdAt: "desc" },
@@ -87,6 +91,34 @@ async function getAdminNotifications(includeSecurityAlerts: boolean): Promise<No
     href: "/admin/patients/image-consent-requests",
   }));
 
+  // Płatności zgłoszone przez klientów (BLIK / przelew) — potwierdzają admin i manager.
+  const pendingPayments = paymentsScope
+    ? await prisma.paymentRequest.findMany({
+        where: {
+          status: "CLAIMED",
+          ...(paymentsScope === "all" ? {} : { appointment: { locationId: paymentsScope } }),
+        },
+        orderBy: { claimedAt: "desc" },
+        take: NOTIFICATIONS_LIMIT,
+        select: {
+          id: true,
+          amount: true,
+          reference: true,
+          claimedAt: true,
+          createdAt: true,
+          appointment: { select: { patient: { select: { name: true } } } },
+        },
+      })
+    : [];
+  const paymentNotifications: NotificationItem[] = pendingPayments.map((request) => ({
+    id: `payment-${request.id}`,
+    kind: "message",
+    title: "Płatność do potwierdzenia",
+    description: `${request.appointment.patient.name} — ${(request.amount / 100).toFixed(2).replace(".", ",")} zł, tytuł ${request.reference}`,
+    createdAt: request.claimedAt ?? request.createdAt,
+    href: "/admin/payments",
+  }));
+
   // Alerty bezpieczeństwa z ostatnich 7 dni (audyt F-04/F-05): reset MFA,
   // blokady po przekroczeniu limitu prób logowania / kodów.
   const securityEvents = !includeSecurityAlerts ? [] : await prisma.auditLog.findMany({
@@ -107,7 +139,7 @@ async function getAdminNotifications(includeSecurityAlerts: boolean): Promise<No
     href: "/admin/logs",
   }));
 
-  return [...alerts, ...requests, ...imageConsentRequests]
+  return [...alerts, ...requests, ...imageConsentRequests, ...paymentNotifications]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .slice(0, NOTIFICATIONS_LIMIT);
 }
@@ -267,7 +299,10 @@ export async function GET() {
   if (user!.role === "SPECIALIST") {
     notifications = await getSpecialistNotifications(user!.id, user!.locationId);
   } else if (user!.role === "ADMIN" || user!.role === "MANAGER" || user!.role === "RECEPTION") {
-    notifications = await getAdminNotifications(user!.role === "ADMIN");
+    notifications = await getAdminNotifications(
+      user!.role === "ADMIN",
+      user!.role === "ADMIN" ? "all" : user!.role === "MANAGER" ? user!.locationId : null,
+    );
   } else {
     return NextResponse.json({ ok: true, notifications: [], unreadCount: 0 });
   }

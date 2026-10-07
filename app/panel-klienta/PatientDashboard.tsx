@@ -77,6 +77,15 @@ export type AppointmentRowData = {
   consentStatus?: string;
   consentForfeited?: boolean;
   consentToken?: string;
+  // Płatność zamówiona przy rezerwacji (BLIK / przelew) i jej stan.
+  paymentRequest?: {
+    status: string;
+    amount: number;
+    method: string | null;
+    reference: string;
+    rejectionReason: string | null;
+  } | null;
+  paymentToken?: string;
 };
 
 export type PatientProfile = {
@@ -152,6 +161,40 @@ function ConsentBadge({ appointment }: { appointment: AppointmentRowData }) {
   );
 }
 
+// Płatność zamówiona przy rezerwacji: czeka na wpłatę klienta albo na potwierdzenie administratora.
+function PaymentBadge({ appointment }: { appointment: AppointmentRowData }) {
+  const request = appointment.paymentRequest;
+  if (!request || request.status === "CONFIRMED" || appointment.status === "CANCELED" || !appointment.paymentToken) {
+    return null;
+  }
+  const href = `/platnosc/${encodeURIComponent(appointment.paymentToken)}`;
+  if (request.status === "CLAIMED") {
+    return (
+      <div className="mt-3 flex items-start gap-2 rounded-xl bg-blue-50 px-3 py-2 text-xs text-blue-900">
+        <span>⏳</span>
+        <span>
+          <strong>Płatność oczekuje na potwierdzenie</strong> ({formatPLNFromGrosze(request.amount)}, tytuł{" "}
+          <span className="font-mono">{request.reference}</span>)
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-950">
+      <span>
+        <strong>
+          {request.status === "REJECTED" ? "Płatność nie została potwierdzona" : "Do zapłaty teraz"}:{" "}
+          {formatPLNFromGrosze(request.amount)}
+        </strong>
+        {request.status === "REJECTED" && request.rejectionReason ? ` — ${request.rejectionReason}` : ""}
+      </span>
+      <a href={href} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-700">
+        {request.status === "REJECTED" ? "Zapłać ponownie" : "Opłać"}
+      </a>
+    </div>
+  );
+}
+
 function AppointmentRow({
   appointment,
   highlight = false,
@@ -209,9 +252,15 @@ function AppointmentRow({
                   Zaliczka wpłacona: {formatPLNFromGrosze(paidTotal)}
                 </span>
               ) : (
-                <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
-                  Nieopłacone
-                </span>
+                appointment.paymentRequest && appointment.paymentRequest.status !== "CONFIRMED" ? (
+                  <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                    Płatność oczekująca
+                  </span>
+                ) : (
+                  <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                    Nieopłacone
+                  </span>
+                )
               )}
               {!isFullyPaid ? (
                 <span className="text-[11px] text-zinc-500">Pozostało: {formatPLNFromGrosze(remaining)}</span>
@@ -220,6 +269,7 @@ function AppointmentRow({
           ) : null}
         </div>
       </div>
+      <PaymentBadge appointment={appointment} />
       <ConsentBadge appointment={appointment} />
       <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-zinc-100 pt-3">
         {canAddToCalendar ? <AddToCalendarButton appointmentId={appointment.id} /> : null}

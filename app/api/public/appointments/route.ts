@@ -11,6 +11,8 @@ import { resolvePaymentDue, type PaymentChoice } from "@/lib/booking-payment";
 import { logAudit, formatWarsaw, type AuditActor } from "@/lib/audit";
 import { validatePassword } from "@/lib/password-policy";
 import { consentToken } from "@/lib/consent-link";
+import { createPaymentRequest } from "@/lib/payment-request-server";
+import { paymentToken } from "@/lib/payment-request";
 import { RATE_LIMITS, clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 const RESERVATION_SERVICE_NAME = "__DERCLINIC_REZERWACJA_CZASU__";
@@ -427,10 +429,10 @@ export async function POST(req: Request) {
         loyaltyPointsUsed = pointsApplied;
       }
 
-      // DEMO: brak prawdziwej bramki płatności — kliknięcie "Zapłać" na
-      // froncie od razu tworzy opłaconą płatność. Docelowo w tym miejscu
-      // wizyta trafi w stan oczekiwania na płatność, a Payment powstanie
-      // dopiero po potwierdzeniu z bramki (np. webhookiem).
+      // Płatność za wizytę (zaliczka albo pełna przedpłata) powstaje jako
+      // ZAMÓWIONA, nie opłacona: klient wybiera metodę (BLIK / przelew, docelowo
+      // Przelewy24), zgłasza wpłatę, a administrator ją potwierdza — dopiero
+      // wtedy powstaje Payment (patrz lib/payment-request-server.ts).
       await logAudit({
         tx,
         actor: bookingActor,
@@ -458,18 +460,22 @@ export async function POST(req: Request) {
         },
       });
 
+      let paymentRequest: { reference: string; amount: number } | null = null;
       if (amountDueGrosze > 0) {
-        const payment = await tx.payment.create({
-          data: { method: "ONLINE", amount: amountDueGrosze, appointmentId: created.id },
+        const request = await createPaymentRequest(tx, {
+          appointmentId: created.id,
+          amount: amountDueGrosze,
+          choice: effectiveChoice,
         });
+        paymentRequest = { reference: request.reference, amount: request.amount };
         await logAudit({
           tx,
           actor: bookingActor,
           action: "CREATE",
-          entity: "Payment",
-          entityId: payment.id,
-          summary: `Płatność online przy rezerwacji (${effectiveChoice === "FULL" ? "pełna przedpłata" : "zaliczka"}): ${(amountDueGrosze / 100).toFixed(2).replace(".", ",")} zł`,
-          data: { appointmentId: created.id, method: "ONLINE", amount: amountDueGrosze, choice: effectiveChoice },
+          entity: "PaymentRequest",
+          entityId: request.id,
+          summary: `Płatność do uregulowania przy rezerwacji (${effectiveChoice === "FULL" ? "pełna przedpłata" : "zaliczka"}): ${(amountDueGrosze / 100).toFixed(2).replace(".", ",")} zł, tytuł ${request.reference}`,
+          data: { appointmentId: created.id, amount: amountDueGrosze, choice: effectiveChoice, reference: request.reference },
         });
       }
 
@@ -479,7 +485,8 @@ export async function POST(req: Request) {
         loyaltyDiscountAmount,
         bookedAsLoggedIn,
         paymentChoice: effectiveChoice,
-        amountPaid: amountDueGrosze,
+        paymentRequest,
+        amountDue: amountDueGrosze,
         amountRemaining: Math.max(0, priceFinal - amountDueGrosze),
       };
     });
@@ -500,7 +507,10 @@ export async function POST(req: Request) {
       loyaltyDiscountAmount: appointment.loyaltyDiscountAmount,
       priceFinal: appointment.priceFinal,
       paymentChoice: appointment.paymentChoice,
-      amountPaid: appointment.amountPaid,
+      // Płatność do uregulowania (BLIK / przelew): token do strony płatności i tytuł przelewu.
+      paymentToken: appointment.paymentRequest ? paymentToken(appointment.id) : null,
+      paymentReference: appointment.paymentRequest?.reference ?? null,
+      amountDue: appointment.amountDue,
       amountRemaining: appointment.amountRemaining,
     });
   } catch (e: any) {

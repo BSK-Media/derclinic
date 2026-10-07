@@ -12,6 +12,8 @@ export type AppointmentEmailData = {
   startsAt: Date;
   // Link do zgody na zabieg — tylko gdy zgoda jest jeszcze niepodpisana.
   consentUrl?: string | null;
+  // Link do płatności — tylko gdy zaliczka / przedpłata nie została jeszcze opłacona.
+  paymentUrl?: string | null;
 };
 
 /** Wyróżniony blok o obowiązku podpisania zgody (w mailach o wizycie). */
@@ -177,8 +179,10 @@ export function bookingConfirmationEmail(data: AppointmentEmailData, baseUrl: st
       paragraphs: [greeting(data.patientName), "Potwierdzamy rezerwację wizyty. Poniżej szczegóły:"],
       rows: appointmentRows(data),
       callout: data.consentUrl ? consentCallout(data.consentUrl) : undefined,
-      button: panelButton(baseUrl),
-      footnote: "Jeśli nie możesz przyjść w tym terminie, skontaktuj się z nami jak najwcześniej.",
+      button: data.paymentUrl ? { label: "Opłać rezerwację", url: data.paymentUrl } : panelButton(baseUrl),
+      footnote: data.paymentUrl
+        ? "Rezerwacja wymaga opłacenia zaliczki lub przedpłaty (BLIK lub przelew) — kliknij przycisk, aby wybrać metodę płatności."
+        : "Jeśli nie możesz przyjść w tym terminie, skontaktuj się z nami jak najwcześniej.",
     }),
   };
 }
@@ -246,6 +250,29 @@ export function consentCanceledEmail(data: AppointmentEmailData, baseUrl: string
       rows: appointmentRows(data),
       button: { label: "Umów nowy termin", url: `${baseUrl}/book` },
       footnote: "Jeśli uważasz, że to pomyłka, skontaktuj się z nami.",
+    }),
+  };
+}
+
+export function paymentDecisionEmail(
+  data: AppointmentEmailData & { amountText: string; reference: string },
+  confirmed: boolean,
+  rejectionReason: string | null,
+  payUrl: string,
+  baseUrl: string,
+): EmailContent {
+  return {
+    subject: confirmed ? `Płatność potwierdzona — ${BRAND}` : `Płatność odrzucona — ${BRAND}`,
+    ...layout({
+      heading: confirmed ? "Płatność potwierdzona" : "Nie udało się potwierdzić płatności",
+      paragraphs: [
+        greeting(data.patientName),
+        confirmed
+          ? "Zaksięgowaliśmy Twoją wpłatę za wizytę. Dziękujemy!"
+          : `Nie mogliśmy potwierdzić Twojej wpłaty.${rejectionReason ? ` Powód: ${rejectionReason}` : ""} Sprawdź dane przelewu i zgłoś płatność ponownie.`,
+      ],
+      rows: [["Kwota", data.amountText], ["Tytuł płatności", data.reference], ...appointmentRows(data)],
+      button: confirmed ? panelButton(baseUrl) : { label: "Zapłać ponownie", url: payUrl },
     }),
   };
 }

@@ -54,6 +54,8 @@ export const AUDIT_ENTITY_LABELS: Record<string, string> = {
   LoyaltyBackfill: "Synchronizacja punktów",
   LoyaltyPoints: "Punkty lojalnościowe",
   ProcedureConsent: "Zgoda na zabieg",
+  PaymentRequest: "Płatność za wizytę",
+  PaymentSettings: "Dane do płatności",
   User: "Konto pracownika",
   UserAvatar: "Zdjęcie profilowe",
   Specialist: "Specjalista",
@@ -86,6 +88,8 @@ export const AUDIT_PAYMENT_METHOD_LABELS: Record<string, string> = {
   CARD: "karta",
   VOUCHER: "bon",
   ONLINE: "online",
+  BLIK: "BLIK",
+  TRANSFER: "przelew",
 };
 
 export const AUDIT_ACTOR_TYPE_LABELS: Record<string, string> = {

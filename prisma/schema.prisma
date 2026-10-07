@@ -56,6 +56,12 @@ enum PaymentMethod {
   // od razu tworzy tę płatność, bez prawdziwej bramki. Docelowo ten sam
   // enum posłuży do integracji z rzeczywistym dostawcą płatności.
   ONLINE
+  // Płatności ręczne przy rezerwacji online: klient płaci BLIK-iem na telefon
+  // kliniki albo zwykłym przelewem, zgłasza "Dokonałem płatności", a
+  // administrator potwierdza wpłatę (patrz PaymentRequest). Dopiero po
+  // potwierdzeniu powstaje zwykła Payment z tą metodą.
+  BLIK
+  TRANSFER
 }
 
 enum ConsumptionStatus {
@@ -149,6 +155,7 @@ model User {
   decidedImageConsentRevocations   ImageConsentRevocationRequest[] @relation("ImageConsentRevocationDecider")
   operators                        StaffOperator[]            @relation("StaffOperators")
   decidedConsentSubmissions        ProcedureConsentSubmission[] @relation("ProcedureConsentDecider")
+  decidedPaymentRequests           PaymentRequest[]           @relation("PaymentRequestDecider")
   newsletterCampaigns              NewsletterCampaign[]
   newsletterImages                 NewsletterImage[]
   newsletterLists                  NewsletterList[]
@@ -577,6 +584,7 @@ model Appointment {
   consentRejectionReason String?
   consentForfeitedAt     DateTime?
   consentSubmissions     ProcedureConsentSubmission[]
+  paymentRequests        PaymentRequest[]
 
   @@index([specialistId, startsAt])
   @@index([locationId, startsAt])
@@ -1023,6 +1031,54 @@ model ProcedureConsentSubmission {
   decidedBy   User?   @relation("ProcedureConsentDecider", fields: [decidedById], references: [id], onDelete: SetNull)
 
   @@index([appointmentId, createdAt])
+}
+
+// Płatność za wizytę zamówiona przy rezerwacji online (zaliczka albo pełna
+// przedpłata), jeszcze niepotwierdzona. AWAITING — klient nie zgłosił wpłaty;
+// CLAIMED — kliknął "Dokonałem płatności", czeka na potwierdzenie administratora;
+// CONFIRMED — administrator potwierdził wpłatę (powstała Payment); REJECTED —
+// odrzucona (np. nie ma takiej wpłaty na koncie). reference to tytuł
+// przelewu/BLIK-a: ten sam kod klient widzi w instrukcji, a administrator w panelu.
+model PaymentRequest {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  amount Int // grosze
+  // "DEPOSIT_10" albo "FULL" (patrz lib/booking-payment.ts)
+  choice String
+  // BLIK | TRANSFER | P24 — puste, dopóki klient nie wybierze metody.
+  method String?
+  reference String @unique
+
+  status          String    @default("AWAITING")
+  claimedAt       DateTime?
+  decidedAt       DateTime?
+  decidedById     String?
+  decidedBy       User?     @relation("PaymentRequestDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  rejectionReason String?
+  paymentId       String?
+
+  @@index([appointmentId])
+  @@index([status, createdAt])
+}
+
+// Dane do płatności ręcznych (jeden wiersz "default"): konto do przelewu i
+// numer telefonu do BLIK-a. Ustawia administrator w Ustawieniach → Płatności.
+model PaymentSettings {
+  id        String   @id
+  updatedAt DateTime @updatedAt
+
+  recipientName String?
+  bankName      String?
+  // Numer konta bez spacji (26 cyfr).
+  bankAccount   String?
+  blikPhone     String?
+  // Dodatkowa informacja pokazywana klientowi przy płatności.
+  note          String?
 }
 
 model PatientSession {

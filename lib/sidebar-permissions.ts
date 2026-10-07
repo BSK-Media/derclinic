@@ -174,6 +174,10 @@ export function sidebarPermissionForPath(pathname: string): SidebarPermission | 
   ) {
     return "analytics";
   }
+  // Płatności zgłoszone przy rezerwacji online (BLIK / przelew) — część obsługi wizyt.
+  if (path.startsWith("/admin/payments") || path.startsWith("/api/admin/payment-requests")) {
+    return "appointments";
+  }
   if (path.startsWith("/admin/loyalty") || path.startsWith("/api/admin/loyalty")) {
     return "loyalty";
   }

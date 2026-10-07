@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { consentToken } from "@/lib/consent-link";
+import { paymentToken } from "@/lib/payment-request";
 import { getPatientAuth } from "@/lib/patient-auth";
 import { prisma } from "@/lib/db";
 import { PatientDashboard } from "./PatientDashboard";
@@ -55,6 +56,11 @@ export default async function PatientDashboardPage(
         specialistId: true,
         consentStatus: true,
         consentForfeitedAt: true,
+        paymentRequests: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { status: true, amount: true, method: true, reference: true, rejectionReason: true },
+        },
         service: { select: { name: true } },
         specialist: { select: { name: true } },
         location: { select: { name: true } },
@@ -83,20 +89,24 @@ export default async function PatientDashboardPage(
   // Rosnąco — najbliższa wizyta jest pierwsza na liście "nadchodzące".
   const upcoming = appointments
     .filter((a) => a.startsAt.getTime() >= now.getTime() && a.status !== "CANCELED")
-    .map(({ consentForfeitedAt, ...a }) => ({
+    .map(({ consentForfeitedAt, paymentRequests, ...a }) => ({
       ...a,
       startsAt: a.startsAt.toISOString(),
       consentForfeited: Boolean(consentForfeitedAt),
       consentToken: consentToken(a.id),
+      paymentRequest: paymentRequests[0] ?? null,
+      paymentToken: paymentToken(a.id),
     }));
   // Malejąco — w historii najpierw najświeższa wizyta.
   const past = appointments
     .filter((a) => a.startsAt.getTime() < now.getTime() || a.status === "CANCELED")
-    .map(({ consentForfeitedAt, ...a }) => ({
+    .map(({ consentForfeitedAt, paymentRequests, ...a }) => ({
       ...a,
       startsAt: a.startsAt.toISOString(),
       consentForfeited: Boolean(consentForfeitedAt),
       consentToken: consentToken(a.id),
+      paymentRequest: paymentRequests[0] ?? null,
+      paymentToken: paymentToken(a.id),
     }))
     .reverse();
 

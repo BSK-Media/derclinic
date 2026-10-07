@@ -143,6 +143,9 @@ export default function AdminVisitsPage({
     return { from: start, to: end };
   }, [anchor]);
 
+  // Liczba płatności online czekających na potwierdzenie (plakietka przy „Płatności online”).
+  const { data: paymentsData } = useSWR("/api/admin/payment-requests", (url: string) => fetch(url, { cache: "no-store" }).then((r) => r.json()));
+  const pendingPayments: number = (paymentsData?.requests ?? []).filter((r: { status: string }) => r.status === "CLAIMED").length;
   const { data, mutate, isLoading } = useSWR(
     view === "deleted"
       ? "/api/admin/appointments?deleted=only"
@@ -413,7 +416,20 @@ export default function AdminVisitsPage({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Wizyty</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-semibold">Wizyty</h1>
+          <Link
+            href="/admin/payments"
+            className="inline-flex items-center rounded-xl border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
+          >
+            Płatności online
+            {pendingPayments > 0 ? (
+              <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[11px] font-bold text-white">
+                {pendingPayments}
+              </span>
+            ) : null}
+          </Link>
+        </div>
         <div className="inline-flex rounded-xl border bg-white p-1 text-sm shadow-sm dark:bg-zinc-950">
           <button
             type="button"

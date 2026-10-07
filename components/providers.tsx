@@ -10,7 +10,7 @@ import { ConfirmProvider } from "@/components/confirm-provider";
 // "dark:"). Bez wymuszenia jasnego motywu u osoby z ciemnym motywem systemu
 // lub przeglądarki <html> dostawał klasę "dark" i ciemny color-scheme, przez
 // co np. rozwijane listy miały biały tekst na białym tle.
-const LIGHT_ONLY_PREFIXES = ["/panel-klienta", "/book", "/zgoda", "/newsletter"];
+const LIGHT_ONLY_PREFIXES = ["/panel-klienta", "/book", "/zgoda", "/platnosc", "/newsletter"];
 
 export function Providers({ children, nonce }: { children: React.ReactNode; nonce?: string }) {
   const pathname = usePathname() ?? "";

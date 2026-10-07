@@ -63,6 +63,9 @@ const METHOD_LABELS: Record<string, string> = {
   CASH: "Gotówka",
   CARD: "Karta",
   VOUCHER: "Voucher",
+  ONLINE: "Online",
+  BLIK: "BLIK",
+  TRANSFER: "Przelew",
 };
 
 const PIE_COLORS = ["#7C3AED", "#6366f1", "#f59e0b", "#ef4444", "#0ea5e9"];

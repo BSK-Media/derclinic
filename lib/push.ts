@@ -281,6 +281,18 @@ export const pushContent = {
     body: `Zgoda jest obowiązkowa. Bez podpisu do ${formatPushDate(startsAt)} rezerwacja zostanie anulowana, a zaliczka przepadnie.`,
     url,
   }),
+  staffPaymentClaimed: (patientName: string, amountText: string, reference: string): PushPayload => ({
+    title: "Płatność do potwierdzenia",
+    body: `${patientName} zgłasza płatność ${amountText} (tytuł ${reference}).`,
+    url: "/admin/payments",
+  }),
+  paymentDecision: (confirmed: boolean, url: string, reason: string | null): PushPayload => ({
+    title: confirmed ? "Płatność potwierdzona" : "Płatność odrzucona",
+    body: confirmed
+      ? "Dziękujemy — zaksięgowaliśmy Twoją wpłatę."
+      : reason || "Nie znaleźliśmy Twojej wpłaty. Sprawdź dane i zgłoś płatność ponownie.",
+    url,
+  }),
   consentRejected: (url: string, reason: string | null): PushPayload => ({
     title: "Zgoda odrzucona — wgraj ponownie",
     body: reason ? `${reason}` : "Przesłana zgoda nie została przyjęta. Wgraj poprawnie podpisany dokument.",

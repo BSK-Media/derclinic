@@ -9,6 +9,7 @@ import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, Check, Cale
 import { formatPLNFromGrosze } from "@/lib/money";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
 import { ProcedureConsentPanel } from "@/components/procedure-consent-panel";
+import { PaymentRequestPanel } from "@/components/payment-request-panel";
 import { maxRedeemablePoints, discountForPoints } from "@/lib/loyalty";
 import { requiresFullPrepayment, resolvePaymentDue, depositAmountGrosze, type PaymentChoice } from "@/lib/booking-payment";
 import { PASSWORD_REQUIREMENTS_HINT, validatePassword } from "@/lib/password-policy";
@@ -215,7 +216,9 @@ export default function PublicBookingPage() {
   // proponujemy zaliczkę, jeśli usługa na to pozwala; dla usług powyżej progu
   // wybór i tak jest wymuszany na pełną kwotę (patrz requiresFullPrepayment niżej).
   const [paymentChoice, setPaymentChoice] = React.useState<PaymentChoice>("DEPOSIT_10");
-  const [amountPaid, setAmountPaid] = React.useState(0);
+  // Płatność do uregulowania po rezerwacji (BLIK / przelew): token do panelu płatności.
+  const [paymentTokenValue, setPaymentTokenValue] = React.useState<string | null>(null);
+  const [amountDue, setAmountDue] = React.useState(0);
   const [amountRemaining, setAmountRemaining] = React.useState(0);
 
   // Sesja pacjenta (panel klienta) — jeśli osoba rezerwująca jest już
@@ -709,7 +712,8 @@ export default function PublicBookingPage() {
       setBookedAsLoggedIn(Boolean(result.bookedAsLoggedIn));
       setLoyaltyPointsUsed(Number(result.loyaltyPointsUsed) || 0);
       setLoyaltyDiscountAmount(Number(result.loyaltyDiscountAmount) || 0);
-      setAmountPaid(Number(result.amountPaid) || 0);
+      setPaymentTokenValue(typeof result.paymentToken === "string" ? result.paymentToken : null);
+      setAmountDue(Number(result.amountDue) || 0);
       setAmountRemaining(Number(result.amountRemaining) || 0);
       setConfirmedAt(result.startsAt);
     } finally {
@@ -745,17 +749,19 @@ export default function PublicBookingPage() {
               <ProcedureConsentPanel token={consentTokenValue} />
             </div>
           ) : null}
-          {amountPaid > 0 ? (
-            <p className="max-w-md rounded-xl bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
-              Opłacono <strong>{formatPLNFromGrosze(amountPaid)}</strong>
+          {paymentTokenValue && amountDue > 0 ? (
+            <div className="w-full max-w-md space-y-2 text-left">
+              <div className="text-sm font-semibold text-zinc-900">Płatność za rezerwację</div>
+              <PaymentRequestPanel
+                token={paymentTokenValue}
+                redirectAfterClaim={bookedAsLoggedIn || accountCreated ? "/panel-klienta" : null}
+              />
               {amountRemaining > 0 ? (
-                <>
-                  {" "}
-                  (pozostało do zapłaty na miejscu: <strong>{formatPLNFromGrosze(amountRemaining)}</strong>)
-                </>
+                <p className="text-center text-xs text-zinc-500">
+                  Pozostałe <strong>{formatPLNFromGrosze(amountRemaining)}</strong> zapłacisz na miejscu.
+                </p>
               ) : null}
-              .
-            </p>
+            </div>
           ) : null}
           {loyaltyPointsUsed > 0 ? (
             <p
@@ -1489,8 +1495,8 @@ export default function PublicBookingPage() {
                 <span className="font-semibold text-emerald-700">{formatPLNFromGrosze(paymentDue.amountDueGrosze)}</span>
               </div>
               <p className="mt-2 text-[11px] text-zinc-400">
-                Płatność demonstracyjna — kliknięcie przycisku poniżej od razu oznacza wizytę jako opłaconą.
-                Docelowo zostanie tu podłączona prawdziwa bramka płatności.
+                Po rezerwacji wybierzesz metodę płatności (BLIK lub przelew) i opłacisz zaliczkę. Płatność jest
+                uznana po potwierdzeniu przez klinikę.
               </p>
             </div>
           ) : null}
@@ -1533,7 +1539,7 @@ export default function PublicBookingPage() {
             {submitting
               ? "Zapisywanie…"
               : selectedService?.price
-                ? `Zapłać ${formatPLNFromGrosze(paymentDue.amountDueGrosze)} i zarezerwuj`
+                ? `Zarezerwuj i przejdź do płatności (${formatPLNFromGrosze(paymentDue.amountDueGrosze)})`
                 : "Potwierdź rezerwację"}
           </button>
         </StepCard>

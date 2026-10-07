@@ -27,6 +27,8 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   CARD: "Karta",
   VOUCHER: "Voucher",
   ONLINE: "Online (przy rezerwacji)",
+  BLIK: "BLIK na telefon",
+  TRANSFER: "Przelew tradycyjny",
 };
 
 function formatDate(date: Date) {

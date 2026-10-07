@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db";
 import { sendEmail, type SendEmailResult } from "@/lib/mailer";
 import { warsawParts, warsawWallTimeToUtc } from "@/lib/warsaw-time";
 import { consentPageUrl } from "@/lib/consent-link";
+import { paymentPageUrl } from "@/lib/payment-request";
 import type { EmailType } from "@/lib/email-types";
 import { pushContent, sendPushToPatient, sendPushToStaff } from "@/lib/push";
 import {
@@ -139,6 +140,7 @@ async function loadAppointment(appointmentId: string, baseUrl?: string) {
       status: true,
       deletedAt: true,
       consentStatus: true,
+      paymentRequests: { orderBy: { createdAt: "desc" }, take: 1, select: { status: true } },
       customServiceName: true,
       patientId: true,
       locationId: true,
@@ -161,6 +163,11 @@ async function loadAppointment(appointmentId: string, baseUrl?: string) {
     // Niepodpisana zgoda: maile o wizycie przypominają o obowiązku jej podpisania.
     consentUrl:
       baseUrl && appointment.consentStatus === "NOT_SIGNED" ? consentPageUrl(baseUrl, appointment.id) : null,
+    // Nieopłacona (albo odrzucona) zaliczka: mail z potwierdzeniem prowadzi do płatności.
+    paymentUrl:
+      baseUrl && ["AWAITING", "REJECTED"].includes(appointment.paymentRequests[0]?.status ?? "")
+        ? paymentPageUrl(baseUrl, appointment.id)
+        : null,
   };
   return { appointment, data };
 }

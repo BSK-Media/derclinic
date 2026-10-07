@@ -21,6 +21,7 @@ import { appointmentStatusLabel, effectiveAppointmentStatus } from "@/lib/appoin
 import { ApprovalBadge, RejectReasonDialog } from "@/components/appointment-approval";
 import { AppointmentPhotos } from "@/components/appointment-photos";
 import { AppointmentConsentCard } from "@/components/appointment-consent-card";
+import { AppointmentPaymentRequestCard } from "@/components/appointment-payment-request-card";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -38,6 +39,8 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   CARD: "Karta",
   VOUCHER: "Voucher",
   ONLINE: "Online (przy rezerwacji)",
+  BLIK: "BLIK na telefon",
+  TRANSFER: "Przelew tradycyjny",
 };
 
 export default function AdminAppointmentDetail() {
@@ -402,6 +405,8 @@ export default function AdminAppointmentDetail() {
           {appointmentStatusLabel(appointmentIsAwaiting ? "AWAITING" : appt.status)}
         </div>
       </Card>
+
+      <AppointmentPaymentRequestCard appointmentId={id} />
 
       <AppointmentConsentCard appointmentId={id} />
 
