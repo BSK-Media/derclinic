@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { applyLotChange } from "@/lib/lot-allocation";
 
 const BodySchema = z.object({
   productId: z.string().min(1),
@@ -109,6 +110,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
         quantity: new Prisma.Decimal(0).minus(parsed.data.quantity),
       },
     });
+    await applyLotChange(prisma, parsed.data.productId, warehouseId, parsed.data.quantity);
   }
 
   await logAudit({
@@ -175,6 +177,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
           quantity: new Prisma.Decimal(0).minus(stockDelta),
         },
       });
+      await applyLotChange(tx, consumption!.productId, consumption!.warehouseId, stockDelta);
     }
     return row;
   });
@@ -233,6 +236,7 @@ export async function DELETE(req: Request, props: { params: Promise<{ id: string
           quantity: consumption!.quantity,
         },
       });
+      await applyLotChange(tx, consumption!.productId, consumption!.warehouseId, consumption!.quantity.neg());
     }
   });
 

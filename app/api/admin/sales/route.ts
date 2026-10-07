@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { applyLotChange } from "@/lib/lot-allocation";
 import { PATIENT_PUBLIC_SELECT } from "@/lib/patient-select";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
@@ -230,6 +231,7 @@ export async function POST(req: Request) {
         where: { productId_warehouseId: { productId: it.productId, warehouseId } },
         data: { quantity: { decrement: q } },
       });
+      await applyLotChange(tx, it.productId, warehouseId, q);
     }
 
     await logAudit({

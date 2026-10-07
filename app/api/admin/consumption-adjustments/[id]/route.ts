@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { applyLotChange } from "@/lib/lot-allocation";
 
 const BodySchema = z.object({
   action: z.enum(["approve", "reject"]),
@@ -88,6 +89,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
           quantity: new Prisma.Decimal(0).minus(consumption.quantity),
         },
       });
+      await applyLotChange(tx, consumption.productId, consumption.warehouseId, consumption.quantity);
     }
 
     return tx.consumption.update({

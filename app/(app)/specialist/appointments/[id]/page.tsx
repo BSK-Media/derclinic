@@ -1,5 +1,6 @@
 "use client";
 
+import { SuggestedLotHint } from "@/components/suggested-lot-hint";
 import useSWR from "swr";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -296,12 +297,10 @@ export default function SpecialistAppointmentDetail() {
           Sugerowane preparaty:
           <div className="mt-2 flex flex-wrap gap-2">
             {(appt.service?.suggestedProducts ?? []).map((sp: any) => (
-              <span
-                key={sp.id}
-                className="rounded-full border bg-zinc-50 px-3 py-1 text-xs dark:bg-zinc-900"
-              >
+              <div key={sp.id} className="rounded-2xl border bg-zinc-50 px-3 py-1.5 text-xs dark:bg-zinc-900">
                 {sp.product.name} • {sp.quantity} {unitLabel(sp.product.unit)}
-              </span>
+                <SuggestedLotHint lots={sp.lots} />
+              </div>
             ))}
             {(appt.service?.suggestedProducts ?? []).length === 0 && (
               <span className="text-xs text-zinc-500">—</span>

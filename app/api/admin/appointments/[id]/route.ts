@@ -1,4 +1,5 @@
 import { isAdminLike } from "@/lib/roles";
+import { suggestLotsByProduct } from "@/lib/lot-allocation";
 import { NextResponse, after } from "next/server";
 import {
   appBaseUrl,
@@ -61,6 +62,25 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     );
   }
 
+  // Do każdego sugerowanego preparatu: partie w kolejności użycia (najkrótszy termin pierwszy).
+  const lotSuggestions = await suggestLotsByProduct(
+    prisma,
+    (appt.service?.suggestedProducts ?? []).map((sp) => sp.productId),
+    appt.locationId,
+  );
+  const apptWithLots = {
+    ...appt,
+    service: appt.service
+      ? {
+          ...appt.service,
+          suggestedProducts: appt.service.suggestedProducts.map((sp) => ({
+            ...sp,
+            lots: lotSuggestions.get(sp.productId) ?? [],
+          })),
+        }
+      : appt.service,
+  };
+
   const [products, warehouses, services, specialistAssignments] =
     await Promise.all([
       prisma.product.findMany({ orderBy: { name: "asc" } }),
@@ -79,7 +99,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
 
   return NextResponse.json({
     ok: true,
-    appointment: appt,
+    appointment: apptWithLots,
     products,
     warehouses,
     services,
