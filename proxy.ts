@@ -74,6 +74,8 @@ async function authorize(req: NextRequest, requestHeaders: Headers): Promise<Nex
     pathname.startsWith("/api/newsletter/") ||
     // Zgoda na zabieg: pobranie PDF i wgranie podpisanego pliku z linku (podpisany token).
     pathname.startsWith("/api/consent/") ||
+    // Płatność za wizytę z linku (podpisany token): wybór metody i zgłoszenie wpłaty.
+    pathname.startsWith("/api/pay/") ||
     // Zadania cykliczne (Vercel Cron) — bez sesji, autoryzowane sekretem
     // CRON_SECRET sprawdzanym w samym endpoincie.
     pathname.startsWith("/api/cron/")
