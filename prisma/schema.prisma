@@ -909,10 +909,15 @@ model StaffSession {
   // po zalogowaniu. Puste, gdy konto nie ma operatorów albo PIN nie został podany.
   operatorId    String?
   operator      StaffOperator? @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  // Wejście administratora na cudze konto: id administratora, który uruchomił
+  // sesję. Taka sesja nie wymaga MFA/PIN-u konta docelowego (administrator
+  // potwierdził własne MFA), jest krótka i nie pozwala na operacje wysokiego ryzyka.
+  impersonatedById String?
 
   @@index([userId])
   @@index([expiresAt])
   @@index([operatorId])
+  @@index([impersonatedById])
 }
 
 // Osoba pracująca na wspólnym koncie (np. dwie recepcjonistki na jednym

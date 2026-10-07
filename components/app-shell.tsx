@@ -668,7 +668,7 @@ export function AppHeader() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, loading, stopImpersonation } = useAuth();
   const requiredPermission = sidebarPermissionForPath(pathname);
   const hasAccess =
     !requiredPermission ||
@@ -683,6 +683,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen w-full bg-gradient-to-b from-[#eef3f7] via-[#eef3f7] to-[#f7fbff] text-slate-900 dark:from-[#070b13] dark:via-[#070b13] dark:to-[#0b1220] dark:text-white">
       <AppSidebar />
       <div className="flex min-h-screen w-full flex-col lg:pl-[280px]">
+        {user?.impersonatedBy ? (
+          <div className="sticky top-0 z-50 flex flex-wrap items-center justify-between gap-2 bg-amber-500 px-4 py-2 text-sm font-medium text-amber-950">
+            <span>
+              Pracujesz na koncie: {user.name} ({user.role === "MANAGER" ? "manager" : user.role === "RECEPTION" ? "recepcja" : "specjalista"}) — zalogowany jako administrator {user.impersonatedBy.name}
+            </span>
+            <button
+              type="button"
+              onClick={() => void stopImpersonation()}
+              className="rounded-lg bg-amber-950 px-3 py-1 text-xs font-semibold text-amber-50 hover:bg-amber-900"
+            >
+              Wróć do konta administratora
+            </button>
+          </div>
+        ) : null}
         <AppHeader />
         <main className="flex-1 px-4 py-6 lg:px-6">
           {!loading && hasAccess ? children : null}

@@ -57,6 +57,34 @@ async function authorize(req: NextRequest, requestHeaders: Headers): Promise<Nex
     pathname.startsWith("/api");
   if (!needsAuth) return null;
 
+  // Sesja administratora "wszedłem na cudze konto" nie zmienia haseł, MFA, PIN-ów
+  // ani ustawień konta — to zostaje przy właścicielu konta.
+  if (
+    pathname.startsWith("/account") ||
+    pathname.startsWith("/api/me/security") ||
+    pathname.startsWith("/api/auth/change-password") ||
+    pathname.startsWith("/api/auth/mfa/") ||
+    pathname.startsWith("/api/auth/step-up") ||
+    pathname.startsWith("/api/auth/operator/")
+  ) {
+    const current = await validateStaffToken(req.cookies.get(AUTH_COOKIE_NAME)?.value);
+    if (current?.impersonatedById) {
+      if (pathname.startsWith("/api")) {
+        return NextResponse.json(
+          { ok: false, message: "Niedostępne podczas wejścia na cudze konto. Wróć na konto administratora." },
+          { status: 403 },
+        );
+      }
+      const url = req.nextUrl.clone();
+      url.pathname = firstAllowedSidebarHref(
+        current.user.role,
+        normalizeSidebarPermissions(current.user.role, current.user.sidebarPermissions),
+      );
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+  }
+
   // Logowanie (hasło + MFA) i publiczne API działają bez sesji personelu.
   if (
     pathname.startsWith("/api/auth/login") ||

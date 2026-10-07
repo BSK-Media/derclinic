@@ -38,7 +38,7 @@ function generateTemporaryPassword() {
 }
 
 export default function AdminUsersPage() {
-  const { user: me } = useAuth();
+  const { user: me, impersonate } = useAuth();
   const confirm = useConfirm();
   const { data, mutate, isLoading } = useSWR("/api/admin/users", fetcher);
   // Administrator zarządza wszystkim; manager zakłada i obsługuje tylko recepcję
@@ -187,6 +187,12 @@ export default function AdminUsersPage() {
     if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
     toast.success(action === "reset_mfa" ? "Zresetowano MFA" : `Wylogowano (${out.revokedSessions} sesji)`);
     mutate();
+  }
+
+  async function enterAccount(u: U) {
+    if (!(await confirm({ message: `Wejść na konto „${u.login}” (${u.name})? Zobaczysz aplikację tak jak ta osoba. Wejście zostanie zapisane w dzienniku zdarzeń.`, confirmLabel: "Wejdź na konto" }))) return;
+    const ok = await impersonate(u.id);
+    if (!ok) toast.error("Nie udało się wejść na konto.");
   }
 
   async function remove(u: U) {
@@ -404,6 +410,11 @@ export default function AdminUsersPage() {
                         {isAdmin && u.mfaEnabledAt && !isMe ? (
                           <Button variant="outline" size="sm" onClick={() => security(u, "reset_mfa")}>
                             Reset 2FA
+                          </Button>
+                        ) : null}
+                        {isAdmin && !isMe && u.role !== "ADMIN" ? (
+                          <Button variant="outline" size="sm" onClick={() => enterAccount(u)}>
+                            Wejdź na konto
                           </Button>
                         ) : null}
                         {isAdmin && !isMe ? (

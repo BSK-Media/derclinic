@@ -20,6 +20,6 @@ export async function GET() {
   // serwera), więc nie trzeba już odświeżać tokenu.
   return NextResponse.json({
     ok: true,
-    user: { id: dbu.id, login: dbu.login, name: dbu.name, role: dbu.role, payoutPercent: dbu.payoutPercent, avatarUrl: dbu.avatarUrl, jobTitle: dbu.jobTitle, location: dbu.assignedLocation.name, locationId: dbu.locationId, assignedLocation: dbu.assignedLocation, specialization: dbu.specialization, sidebarPermissions, operatorName: u.operatorName },
+    user: { id: dbu.id, login: dbu.login, name: dbu.name, role: dbu.role, payoutPercent: dbu.payoutPercent, avatarUrl: dbu.avatarUrl, jobTitle: dbu.jobTitle, location: dbu.assignedLocation.name, locationId: dbu.locationId, assignedLocation: dbu.assignedLocation, specialization: dbu.specialization, sidebarPermissions, operatorName: u.operatorName, impersonatedBy: u.impersonatedBy },
   });
 }

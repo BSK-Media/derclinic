@@ -24,11 +24,15 @@ export type AuthUser = {
   // Konto wspólne (recepcja): osoba wybrana PIN-em po zalogowaniu.
   operatorId: string | null;
   operatorName: string | null;
+  // Administrator, który wszedł na to konto (sesja "zalogowano jako").
+  impersonatedBy: { id: string; name: string } | null;
 };
 
 const COOKIE_NAME = "bsk_session";
 // Dawne ciasteczko z 30-dniowym, bezstanowym JWT — czyścimy je przy logowaniu/wylogowaniu.
 const LEGACY_COOKIE_NAME = "bsk_auth";
+// Token własnej sesji administratora, odłożony na czas wejścia na cudze konto.
+const ADMIN_RETURN_COOKIE = "bsk_admin_return";
 
 export const AUTH_COOKIE_NAME = COOKIE_NAME;
 
@@ -57,6 +61,9 @@ export async function getAuthUser(): Promise<AuthUser | null> {
   // Konto wspólne bez podanego PIN-u nie ma dostępu do niczego poza ekranem PIN.
   if (session.operatorPending) return null;
   const { user } = session;
+  const impersonator = session.impersonatedById
+    ? await prisma.user.findUnique({ where: { id: session.impersonatedById }, select: { id: true, name: true } })
+    : null;
   return {
     id: user.id,
     email: user.email ?? `${user.login}@local`,
@@ -67,6 +74,7 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     stepUpAt: session.stepUpAt,
     operatorId: session.operator?.id ?? null,
     operatorName: session.operator?.name ?? null,
+    impersonatedBy: impersonator,
   };
 }
 
@@ -118,5 +126,61 @@ export async function endStaffSession(reason = "logout") {
   const jar = await cookies();
   jar.set({ name: COOKIE_NAME, value: "", ...cookieOptions(0) });
   jar.set({ name: LEGACY_COOKIE_NAME, value: "", ...cookieOptions(0) });
+  jar.set({ name: ADMIN_RETURN_COOKIE, value: "", ...cookieOptions(0) });
   return current ? { id: current.userId, operatorName: current.operator?.name ?? null } : null;
+}
+
+/**
+ * Administrator wchodzi na konto innego pracownika. Własna sesja administratora
+ * zostaje nietknięta (jej token ląduje w osobnym ciasteczku httpOnly), a docelowe
+ * konto dostaje krótką, osobną sesję oznaczoną id administratora.
+ */
+export async function startImpersonation(adminId: string, targetUserId: string) {
+  const jar = await cookies();
+  const adminToken = jar.get(COOKIE_NAME)?.value;
+  if (!adminToken) throw new Error("Brak sesji administratora");
+
+  const sid = newSessionId();
+  const expiresAt = new Date(Date.now() + SESSION_POLICY.impersonation.absoluteMs);
+  await prisma.staffSession.create({
+    data: {
+      id: hashSessionId(sid),
+      userId: targetUserId,
+      expiresAt,
+      mfaMethod: "IMPERSONATION",
+      stepUpAt: null,
+      impersonatedById: adminId,
+      ...(await requestMeta()),
+    },
+  });
+  jar.set({ name: ADMIN_RETURN_COOKIE, value: adminToken, ...cookieOptions(SESSION_POLICY.staff.absoluteMs / 1000) });
+  jar.set({
+    name: COOKIE_NAME,
+    value: await signSessionToken("staff", targetUserId, sid, expiresAt),
+    ...cookieOptions(SESSION_POLICY.impersonation.absoluteMs / 1000),
+  });
+}
+
+/** Kończy wejście na cudze konto i przywraca sesję administratora. Null, gdy to nie sesja "jako". */
+export async function stopImpersonation() {
+  const jar = await cookies();
+  const current = await getStaffSession();
+  if (!current?.impersonatedById) return null;
+  const returnToken = jar.get(ADMIN_RETURN_COOKIE)?.value;
+  const adminSession = await validateStaffToken(returnToken);
+  const restored = Boolean(
+    returnToken && adminSession && adminSession.userId === current.impersonatedById && adminSession.user.role === "ADMIN",
+  );
+
+  await prisma.staffSession.updateMany({
+    where: { id: current.id, revokedAt: null },
+    data: { revokedAt: new Date(), revokedReason: "impersonation_end" },
+  });
+  jar.set({ name: ADMIN_RETURN_COOKIE, value: "", ...cookieOptions(0) });
+  if (restored && returnToken) {
+    jar.set({ name: COOKIE_NAME, value: returnToken, ...cookieOptions(SESSION_POLICY.staff.absoluteMs / 1000) });
+  } else {
+    jar.set({ name: COOKIE_NAME, value: "", ...cookieOptions(0) });
+  }
+  return { adminId: current.impersonatedById, targetId: current.userId, restored };
 }

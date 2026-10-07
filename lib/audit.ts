@@ -1,5 +1,5 @@
 import { cookies, headers } from "next/headers";
-import { sessionOperatorName } from "@/lib/session-core";
+import { sessionImpersonatorName, sessionOperatorName } from "@/lib/session-core";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { randomUUID } from "node:crypto";
@@ -73,6 +73,16 @@ async function currentOperatorName(userId: string): Promise<string | null> {
   }
 }
 
+async function currentImpersonatorName(userId: string): Promise<string | null> {
+  try {
+    const token = (await cookies()).get("bsk_session")?.value;
+    return await sessionImpersonatorName(token, userId);
+  } catch {
+    // poza kontekstem żądania (skrypt, test) — bez administratora
+    return null;
+  }
+}
+
 async function resolveActor(
   client: Prisma.TransactionClient | typeof prisma,
   input: LogAuditInput,
@@ -86,10 +96,13 @@ async function resolveActor(
     });
     // Konto wspólne (recepcja): do nazwy konta dopisujemy osobę wybraną PIN-em.
     const operatorName = await currentOperatorName(actor.id);
+    // Administrator pracujący na tym koncie: wpis jest oznaczony jego imieniem.
+    const impersonatorName = await currentImpersonatorName(actor.id);
+    const suffix = impersonatorName ? ` [administrator: ${impersonatorName}]` : operatorName ? ` (${operatorName})` : "";
     return {
       actorType: "STAFF",
       actorId: actor.id,
-      actorName: user?.name ? (operatorName ? `${user.name} (${operatorName})` : user.name) : null,
+      actorName: user?.name ? `${user.name}${suffix}` : null,
       actorLogin: user?.login ?? null,
       actorRole: user?.role ?? null,
     };

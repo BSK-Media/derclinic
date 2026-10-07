@@ -22,6 +22,8 @@ const DAY = 24 * HOUR;
 export const SESSION_POLICY = {
   // Personel: sesja wygasa po 12 h, a po 2 h bezczynności wymaga ponownego logowania.
   staff: { absoluteMs: 12 * HOUR, idleMs: 2 * HOUR },
+  // Wejście administratora na cudze konto: krótka sesja, bez odnawiania.
+  impersonation: { absoluteMs: HOUR },
   // Pacjent: do 30 dni, wylogowanie po 7 dniach bez aktywności.
   patient: { absoluteMs: 30 * DAY, idleMs: 7 * DAY },
 } as const;
@@ -95,7 +97,9 @@ export async function validateStaffToken(token: string | undefined | null) {
   if (!session || session.userId !== parsed.subject) return null;
   if (!isActive(session, SESSION_POLICY.staff.idleMs)) return null;
   // Konto bez aktywnego MFA nie może mieć pełnej sesji (np. po resecie MFA).
-  if (!session.user.mfaEnabledAt) return null;
+  // Wyjątek: sesja administratora wchodzącego na to konto (jego MFA już sprawdzono).
+  const impersonated = Boolean(session.impersonatedById);
+  if (!impersonated && !session.user.mfaEnabledAt) return null;
 
   if (Date.now() - session.lastSeenAt.getTime() > TOUCH_INTERVAL_MS) {
     await prisma.staffSession
@@ -107,7 +111,8 @@ export async function validateStaffToken(token: string | undefined | null) {
   // administratora) osoby zostają w bazie, ale konto przestaje ich wymagać
   // i nie pokazuje ich w panelu.
   const usesOperators = session.user.role === "RECEPTION";
-  const operatorPending = usesOperators && !session.operatorId && session.user.operators.length > 0;
+  const operatorPending =
+    !impersonated && usesOperators && !session.operatorId && session.user.operators.length > 0;
   return { ...session, operator: usesOperators ? session.operator : null, operatorPending };
 }
 
@@ -126,6 +131,23 @@ export async function sessionOperatorName(token: string | undefined | null, user
   });
   if (!session || session.userId !== userId || session.user.role !== "RECEPTION") return null;
   return session.operator?.name ?? null;
+}
+
+/**
+ * Imię administratora, który wszedł na konto `userId` (sesja z ciasteczka) —
+ * do dopisania w dzienniku zdarzeń. Null, gdy to zwykła sesja.
+ */
+export async function sessionImpersonatorName(token: string | undefined | null, userId: string) {
+  if (!token) return null;
+  const parsed = await readToken("staff", token);
+  if (!parsed || parsed.subject !== userId) return null;
+  const session = await prisma.staffSession.findUnique({
+    where: { id: hashSessionId(parsed.sid) },
+    select: { userId: true, impersonatedById: true },
+  });
+  if (!session || session.userId !== userId || !session.impersonatedById) return null;
+  const admin = await prisma.user.findUnique({ where: { id: session.impersonatedById }, select: { name: true } });
+  return admin?.name ?? null;
 }
 
 export async function validatePatientToken(token: string | undefined | null) {
