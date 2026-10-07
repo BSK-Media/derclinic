@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { deleteProductConfirmMessage, deleteProductRequest } from "@/lib/delete-product-client";
+import { eanMatchesGtin, gs1SearchGtin } from "@/lib/barcode";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 async function fetcher(url: string) {
@@ -274,8 +275,9 @@ export default function ProductsPage() {
 
   const visibleProducts = React.useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("pl");
+    const gtin = gs1SearchGtin(query);
     const filtered = products.filter((product) => {
-      const matchesQuery = !normalizedQuery || `${product.sku ?? ""} ${product.name} ${product.manufacturer ?? ""} ${product.ean ?? ""} ${product.catalogCategory ?? ""} ${productStatus(product)}`
+      const matchesQuery = !normalizedQuery || eanMatchesGtin(product.ean, gtin) || `${product.sku ?? ""} ${product.name} ${product.manufacturer ?? ""} ${product.ean ?? ""} ${product.catalogCategory ?? ""} ${productStatus(product)}`
         .toLocaleLowerCase("pl")
         .includes(normalizedQuery);
       const matchesManufacturer = manufacturer === "Wszystkie" || product.manufacturer === manufacturer;

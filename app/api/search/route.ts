@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { parseScan } from "@/lib/barcode";
 import { prisma } from "@/lib/db";
 import { requireAuth, scopedLocationWhere } from "@/lib/api-helpers";
 import {
@@ -28,6 +29,9 @@ export async function GET(req: Request) {
   if (q.length < 2) return NextResponse.json({ ok: true, groups: [] });
 
   const contains = { contains: q, mode: "insensitive" as const };
+  // Kod GS1 ze skanera: produkt szukany po GTIN (jak po EAN), niezależnie od zer wiodących.
+  const scan = parseScan(q);
+  const gs1Codes = scan?.kind === "gs1" ? scan.productCodes : [];
   const can = (permission: SidebarPermission) =>
     hasSidebarPermission(user!.role, user!.sidebarPermissions, permission);
 
@@ -128,6 +132,7 @@ export async function GET(req: Request) {
                 { name: contains },
                 { sku: contains },
                 { ean: contains },
+                ...(gs1Codes.length ? [{ ean: { in: gs1Codes } }] : []),
                 { manufacturer: contains },
               ],
             },

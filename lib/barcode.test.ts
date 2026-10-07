@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gtinToEan, parseScan } from "./barcode";
+import { eanMatchesGtin, gs1SearchGtin, gtinToEan, parseScan } from "./barcode";
 
 describe("parseScan", () => {
   it("rozpoznaje klasyczny kod EAN-13", () => {
@@ -34,5 +34,19 @@ describe("parseScan", () => {
   it("obsługuje zapis w nawiasach i dzień 00", () => {
     const result = parseScan("(01)07640173232384(17)280400(10)LOT1");
     expect(result?.kind === "gs1" && result.data.expiryDate).toBe("2028-04-30");
+  });
+});
+
+describe("wyszukiwanie produktu po GS1", () => {
+  it("dopasowuje GTIN z kodu GS1 do EAN produktu", () => {
+    const gtin = gs1SearchGtin("01076401732323841025182CL0172804292125182CL04152");
+    expect(eanMatchesGtin("7640173232384", gtin)).toBe(true);
+    expect(eanMatchesGtin("07640173232384", gtin)).toBe(true);
+    expect(eanMatchesGtin("7629999518315", gtin)).toBe(false);
+  });
+
+  it("zwykły tekst i zwykły EAN nie są kodem GS1", () => {
+    expect(gs1SearchGtin("Botox 100")).toBeNull();
+    expect(gs1SearchGtin("7629999518315")).toBeNull();
   });
 });

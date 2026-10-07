@@ -160,3 +160,23 @@ export function parseScan(input: string): ParsedScan | null {
 export function gtinToEan(gtin: string): string {
   return gtin.length === 14 && gtin.startsWith("0") ? gtin.slice(1) : gtin;
 }
+
+/** Cyfry kodu bez zer wiodących — pozwala porównać EAN-13 z GTIN-14 tego samego produktu. */
+function normalizedDigits(code: string) {
+  return code.replace(/\D/g, "").replace(/^0+/, "");
+}
+
+/**
+ * Wyszukiwanie produktów po zeskanowanym GS1. Zwraca znormalizowany GTIN
+ * (do porównania z EAN produktu) albo null, gdy tekst nie jest kodem GS1.
+ */
+export function gs1SearchGtin(query: string): string | null {
+  const scan = parseScan(query);
+  if (scan?.kind !== "gs1" || !scan.data.gtin) return null;
+  return normalizedDigits(scan.data.gtin) || null;
+}
+
+export function eanMatchesGtin(ean: string | null | undefined, gtin: string | null) {
+  if (!ean || !gtin) return false;
+  return normalizedDigits(ean) === gtin;
+}

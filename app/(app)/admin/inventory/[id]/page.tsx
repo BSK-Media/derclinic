@@ -20,6 +20,7 @@ import {
   Trash2,
   PackageX,
 } from "lucide-react";
+import { eanMatchesGtin, gs1SearchGtin } from "@/lib/barcode";
 import { deleteProductConfirmMessage, deleteProductRequest } from "@/lib/delete-product-client";
 import { toast } from "sonner";
 import { AdminAddProductDialog } from "@/components/admin-add-product-dialog";
@@ -193,8 +194,9 @@ export default function WarehouseDetailsPage() {
 
   const visibleProducts = React.useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("pl");
+    const gtin = gs1SearchGtin(query);
     const filtered = products.filter((product) => {
-      if (!normalizedQuery) return true;
+      if (!normalizedQuery || eanMatchesGtin(product.ean, gtin)) return true;
       return `${product.sku} ${product.name} ${product.manufacturer ?? ""} ${product.ean ?? ""} ${product.catalogCategory ?? ""} ${product.status}`
         .toLocaleLowerCase("pl")
         .includes(normalizedQuery);
