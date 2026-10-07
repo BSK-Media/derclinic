@@ -331,6 +331,13 @@ export default function PublicBookingPage() {
   // zabieg, specjalista, termin) wraca w adresie (/book?wznow=1&...) i jest tu
   // odtwarzany. Sam termin i tak jest ponownie sprawdzany przy zapisie wizyty.
   const [googleError, setGoogleError] = React.useState("");
+  // Ekran płatności i ekran potwierdzenia (zgoda) zastępują formularz — zaczynamy od góry strony,
+  // a nie od miejsca, w którym była przewinięta poprzednia treść.
+  const onPaymentStep = Boolean(holdTokenValue && holdInfo && !confirmedAt);
+  React.useEffect(() => {
+    if (onPaymentStep || confirmedAt) window.scrollTo({ top: 0, behavior: "instant" });
+  }, [onPaymentStep, confirmedAt]);
+
   React.useEffect(() => {
     if (appliedServicePreselect.current) return;
     if (services.length === 0) return;
