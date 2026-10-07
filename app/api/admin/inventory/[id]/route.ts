@@ -98,6 +98,14 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       salePrice: stock.product.salePrice,
       expiryDate: nearestExpiry,
       lotsCount: productLots.length,
+      // Partie wyłącznie z tego magazynu (rozwijane pod produktem).
+      lots: productLots.map((lot) => ({
+        id: lot.id,
+        batchNumber: lot.batchNumber,
+        serialNumber: lot.serialNumber,
+        quantity: Number(lot.quantity),
+        expiryDate: lot.expiryDate,
+      })),
       weeklyUsage,
       coverageDays,
       isLowStock,

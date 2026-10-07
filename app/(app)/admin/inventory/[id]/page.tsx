@@ -11,6 +11,8 @@ import {
   ArrowRight,
   ArrowRightLeft,
   ArrowUp,
+  ChevronDown,
+  ChevronRight,
   ChevronsUpDown,
   CircleHelp,
   Minus,
@@ -61,6 +63,7 @@ type InventoryProduct = {
   salePrice: number | null;
   expiryDate: string | null;
   lotsCount: number;
+  lots: { id: string; batchNumber: string; serialNumber: string | null; quantity: number; expiryDate: string | null }[];
   weeklyUsage: number;
   coverageDays: number | null;
   isLowStock: boolean;
@@ -191,13 +194,20 @@ export default function WarehouseDetailsPage() {
   const [transferNote, setTransferNote] = React.useState("");
   const [transferSaving, setTransferSaving] = React.useState(false);
   const [removingId, setRemovingId] = React.useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = React.useState<Set<string>>(() => new Set());
+  const toggleExpanded = (id: string) =>
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
 
   const visibleProducts = React.useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("pl");
     const gtin = gs1SearchGtin(query);
     const filtered = products.filter((product) => {
       if (!normalizedQuery || eanMatchesGtin(product.ean, gtin)) return true;
-      return `${product.sku} ${product.name} ${product.manufacturer ?? ""} ${product.ean ?? ""} ${product.catalogCategory ?? ""} ${product.status}`
+      return `${product.sku} ${product.name} ${product.manufacturer ?? ""} ${product.ean ?? ""} ${product.catalogCategory ?? ""} ${product.status} ${product.lots.map((lot) => `${lot.batchNumber} ${lot.serialNumber ?? ""}`).join(" ")}`
         .toLocaleLowerCase("pl")
         .includes(normalizedQuery);
     });
@@ -664,6 +674,7 @@ export default function WarehouseDetailsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8 px-2" aria-label="Rozwiń partie" />
                   <SortableHead label="SKU" column="sku" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
                   <SortableHead label="Produkt" column="name" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
                   <SortableHead label="Firma" column="manufacturer" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
@@ -690,8 +701,25 @@ export default function WarehouseDetailsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleProducts.map((product) => (
-                  <TableRow key={product.productId}>
+                {visibleProducts.map((product) => {
+                  const isExpanded = expandedIds.has(product.productId);
+                  return (
+                  <React.Fragment key={product.productId}>
+                  <TableRow>
+                    <TableCell className="w-8 px-2">
+                      {product.lots.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleExpanded(product.productId)}
+                          aria-expanded={isExpanded}
+                          aria-label={isExpanded ? `Zwiń partie: ${product.name}` : `Rozwiń partie: ${product.name}`}
+                          title={isExpanded ? "Zwiń partie" : `Pokaż partie (${product.lots.length})`}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
+                        >
+                          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </button>
+                      ) : null}
+                    </TableCell>
                     <TableCell className="whitespace-nowrap font-semibold">{product.sku}</TableCell>
                     <TableCell className="min-w-52 font-medium text-slate-900 dark:text-white">
                       <Link href={`/admin/products/${product.productId}`} className="hover:underline">
@@ -734,11 +762,48 @@ export default function WarehouseDetailsPage() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  {isExpanded
+                    ? product.lots.map((lot) => {
+                        const lotExpiry = lot.expiryDate ? new Date(lot.expiryDate).getTime() : null;
+                        const expired = lotExpiry != null && lotExpiry < Date.now();
+                        const soon = lotExpiry != null && !expired && lotExpiry <= Date.now() + 1000 * 60 * 60 * 24 * 183;
+                        return (
+                          <TableRow key={lot.id} className="bg-slate-50/70 text-sm dark:bg-white/[0.03]">
+                            <TableCell className="px-2" />
+                            <TableCell className="whitespace-nowrap text-slate-400">↳</TableCell>
+                            <TableCell className="min-w-52">
+                              <div className="pl-3 font-medium text-slate-700 dark:text-slate-200">Partia {lot.batchNumber}</div>
+                              {lot.serialNumber ? (
+                                <div className="pl-3 text-xs text-slate-500">Nr seryjny: {lot.serialNumber}</div>
+                              ) : null}
+                            </TableCell>
+                            <TableCell />
+                            <TableCell />
+                            <TableCell />
+                            <TableCell className="whitespace-nowrap font-medium">{quantity(lot.quantity)}</TableCell>
+                            <TableCell />
+                            <TableCell />
+                            <TableCell className="whitespace-nowrap">{date(lot.expiryDate)}</TableCell>
+                            <TableCell />
+                            <TableCell>
+                              {expired ? (
+                                <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">Przeterminowana</span>
+                              ) : soon ? (
+                                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">Krótki termin</span>
+                              ) : null}
+                            </TableCell>
+                            <TableCell />
+                          </TableRow>
+                        );
+                      })
+                    : null}
+                  </React.Fragment>
+                  );
+                })}
 
                 {visibleProducts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="h-28 text-center text-slate-500">
+                    <TableCell colSpan={13} className="h-28 text-center text-slate-500">
                       {query ? "Brak produktów pasujących do wyszukiwania." : "Ten magazyn nie ma jeszcze produktów."}
                     </TableCell>
                   </TableRow>
