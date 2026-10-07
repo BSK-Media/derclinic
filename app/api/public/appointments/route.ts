@@ -1,58 +1,26 @@
 import { NextResponse, after } from "next/server";
-import { appBaseUrl, notifyAppointmentBooked } from "@/lib/email-notifications";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
-import { parseDateInput, warsawWallTimeToUtc } from "@/lib/warsaw-time";
-import { busyRangesForWarsawDay, computeFreeSlots, slotToUtc } from "@/lib/public-booking";
+import { appBaseUrl, notifyAppointmentBooked } from "@/lib/email-notifications";
 import { getPatientAuth } from "@/lib/patient-auth";
-import { maxRedeemablePoints, redeemLoyaltyPoints, discountForPoints } from "@/lib/loyalty";
-import { resolvePaymentDue, type PaymentChoice } from "@/lib/booking-payment";
-import { logAudit, formatWarsaw, type AuditActor } from "@/lib/audit";
 import { validatePassword } from "@/lib/password-policy";
 import { consentToken } from "@/lib/consent-link";
-import { createPaymentRequest } from "@/lib/payment-request-server";
-import { paymentToken } from "@/lib/payment-request";
+import { generatePaymentReference } from "@/lib/payment-request";
+import { BOOKING_HOLD_MINUTES, holdToken } from "@/lib/booking-hold";
+import { purgeExpiredHolds } from "@/lib/booking-hold-server";
+import {
+  assertSlotFree,
+  computePricing,
+  finalizeBooking,
+  normalizePhone,
+  resolveBookingEntities,
+  type BookingPayload,
+} from "@/lib/online-booking";
 import { RATE_LIMITS, clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
-
-const RESERVATION_SERVICE_NAME = "__DERCLINIC_REZERWACJA_CZASU__";
 
 function bad(message: string, status = 400) {
   return NextResponse.json({ ok: false, message }, { status });
-}
-
-function normalizePhone(value: string) {
-  const trimmed = value.trim();
-  const digits = trimmed.replace(/\D/g, "");
-  if (!digits) return trimmed;
-  return trimmed.startsWith("+") ? `+${digits}` : digits;
-}
-
-// Numer telefonu i e-mail są dopuszczone jako zduplikowane w różnych
-// lokalizacjach (patrz komentarz w lib/patient-auth.ts), ale w obrębie jednej
-// lokalizacji rezerwacja musi trafić na już istniejące konto zamiast tworzyć
-// drugi, osierocony rekord Patient z tymi samymi danymi kontaktowymi.
-// Najpierw szukamy po telefonie (silniejszy identyfikator — używany też do
-// logowania), a dopiero gdy nic nie znajdziemy, po e-mailu.
-async function findExistingPatient(
-  tx: any,
-  normalizedPhone: string,
-  normalizedEmail: string | null,
-  locationId: string,
-) {
-  const byPhone = await tx.patient.findFirst({
-    where: { phone: normalizedPhone, locationId },
-    orderBy: { updatedAt: "desc" },
-    select: { id: true, email: true, phone: true, passwordHash: true, googleSub: true, facebookId: true },
-  });
-  if (byPhone) return byPhone;
-
-  if (!normalizedEmail) return null;
-  return tx.patient.findFirst({
-    where: { email: { equals: normalizedEmail, mode: "insensitive" }, locationId },
-    orderBy: { updatedAt: "desc" },
-    select: { id: true, email: true, phone: true, passwordHash: true, googleSub: true, facebookId: true },
-  });
 }
 
 const BodySchema = z.object({
@@ -105,6 +73,11 @@ function describeValidationError(error: z.ZodError) {
   return label ? `${label}: nieprawidłowa wartość` : "Uzupełnij poprawnie wszystkie wymagane pola";
 }
 
+// Rezerwacja online. Wizyta NIE powstaje od razu: po sprawdzeniu danych i
+// terminu zatrzymujemy termin na czas płatności (BookingHold) i zwracamy token
+// do ekranu płatności. Wizytę tworzy dopiero /api/hold/[token]/claim, gdy
+// klient kliknie "Dokonałem płatności". Usługa bez ceny nie wymaga płatności —
+// wizyta powstaje od razu.
 export async function POST(req: Request) {
   const ipLimit = await hitRateLimit(RATE_LIMITS.publicBookingIp, await clientIp());
   if (!ipLimit.allowed) {
@@ -114,404 +87,108 @@ export async function POST(req: Request) {
   const json = await req.json().catch(() => null);
   const parsed = BodySchema.safeParse(json);
   if (!parsed.success) return bad(describeValidationError(parsed.error));
-
-  const {
-    locationId,
-    specialistId,
-    serviceId,
-    date,
-    time,
-    firstName,
-    lastName,
-    phone,
-    email,
-    note,
-    password,
-    pointsToRedeem,
-    paymentChoice,
-    imageConsent,
-  } = parsed.data;
+  const body = parsed.data;
 
   // Jeśli klient jest zalogowany do panelu pacjenta (ciasteczko sesji), wizytę
-  // od razu przypisujemy do jego istniejącego konta — pomijamy wyszukiwanie
-  // po telefonie/lokalizacji oraz zakładanie/aktualizowanie hasła.
+  // przypisujemy do jego istniejącego konta — bez zakładania hasła.
   const patientAuth = await getPatientAuth();
 
-  if (password && !patientAuth) {
-    const passwordIssue = validatePassword(password, {
-      name: `${firstName} ${lastName}`,
-      email,
-      phone,
+  if (body.password && !patientAuth) {
+    const passwordIssue = validatePassword(body.password, {
+      name: `${body.firstName} ${body.lastName}`,
+      email: body.email,
+      phone: body.phone,
     });
     if (passwordIssue) return bad(`Hasło: ${passwordIssue}`);
   }
 
-  const dateParam = parseDateInput(date);
-  if (!dateParam) return bad("Nieprawidłowa data");
+  const payload: BookingPayload = {
+    locationId: body.locationId,
+    specialistId: body.specialistId,
+    serviceId: body.serviceId,
+    date: body.date,
+    time: body.time,
+    firstName: body.firstName,
+    lastName: body.lastName,
+    phone: normalizePhone(body.phone),
+    email: body.email,
+    note: body.note?.trim() || null,
+    passwordHash: body.password && !patientAuth ? await bcrypt.hash(body.password, 10) : null,
+    pointsToRedeem: body.pointsToRedeem ?? 0,
+    paymentChoice: body.paymentChoice,
+    imageConsent: body.imageConsent,
+    patientAuthId: patientAuth?.id ?? null,
+  };
 
-  const [location, specialist, service] = await Promise.all([
-    prisma.location.findFirst({ where: { id: locationId, isActive: true }, select: { id: true } }),
-    prisma.user.findFirst({
-      where: { id: specialistId, role: "SPECIALIST", isVisible: true, locationId },
-      select: {
-        id: true,
-        name: true,
-        workDays: true,
-        assignedServices: { select: { serviceId: true } },
-      },
-    }),
-    prisma.service.findFirst({
-      where: { id: serviceId, name: { not: RESERVATION_SERVICE_NAME } },
-      select: { id: true, name: true, price: true, durationMin: true },
-    }),
-  ]);
-
-  if (!location) return bad("Nie znaleziono wybranej lokalizacji");
-  if (!specialist) return bad("Specjalista nie jest dostępny w wybranej lokalizacji");
-  if (!service) return bad("Nie znaleziono wybranej usługi");
-  if (!specialist.assignedServices.some((a) => a.serviceId === serviceId)) {
-    return bad("Ten specjalista nie wykonuje wybranej usługi");
-  }
-
-  const now = new Date();
+  const entities = await resolveBookingEntities(payload);
+  if ("error" in entities) return bad(String(entities.error));
 
   try {
-    const appointment = await prisma.$transaction(async (tx) => {
-      // Ponowna walidacja dostępności tuż przed zapisem — chroni przed dwoma
-      // równoczesnymi rezerwacjami tego samego terminu.
-      const dayStart = warsawWallTimeToUtc({ ...dateParam, hour: 0, minute: 0 });
-      const dayEnd = warsawWallTimeToUtc({ ...dateParam, hour: 23, minute: 59 });
-      const dayStartCheck = new Date(dayStart.getTime() - 4 * 60 * 60 * 1000);
-      const dayEndCheck = new Date(dayEnd.getTime() + 4 * 60 * 60 * 1000);
+    const now = new Date();
+    const { startsAt, endsAt } = await assertSlotFree(prisma, entities, payload, { now });
+    const pricing = await computePricing(prisma, payload, entities.service, patientAuth?.id ?? null);
 
-      const [customWorkDays, timeOffs, appointments] = await Promise.all([
-        tx.specialistCustomWorkDay.findMany({
-          where: { specialistId, date: { gte: dayStartCheck, lte: dayEndCheck } },
-          select: { date: true, startTime: true, endTime: true },
-        }),
-        tx.specialistTimeOff.findMany({
-          where: { specialistId, date: { gte: dayStartCheck, lte: dayEndCheck } },
-          select: { date: true, allDay: true, startTime: true, endTime: true },
-        }),
-        tx.appointment.findMany({
-          where: {
-            specialistId,
-            deletedAt: null,
-            status: { notIn: ["CANCELED", "NO_SHOW"] },
-            startsAt: { lte: dayEndCheck },
-            endsAt: { gte: dayStartCheck },
-          },
-          select: { startsAt: true, endsAt: true },
-        }),
-      ]);
-
-      const busyRanges = busyRangesForWarsawDay(appointments, dateParam.year, dateParam.month, dateParam.day);
-      const freeSlots = computeFreeSlots({
-        ...dateParam,
-        durationMin: service.durationMin,
-        workDays: specialist.workDays,
-        customWorkDays,
-        timeOffs,
-        busyRanges,
-        now,
-      });
-
-      if (!freeSlots.includes(time)) {
-        throw new Error("Ten termin został już zajęty. Wybierz inny.");
-      }
-
-      const startsAt = slotToUtc(dateParam.year, dateParam.month, dateParam.day, time);
-      const endsAt = new Date(startsAt.getTime() + service.durationMin * 60 * 1000);
-
-      const normalizedPhone = normalizePhone(phone);
-      const patientName = `${firstName} ${lastName}`.replace(/\s+/g, " ").trim();
-      const normalizedEmail = email?.trim() || null;
-      const passwordHash = password ? await bcrypt.hash(password, 10) : null;
-
-      // Kto rezerwuje: zalogowany pacjent albo gość — zapisujemy to, co sam podał.
-      const bookingActor: AuditActor = patientAuth
-        ? { type: "PATIENT", id: patientAuth.id, name: patientAuth.name, contact: patientAuth.phone }
-        : { type: "GUEST", name: patientName, contact: normalizedPhone };
-
-      let accountCreated = false;
-      let bookedAsLoggedIn = false;
-      let patientId: string;
-
-      if (patientAuth) {
-        // Rezerwacja wykonana przez zalogowanego pacjenta — wizyta trafia
-        // wprost na jego konto, bez tworzenia nowego rekordu Patient.
-        patientId = patientAuth.id;
-        bookedAsLoggedIn = true;
-        // Konto założone przez Google nie ma jeszcze telefonu — uzupełniamy go
-        // numerem podanym przy rezerwacji.
-        const phoneFilled = await tx.patient.updateMany({
-          where: { id: patientAuth.id, phone: null },
-          data: { phone: normalizedPhone },
-        });
-        if (phoneFilled.count > 0) {
-          await logAudit({
-            tx,
-            actor: bookingActor,
-            action: "UPDATE",
-            entity: "Patient",
-            entityId: patientAuth.id,
-            summary: `Uzupełnienie numeru telefonu pacjenta przy rezerwacji online: ${normalizedPhone}`,
-            data: { changes: { phone: { from: null, to: normalizedPhone } } },
-          });
-        }
-        if (normalizedEmail) {
-          const filled = await tx.patient.updateMany({
-            where: { id: patientAuth.id, email: null },
-            data: { email: normalizedEmail },
-          });
-          if (filled.count > 0) {
-            await logAudit({
-              tx,
-              actor: bookingActor,
-              action: "UPDATE",
-              entity: "Patient",
-              entityId: patientAuth.id,
-              summary: `Uzupełnienie adresu e-mail pacjenta przy rezerwacji online: ${normalizedEmail}`,
-              data: { changes: { email: { from: null, to: normalizedEmail } } },
-            });
-          }
-        }
-      } else {
-        const existingPatient = await findExistingPatient(tx, normalizedPhone, normalizedEmail, locationId);
-
-        // Odpowiedź NIE może zdradzać, czy dany telefon/e-mail ma konto
-        // (audyt F-12), a osoba niezalogowana nie może ustawić hasła na
-        // cudzej, istniejącej karcie pacjenta — inaczej ktoś znający tylko
-        // numer telefonu przejąłby historię wizyt tej osoby.
-        //  * rezerwacja jako gość trafia na istniejącą kartę (jak w recepcji),
-        //    ale bez nadpisywania danych karty, która ma konto,
-        //  * "załóż konto" tworzy ZAWSZE nową kartę z hasłem — o ile telefon
-        //    ani e-mail nie mają jeszcze konta; wcześniejszą historię gościa
-        //    recepcja łączy potem ręcznie (Pacjenci → Duplikaty),
-        //  * gdy konto już istnieje, prośba o założenie konta jest po cichu
-        //    pomijana, a wizyta zapisuje się normalnie.
-        const accountHolder = passwordHash
-          ? await tx.patient.findFirst({
-              where: {
-                // Konto = karta z hasłem albo z logowaniem przez Google lub Facebooka.
-                AND: [
-                  { OR: [{ passwordHash: { not: null } }, { googleSub: { not: null } }, { facebookId: { not: null } }] },
-                  {
-                    OR: [
-                      { phone: normalizedPhone },
-                      ...(normalizedEmail ? [{ email: { equals: normalizedEmail, mode: "insensitive" as const } }] : []),
-                    ],
-                  },
-                ],
-              },
-              select: { id: true },
-            })
-          : null;
-        const createAccount = Boolean(passwordHash) && !accountHolder;
-
-        if (existingPatient && !createAccount) {
-          patientId = existingPatient.id;
-          const patientUpdate: { email?: string; phone?: string } = {};
-          // Uzupełniamy brakujące dane kontaktowe wyłącznie na karcie bez konta.
-          if (!existingPatient.passwordHash && !existingPatient.googleSub && !existingPatient.facebookId) {
-            if (normalizedEmail && !existingPatient.email) patientUpdate.email = normalizedEmail;
-            if (normalizedPhone && !existingPatient.phone) patientUpdate.phone = normalizedPhone;
-          }
-          if (Object.keys(patientUpdate).length > 0) {
-            await tx.patient.update({ where: { id: existingPatient.id }, data: patientUpdate });
-            await logAudit({
-              tx,
-              actor: bookingActor,
-              action: "UPDATE",
-              entity: "Patient",
-              entityId: existingPatient.id,
-              summary: "Uzupełnienie danych kontaktowych istniejącej karty pacjenta przy rezerwacji online",
-              data: {
-                updatedFields: Object.keys(patientUpdate),
-                email: patientUpdate.email ?? undefined,
-                phone: patientUpdate.phone ?? undefined,
-              },
-            });
-          }
-          if (passwordHash && accountHolder) {
-            await logAudit({
-              tx,
-              actor: bookingActor,
-              action: "REGISTER",
-              entity: "PatientAccount",
-              entityId: accountHolder.id,
-              summary: "Prośba o założenie konta przy rezerwacji online pominięta — telefon lub e-mail ma już konto",
-              data: { skipped: true, reason: "account_exists" },
-            });
-          }
-        } else {
-          const createdPatient = await tx.patient.create({
-            data: {
-              name: patientName,
-              phone: normalizedPhone,
-              email: normalizedEmail,
-              locationId,
-              passwordHash: createAccount ? passwordHash : null,
-            },
-            select: { id: true },
-          });
-          patientId = createdPatient.id;
-          accountCreated = createAccount;
-          await logAudit({
-            tx,
-            actor: bookingActor,
-            action: "CREATE",
-            entity: "Patient",
-            entityId: createdPatient.id,
-            summary: `Nowa karta pacjenta z rezerwacji online: ${patientName} (${normalizedPhone})${
-              accountCreated ? " — z założeniem konta" : ""
-            }${existingPatient ? " — istnieje wcześniejsza karta gościa do połączenia (Pacjenci → Duplikaty)" : ""}`,
-            data: {
-              name: patientName,
-              phone: normalizedPhone,
-              email: normalizedEmail,
-              locationId,
-              accountCreated,
-              previousGuestPatientId: existingPatient?.id ?? undefined,
-            },
-          });
-        }
-      }
-
-      // Rabat za punkty lojalnościowe — tylko dla zalogowanego pacjenta
-      // (gość nie ma trwałego salda). Walidujemy saldo TU, wewnątrz
-      // transakcji, jako ostateczne, autorytatywne źródło prawdy — nie
-      // ufamy samej wartości przysłanej z frontendu poza sprawdzeniem, że
-      // mieści się w limicie (saldo pacjenta i cena usługi). Liczymy PRZED
-      // utworzeniem wizyty, żeby zapisać od razu poprawną cenę końcową i
-      // móc od niej policzyć wymaganą wpłatę.
-      let pointsApplied = 0;
-      if (patientAuth && pointsToRedeem && pointsToRedeem > 0) {
-        const patientForBalance = await tx.patient.findUnique({
-          where: { id: patientId },
-          select: { loyaltyPoints: true },
-        });
-        const allowedPoints = maxRedeemablePoints(patientForBalance?.loyaltyPoints ?? 0, service.price);
-        pointsApplied = Math.min(pointsToRedeem, allowedPoints);
-      }
-      const loyaltyDiscountAmount = discountForPoints(pointsApplied);
-      const priceFinal = Math.max(0, (service.price ?? 0) - loyaltyDiscountAmount);
-
-      // Płatność przy rezerwacji (zaliczka 10% albo pełna przedpłata) — patrz
-      // lib/booking-payment.ts. Serwer jest ostatecznym źródłem prawdy: dla
-      // usług powyżej progu wybór klienta jest wymuszany na pełną kwotę.
-      const { effectiveChoice, amountDueGrosze } = resolvePaymentDue({
-        servicePriceGrosze: service.price,
-        amountOwedGrosze: priceFinal,
-        choice: paymentChoice as PaymentChoice,
-      });
-
-      const created = await tx.appointment.create({
-        data: {
-          patientId,
-          specialistId,
-          locationId,
-          serviceId,
-          startsAt,
-          endsAt,
-          priceEstimate: service.price,
-          priceFinal,
-          note: ["Rezerwacja online (strona WWW)", note?.trim()].filter(Boolean).join(" — "),
-          imageConsent,
-          // Rezerwacja online wymaga podpisanej zgody na zabieg (patrz lib/procedure-consent.ts).
-          consentStatus: "NOT_SIGNED",
-        },
-      });
-
-      let loyaltyPointsUsed = 0;
-      if (pointsApplied > 0) {
-        await redeemLoyaltyPoints(tx, { patientId, points: pointsApplied, appointmentId: created.id });
-        loyaltyPointsUsed = pointsApplied;
-      }
-
-      // Płatność za wizytę (zaliczka albo pełna przedpłata) powstaje jako
-      // ZAMÓWIONA, nie opłacona: klient wybiera metodę (BLIK / przelew, docelowo
-      // Przelewy24), zgłasza wpłatę, a administrator ją potwierdza — dopiero
-      // wtedy powstaje Payment (patrz lib/payment-request-server.ts).
-      await logAudit({
-        tx,
-        actor: bookingActor,
-        action: "CREATE",
-        entity: "Appointment",
-        entityId: created.id,
-        summary: `Rezerwacja online: ${patientName} · ${service.name} · ${formatWarsaw(startsAt)} · specjalista ${specialist.name}`,
-        data: {
-          source: "online",
-          patientId,
-          specialistId,
-          serviceId,
-          locationId,
-          startsAt,
-          endsAt,
-          priceEstimate: service.price,
-          priceFinal,
-          loyaltyPointsUsed,
-          loyaltyDiscountAmount,
-          imageConsent,
-          termsAccepted: true,
-          accountCreated,
-          bookedAsLoggedIn,
-          hasNote: Boolean(note?.trim()),
-        },
-      });
-
-      let paymentRequest: { reference: string; amount: number } | null = null;
-      if (amountDueGrosze > 0) {
-        const request = await createPaymentRequest(tx, {
-          appointmentId: created.id,
-          amount: amountDueGrosze,
-          choice: effectiveChoice,
-        });
-        paymentRequest = { reference: request.reference, amount: request.amount };
-        await logAudit({
-          tx,
-          actor: bookingActor,
-          action: "CREATE",
-          entity: "PaymentRequest",
-          entityId: request.id,
-          summary: `Płatność do uregulowania przy rezerwacji (${effectiveChoice === "FULL" ? "pełna przedpłata" : "zaliczka"}): ${(amountDueGrosze / 100).toFixed(2).replace(".", ",")} zł, tytuł ${request.reference}`,
-          data: { appointmentId: created.id, amount: amountDueGrosze, choice: effectiveChoice, reference: request.reference },
-        });
-      }
-
-      return {
-        ...created,
-        loyaltyPointsUsed,
-        loyaltyDiscountAmount,
-        bookedAsLoggedIn,
-        paymentChoice: effectiveChoice,
-        paymentRequest,
-        amountDue: amountDueGrosze,
-        amountRemaining: Math.max(0, priceFinal - amountDueGrosze),
-      };
-    });
-
-    // Potwierdzenie dla klienta i powiadomienie personelu — po wysłaniu
-    // odpowiedzi, żeby poczta nie wydłużała rezerwacji.
     const baseUrl = appBaseUrl(req);
-    after(() => notifyAppointmentBooked(appointment.id, { source: "online", baseUrl }));
+
+    // Bez opłaty (usługa bez ceny): wizyta od razu, jak dotąd.
+    if (pricing.amountDueGrosze <= 0) {
+      const appointment = await finalizeBooking(payload, null, { now });
+      after(() => notifyAppointmentBooked(appointment.id, { source: "online", baseUrl }));
+      return NextResponse.json({
+        ok: true,
+        hold: false,
+        appointmentId: appointment.id,
+        consentToken: consentToken(appointment.id),
+        startsAt: appointment.startsAt,
+        bookedAsLoggedIn: appointment.bookedAsLoggedIn,
+        loyaltyPointsUsed: appointment.loyaltyPointsUsed,
+        loyaltyDiscountAmount: appointment.loyaltyDiscountAmount,
+        priceFinal: appointment.priceFinal,
+        paymentChoice: appointment.paymentChoice,
+        amountDue: 0,
+        amountRemaining: appointment.amountRemaining,
+      });
+    }
+
+    // Tytuł płatności (ten sam kod klient wpisze w przelewie, a administrator zobaczy w panelu).
+    let reference = generatePaymentReference();
+    for (
+      let i = 0;
+      i < 5 &&
+      ((await prisma.paymentRequest.findUnique({ where: { reference }, select: { id: true } })) ||
+        (await prisma.bookingHold.findUnique({ where: { reference }, select: { id: true } })));
+      i++
+    ) {
+      reference = generatePaymentReference();
+    }
+
+    const hold = await prisma.bookingHold.create({
+      data: {
+        expiresAt: new Date(now.getTime() + BOOKING_HOLD_MINUTES * 60 * 1000),
+        specialistId: payload.specialistId,
+        startsAt,
+        endsAt,
+        payload: payload as unknown as object,
+        amount: pricing.amountDueGrosze,
+        choice: pricing.effectiveChoice,
+        reference,
+      },
+      select: { id: true, expiresAt: true },
+    });
+    void purgeExpiredHolds();
 
     return NextResponse.json({
       ok: true,
-      appointmentId: appointment.id,
-      // Link do pobrania zgody i wgrania podpisanego pliku (działa także dla gościa bez konta).
-      consentToken: consentToken(appointment.id),
-      startsAt: appointment.startsAt,
-      bookedAsLoggedIn: appointment.bookedAsLoggedIn,
-      loyaltyPointsUsed: appointment.loyaltyPointsUsed,
-      loyaltyDiscountAmount: appointment.loyaltyDiscountAmount,
-      priceFinal: appointment.priceFinal,
-      paymentChoice: appointment.paymentChoice,
-      // Płatność do uregulowania (BLIK / przelew): token do strony płatności i tytuł przelewu.
-      paymentToken: appointment.paymentRequest ? paymentToken(appointment.id) : null,
-      paymentReference: appointment.paymentRequest?.reference ?? null,
-      amountDue: appointment.amountDue,
-      amountRemaining: appointment.amountRemaining,
+      hold: true,
+      holdToken: holdToken(hold.id),
+      holdExpiresAt: hold.expiresAt,
+      holdMinutes: BOOKING_HOLD_MINUTES,
+      startsAt,
+      amountDue: pricing.amountDueGrosze,
+      paymentChoice: pricing.effectiveChoice,
+      amountRemaining: Math.max(0, pricing.priceFinal - pricing.amountDueGrosze),
+      loyaltyPointsUsed: pricing.pointsApplied,
+      loyaltyDiscountAmount: pricing.loyaltyDiscountAmount,
     });
   } catch (e: any) {
     return bad(typeof e?.message === "string" ? e.message : "Nie udało się zapisać wizyty", 409);

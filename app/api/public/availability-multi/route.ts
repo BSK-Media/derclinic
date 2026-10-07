@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { heldRanges } from "@/lib/booking-hold-server";
 import { prisma } from "@/lib/db";
 import { parseDateInput, warsawWallTimeToUtc } from "@/lib/warsaw-time";
 import { busyRangesForWarsawDay, computeFreeSlots } from "@/lib/public-booking";
@@ -46,7 +47,7 @@ export async function GET(req: Request) {
   const rangeEnd = new Date(dayEnd.getTime() + 4 * 60 * 60 * 1000);
   const specialistIds = specialists.map((s) => s.id);
 
-  const [customWorkDaysAll, timeOffsAll, appointmentsAll] = await Promise.all([
+  const [customWorkDaysAll, timeOffsAll, appointmentsRaw] = await Promise.all([
     prisma.specialistCustomWorkDay.findMany({
       where: { specialistId: { in: specialistIds }, date: { gte: rangeStart, lte: rangeEnd } },
       select: { specialistId: true, date: true, startTime: true, endTime: true },
@@ -66,6 +67,8 @@ export async function GET(req: Request) {
       select: { specialistId: true, startsAt: true, endsAt: true },
     }),
   ]);
+  // Terminy zatrzymane na czas płatności innych klientów też są zajęte.
+  const appointmentsAll = [...appointmentsRaw, ...(await heldRanges(specialistIds, rangeStart, rangeEnd))];
 
   const now = new Date();
   // Jeden termin -> jeden (pierwszy dostępny) specjalista, żeby klient nie musiał wybierać.

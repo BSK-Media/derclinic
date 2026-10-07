@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { heldRanges } from "@/lib/booking-hold-server";
 import { prisma } from "@/lib/db";
 import { parseDateInput, warsawWallTimeToUtc } from "@/lib/warsaw-time";
 import { busyRangesForWarsawDay, computeFreeSlots } from "@/lib/public-booking";
@@ -57,7 +58,7 @@ export async function GET(req: Request) {
       return bad("Ten specjalista nie wykonuje wybranej usługi");
     }
 
-    const [customWorkDays, timeOffs, appointments] = await Promise.all([
+    const [customWorkDays, timeOffs, appointmentsRaw] = await Promise.all([
       prisma.specialistCustomWorkDay.findMany({
         where: { specialistId, date: { gte: rangeStart, lte: rangeEnd } },
         select: { date: true, startTime: true, endTime: true },
@@ -77,6 +78,8 @@ export async function GET(req: Request) {
         select: { startsAt: true, endsAt: true },
       }),
     ]);
+    // Terminy zatrzymane na czas płatności innych klientów też są zajęte.
+    const appointments = [...appointmentsRaw, ...(await heldRanges([specialistId], rangeStart, rangeEnd))];
 
     for (const d of dateParams) {
       const busyRanges = busyRangesForWarsawDay(appointments, d.year, d.month, d.day);
@@ -113,7 +116,7 @@ export async function GET(req: Request) {
   }
 
   const specialistIds = specialists.map((s) => s.id);
-  const [customWorkDaysAll, timeOffsAll, appointmentsAll] = await Promise.all([
+  const [customWorkDaysAll, timeOffsAll, appointmentsRaw] = await Promise.all([
     prisma.specialistCustomWorkDay.findMany({
       where: { specialistId: { in: specialistIds }, date: { gte: rangeStart, lte: rangeEnd } },
       select: { specialistId: true, date: true, startTime: true, endTime: true },
@@ -133,6 +136,8 @@ export async function GET(req: Request) {
       select: { specialistId: true, startsAt: true, endsAt: true },
     }),
   ]);
+  // Terminy zatrzymane na czas płatności innych klientów też są zajęte.
+  const appointmentsAll = [...appointmentsRaw, ...(await heldRanges(specialistIds, rangeStart, rangeEnd))];
 
   for (const d of dateParams) {
     let hasSlot = false;

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { heldRanges } from "@/lib/booking-hold-server";
 import { prisma } from "@/lib/db";
 import { parseDateInput, warsawWallTimeToUtc } from "@/lib/warsaw-time";
 import { busyRangesForWarsawDay, computeFreeSlots } from "@/lib/public-booking";
@@ -42,7 +43,7 @@ export async function GET(req: Request) {
   const rangeStart = new Date(dayStart.getTime() - 4 * 60 * 60 * 1000);
   const rangeEnd = new Date(dayEnd.getTime() + 4 * 60 * 60 * 1000);
 
-  const [customWorkDays, timeOffs, appointments] = await Promise.all([
+  const [customWorkDays, timeOffs, appointmentsRaw] = await Promise.all([
     prisma.specialistCustomWorkDay.findMany({
       where: { specialistId, date: { gte: rangeStart, lte: rangeEnd } },
       select: { date: true, startTime: true, endTime: true },
@@ -62,6 +63,8 @@ export async function GET(req: Request) {
       select: { startsAt: true, endsAt: true },
     }),
   ]);
+  // Terminy zatrzymane na czas płatności innych klientów też są zajęte.
+  const appointments = [...appointmentsRaw, ...(await heldRanges([specialistId], rangeStart, rangeEnd))];
 
   const busyRanges = busyRangesForWarsawDay(appointments, dateParam.year, dateParam.month, dateParam.day);
 

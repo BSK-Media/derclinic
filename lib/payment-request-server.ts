@@ -238,3 +238,31 @@ export async function decidePaymentRequest(
   }
   return { ok: true as const };
 }
+
+/** Powiadomienie dla administratora i managera o zgłoszonej płatności (po utworzeniu wizyty z płatnością). */
+export async function notifyPaymentClaimedById(requestId: string) {
+  const request = await prisma.paymentRequest.findUnique({
+    where: { id: requestId },
+    select: {
+      amount: true,
+      reference: true,
+      appointmentId: true,
+      appointment: { select: { locationId: true, patient: { select: { id: true, name: true } } } },
+    },
+  });
+  if (!request) return;
+  const staff = await prisma.user.findMany({
+    where: { OR: [{ role: "ADMIN" }, { role: "MANAGER", locationId: request.appointment.locationId ?? undefined }] },
+    select: { id: true },
+  });
+  await sendPushToStaff(
+    staff.map((member) => member.id),
+    pushContent.staffPaymentClaimed(request.appointment.patient.name, formatPLNFromGrosze(request.amount), request.reference),
+    {
+      type: "STAFF_PAYMENT_CLAIMED",
+      recipientLabel: "Personel",
+      appointmentId: request.appointmentId,
+      patientId: request.appointment.patient.id,
+    },
+  );
+}

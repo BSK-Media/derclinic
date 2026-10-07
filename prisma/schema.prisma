@@ -1066,6 +1066,34 @@ model PaymentRequest {
   @@index([status, createdAt])
 }
 
+// Termin zatrzymany na czas płatności przy rezerwacji online. Rezerwacja (wizyta)
+// powstaje dopiero, gdy klient kliknie "Dokonałem płatności" — do tego czasu
+// istnieje tylko to zatrzymanie, które blokuje termin dla innych na kilkadziesiąt
+// minut (expiresAt) i nie jest widoczne dla personelu. payload to dane
+// rezerwacji (bez hasła w jawnej postaci).
+model BookingHold {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  specialistId String
+  startsAt     DateTime
+  endsAt       DateTime
+
+  payload Json
+
+  amount    Int // grosze do zapłaty teraz
+  choice    String
+  reference String  @unique
+  method    String?
+
+  // Ustawiane, gdy zatrzymanie zamieniło się w wizytę (klient zgłosił płatność).
+  appointmentId String? @unique
+
+  @@index([specialistId, startsAt])
+  @@index([expiresAt])
+}
+
 // Dane do płatności ręcznych (jeden wiersz "default"): konto do przelewu i
 // numer telefonu do BLIK-a. Ustawia administrator w Ustawieniach → Płatności.
 model PaymentSettings {

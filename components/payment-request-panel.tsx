@@ -63,17 +63,24 @@ function CopyField({ label, value, mono = true }: { label: string; value: string
 export function PaymentRequestPanel({
   token,
   redirectAfterClaim,
+  apiBase,
+  onClaimed,
 }: {
   token: string;
   // Dokąd przejść po zgłoszeniu wpłaty (np. panel klienta dla zalogowanego klienta).
   redirectAfterClaim?: string | null;
+  // Domyślnie płatność za istniejącą wizytę (/api/pay); przy rezerwacji online
+  // wizyty jeszcze nie ma, jest tylko zatrzymanie terminu (/api/hold).
+  apiBase?: "pay" | "hold";
+  // Wywoływane po zgłoszeniu wpłaty — z odpowiedzią serwera (przy zatrzymaniu terminu: utworzona wizyta).
+  onClaimed?: (result: Record<string, unknown>) => void;
 }) {
-  const base = `/api/pay/${encodeURIComponent(token)}`;
+  const base = `/api/${apiBase ?? "pay"}/${encodeURIComponent(token)}`;
   const { data, mutate, isLoading } = useSWR<PayInfo>(base, fetcher);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
 
-  async function post(path: string, body?: unknown) {
+  async function post(path: string, body?: unknown): Promise<Record<string, unknown> | null> {
     setError("");
     setBusy(true);
     try {
@@ -85,26 +92,30 @@ export function PaymentRequestPanel({
       const out = await res.json().catch(() => ({}));
       if (!res.ok || !out?.ok) {
         setError(out?.message || "Nie udało się zapisać. Spróbuj ponownie.");
-        return false;
+        return null;
       }
       await mutate();
-      return true;
+      return out as Record<string, unknown>;
     } catch {
       setError("Nie udało się połączyć z serwerem. Spróbuj ponownie.");
-      return false;
+      return null;
     } finally {
       setBusy(false);
     }
   }
 
   async function claim() {
-    if (await post("claim") && redirectAfterClaim) window.location.href = redirectAfterClaim;
+    const result = await post("claim");
+    if (!result) return;
+    onClaimed?.(result);
+    if (redirectAfterClaim) window.location.href = redirectAfterClaim;
   }
 
   if (isLoading) return <div className="text-sm text-zinc-500">Ładowanie…</div>;
   if (!data?.ok) return <div className="text-sm text-red-600">{data?.message || "Nie udało się wczytać płatności."}</div>;
 
   const { request } = data;
+  const hold = (data as PayInfo & { hold?: { expiresAt: string; expired: boolean; converted: boolean } }).hold;
   if (!request) return <div className="rounded-xl bg-zinc-50 p-4 text-sm text-zinc-600">Do tej wizyty nie ma płatności do uregulowania.</div>;
   if (data.appointment.canceled) {
     return <div className="rounded-xl bg-red-50 p-4 text-sm text-red-800">Ta rezerwacja została anulowana.</div>;
@@ -148,6 +159,23 @@ export function PaymentRequestPanel({
           {request.choice === "FULL" ? "Pełna przedpłata" : "Zaliczka 10%"} · {data.appointment.serviceName}
         </div>
       </div>
+
+      {hold && !hold.converted ? (
+        <div
+          className={
+            "rounded-xl border p-3 text-xs " +
+            (hold.expired ? "border-red-300 bg-red-50 text-red-800" : "border-amber-300 bg-amber-50 text-amber-900")
+          }
+        >
+          {hold.expired
+            ? "Czas zatrzymania terminu minął. Jeśli już zapłaciłaś/eś, kliknij „Dokonałem/am płatności” — sprawdzimy, czy termin jest nadal wolny. W przeciwnym razie wybierz termin ponownie."
+            : `Termin jest zatrzymany dla Ciebie do ${new Date(hold.expiresAt).toLocaleTimeString("pl-PL", {
+                timeZone: "Europe/Warsaw",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}. Rezerwacja powstanie dopiero po zgłoszeniu płatności.`}
+        </div>
+      ) : null}
 
       {request.status === "REJECTED" ? (
         <div role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">

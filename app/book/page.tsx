@@ -218,6 +218,10 @@ export default function PublicBookingPage() {
   const [paymentChoice, setPaymentChoice] = React.useState<PaymentChoice>("DEPOSIT_10");
   // Płatność do uregulowania po rezerwacji (BLIK / przelew): token do panelu płatności.
   const [paymentTokenValue, setPaymentTokenValue] = React.useState<string | null>(null);
+  // Zatrzymanie terminu na czas płatności: wizyty jeszcze nie ma, powstaje po "Dokonałem płatności".
+  const [holdTokenValue, setHoldTokenValue] = React.useState<string | null>(null);
+  const [holdInfo, setHoldInfo] = React.useState<{ startsAt: string; amountDue: number } | null>(null);
+  const [paymentReference, setPaymentReference] = React.useState<string | null>(null);
   const [amountDue, setAmountDue] = React.useState(0);
   const [amountRemaining, setAmountRemaining] = React.useState(0);
 
@@ -694,31 +698,84 @@ export default function PublicBookingPage() {
         setSubmitError(result?.message || "Nie udało się zapisać wizyty. Spróbuj ponownie.");
         return;
       }
-      if (accountMode === "register" && !loggedInPatient) {
-        // Serwer nie mówi, czy konto powstało (ochrona przed sprawdzaniem, kto
-        // jest pacjentem kliniki). Próbujemy się zalogować podanym hasłem:
-        // udane logowanie = konto założone teraz.
-        const login = await fetch("/api/patient/login", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ phone: `+48${phoneDigitsOnly(phone)}`, password }),
-        })
-          .then((r) => r.json())
-          .catch(() => ({}));
-        setAccountCreated(Boolean(login?.ok));
-        setAccountNotCreated(!login?.ok);
+      if (result.hold) {
+        // Płatna usługa: termin jest zatrzymany, a wizyta powstanie po
+        // wybraniu metody płatności i kliknięciu "Dokonałem płatności".
+        setHoldTokenValue(String(result.holdToken));
+        setHoldInfo({ startsAt: String(result.startsAt), amountDue: Number(result.amountDue) || 0 });
+        setAmountRemaining(Number(result.amountRemaining) || 0);
+        return;
       }
-      setConsentTokenValue(typeof result.consentToken === "string" ? result.consentToken : null);
-      setBookedAsLoggedIn(Boolean(result.bookedAsLoggedIn));
-      setLoyaltyPointsUsed(Number(result.loyaltyPointsUsed) || 0);
-      setLoyaltyDiscountAmount(Number(result.loyaltyDiscountAmount) || 0);
-      setPaymentTokenValue(typeof result.paymentToken === "string" ? result.paymentToken : null);
-      setAmountDue(Number(result.amountDue) || 0);
-      setAmountRemaining(Number(result.amountRemaining) || 0);
-      setConfirmedAt(result.startsAt);
+      await applyBookingSuccess(result);
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // Wizyta została zapisana (od razu — usługa bez opłaty — albo po zgłoszeniu płatności).
+  async function applyBookingSuccess(result: Record<string, unknown>) {
+    if (accountMode === "register" && !loggedInPatient) {
+      // Serwer nie mówi, czy konto powstało (ochrona przed sprawdzaniem, kto
+      // jest pacjentem kliniki). Próbujemy się zalogować podanym hasłem:
+      // udane logowanie = konto założone teraz.
+      const login = await fetch("/api/patient/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone: `+48${phoneDigitsOnly(phone)}`, password }),
+      })
+        .then((r) => r.json())
+        .catch(() => ({}));
+      setAccountCreated(Boolean(login?.ok));
+      setAccountNotCreated(!login?.ok);
+    }
+    setConsentTokenValue(typeof result.consentToken === "string" ? result.consentToken : null);
+    setBookedAsLoggedIn(Boolean(result.bookedAsLoggedIn));
+    setLoyaltyPointsUsed(Number(result.loyaltyPointsUsed) || 0);
+    setLoyaltyDiscountAmount(Number(result.loyaltyDiscountAmount) || 0);
+    setAmountDue(Number(result.amountDue) || 0);
+    setAmountRemaining(Number(result.amountRemaining) || 0);
+    setPaymentReference(typeof result.paymentReference === "string" ? result.paymentReference : null);
+    setConfirmedAt(String(result.startsAt));
+  }
+
+  // Krok płatności: wizyty jeszcze nie ma — jest tylko zatrzymany termin. Przycisk
+  // przejścia do panelu klienta pojawia się dopiero na ekranie po zgłoszeniu płatności.
+  if (holdTokenValue && holdInfo && !confirmedAt) {
+    return (
+      <BookingShell>
+        <div className="mx-auto max-w-md space-y-4 py-8">
+          <div>
+            <h1 className="text-2xl font-semibold text-zinc-900">Opłać rezerwację</h1>
+            <p className="mt-1 text-sm text-zinc-500">
+              {displaySpecialistName} — {selectedService?.name},{" "}
+              {new Date(holdInfo.startsAt).toLocaleString("pl-PL", {
+                weekday: "long",
+                day: "2-digit",
+                month: "long",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </p>
+            <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              Rezerwacja zostanie zapisana po opłaceniu zaliczki (lub pełnej kwoty) i kliknięciu „Dokonałem/am
+              płatności”. Do tego czasu termin jest tylko zatrzymany dla Ciebie.
+            </p>
+          </div>
+          <PaymentRequestPanel
+            token={holdTokenValue}
+            apiBase="hold"
+            onClaimed={(claimResult) => {
+              void applyBookingSuccess(claimResult);
+            }}
+          />
+          {amountRemaining > 0 ? (
+            <p className="text-center text-xs text-zinc-500">
+              Pozostałe <strong>{formatPLNFromGrosze(amountRemaining)}</strong> zapłacisz na miejscu.
+            </p>
+          ) : null}
+        </div>
+      </BookingShell>
+    );
   }
 
   if (confirmedAt) {
@@ -749,19 +806,23 @@ export default function PublicBookingPage() {
               <ProcedureConsentPanel token={consentTokenValue} />
             </div>
           ) : null}
-          {paymentTokenValue && amountDue > 0 ? (
-            <div className="w-full max-w-md space-y-2 text-left">
-              <div className="text-sm font-semibold text-zinc-900">Płatność za rezerwację</div>
-              <PaymentRequestPanel
-                token={paymentTokenValue}
-                redirectAfterClaim={bookedAsLoggedIn || accountCreated ? "/panel-klienta" : null}
-              />
-              {amountRemaining > 0 ? (
-                <p className="text-center text-xs text-zinc-500">
-                  Pozostałe <strong>{formatPLNFromGrosze(amountRemaining)}</strong> zapłacisz na miejscu.
-                </p>
+          {amountDue > 0 ? (
+            <p className="max-w-md rounded-xl bg-blue-50 px-4 py-3 text-xs text-blue-900">
+              Płatność {formatPLNFromGrosze(amountDue)} zgłoszona
+              {paymentReference ? (
+                <>
+                  {" "}
+                  (tytuł <span className="font-mono font-semibold">{paymentReference}</span>)
+                </>
               ) : null}
-            </div>
+              . Gdy klinika zobaczy wpłatę, potwierdzi ją, a Ty dostaniesz powiadomienie.
+              {amountRemaining > 0 ? (
+                <>
+                  {" "}
+                  Pozostałe <strong>{formatPLNFromGrosze(amountRemaining)}</strong> zapłacisz na miejscu.
+                </>
+              ) : null}
+            </p>
           ) : null}
           {loyaltyPointsUsed > 0 ? (
             <p
