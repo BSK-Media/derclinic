@@ -62,6 +62,7 @@ export function AdminAddProductDialog({
   const [stockQuantity, setStockQuantity] = React.useState("1");
   const [expiryDate, setExpiryDate] = React.useState("");
   const [batchNumber, setBatchNumber] = React.useState("");
+  const [serialNumber, setSerialNumber] = React.useState("");
   const [note, setNote] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [scanCode, setScanCode] = React.useState("");
@@ -84,6 +85,7 @@ export function AdminAddProductDialog({
     setStockQuantity("1");
     setExpiryDate("");
     setBatchNumber("");
+    setSerialNumber("");
     setNote("");
   }, [fixedWarehouseId, open]);
 
@@ -110,7 +112,7 @@ export function AdminAddProductDialog({
       if (scan.kind === "gs1") {
         if (scan.data.batchNumber) setBatchNumber(scan.data.batchNumber);
         if (scan.data.expiryDate) setExpiryDate(scan.data.expiryDate);
-        if (scan.data.serialNumber) setNote(`Nr seryjny: ${scan.data.serialNumber}`);
+        if (scan.data.serialNumber) setSerialNumber(scan.data.serialNumber);
       }
 
       if (found) {
@@ -183,6 +185,7 @@ export function AdminAddProductDialog({
           delta: parsedQuantity,
           expiryDate: expiryDate || undefined,
           batchNumber: batchNumber.trim() || undefined,
+          serialNumber: serialNumber.trim() || undefined,
           note: note.trim() || undefined,
         }),
       });
@@ -315,6 +318,10 @@ export function AdminAddProductDialog({
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="new-stock-batch">Numer partii (opcjonalnie)</Label>
             <Input id="new-stock-batch" value={batchNumber} onChange={(event) => setBatchNumber(event.target.value)} placeholder="Zostanie wygenerowany automatycznie" />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="new-stock-serial">Numer seryjny (opcjonalnie)</Label>
+            <Input id="new-stock-serial" value={serialNumber} onChange={(event) => setSerialNumber(event.target.value)} />
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="new-stock-note">Notatka (opcjonalnie)</Label>

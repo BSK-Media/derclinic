@@ -23,6 +23,7 @@ const BodySchema = z.object({
   delta: z.number().finite().refine((value) => value !== 0),
   expiryDate: z.string().optional(),
   batchNumber: z.string().optional(),
+  serialNumber: z.string().trim().max(100).optional(),
   note: z.string().optional(),
 }).superRefine((value, ctx) => {
   if (Boolean(value.productId) === Boolean(value.newProduct)) {
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
   const parsed = BodySchema.safeParse(json);
   if (!parsed.success) return bad("Niepoprawne dane");
 
-  const { productId, newProduct, warehouseId, delta, expiryDate, batchNumber, note } = parsed.data;
+  const { productId, newProduct, warehouseId, delta, expiryDate, batchNumber, serialNumber, note } = parsed.data;
   const parsedExpiry = expiryDate ? new Date(`${expiryDate}T12:00:00.000Z`) : null;
 
   if (newProduct && delta < 0) {
@@ -108,6 +109,17 @@ export async function POST(req: Request) {
 
       if (delta > 0) {
         const normalizedBatch = batchNumber?.trim() || `DOSTAWA-${Date.now()}`;
+        const serial = serialNumber?.trim() || null;
+        if (serial) {
+          // Numer seryjny to jeden fizyczny egzemplarz — nie może być na stanie dwa razy.
+          const sameProductLots = await tx.productLot.findMany({
+            where: { productId: resolvedProductId, quantity: { gt: 0 }, serialNumber: { contains: serial } },
+            select: { serialNumber: true },
+          });
+          if (sameProductLots.some((lot) => (lot.serialNumber ?? "").split(", ").includes(serial))) {
+            throw new Error(`Egzemplarz o numerze seryjnym ${serial} jest już na stanie.`);
+          }
+        }
         const existingLot = await tx.productLot.findFirst({
           where: { productId: resolvedProductId, warehouseId, batchNumber: normalizedBatch },
         });
@@ -117,6 +129,7 @@ export async function POST(req: Request) {
             where: { id: existingLot.id },
             data: {
               quantity: { increment: new Prisma.Decimal(delta) },
+              serialNumber: serial ? [existingLot.serialNumber, serial].filter(Boolean).join(", ") : undefined,
               expiryDate: parsedExpiry ?? undefined,
               purchasePrice: product.purchasePrice,
               salePrice: product.salePrice,
@@ -128,6 +141,7 @@ export async function POST(req: Request) {
               productId: resolvedProductId,
               warehouseId,
               batchNumber: normalizedBatch,
+              serialNumber: serial,
               expiryDate: parsedExpiry,
               quantity: new Prisma.Decimal(delta),
               purchasePrice: product.purchasePrice,
@@ -204,6 +218,7 @@ export async function POST(req: Request) {
         delta,
         expiryDate: expiryDate ?? null,
         batchNumber: batchNumber ?? null,
+        serialNumber: serialNumber?.trim() || null,
         note: note?.trim() || null,
       },
     });

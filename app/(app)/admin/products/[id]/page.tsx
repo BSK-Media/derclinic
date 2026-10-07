@@ -104,6 +104,7 @@ export default function ProductDetailsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Partia</TableHead>
+                <TableHead>Nr seryjny</TableHead>
                 <TableHead>Termin ważności</TableHead>
                 <TableHead>Stan</TableHead>
                 <TableHead>Wartość zakupu</TableHead>
@@ -116,6 +117,7 @@ export default function ProductDetailsPage() {
               {product.lots.map((lot: any) => (
                 <TableRow key={lot.id}>
                   <TableCell className="font-medium">{lot.batchNumber}</TableCell>
+                  <TableCell>{lot.serialNumber ?? "—"}</TableCell>
                   <TableCell>{lot.expiryDate ? new Date(lot.expiryDate).toLocaleDateString("pl-PL") : "—"}</TableCell>
                   <TableCell>{Number(lot.quantity)}</TableCell>
                   <TableCell>{money(lot.purchasePrice)}</TableCell>
