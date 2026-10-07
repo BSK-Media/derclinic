@@ -15,6 +15,25 @@ export type AppointmentEmailData = {
 const BRAND = "DerClinic";
 const ACCENT = "#7C3AED";
 
+/**
+ * Adres logo w mailach — musi być bezwzględny i publiczny (klient poczty
+ * pobiera obraz z internetu). PNG, bo WebP nie działa w Outlooku.
+ */
+function logoUrl() {
+  const base = (process.env.NEXT_PUBLIC_APP_URL || "https://app.derclinic.pl").replace(/\/+$/, "");
+  return `${base}/icons/icon-192.png`;
+}
+
+/** Fioletowy pasek na górze każdej wiadomości: logo po lewej i nazwa. */
+function headerRow() {
+  return `<tr><td style="background:${ACCENT};padding:14px 28px;">
+<table role="presentation" cellpadding="0" cellspacing="0"><tr>
+<td style="padding-right:12px;vertical-align:middle;"><img src="${logoUrl()}" width="44" height="44" alt="" style="display:block;width:44px;height:44px;border-radius:22px;border:0;background:#ffffff;"></td>
+<td style="vertical-align:middle;color:#ffffff;font-size:18px;font-weight:700;">${BRAND}</td>
+</tr></table>
+</td></tr>`;
+}
+
 export function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -80,7 +99,7 @@ function layout(input: {
 <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;background:#f4f4f5;padding:24px 12px;">
 <tr><td align="center">
 <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;">
-<tr><td style="background:${ACCENT};padding:18px 28px;color:#ffffff;font-size:18px;font-weight:700;">${BRAND}</td></tr>
+${headerRow()}
 <tr><td style="padding:28px;">
 <h1 style="margin:0 0 16px;color:#18181b;font-size:20px;line-height:1.3;">${escapeHtml(input.heading)}</h1>
 ${input.paragraphs.map((p) => `<p style="margin:0 0 12px;color:#3f3f46;font-size:15px;line-height:1.6;">${escapeHtml(p)}</p>`).join("\n")}
@@ -290,7 +309,7 @@ ${preheader}
 <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;background:#f4f4f5;padding:24px 12px;">
 <tr><td align="center">
 <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;">
-<tr><td style="background:${ACCENT};padding:18px 28px;color:#ffffff;font-size:18px;font-weight:700;">${BRAND}</td></tr>
+${headerRow()}
 <tr><td style="padding:28px;color:#3f3f46;font-size:15px;line-height:1.6;">${data.bodyHtml}</td></tr>
 <tr><td style="padding:16px 28px;background:#fafafa;color:#a1a1aa;font-size:12px;line-height:1.6;">
 Otrzymujesz tę wiadomość, bo wyraziłaś/eś zgodę na informacje marketingowe od ${BRAND}.
