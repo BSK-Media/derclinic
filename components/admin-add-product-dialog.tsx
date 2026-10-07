@@ -64,9 +64,13 @@ export function AdminAddProductDialog({
   const [batchNumber, setBatchNumber] = React.useState("");
   const [note, setNote] = React.useState("");
   const [saving, setSaving] = React.useState(false);
+  const [scanCode, setScanCode] = React.useState("");
+  const [scanning, setScanning] = React.useState(false);
+  const [extraProducts, setExtraProducts] = React.useState<ProductOption[]>([]);
 
   React.useEffect(() => {
     if (!open) return;
+    setScanCode("");
     setProductChoice("");
     setWarehouseId(fixedWarehouseId ?? "");
     setName("");
@@ -84,6 +88,48 @@ export function AdminAddProductDialog({
   }, [fixedWarehouseId, open]);
 
   const isNewProduct = productChoice === NEW_PRODUCT;
+  const productOptions = React.useMemo(
+    () => [...products, ...extraProducts.filter((extra) => !products.some((product) => product.id === extra.id))],
+    [products, extraProducts],
+  );
+
+  async function handleScan() {
+    const code = scanCode.trim();
+    if (!code) return;
+    setScanning(true);
+    try {
+      const response = await fetch(`/api/admin/products/lookup?code=${encodeURIComponent(code)}`);
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.ok) throw new Error(result?.message || "Nie udało się odczytać kodu");
+
+      const scan = result.scan as
+        | { kind: "gs1"; data: { gtin: string | null; batchNumber: string | null; serialNumber: string | null; expiryDate: string | null } }
+        | { kind: "plain"; code: string };
+      const found = result.product as (ProductOption & { ean: string | null }) | null;
+
+      if (scan.kind === "gs1") {
+        if (scan.data.batchNumber) setBatchNumber(scan.data.batchNumber);
+        if (scan.data.expiryDate) setExpiryDate(scan.data.expiryDate);
+        if (scan.data.serialNumber) setNote(`Nr seryjny: ${scan.data.serialNumber}`);
+      }
+
+      if (found) {
+        setExtraProducts((current) => [...current, found]);
+        setProductChoice(found.id);
+        toast.success(`Rozpoznano produkt: ${found.name}`);
+      } else {
+        const rawEan = scan.kind === "gs1" ? scan.data.gtin ?? "" : scan.code;
+        setProductChoice(NEW_PRODUCT);
+        setEan(rawEan.length === 14 && rawEan.startsWith("0") ? rawEan.slice(1) : rawEan);
+        toast.info("Nowy produkt — uzupełnij nazwę i ceny");
+      }
+      setScanCode("");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Nie udało się odczytać kodu");
+    } finally {
+      setScanning(false);
+    }
+  }
 
   async function save() {
     if (!productChoice) return toast.error("Wybierz produkt lub opcję „Inny produkt”");
@@ -160,12 +206,31 @@ export function AdminAddProductDialog({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="scan-code">Skanuj kod kreskowy (EAN lub GS1)</Label>
+            <Input
+              id="scan-code"
+              autoFocus
+              autoComplete="off"
+              value={scanCode}
+              disabled={scanning}
+              onChange={(event) => setScanCode(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void handleScan();
+                }
+              }}
+              placeholder="Zeskanuj kod czytnikiem — dane uzupełnią się automatycznie"
+            />
+          </div>
+
+          <div className="space-y-2 sm:col-span-2">
             <Label>Produkt</Label>
             <Select value={productChoice} onValueChange={setProductChoice}>
               <SelectTrigger><SelectValue placeholder="Wybierz produkt" /></SelectTrigger>
               <SelectContent disablePortal>
                 <SelectItem value={NEW_PRODUCT}>Inny produkt</SelectItem>
-                {products.map((product) => (
+                {productOptions.map((product) => (
                   <SelectItem key={product.id} value={product.id}>
                     {product.sku ? `${product.sku} • ` : ""}{product.name}{product.manufacturer ? ` • ${product.manufacturer}` : ""}
                   </SelectItem>
