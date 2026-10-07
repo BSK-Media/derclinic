@@ -11,6 +11,7 @@
 import { prisma } from "@/lib/db";
 import { sendEmail, type SendEmailResult } from "@/lib/mailer";
 import { warsawParts, warsawWallTimeToUtc } from "@/lib/warsaw-time";
+import { consentPageUrl } from "@/lib/consent-link";
 import type { EmailType } from "@/lib/email-types";
 import { pushContent, sendPushToPatient, sendPushToStaff } from "@/lib/push";
 import {
@@ -129,7 +130,7 @@ export async function sendTrackedEmail(input: TrackedEmailInput): Promise<Tracke
   }
 }
 
-async function loadAppointment(appointmentId: string) {
+async function loadAppointment(appointmentId: string, baseUrl?: string) {
   const appointment = await prisma.appointment.findUnique({
     where: { id: appointmentId },
     select: {
@@ -137,6 +138,7 @@ async function loadAppointment(appointmentId: string) {
       startsAt: true,
       status: true,
       deletedAt: true,
+      consentStatus: true,
       customServiceName: true,
       patientId: true,
       locationId: true,
@@ -156,6 +158,9 @@ async function loadAppointment(appointmentId: string) {
     specialistName: appointment.specialist.name,
     locationName: appointment.location?.name ?? null,
     startsAt: appointment.startsAt,
+    // Niepodpisana zgoda: maile o wizycie przypominają o obowiązku jej podpisania.
+    consentUrl:
+      baseUrl && appointment.consentStatus === "NOT_SIGNED" ? consentPageUrl(baseUrl, appointment.id) : null,
   };
   return { appointment, data };
 }
@@ -181,7 +186,7 @@ export async function notifyAppointmentBooked(
   options: { source: "online" | "staff"; baseUrl: string },
 ) {
   try {
-    const loaded = await loadAppointment(appointmentId);
+    const loaded = await loadAppointment(appointmentId, options.baseUrl);
     if (!loaded || loaded.appointment.startsAt.getTime() <= Date.now()) return;
     const { appointment, data } = loaded;
     const settings = await getEmailSettings();
@@ -246,7 +251,7 @@ export async function notifyAppointmentChanged(
   options: { previousStartsAt: Date; baseUrl: string },
 ) {
   try {
-    const loaded = await loadAppointment(appointmentId);
+    const loaded = await loadAppointment(appointmentId, options.baseUrl);
     if (!loaded) return;
     const { appointment, data } = loaded;
     if (appointment.status !== "SCHEDULED" || appointment.startsAt.getTime() <= Date.now()) return;
@@ -499,7 +504,7 @@ export async function sendDueReminders(options: { baseUrl: string; budgetMs?: nu
     // Zmiana terminu daje nowy klucz, więc po przełożeniu wizyty na inny
     // dzień klient dostanie przypomnienie także o nowym terminie.
     const dedupeKey = `reminder:${id}:${startsAt.getTime()}`;
-    const loaded = await loadAppointment(id);
+    const loaded = await loadAppointment(id, options.baseUrl);
     if (!loaded) continue;
 
     const push = await sendPushToPatient(loaded.appointment.patientId, pushContent.reminder(startsAt), {

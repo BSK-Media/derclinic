@@ -10,7 +10,18 @@ export type AppointmentEmailData = {
   specialistName: string;
   locationName: string | null;
   startsAt: Date;
+  // Link do zgody na zabieg — tylko gdy zgoda jest jeszcze niepodpisana.
+  consentUrl?: string | null;
 };
+
+/** Wyróżniony blok o obowiązku podpisania zgody (w mailach o wizycie). */
+function consentCallout(url: string) {
+  return {
+    title: "Wymagana podpisana zgoda na zabieg",
+    text: "Aby rezerwacja była ważna, podpisz zgodę na zabieg elektronicznie (np. podpisem zaufanym) i wgraj ją do systemu najpóźniej do chwili rozpoczęcia zabiegu. Niepodpisanie zgody skutkuje anulowaniem rezerwacji i utratą zaliczki.",
+    button: { label: "Pobierz i podpisz zgodę", url },
+  };
+}
 
 const BRAND = "DerClinic";
 const ACCENT = "#7C3AED";
@@ -76,8 +87,16 @@ function layout(input: {
   paragraphs: string[];
   rows?: Row[];
   button?: { label: string; url: string };
+  callout?: { title: string; text: string; button?: { label: string; url: string } };
   footnote?: string;
 }): { html: string; text: string } {
+  const calloutHtml = input.callout
+    ? `<div style="margin:20px 0;padding:16px;border:2px solid #f59e0b;border-radius:12px;background:#fffbeb;"><p style="margin:0 0 6px;color:#92400e;font-size:15px;font-weight:700;">⚠ ${escapeHtml(input.callout.title)}</p><p style="margin:0;color:#78350f;font-size:14px;line-height:1.5;">${escapeHtml(input.callout.text)}</p>${
+        input.callout.button
+          ? `<p style="margin:14px 0 0;"><a href="${escapeHtml(input.callout.button.url)}" style="display:inline-block;background:#f59e0b;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:11px 20px;border-radius:10px;">${escapeHtml(input.callout.button.label)}</a></p>`
+          : ""
+      }</div>`
+    : "";
   const rowsHtml = input.rows?.length
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:20px 0;border-collapse:collapse;">${input.rows
         .map(
@@ -104,6 +123,7 @@ ${headerRow()}
 <h1 style="margin:0 0 16px;color:#18181b;font-size:20px;line-height:1.3;">${escapeHtml(input.heading)}</h1>
 ${input.paragraphs.map((p) => `<p style="margin:0 0 12px;color:#3f3f46;font-size:15px;line-height:1.6;">${escapeHtml(p)}</p>`).join("\n")}
 ${rowsHtml}
+${calloutHtml}
 ${buttonHtml}
 ${footnoteHtml}
 </td></tr>
@@ -119,6 +139,14 @@ ${footnoteHtml}
     "",
     ...input.paragraphs,
     ...(input.rows?.length ? ["", ...input.rows.map(([label, value]) => `${label}: ${value}`)] : []),
+    ...(input.callout
+      ? [
+          "",
+          `UWAGA: ${input.callout.title}`,
+          input.callout.text,
+          ...(input.callout.button ? [`${input.callout.button.label}: ${input.callout.button.url}`] : []),
+        ]
+      : []),
     ...(input.button ? ["", `${input.button.label}: ${input.button.url}`] : []),
     ...(input.footnote ? ["", input.footnote] : []),
     "",
@@ -148,6 +176,7 @@ export function bookingConfirmationEmail(data: AppointmentEmailData, baseUrl: st
       heading: "Twoja wizyta jest umówiona",
       paragraphs: [greeting(data.patientName), "Potwierdzamy rezerwację wizyty. Poniżej szczegóły:"],
       rows: appointmentRows(data),
+      callout: data.consentUrl ? consentCallout(data.consentUrl) : undefined,
       button: panelButton(baseUrl),
       footnote: "Jeśli nie możesz przyjść w tym terminie, skontaktuj się z nami jak najwcześniej.",
     }),
@@ -169,6 +198,7 @@ export function appointmentChangedEmail(
         ...appointmentRows(data),
         ...(moved ? ([["Poprzedni termin", formatAppointmentDate(previousStartsAt)]] as Row[]) : []),
       ],
+      callout: data.consentUrl ? consentCallout(data.consentUrl) : undefined,
       button: panelButton(baseUrl),
       footnote: "Jeśli nowy termin Ci nie odpowiada, skontaktuj się z nami.",
     }),
@@ -188,6 +218,38 @@ export function appointmentCanceledEmail(data: AppointmentEmailData, baseUrl: st
   };
 }
 
+export function consentReminderEmail(data: AppointmentEmailData, consentUrl: string, baseUrl: string): EmailContent {
+  return {
+    subject: `Podpisz zgodę na zabieg — ${BRAND}`,
+    ...layout({
+      heading: "Zgoda na zabieg czeka na podpis",
+      paragraphs: [
+        greeting(data.patientName),
+        "Do Twojej wizyty brakuje podpisanej zgody na zabieg. Jest obowiązkowa — podpisz ją i wgraj do systemu najpóźniej do chwili rozpoczęcia zabiegu.",
+      ],
+      rows: appointmentRows(data),
+      callout: consentCallout(consentUrl),
+      button: panelButton(baseUrl),
+    }),
+  };
+}
+
+export function consentCanceledEmail(data: AppointmentEmailData, baseUrl: string): EmailContent {
+  return {
+    subject: `Rezerwacja anulowana — brak zgody na zabieg — ${BRAND}`,
+    ...layout({
+      heading: "Rezerwacja została anulowana",
+      paragraphs: [
+        greeting(data.patientName),
+        "Zgoda na zabieg nie została podpisana do chwili rozpoczęcia zabiegu, dlatego rezerwacja została anulowana, a wpłacona zaliczka przepadła — zgodnie z informacją przekazaną przy rezerwacji.",
+      ],
+      rows: appointmentRows(data),
+      button: { label: "Umów nowy termin", url: `${baseUrl}/book` },
+      footnote: "Jeśli uważasz, że to pomyłka, skontaktuj się z nami.",
+    }),
+  };
+}
+
 export function appointmentReminderEmail(data: AppointmentEmailData, baseUrl: string): EmailContent {
   return {
     subject: `Przypomnienie o jutrzejszej wizycie — ${BRAND}`,
@@ -195,6 +257,7 @@ export function appointmentReminderEmail(data: AppointmentEmailData, baseUrl: st
       heading: "Przypominamy o jutrzejszej wizycie",
       paragraphs: [greeting(data.patientName), "Jutro masz u nas umówioną wizytę:"],
       rows: appointmentRows(data),
+      callout: data.consentUrl ? consentCallout(data.consentUrl) : undefined,
       button: panelButton(baseUrl),
       footnote: "Jeśli nie możesz przyjść, daj nam znać jak najwcześniej.",
     }),

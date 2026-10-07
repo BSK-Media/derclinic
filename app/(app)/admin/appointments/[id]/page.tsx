@@ -20,6 +20,7 @@ import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
 import { appointmentStatusLabel, effectiveAppointmentStatus } from "@/lib/appointment-status";
 import { ApprovalBadge, RejectReasonDialog } from "@/components/appointment-approval";
 import { AppointmentPhotos } from "@/components/appointment-photos";
+import { AppointmentConsentCard } from "@/components/appointment-consent-card";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -401,6 +402,8 @@ export default function AdminAppointmentDetail() {
           {appointmentStatusLabel(appointmentIsAwaiting ? "AWAITING" : appt.status)}
         </div>
       </Card>
+
+      <AppointmentConsentCard appointmentId={id} />
 
       {appt.status === "COMPLETED" ? (
         <>

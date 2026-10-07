@@ -53,6 +53,7 @@ export const AUDIT_ENTITY_LABELS: Record<string, string> = {
   PatientPhoneFix: "Naprawa numerów telefonów",
   LoyaltyBackfill: "Synchronizacja punktów",
   LoyaltyPoints: "Punkty lojalnościowe",
+  ProcedureConsent: "Zgoda na zabieg",
   User: "Konto pracownika",
   UserAvatar: "Zdjęcie profilowe",
   Specialist: "Specjalista",

@@ -8,6 +8,8 @@ import { appointmentStatusLabel } from "@/lib/appointment-status";
 import { AppointmentPhotos } from "@/components/appointment-photos";
 import { PatientPageShell } from "../../PatientPageShell";
 import { AddToCalendarButton } from "../../AddToCalendarButton";
+import { ProcedureConsentPanel } from "@/components/procedure-consent-panel";
+import { consentToken } from "@/lib/consent-link";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +65,7 @@ export default async function PatientAppointmentCardPage(props: { params: Promis
         priceEstimate: true,
         priceFinal: true,
         customServiceName: true,
+        consentStatus: true,
         patient: { select: { name: true } },
         specialist: { select: { name: true, jobTitle: true, specialization: true } },
         service: { select: { name: true } },
@@ -117,6 +120,13 @@ export default async function PatientAppointmentCardPage(props: { params: Promis
           </span>
         </div>
       </div>
+
+      {appointment.consentStatus !== "NOT_REQUIRED" ? (
+        <div className="mt-6">
+          <div className="mb-2 text-sm font-semibold text-zinc-900">Zgoda na zabieg</div>
+          <ProcedureConsentPanel token={consentToken(appointment.id)} />
+        </div>
+      ) : null}
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         {/* Dane wizyty */}

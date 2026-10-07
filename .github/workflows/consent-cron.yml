@@ -1,0 +1,31 @@
+# Zgody na zabieg: co 15 minut wywołuje /api/cron/consent — anuluje rezerwacje
+# bez podpisanej zgody po terminie zabiegu i wysyła przypomnienia (push rano
+# i wieczorem). Zadania są idempotentne, więc częste wywołania są bezpieczne.
+#
+# Wymaga w repozytorium (Settings → Secrets and variables → Actions):
+#   * secret CRON_SECRET — ta sama wartość co zmienna CRON_SECRET w Vercelu,
+#   * variable APP_URL   — adres aplikacji, np. https://app.derclinic.pl
+# Dopóki ich nie ma, workflow nic nie robi (kończy się sukcesem).
+name: Zgody na zabieg — harmonogram
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wywołaj zadania zgód
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Brak APP_URL lub CRON_SECRET — pomijam."
+            exit 0
+          fi
+          curl --fail --silent --show-error --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "${APP_URL%/}/api/cron/consent"

@@ -276,6 +276,26 @@ export const pushContent = {
     body: `${patientName} prosi o zmianę danych kontaktowych.`,
     url: "/admin/patients/data-change-requests",
   }),
+  consentReminder: (startsAt: Date, url: string): PushPayload => ({
+    title: "Podpisz zgodę na zabieg",
+    body: `Zgoda jest obowiązkowa. Bez podpisu do ${formatPushDate(startsAt)} rezerwacja zostanie anulowana, a zaliczka przepadnie.`,
+    url,
+  }),
+  consentRejected: (url: string, reason: string | null): PushPayload => ({
+    title: "Zgoda odrzucona — wgraj ponownie",
+    body: reason ? `${reason}` : "Przesłana zgoda nie została przyjęta. Wgraj poprawnie podpisany dokument.",
+    url,
+  }),
+  consentCanceled: (): PushPayload => ({
+    title: "Rezerwacja anulowana",
+    body: "Zgoda na zabieg nie została podpisana na czas — rezerwacja anulowana, zaliczka przepadła.",
+    url: "/panel-klienta",
+  }),
+  staffConsentCanceled: (patientName: string): PushPayload => ({
+    title: "Anulowano rezerwację — brak zgody",
+    body: `${patientName} nie podpisał(a) zgody na zabieg; rezerwacja anulowana, zaliczka przepadła.`,
+    url: "/admin/visits",
+  }),
   staffImageConsentRevocation: (patientName: string): PushPayload => ({
     title: "Cofnięcie zgody na wizerunek",
     body: `${patientName} prosi o cofnięcie zgody na wizerunek.`,

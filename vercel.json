@@ -2,5 +2,8 @@
   "buildCommand": "npm run db:deploy && next build",
   "framework": "nextjs",
   "regions": ["fra1"],
-  "crons": [{ "path": "/api/cron/email-reminders", "schedule": "0 7 * * *" }]
+  "crons": [
+    { "path": "/api/cron/email-reminders", "schedule": "0 7 * * *" },
+    { "path": "/api/cron/consent", "schedule": "0 16 * * *" }
+  ]
 }

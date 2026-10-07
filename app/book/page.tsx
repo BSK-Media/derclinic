@@ -8,6 +8,7 @@ import { Raleway } from "next/font/google";
 import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, Check, Calendar as CalendarIcon, Menu, X, ChevronDown, Instagram, Facebook, Phone, Mail, MapPin } from "lucide-react";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
+import { ProcedureConsentPanel } from "@/components/procedure-consent-panel";
 import { maxRedeemablePoints, discountForPoints } from "@/lib/loyalty";
 import { requiresFullPrepayment, resolvePaymentDue, depositAmountGrosze, type PaymentChoice } from "@/lib/booking-payment";
 import { PASSWORD_REQUIREMENTS_HINT, validatePassword } from "@/lib/password-policy";
@@ -195,6 +196,8 @@ export default function PublicBookingPage() {
   const [imageConsent, setImageConsent] = React.useState(false);
   // Obowiązkowa akceptacja regulaminu (ostatni krok rezerwacji).
   const [termsAccepted, setTermsAccepted] = React.useState(false);
+  // Link do zgody na zabieg zwracany po rezerwacji (działa też dla gościa bez konta).
+  const [consentTokenValue, setConsentTokenValue] = React.useState<string | null>(null);
   const [accountMode, setAccountMode] = React.useState<"guest" | "register">("guest");
   const [password, setPassword] = React.useState("");
   const [passwordConfirm, setPasswordConfirm] = React.useState("");
@@ -702,6 +705,7 @@ export default function PublicBookingPage() {
         setAccountCreated(Boolean(login?.ok));
         setAccountNotCreated(!login?.ok);
       }
+      setConsentTokenValue(typeof result.consentToken === "string" ? result.consentToken : null);
       setBookedAsLoggedIn(Boolean(result.bookedAsLoggedIn));
       setLoyaltyPointsUsed(Number(result.loyaltyPointsUsed) || 0);
       setLoyaltyDiscountAmount(Number(result.loyaltyDiscountAmount) || 0);
@@ -736,6 +740,11 @@ export default function PublicBookingPage() {
             Potwierdzenie zostało zapisane w systemie kliniki. Skontaktujemy się, jeśli będą potrzebne
             dodatkowe informacje.
           </p>
+          {consentTokenValue ? (
+            <div className="w-full max-w-md text-left">
+              <ProcedureConsentPanel token={consentTokenValue} />
+            </div>
+          ) : null}
           {amountPaid > 0 ? (
             <p className="max-w-md rounded-xl bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
               Opłacono <strong>{formatPLNFromGrosze(amountPaid)}</strong>
@@ -1485,6 +1494,18 @@ export default function PublicBookingPage() {
               </p>
             </div>
           ) : null}
+
+          <div className="mt-4 flex items-start gap-3 rounded-xl border-2 border-amber-400 bg-amber-50 p-3.5 text-xs text-amber-950">
+            <span className="text-lg leading-none">⚠</span>
+            <div>
+              <div className="text-sm font-bold">Wymagana zgoda na zabieg</div>
+              Po rezerwacji pobierzesz zgodę na zabieg i podpiszesz ją elektronicznie (np. podpisem zaufanym), a
+              następnie wgrasz do systemu. Masz na to czas do chwili rozpoczęcia zabiegu (np. do piątku do 12:00).{" "}
+              <strong className="text-red-700">
+                Niepodpisanie zgody skutkuje anulowaniem rezerwacji i utratą zaliczki.
+              </strong>
+            </div>
+          </div>
 
           <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-xl border border-zinc-200 bg-zinc-50 p-3.5 text-xs text-zinc-700">
             <input

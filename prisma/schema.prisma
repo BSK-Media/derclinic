@@ -148,6 +148,7 @@ model User {
   decidedPatientDataChangeRequests PatientDataChangeRequest[] @relation("PatientDataChangeDecider")
   decidedImageConsentRevocations   ImageConsentRevocationRequest[] @relation("ImageConsentRevocationDecider")
   operators                        StaffOperator[]            @relation("StaffOperators")
+  decidedConsentSubmissions        ProcedureConsentSubmission[] @relation("ProcedureConsentDecider")
   newsletterCampaigns              NewsletterCampaign[]
   newsletterImages                 NewsletterImage[]
   newsletterLists                  NewsletterList[]
@@ -564,6 +565,18 @@ model Appointment {
   payments     Payment[]
 
   imageConsentRevocationRequests ImageConsentRevocationRequest[]
+
+  // Zgoda pacjenta na zabieg (podpisywana elektronicznie, patrz
+  // lib/procedure-consent.ts): NOT_REQUIRED — wizyty sprzed wprowadzenia zgód i
+  // wizyty wprowadzone przez personel; NOT_SIGNED — rezerwacja online czeka na
+  // podpisaną zgodę; PENDING_REVIEW — plik złożony, czeka na decyzję personelu;
+  // SIGNED — zgoda przyjęta. Bez zgody do chwili zabiegu rezerwacja jest
+  // anulowana, a zaliczka przepada (consentForfeitedAt).
+  consentStatus          String    @default("NOT_REQUIRED")
+  consentSignedAt        DateTime?
+  consentRejectionReason String?
+  consentForfeitedAt     DateTime?
+  consentSubmissions     ProcedureConsentSubmission[]
 
   @@index([specialistId, startsAt])
   @@index([locationId, startsAt])
@@ -985,6 +998,31 @@ model NewsletterImage {
 
   createdById String?
   createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+}
+
+// Plik z podpisaną zgodą na zabieg złożony przez pacjenta (każda próba osobno).
+model ProcedureConsentSubmission {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  fileName String
+  mimeType String
+  size     Int
+  data     Bytes
+
+  // ACCEPTED / REJECTED / PENDING_REVIEW — wynik automatycznej weryfikacji podpisu
+  // albo decyzja personelu.
+  status  String
+  reason  String?
+  details Json?
+
+  decidedById String?
+  decidedBy   User?   @relation("ProcedureConsentDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([appointmentId, createdAt])
 }
 
 model PatientSession {

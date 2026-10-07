@@ -39,6 +39,7 @@ export const RATE_LIMITS = {
   mfaAccount: { scope: "mfa-account", limit: 5, windowMs: 15 * MINUTE },
   operatorPinIp: { scope: "operator-pin-ip", limit: 30, windowMs: 15 * MINUTE },
   operatorPinAccount: { scope: "operator-pin-account", limit: 5, windowMs: 15 * MINUTE },
+  consentUploadIp: { scope: "consent-upload-ip", limit: 20, windowMs: HOUR },
   emailTest: { scope: "email-test", limit: 10, windowMs: HOUR },
   pushManual: { scope: "push-manual", limit: 30, windowMs: HOUR },
 } satisfies Record<string, RateLimitRule>;

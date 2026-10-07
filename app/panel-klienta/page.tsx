@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { consentToken } from "@/lib/consent-link";
 import { getPatientAuth } from "@/lib/patient-auth";
 import { prisma } from "@/lib/db";
 import { PatientDashboard } from "./PatientDashboard";
@@ -52,6 +53,8 @@ export default async function PatientDashboardPage(
         customServiceName: true,
         serviceId: true,
         specialistId: true,
+        consentStatus: true,
+        consentForfeitedAt: true,
         service: { select: { name: true } },
         specialist: { select: { name: true } },
         location: { select: { name: true } },
@@ -80,11 +83,21 @@ export default async function PatientDashboardPage(
   // Rosnąco — najbliższa wizyta jest pierwsza na liście "nadchodzące".
   const upcoming = appointments
     .filter((a) => a.startsAt.getTime() >= now.getTime() && a.status !== "CANCELED")
-    .map((a) => ({ ...a, startsAt: a.startsAt.toISOString() }));
+    .map(({ consentForfeitedAt, ...a }) => ({
+      ...a,
+      startsAt: a.startsAt.toISOString(),
+      consentForfeited: Boolean(consentForfeitedAt),
+      consentToken: consentToken(a.id),
+    }));
   // Malejąco — w historii najpierw najświeższa wizyta.
   const past = appointments
     .filter((a) => a.startsAt.getTime() < now.getTime() || a.status === "CANCELED")
-    .map((a) => ({ ...a, startsAt: a.startsAt.toISOString() }))
+    .map(({ consentForfeitedAt, ...a }) => ({
+      ...a,
+      startsAt: a.startsAt.toISOString(),
+      consentForfeited: Boolean(consentForfeitedAt),
+      consentToken: consentToken(a.id),
+    }))
     .reverse();
 
   // Program punktowy: 1 pkt za każde wydane 10 zł, 1 pkt = 1 zł rabatu.

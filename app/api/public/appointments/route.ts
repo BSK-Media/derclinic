@@ -10,6 +10,7 @@ import { maxRedeemablePoints, redeemLoyaltyPoints, discountForPoints } from "@/l
 import { resolvePaymentDue, type PaymentChoice } from "@/lib/booking-payment";
 import { logAudit, formatWarsaw, type AuditActor } from "@/lib/audit";
 import { validatePassword } from "@/lib/password-policy";
+import { consentToken } from "@/lib/consent-link";
 import { RATE_LIMITS, clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 const RESERVATION_SERVICE_NAME = "__DERCLINIC_REZERWACJA_CZASU__";
@@ -415,6 +416,8 @@ export async function POST(req: Request) {
           priceFinal,
           note: ["Rezerwacja online (strona WWW)", note?.trim()].filter(Boolean).join(" — "),
           imageConsent,
+          // Rezerwacja online wymaga podpisanej zgody na zabieg (patrz lib/procedure-consent.ts).
+          consentStatus: "NOT_SIGNED",
         },
       });
 
@@ -489,6 +492,8 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       appointmentId: appointment.id,
+      // Link do pobrania zgody i wgrania podpisanego pliku (działa także dla gościa bez konta).
+      consentToken: consentToken(appointment.id),
       startsAt: appointment.startsAt,
       bookedAsLoggedIn: appointment.bookedAsLoggedIn,
       loyaltyPointsUsed: appointment.loyaltyPointsUsed,

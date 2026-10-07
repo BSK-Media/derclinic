@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { appBaseUrl, sendDueReminders } from "@/lib/email-notifications";
 import { logAudit } from "@/lib/audit";
+import { runConsentJobs } from "@/lib/consent-jobs";
 
 // Wysyłka trwa (jedna wiadomość po drugiej), więc dajemy funkcji więcej czasu.
 export const maxDuration = 60;
@@ -39,5 +40,12 @@ export async function GET(req: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, ...summary });
+  // Poranny przebieg zgód na zabieg (przypomnienia + anulowanie po terminie) —
+  // jeden dzienny cron mniej do utrzymania; wieczorny to /api/cron/consent.
+  const consent = await runConsentJobs({ baseUrl: appBaseUrl(req) }).catch((e) => {
+    console.error("[cron] zgody na zabieg", e);
+    return null;
+  });
+
+  return NextResponse.json({ ok: true, ...summary, consent });
 }

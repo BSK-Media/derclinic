@@ -73,6 +73,10 @@ export type AppointmentRowData = {
   specialist: { name: string } | null;
   location: { name: string } | null;
   payments: { amount: number }[];
+  // Zgoda na zabieg (patrz lib/procedure-consent.ts).
+  consentStatus?: string;
+  consentForfeited?: boolean;
+  consentToken?: string;
 };
 
 export type PatientProfile = {
@@ -96,6 +100,57 @@ const NAV = [
 ] as const;
 
 type TabId = (typeof NAV)[number]["id"];
+
+// Stan zgody na zabieg przy wizycie: niepodpisana = duży wykrzyknik i ostrzeżenie
+// o anulowaniu rezerwacji i utracie zaliczki.
+function ConsentBadge({ appointment }: { appointment: AppointmentRowData }) {
+  const status = appointment.consentStatus;
+  if (!status || status === "NOT_REQUIRED" || !appointment.consentToken) return null;
+  const href = `/zgoda/${encodeURIComponent(appointment.consentToken)}`;
+
+  if (appointment.status === "CANCELED") {
+    return appointment.consentForfeited ? (
+      <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+        <span className="text-base leading-none">❗</span>
+        <span>Rezerwacja anulowana — zgoda na zabieg nie została podpisana na czas, zaliczka przepadła.</span>
+      </div>
+    ) : null;
+  }
+  if (status === "SIGNED") {
+    return (
+      <div className="mt-3 flex items-center gap-2 rounded-xl bg-green-50 px-3 py-2 text-xs font-medium text-green-800">
+        <span>✔</span> Zgoda na zabieg podpisana
+      </div>
+    );
+  }
+  if (status === "PENDING_REVIEW") {
+    return (
+      <div className="mt-3 flex items-center gap-2 rounded-xl bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800">
+        <span>⏳</span> Zgoda na zabieg czeka na weryfikację
+      </div>
+    );
+  }
+  return (
+    <div className="mt-3 flex items-start gap-3 rounded-xl border-2 border-amber-400 bg-amber-50 p-3 text-amber-950">
+      <span className="text-3xl font-black leading-none text-red-600">!</span>
+      <div className="min-w-0 flex-1 text-xs">
+        <div className="text-sm font-bold">Zgoda na zabieg niepodpisana</div>
+        <p className="mt-0.5">
+          Podpisz ją i wgraj do chwili zabiegu.{" "}
+          <strong className="text-red-700">
+            Bez podpisu rezerwacja zostanie anulowana, a zaliczka przepadnie.
+          </strong>
+        </p>
+        <a
+          href={href}
+          className="mt-2 inline-block rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-600"
+        >
+          Podpisz zgodę
+        </a>
+      </div>
+    </div>
+  );
+}
 
 function AppointmentRow({
   appointment,
@@ -165,6 +220,7 @@ function AppointmentRow({
           ) : null}
         </div>
       </div>
+      <ConsentBadge appointment={appointment} />
       <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-zinc-100 pt-3">
         {canAddToCalendar ? <AddToCalendarButton appointmentId={appointment.id} /> : null}
         <Link
