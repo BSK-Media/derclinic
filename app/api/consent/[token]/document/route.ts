@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { appBaseUrl } from "@/lib/email-notifications";
-import { appointmentForConsentToken, consentPdfFor } from "@/lib/procedure-consent-server";
+import { appointmentForConsentToken, consentLinkProblem, consentPdfFor } from "@/lib/procedure-consent-server";
 
 // Pobranie zgody na zabieg (PDF do podpisania) dla linku z tokenem.
 export async function GET(req: Request, props: { params: Promise<{ token: string }> }) {
   const params = await props.params;
   const appointment = await appointmentForConsentToken(decodeURIComponent(params.token));
-  if (!appointment) return NextResponse.json({ ok: false, message: "Nieprawidłowy link" }, { status: 404 });
+  if (!appointment) return NextResponse.json({ ok: false, message: await consentLinkProblem(decodeURIComponent(params.token)) }, { status: 404 });
   if (appointment.consentStatus === "NOT_REQUIRED") {
     return NextResponse.json({ ok: false, message: "Do tej wizyty zgoda nie jest wymagana." }, { status: 404 });
   }

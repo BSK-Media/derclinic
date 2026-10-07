@@ -53,6 +53,20 @@ export async function appointmentForConsentToken(token: string) {
   return appointment;
 }
 
+/**
+ * Komunikat dla linku do zgody, który nie wskazuje wizyty: zły podpis w adresie
+ * (np. link ucięty w mailu) albo poprawny link do wizyty, której już nie ma
+ * (usunięta, np. po wyczyszczeniu danych) — to dwie różne sytuacje.
+ */
+export async function consentLinkProblem(token: string) {
+  const id = appointmentIdFromConsentToken(token);
+  if (!id) return "Nieprawidłowy link — skopiuj go w całości z wiadomości albo otwórz zgodę z panelu klienta.";
+  const exists = await prisma.appointment.findUnique({ where: { id }, select: { id: true } });
+  return exists
+    ? "Ta wizyta została usunięta z systemu. Skontaktuj się z kliniką."
+    : "Nie znaleziono wizyty z tego linku — mogła zostać usunięta. Skontaktuj się z kliniką.";
+}
+
 export type ConsentAppointment = NonNullable<Awaited<ReturnType<typeof appointmentForConsentToken>>>;
 
 export async function consentPdfFor(appointment: ConsentAppointment, baseUrl: string) {

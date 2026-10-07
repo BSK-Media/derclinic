@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { appointmentForConsentToken, consentUploadBlocker } from "@/lib/procedure-consent-server";
+import { consentLinkProblem, appointmentForConsentToken, consentUploadBlocker } from "@/lib/procedure-consent-server";
 import { CONSENT_FORFEIT_WARNING, CONSENT_STATUS_LABELS, GOV_SIGN_URL } from "@/lib/procedure-consent";
 
 // Stan zgody na zabieg dla linku z tokenem (strona /zgoda/<token>): dane
@@ -7,7 +7,7 @@ import { CONSENT_FORFEIT_WARNING, CONSENT_STATUS_LABELS, GOV_SIGN_URL } from "@/
 export async function GET(_req: Request, props: { params: Promise<{ token: string }> }) {
   const params = await props.params;
   const appointment = await appointmentForConsentToken(decodeURIComponent(params.token));
-  if (!appointment) return NextResponse.json({ ok: false, message: "Nieprawidłowy link" }, { status: 404 });
+  if (!appointment) return NextResponse.json({ ok: false, message: await consentLinkProblem(decodeURIComponent(params.token)) }, { status: 404 });
 
   const blocker = consentUploadBlocker(appointment);
   return NextResponse.json({

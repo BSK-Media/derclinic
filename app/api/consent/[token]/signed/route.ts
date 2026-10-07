@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { appointmentForConsentToken } from "@/lib/procedure-consent-server";
+import { consentLinkProblem, appointmentForConsentToken } from "@/lib/procedure-consent-server";
 
 // Pobranie podpisanej zgody na zabieg (ostatni przyjęty plik) dla linku z tokenem.
 export async function GET(_req: Request, props: { params: Promise<{ token: string }> }) {
   const params = await props.params;
   const appointment = await appointmentForConsentToken(decodeURIComponent(params.token));
-  if (!appointment) return NextResponse.json({ ok: false, message: "Nieprawidłowy link" }, { status: 404 });
+  if (!appointment) return NextResponse.json({ ok: false, message: await consentLinkProblem(decodeURIComponent(params.token)) }, { status: 404 });
 
   const submission = await prisma.procedureConsentSubmission.findFirst({
     where: { appointmentId: appointment.id, status: "ACCEPTED" },

@@ -131,7 +131,7 @@ export function ProcedureConsentPanel({
       <div className="flex items-start gap-3 rounded-2xl border border-green-300 bg-green-50 p-4 text-green-900">
         <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0" />
         <div className="text-sm">
-          <div className="font-semibold">Zgoda na zabieg podpisana</div>
+          <div className="font-semibold">Zgoda na zabieg została już podpisana</div>
           {result?.signer ? `Podpisał(a): ${result.signer}. ` : ""}Dziękujemy — nic więcej nie musisz robić.
           {consent.signedAt ? <div className="mt-1 text-xs text-green-800">Podpisano: {formatDeadline(consent.signedAt)}</div> : null}
           <a

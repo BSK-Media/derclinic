@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   CONSENT_UPLOAD_MAX_BYTES,
   appointmentForConsentToken,
+  consentLinkProblem,
   consentUploadBlocker,
   submitSignedConsent,
 } from "@/lib/procedure-consent-server";
@@ -19,7 +20,7 @@ export const maxDuration = 30;
 export async function POST(req: Request, props: { params: Promise<{ token: string }> }) {
   const params = await props.params;
   const appointment = await appointmentForConsentToken(decodeURIComponent(params.token));
-  if (!appointment) return bad("Nieprawidłowy link", 404);
+  if (!appointment) return bad(await consentLinkProblem(decodeURIComponent(params.token)), 404);
 
   const limit = await hitRateLimit(RATE_LIMITS.consentUploadIp, await clientIp());
   if (!limit.allowed) return tooManyRequests(limit);
