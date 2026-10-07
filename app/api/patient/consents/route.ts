@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getPatientAuth } from "@/lib/patient-auth";
 import { logAudit } from "@/lib/audit";
+import { consentToken } from "@/lib/consent-link";
 
 function bad(message: string, status = 400) {
   return NextResponse.json({ ok: false, message }, { status });
@@ -70,7 +71,26 @@ export async function GET() {
     revocationPending: pendingIds.has(row.id),
   }));
 
-  return NextResponse.json({ ok: true, consents, imageConsents });
+  // Podpisane zgody na zabiegi (z możliwością pobrania podpisanego pliku).
+  const procedureRows = await prisma.appointment.findMany({
+    where: {
+      patientId: auth.id,
+      consentStatus: "SIGNED",
+      deletedAt: null,
+      service: { name: { not: "__DERCLINIC_REZERWACJA_CZASU__" } },
+    },
+    orderBy: { startsAt: "desc" },
+    select: { id: true, startsAt: true, consentSignedAt: true, customServiceName: true, service: { select: { name: true } } },
+  });
+  const procedureConsents = procedureRows.map((row) => ({
+    id: row.id,
+    startsAt: row.startsAt.toISOString(),
+    signedAt: row.consentSignedAt?.toISOString() ?? null,
+    serviceName: row.customServiceName || row.service.name,
+    token: consentToken(row.id),
+  }));
+
+  return NextResponse.json({ ok: true, consents, imageConsents, procedureConsents });
 }
 
 export async function POST(req: Request) {

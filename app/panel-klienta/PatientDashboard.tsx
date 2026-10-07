@@ -535,6 +535,8 @@ function ConsentsPanel() {
   const consents: ConsentRow[] = data?.consents ?? [];
   type ImageConsentItem = { id: string; startsAt: string; serviceName: string; revocationPending: boolean };
   const imageConsents: ImageConsentItem[] = data?.imageConsents ?? [];
+  type ProcedureConsentItem = { id: string; startsAt: string; signedAt: string | null; serviceName: string; token: string };
+  const procedureConsents: ProcedureConsentItem[] = data?.procedureConsents ?? [];
   const [revokeTarget, setRevokeTarget] = React.useState<ImageConsentItem | null>(null);
   const [sendingRevoke, setSendingRevoke] = React.useState(false);
 
@@ -633,6 +635,34 @@ function ConsentsPanel() {
           </div>
         );
       })}
+
+      <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="text-sm font-semibold text-zinc-900">Zgody na zabiegi</div>
+        <p className="mt-1 text-xs text-zinc-500">Podpisane elektronicznie zgody do Twoich wizyt — możesz je pobrać.</p>
+        {isLoading ? null : procedureConsents.length === 0 ? (
+          <p className="mt-3 text-xs text-zinc-400">Nie masz jeszcze podpisanych zgód na zabiegi.</p>
+        ) : (
+          <ul className="mt-3 divide-y divide-zinc-200 rounded-xl border border-zinc-200">
+            {procedureConsents.map((item) => (
+              <li key={item.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+                <div className="min-w-0">
+                  <div className="truncate font-medium text-zinc-900">{item.serviceName}</div>
+                  <div className="text-xs text-zinc-500">
+                    Wizyta: {formatConsentDate(item.startsAt)}
+                    {item.signedAt ? ` · podpisano ${formatConsentDate(item.signedAt)}` : ""}
+                  </div>
+                </div>
+                <a
+                  href={`/api/consent/${encodeURIComponent(item.token)}/signed`}
+                  className="shrink-0 rounded-xl border border-emerald-600 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
+                >
+                  Pobierz
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       <PushToggleCard
         audience="patient"

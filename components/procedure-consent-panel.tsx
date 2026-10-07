@@ -92,6 +92,9 @@ export function ProcedureConsentPanel({
       setResult({ outcome: out.outcome, reason: out.reason, signer: out.signer });
       setFile(null);
       await mutate();
+      // Po przyjęciu pliku panel zmienia się w krótką kartę i strona robi się niższa —
+      // przeglądarka zjeżdża wtedy na dół. Wracamy na górę, gdzie jest wynik.
+      window.scrollTo({ top: 0, behavior: "smooth" });
       if (out.outcome !== "REJECTED") onDone?.();
     } catch {
       setError("Nie udało się połączyć z serwerem. Spróbuj ponownie.");
@@ -130,6 +133,13 @@ export function ProcedureConsentPanel({
         <div className="text-sm">
           <div className="font-semibold">Zgoda na zabieg podpisana</div>
           {result?.signer ? `Podpisał(a): ${result.signer}. ` : ""}Dziękujemy — nic więcej nie musisz robić.
+          {consent.signedAt ? <div className="mt-1 text-xs text-green-800">Podpisano: {formatDeadline(consent.signedAt)}</div> : null}
+          <a
+            href={`${base}/signed`}
+            className="mt-3 inline-flex items-center gap-2 rounded-xl border border-green-600 bg-white px-3 py-2 text-xs font-semibold text-green-800 transition hover:bg-green-100"
+          >
+            <Download className="h-4 w-4" /> Pobierz podpisaną zgodę
+          </a>
         </div>
       </div>
     );
