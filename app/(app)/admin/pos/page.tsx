@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { eanMatchesGtin, scannedProductCode } from "@/lib/barcode";
 import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
 
 async function fetcher(url: string) {
@@ -35,6 +36,7 @@ type Product = {
   id: string;
   name: string;
   sku: string | null;
+  ean: string | null;
   category: "PREPARATION" | "COSMETIC";
   unit: string;
   salePrice: number | null;
@@ -98,6 +100,18 @@ type AppliedDiscount = {
   approvedById: string;
   approvedByName: string;
 };
+
+// Czytnik kodów działa jak klawiatura, ale wpisuje znaki znacznie szybciej niż człowiek.
+// Seria co najmniej SCAN_MIN_LENGTH znaków z odstępami poniżej SCAN_MAX_GAP_MS to skan;
+// jeśli czytnik nie wysyła Entera, kończymy skan po SCAN_IDLE_MS ciszy.
+const SCAN_MAX_GAP_MS = 50;
+const SCAN_MIN_LENGTH = 8;
+const SCAN_IDLE_MS = 150;
+
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+}
 
 let rowIdCounter = 0;
 function nextRowId() {
@@ -389,11 +403,15 @@ export default function PosPage() {
 
   const filteredProducts = React.useMemo(() => {
     const q = query.trim().toLowerCase();
+    const code = scannedProductCode(query);
     return products.filter((p) => {
       if (!p.isActive) return false;
       if (!q) return true;
+      if (code && eanMatchesGtin(p.ean, code)) return true;
       return (
-        p.name.toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q)
+        p.name.toLowerCase().includes(q) ||
+        (p.sku ?? "").toLowerCase().includes(q) ||
+        (p.ean ?? "").toLowerCase().includes(q)
       );
     });
   }, [products, query]);
@@ -417,6 +435,110 @@ export default function PosPage() {
       return [...current, { productId, quantity: "1" }];
     });
   }
+
+  const searchInputRef = React.useRef<HTMLInputElement | null>(null);
+  const typingRef = React.useRef({ lastAt: 0, fastCount: 0, timer: 0 });
+
+  // Dodanie produktu po zeskanowanym kodzie EAN albo GS1.
+  function handleScan(text: string) {
+    const code = scannedProductCode(text);
+    if (!code) return false;
+    const product = products.find((p) => p.isActive && eanMatchesGtin(p.ean, code));
+    setQuery("");
+    searchInputRef.current?.focus();
+    if (!product) {
+      toast.error(`Nie znaleziono produktu o kodzie ${text.trim()}`);
+      return true;
+    }
+    const stock = stockFor(product);
+    if (stock <= 0) {
+      toast.error(`${product.name}: brak na stanie w wybranym magazynie`);
+      return true;
+    }
+    const inCart = parseFloat(cart.find((i) => i.productId === product.id)?.quantity ?? "0") || 0;
+    addToCart(product.id);
+    if (inCart + 1 > stock) {
+      toast.warning(`${product.name}: w koszyku więcej niż na stanie (${stock} ${unitLabel(product.unit)})`);
+    } else {
+      toast.success(`Dodano: ${product.name}`);
+    }
+    return true;
+  }
+
+  const handleScanRef = React.useRef(handleScan);
+  React.useEffect(() => {
+    handleScanRef.current = handleScan;
+  });
+
+  function onSearchChange(value: string) {
+    setQuery(value);
+    const typing = typingRef.current;
+    const now = Date.now();
+    typing.fastCount = now - typing.lastAt < SCAN_MAX_GAP_MS ? typing.fastCount + 1 : 1;
+    typing.lastAt = now;
+    window.clearTimeout(typing.timer);
+    // Czytnik bez Entera na końcu: po krótkiej ciszy traktujemy szybką serię znaków jak skan.
+    typing.timer = window.setTimeout(() => {
+      if (typing.fastCount >= SCAN_MIN_LENGTH) {
+        typing.fastCount = 0;
+        handleScanRef.current(value);
+      }
+    }, SCAN_IDLE_MS);
+  }
+
+  function onSearchKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    window.clearTimeout(typingRef.current.timer);
+    typingRef.current.fastCount = 0;
+    if (!query.trim()) return;
+    if (handleScan(query)) return;
+    // Ręczne wyszukiwanie: Enter dodaje produkt, gdy pasuje dokładnie jeden.
+    if (filteredProducts.length === 1) {
+      const product = filteredProducts[0];
+      if (stockFor(product) <= 0) return toast.error(`${product.name}: brak na stanie w wybranym magazynie`);
+      addToCart(product.id);
+      setQuery("");
+    }
+  }
+
+  // Skan, gdy kursor nie stoi w żadnym polu (np. po kliknięciu w koszyk) — przechwytujemy
+  // szybką serię znaków na poziomie okna, żeby kod nie przepadł.
+  React.useEffect(() => {
+    let buffer = "";
+    let lastAt = 0;
+    let timer = 0;
+    const flush = () => {
+      const text = buffer;
+      buffer = "";
+      if (text.length >= SCAN_MIN_LENGTH) handleScanRef.current(text);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (isEditableTarget(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
+      const now = Date.now();
+      if (now - lastAt > SCAN_MAX_GAP_MS) buffer = "";
+      lastAt = now;
+      window.clearTimeout(timer);
+      if (event.key === "Enter") {
+        if (buffer.length >= SCAN_MIN_LENGTH) event.preventDefault();
+        flush();
+        return;
+      }
+      if (event.key.length !== 1) return;
+      buffer += event.key;
+      timer = window.setTimeout(flush, SCAN_IDLE_MS);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.clearTimeout(timer);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    const typing = typingRef.current;
+    return () => window.clearTimeout(typing.timer);
+  }, []);
 
   function updateQuantity(productId: string, quantity: string) {
     setCart((current) => current.map((i) => (i.productId === productId ? { ...i, quantity } : i)));
@@ -551,9 +673,12 @@ export default function PosPage() {
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                 <Input
+                  ref={searchInputRef}
+                  autoFocus
                   value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Szukaj produktu lub SKU…"
+                  onChange={(e) => onSearchChange(e.target.value)}
+                  onKeyDown={onSearchKeyDown}
+                  placeholder="Zeskanuj kod lub szukaj produktu…"
                   className="pl-9 sm:w-64"
                 />
               </div>
