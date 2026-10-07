@@ -33,24 +33,34 @@ export async function GET(req: Request) {
           : {}),
       };
 
-  const patients = await prisma.patient.findMany({
-    where,
-    orderBy: { name: "asc" },
-    take: ids.length ? 500 : 30,
-    select: { id: true, name: true, email: true, phone: true },
-  });
+  const select = { id: true, name: true, email: true, phone: true } as const;
+  const subscribedWhere = subscribedPatientWhere(null);
 
-  const subscribedIds = new Set(
-    (
-      await prisma.patient.findMany({
-        where: { id: { in: patients.map((p) => p.id) }, ...subscribedPatientWhere(null) },
-        select: { id: true },
-      })
-    ).map((p) => p.id),
-  );
+  // Kolejność: najpierw klienci ze zgodą marketingową (alfabetycznie), potem
+  // bez zgody (też alfabetycznie). Dwa zapytania, żeby limit wyników nie
+  // wycinał klientów ze zgodą na rzecz tych bez zgody.
+  const limit = ids.length ? 500 : 30;
+  const withConsent = await prisma.patient.findMany({
+    where: { AND: [where, subscribedWhere] },
+    orderBy: { name: "asc" },
+    take: limit,
+    select,
+  });
+  const withoutConsent =
+    withConsent.length >= limit
+      ? []
+      : await prisma.patient.findMany({
+          where: { AND: [where, { NOT: subscribedWhere }] },
+          orderBy: { name: "asc" },
+          take: limit - withConsent.length,
+          select,
+        });
 
   return NextResponse.json({
     ok: true,
-    clients: patients.map((p) => ({ ...p, subscribed: subscribedIds.has(p.id) })),
+    clients: [
+      ...withConsent.map((p) => ({ ...p, subscribed: true })),
+      ...withoutConsent.map((p) => ({ ...p, subscribed: false })),
+    ],
   });
 }
