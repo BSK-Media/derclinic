@@ -9,7 +9,7 @@ import * as asn1js from "asn1js";
 // wgrywany z powrotem. Ten moduł: link do zgody (token), generowanie PDF i
 // automatyczna weryfikacja podpisu.
 
-export const GOV_SIGN_URL = "https://www.gov.pl/web/gov/podpisz-dokument-elektronicznie-wykorzystaj-podpis-zaufany";
+export const GOV_SIGN_URL = "https://podpis.gov.pl/podpisz-dokument-elektronicznie/";
 
 // Znacznik zapisywany w metadanych PDF — po podpisaniu (PAdES dopisuje podpis
 // na końcu pliku) pozwala sprawdzić, że podpisano zgodę do TEJ wizyty.
