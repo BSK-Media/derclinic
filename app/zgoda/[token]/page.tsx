@@ -1,56 +1,52 @@
-"use client";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import { getPatientAuth } from "@/lib/patient-auth";
+import { prisma } from "@/lib/db";
+import { PatientPageShell } from "@/app/panel-klienta/PatientPageShell";
+import { ConsentContent } from "./ConsentContent";
 
-import * as React from "react";
-import Image from "next/image";
-import { useParams } from "next/navigation";
-import { ProcedureConsentPanel } from "@/components/procedure-consent-panel";
+export const dynamic = "force-dynamic";
 
 // Strona zgody na zabieg otwierana z linku (potwierdzenie rezerwacji, mail,
 // powiadomienie push, panel klienta). Token w adresie wskazuje wizytę —
-// dzięki temu zgodę może złożyć także gość bez konta.
-export default function ConsentPage() {
-  const params = useParams<{ token: string }>();
-  const token = decodeURIComponent(String(params?.token ?? ""));
+// dzięki temu zgodę może złożyć także gość bez konta. Zalogowany pacjent
+// widzi ją w układzie panelu klienta (nagłówek, menu, powrót).
+export default async function ConsentPage(props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
+  const token = decodeURIComponent(String(params.token ?? ""));
+
+  const auth = await getPatientAuth();
+  const [patient, upcomingCount] = auth
+    ? await Promise.all([
+        prisma.patient.findUnique({ where: { id: auth.id }, select: { name: true } }),
+        prisma.appointment.count({
+          where: { patientId: auth.id, deletedAt: null, status: { not: "CANCELED" }, startsAt: { gte: new Date() } },
+        }),
+      ])
+    : [null, 0];
+
+  if (patient) {
+    return (
+      <div data-light-only className="contents">
+      <PatientPageShell patientName={patient.name} upcomingCount={upcomingCount}>
+        <Link
+          href="/panel-klienta?tab=upcoming"
+          className="mb-5 inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800"
+        >
+          <ArrowLeft className="h-4 w-4" /> Wróć do panelu
+        </Link>
+        <div className="max-w-xl">
+          <ConsentContent token={token} withLogo={false} />
+        </div>
+      </PatientPageShell>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-zinc-50 p-4">
-      <div className="mx-auto max-w-xl space-y-5 py-6">
-        <div className="flex items-center gap-3">
-          <Image src="/derclinic-logo.webp" alt="DerClinic" width={56} height={56} priority />
-          <div>
-            <h1 className="text-xl font-bold text-zinc-900">Zgoda na zabieg</h1>
-            <p className="text-sm text-zinc-500">Podpisz zgodę elektronicznie i wgraj ją do systemu.</p>
-          </div>
-        </div>
-        <ConsentSummary token={token} />
-        <ProcedureConsentPanel token={token} />
-      </div>
-    </div>
-  );
-}
-
-function ConsentSummary({ token }: { token: string }) {
-  const [info, setInfo] = React.useState<{ serviceName: string; specialistName: string; startsAt: string } | null>(null);
-  React.useEffect(() => {
-    fetch(`/api/consent/${encodeURIComponent(token)}`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((data) => data?.ok && setInfo(data.appointment))
-      .catch(() => null);
-  }, [token]);
-  if (!info) return null;
-  return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm">
-      <div className="font-semibold text-zinc-900">{info.serviceName}</div>
-      <div className="text-zinc-500">
-        {info.specialistName} ·{" "}
-        {new Date(info.startsAt).toLocaleString("pl-PL", {
-          timeZone: "Europe/Warsaw",
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-          hour: "2-digit",
-          minute: "2-digit",
-        })}
+      <div className="mx-auto max-w-xl py-6">
+        <ConsentContent token={token} />
       </div>
     </div>
   );
