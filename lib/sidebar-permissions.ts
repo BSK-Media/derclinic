@@ -1,6 +1,8 @@
 export const SIDEBAR_PERMISSION_KEYS = [
   "dashboard",
   "calendar",
+  // "Wizyty dziś" — nadawane automatycznie razem z "appointments" (brak osobnej opcji w ustawieniach).
+  "today",
   "appointments",
   "specialists",
   "patients",
@@ -67,6 +69,15 @@ const DEFAULT_NON_ADMIN_PERMISSIONS: SidebarPermission[] = SIDEBAR_PERMISSION_KE
 );
 
 export function normalizeSidebarPermissions(role: string, value: unknown): SidebarPermission[] {
+  const base = normalizeBasePermissions(role, value);
+  // Kto widzi Wizyty, widzi też Wizyty dziś (zapisane w bazie listy uprawnień nie znają tego klucza).
+  if (base.includes("appointments") && !base.includes("today")) {
+    return SIDEBAR_PERMISSION_KEYS.filter((key) => key === "today" || base.includes(key));
+  }
+  return base;
+}
+
+function normalizeBasePermissions(role: string, value: unknown): SidebarPermission[] {
   if (role === "ADMIN") return [...ALL_PERMISSIONS];
   // Manager: wszystko oprócz dziennika zdarzeń (logów) — niezależnie od zapisanych uprawnień.
   if (role === "MANAGER") return ALL_PERMISSIONS.filter((key) => key !== "logs");
@@ -98,6 +109,7 @@ export function sidebarPermissionForPath(pathname: string): SidebarPermission | 
   const path = pathname.split("?")[0];
 
   if (path === "/specialist") return "dashboard";
+  if (path.startsWith("/specialist/today") || path.startsWith("/admin/today")) return "today";
   if (path.startsWith("/specialist/calendar")) return "calendar";
   if (path.startsWith("/specialist/appointments") || path.startsWith("/specialist/schedule")) {
     return "appointments";
@@ -207,12 +219,13 @@ export function sidebarHref(permission: SidebarPermission, role: string) {
     // Admin i recepcja mają kalendarz wewnątrz zakładki Wizyty.
     return role === "SPECIALIST" ? "/specialist/calendar" : "/admin/visits?view=calendar";
   }
+  if (permission === "today") return role === "SPECIALIST" ? "/specialist/today" : "/admin/today";
   if (permission === "appointments") {
     return role === "SPECIALIST" ? "/specialist/appointments" : "/admin/visits";
   }
 
   const hrefs: Record<
-    Exclude<SidebarPermission, "dashboard" | "appointments" | "calendar">,
+    Exclude<SidebarPermission, "dashboard" | "appointments" | "calendar" | "today">,
     string
   > = {
     specialists: "/admin/specialists",

@@ -24,7 +24,7 @@ describe("uprawnienie logs (dziennik zdarzeń) — tylko administrator", () => {
     expect(hasSidebarPermission("RECEPTION", stored, "logs")).toBe(false);
     expect(hasSidebarPermission("SPECIALIST", stored, "logs")).toBe(false);
     // pozostałe uprawnienia zostają
-    expect(normalizeSidebarPermissions("RECEPTION", stored)).toEqual(["appointments", "patients"]);
+    expect(normalizeSidebarPermissions("RECEPTION", stored)).toEqual(["today", "appointments", "patients"]);
   });
 
   it("ścieżki strony i API wymagają uprawnienia logs (middleware blokuje resztę)", () => {
@@ -77,5 +77,16 @@ describe("rola MANAGER — wszystko oprócz logów", () => {
 
   it("pierwsza dostępna strona to panel administracyjny", () => {
     expect(firstAllowedSidebarHref("MANAGER", null)).toBe("/admin");
+  });
+});
+
+describe("Wizyty dziś", () => {
+  it("jest dostępne razem z Wizytami i prowadzi do właściwej strony", () => {
+    expect(normalizeSidebarPermissions("SPECIALIST", ["appointments"])).toContain("today");
+    expect(normalizeSidebarPermissions("SPECIALIST", ["patients"])).not.toContain("today");
+    expect(sidebarHref("today", "SPECIALIST")).toBe("/specialist/today");
+    expect(sidebarHref("today", "RECEPTION")).toBe("/admin/today");
+    expect(sidebarPermissionForPath("/admin/today")).toBe("today");
+    expect(sidebarPermissionForPath("/specialist/today")).toBe("today");
   });
 });
