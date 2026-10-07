@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eanMatchesGtin, gs1SearchGtin, gtinToEan, parseScan } from "./barcode";
+import { eanMatchesGtin, gs1SearchGtin, gtinToEan, parseScan, scannedProductCode } from "./barcode";
 
 describe("parseScan", () => {
   it("rozpoznaje klasyczny kod EAN-13", () => {
@@ -48,5 +48,19 @@ describe("wyszukiwanie produktu po GS1", () => {
   it("zwykły tekst i zwykły EAN nie są kodem GS1", () => {
     expect(gs1SearchGtin("Botox 100")).toBeNull();
     expect(gs1SearchGtin("7629999518315")).toBeNull();
+  });
+});
+
+describe("scannedProductCode", () => {
+  it("zwraca kod z EAN-13 i z GS1 w tej samej postaci", () => {
+    const ean = scannedProductCode("7640173232384");
+    expect(ean).toBe("7640173232384");
+    expect(scannedProductCode("01076401732323841025182CL0172804292125182CL04152")).toBe(ean);
+    expect(eanMatchesGtin("7640173232384", ean)).toBe(true);
+  });
+
+  it("ignoruje zwykły tekst i krótkie liczby", () => {
+    expect(scannedProductCode("Krem 50")).toBeNull();
+    expect(scannedProductCode("1234")).toBeNull();
   });
 });

@@ -180,3 +180,15 @@ export function eanMatchesGtin(ean: string | null | undefined, gtin: string | nu
   if (!ean || !gtin) return false;
   return normalizedDigits(ean) === gtin;
 }
+
+/**
+ * Kod produktu z zeskanowanego tekstu (EAN/UPC albo GTIN z GS1), znormalizowany
+ * do porównania z EAN produktu. Null, gdy tekst nie wygląda na kod kreskowy.
+ */
+export function scannedProductCode(query: string): string | null {
+  const gtin = gs1SearchGtin(query);
+  if (gtin) return gtin;
+  const raw = stripSymbologyPrefix(query.replace(/[\r\n\t]/g, "")).trim();
+  if (!/^\d{8,14}$/.test(raw)) return null;
+  return normalizedDigits(raw) || null;
+}
