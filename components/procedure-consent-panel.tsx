@@ -44,12 +44,32 @@ function formatDeadline(iso: string) {
 // Zgoda pacjenta na zabieg: pobranie PDF, podpisanie online (podpis zaufany
 // na gov.pl) i wgranie podpisanego pliku — z wynikiem automatycznej weryfikacji.
 // Używana po rezerwacji, na stronie z linku (mail / push) i w panelu klienta.
-export function ProcedureConsentPanel({ token, onDone }: { token: string; onDone?: () => void }) {
+export function ProcedureConsentPanel({
+  token,
+  onDone,
+  onLater,
+}: {
+  token: string;
+  onDone?: () => void;
+  // "Wgraj później": gdy podane (np. zalogowany pacjent), zamiast komunikatu
+  // następuje przejście dalej, np. do panelu klienta.
+  onLater?: () => void;
+}) {
   const base = `/api/consent/${encodeURIComponent(token)}`;
   const { data, mutate, isLoading } = useSWR<ConsentInfo>(base, fetcher);
 
   const [showUpload, setShowUpload] = React.useState(false);
-  const [later, setLater] = React.useState(false);
+  const [later, setLaterState] = React.useState(false);
+  const laterRef = React.useRef<HTMLParagraphElement | null>(null);
+  const setLater = React.useCallback(
+    (value: boolean) => {
+      if (value && onLater) return onLater();
+      setLaterState(value);
+      // Komunikat pojawia się pod przyciskami — przewijamy do niego, żeby było widać reakcję.
+      if (value) setTimeout(() => laterRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
+    },
+    [onLater],
+  );
   const [file, setFile] = React.useState<File | null>(null);
   const [uploading, setUploading] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -229,7 +249,7 @@ export function ProcedureConsentPanel({ token, onDone }: { token: string; onDone
           )}
 
           {later ? (
-            <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
+            <p ref={laterRef} className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
               W porządku — możesz to zrobić później w panelu klienta (przy tej wizycie) albo z linku w mailu. Pamiętaj:
               {" "}
               {consent.warning.charAt(0).toLowerCase() + consent.warning.slice(1)} Przypomnimy Ci o tym dwa razy dziennie

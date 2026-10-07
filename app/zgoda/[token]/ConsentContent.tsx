@@ -1,12 +1,23 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { ProcedureConsentPanel } from "@/components/procedure-consent-panel";
 
 // Treść strony zgody na zabieg: nagłówek, podsumowanie wizyty i panel podpisu.
 // Używana zarówno przez gościa (link z maila), jak i w panelu klienta.
-export function ConsentContent({ token, withLogo = true }: { token: string; withLogo?: boolean }) {
+export function ConsentContent({
+  token,
+  withLogo = true,
+  laterHref,
+}: {
+  token: string;
+  withLogo?: boolean;
+  // Dokąd przejść po "Wgraj później" (zalogowany pacjent); bez tego pokazujemy komunikat.
+  laterHref?: string;
+}) {
+  const router = useRouter();
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
@@ -17,7 +28,7 @@ export function ConsentContent({ token, withLogo = true }: { token: string; with
         </div>
       </div>
       <ConsentSummary token={token} />
-      <ProcedureConsentPanel token={token} />
+      <ProcedureConsentPanel token={token} onLater={laterHref ? () => router.push(laterHref) : undefined} />
     </div>
   );
 }

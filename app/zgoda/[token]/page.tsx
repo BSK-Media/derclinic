@@ -36,7 +36,7 @@ export default async function ConsentPage(props: { params: Promise<{ token: stri
           <ArrowLeft className="h-4 w-4" /> Wróć do panelu
         </Link>
         <div className="max-w-xl">
-          <ConsentContent token={token} withLogo={false} />
+          <ConsentContent token={token} withLogo={false} laterHref="/panel-klienta" />
         </div>
       </PatientPageShell>
       </div>
