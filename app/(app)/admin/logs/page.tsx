@@ -84,6 +84,10 @@ const FIELD_LABELS: Record<string, string> = {
   sidebarPermissions: "Uprawnienia menu",
   rejectionReason: "Powód odrzucenia",
   deletionReason: "Powód usunięcia",
+  vatRate: "Stawka VAT",
+  vatAmount: "VAT",
+  documentType: "Dokument",
+  buyerNip: "NIP nabywcy",
 };
 
 const MONEY_KEYS = new Set([
@@ -95,6 +99,7 @@ const MONEY_KEYS = new Set([
   "subtotal",
   "total",
   "discountAmount",
+  "vatAmount",
   "salePrice",
   "purchasePrice",
   "baseRate",

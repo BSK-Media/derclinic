@@ -6,6 +6,7 @@ import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers
 import { logAudit } from "@/lib/audit";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { isAdminLike } from "@/lib/roles";
+import { allocateDiscount, normalizeNip, vatFromGross, vatSummary } from "@/lib/vat";
 
 function bad(message: string, status = 400) {
   return NextResponse.json({ ok: false, message }, { status });
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   if (!body) return bad("Nieprawidłowe dane");
 
-  const { patientId, warehouseId, items, note, payments, discount } = body as {
+  const { patientId, warehouseId, items, note, payments, discount, documentType, buyer } = body as {
     patientId: string | null;
     warehouseId: string;
     items: { productId: string; quantity: string }[];
@@ -76,9 +77,26 @@ export async function POST(req: Request) {
       value: number;
       approvedById: string;
     } | null;
+    documentType?: "RECEIPT" | "INVOICE";
+    buyer?: { name?: string; nip?: string; address?: string } | null;
   };
 
   if (!warehouseId) return bad("Wybierz magazyn");
+  const docType = documentType ?? "RECEIPT";
+  if (docType !== "RECEIPT" && docType !== "INVOICE") return bad("Nieprawidłowy typ dokumentu");
+  let buyerName: string | null = null;
+  let buyerNip: string | null = null;
+  let buyerAddress: string | null = null;
+  if (docType === "INVOICE") {
+    buyerName = buyer?.name?.trim().slice(0, 300) || null;
+    buyerAddress = buyer?.address?.trim().slice(0, 500) || null;
+    if (!buyerName) return bad("Podaj nazwę nabywcy na fakturę");
+    if (!buyerAddress) return bad("Podaj adres nabywcy na fakturę");
+    if (buyer?.nip?.trim()) {
+      buyerNip = normalizeNip(buyer.nip);
+      if (!buyerNip) return bad("Nieprawidłowy NIP nabywcy");
+    }
+  }
   if (!Array.isArray(items) || items.length === 0) return bad("Brak pozycji");
   if (!Array.isArray(payments) || payments.length === 0) return bad("Brak płatności");
   for (const p of payments) {
@@ -149,6 +167,16 @@ export async function POST(req: Request) {
   }
 
   const total = Math.max(0, subtotal - discountAmount);
+
+  // VAT: zniżkę rozkładamy na pozycje, a podatek liczymy per stawka od kwot po zniżce.
+  const lineGross = items.map((it) => {
+    const p = productMap.get(it.productId)!;
+    return Math.round((p.salePrice ?? 0) * parseFloat(it.quantity));
+  });
+  const discountedGross = allocateDiscount(lineGross, discountAmount);
+  const vatAmount = vatSummary(
+    items.map((it, index) => ({ gross: discountedGross[index], vatRate: productMap.get(it.productId)!.vatRate })),
+  ).reduce((sum, row) => sum + row.vat, 0);
   const paidSum = payments.reduce((sum, p) => sum + Math.round(p.amount), 0);
   if (paidSum !== total) {
     return bad(
@@ -191,9 +219,14 @@ export async function POST(req: Request) {
         discountValue,
         discountAmount,
         total,
+        vatAmount,
+        documentType: docType,
+        buyerName,
+        buyerNip,
+        buyerAddress,
         discountApprovedById,
         items: {
-          create: items.map((it) => {
+          create: items.map((it, index) => {
             const p = productMap.get(it.productId)!;
             const q = parseFloat(it.quantity);
             const unit = p.salePrice ?? 0;
@@ -203,6 +236,8 @@ export async function POST(req: Request) {
               quantity: q,
               unitPrice: unit,
               total: itemTotal,
+              vatRate: p.vatRate,
+              vatAmount: vatFromGross(discountedGross[index], p.vatRate),
             };
           }),
         },
@@ -240,7 +275,7 @@ export async function POST(req: Request) {
       action: "sale.create",
       entity: "RetailSale",
       entityId: created.id,
-      summary: `Sprzedaż POS: ${items.length} poz., razem ${formatPLNFromGrosze(total)}${
+      summary: `Sprzedaż POS (${docType === "INVOICE" ? "faktura VAT" : "paragon"}): ${items.length} poz., razem ${formatPLNFromGrosze(total)}${
         discountAmount > 0 ? ` (rabat ${formatPLNFromGrosze(discountAmount)})` : ""
       }`,
       data: {
@@ -253,6 +288,9 @@ export async function POST(req: Request) {
         discountValue,
         discountApprovedById,
         total,
+        vatAmount,
+        documentType: docType,
+        buyerNip,
         payments: payments.map((p) => ({ method: p.method, amount: Math.round(p.amount) })),
       },
     });

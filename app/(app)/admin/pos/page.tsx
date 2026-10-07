@@ -3,7 +3,8 @@
 import * as React from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
-import { ShoppingCart, Trash2, Search, Tag, X } from "lucide-react";
+import Link from "next/link";
+import { History, ShoppingCart, Trash2, Search, Tag, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { eanMatchesGtin, scannedProductCode } from "@/lib/barcode";
 import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
+import { allocateDiscount, normalizeNip, vatRateLabel, vatSummary } from "@/lib/vat";
 
 async function fetcher(url: string) {
   const response = await fetch(url);
@@ -40,6 +42,7 @@ type Product = {
   category: "PREPARATION" | "COSMETIC";
   unit: string;
   salePrice: number | null;
+  vatRate: string;
   isActive: boolean;
   stocks: { warehouseId: string; quantity: string }[];
 };
@@ -54,6 +57,9 @@ type Sale = {
   subtotal: number;
   discountAmount: number;
   total: number;
+  vatAmount: number;
+  documentType: "RECEIPT" | "INVOICE";
+  buyerName: string | null;
   discountApprovedBy: { id: string; name: string } | null;
   patient: { id: string; name: string } | null;
   soldBy: { id: string; name: string };
@@ -74,6 +80,11 @@ const PAYMENT_LABELS: Record<string, string> = {
   CASH: "Gotówka",
   CARD: "Karta",
   VOUCHER: "Voucher",
+};
+
+const DOCUMENT_LABELS: Record<string, string> = {
+  RECEIPT: "Paragon",
+  INVOICE: "Faktura VAT",
 };
 
 const SALE_STATUS_LABELS: Record<string, string> = {
@@ -394,6 +405,10 @@ export default function PosPage() {
   const [payments, setPayments] = React.useState<PaymentRow[]>([
     { id: nextRowId(), method: "CARD", amountInput: "" },
   ]);
+  const [documentType, setDocumentType] = React.useState<"RECEIPT" | "INVOICE">("RECEIPT");
+  const [buyerName, setBuyerName] = React.useState("");
+  const [buyerNip, setBuyerNip] = React.useState("");
+  const [buyerAddress, setBuyerAddress] = React.useState("");
 
   React.useEffect(() => {
     if (!warehouseId && warehouses.length > 0) setWarehouseId(warehouses[0].id);
@@ -558,6 +573,24 @@ export default function PosPage() {
   const discountAmount = discount ? Math.min(subtotal, discount.amountGrosze) : 0;
   const totalDue = Math.max(0, subtotal - discountAmount);
 
+  // VAT liczony tak jak na serwerze: zniżka rozłożona na pozycje, podatek per stawka.
+  const cartLines = cart.flatMap((item) => {
+    const product = productMap.get(item.productId);
+    if (!product) return [];
+    return [{ gross: Math.round((product.salePrice ?? 0) * (parseFloat(item.quantity) || 0)), vatRate: product.vatRate }];
+  });
+  const discountedGross = allocateDiscount(cartLines.map((line) => line.gross), discountAmount);
+  const vatRows = vatSummary(cartLines.map((line, index) => ({ ...line, gross: discountedGross[index] })));
+  const vatTotal = vatRows.reduce((sum, row) => sum + row.vat, 0);
+
+  function chooseDocumentType(next: "RECEIPT" | "INVOICE") {
+    setDocumentType(next);
+    if (next === "INVOICE" && !buyerName.trim() && patientId !== NO_PATIENT) {
+      const patient = patients.find((p) => p.id === patientId);
+      if (patient) setBuyerName(patient.name);
+    }
+  }
+
   const paidSum = payments.reduce((sum, p) => sum + (parsePLNToGrosze(p.amountInput) ?? 0), 0);
   const remaining = totalDue - paidSum;
 
@@ -622,6 +655,11 @@ export default function PosPage() {
       const amount = parsePLNToGrosze(p.amountInput) ?? 0;
       if (amount <= 0) return toast.error("Każda metoda płatności musi mieć kwotę większą od zera");
     }
+    if (documentType === "INVOICE") {
+      if (!buyerName.trim()) return toast.error("Podaj nazwę nabywcy na fakturę");
+      if (!buyerAddress.trim()) return toast.error("Podaj adres nabywcy na fakturę");
+      if (buyerNip.trim() && !normalizeNip(buyerNip)) return toast.error("Nieprawidłowy NIP nabywcy");
+    }
 
     setSubmitting(true);
     try {
@@ -640,6 +678,11 @@ export default function PosPage() {
           discount: discount
             ? { type: discount.type, value: discount.value, approvedById: discount.approvedById }
             : null,
+          documentType,
+          buyer:
+            documentType === "INVOICE"
+              ? { name: buyerName.trim(), nip: buyerNip.trim(), address: buyerAddress.trim() }
+              : null,
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -653,6 +696,10 @@ export default function PosPage() {
       setPatientId(NO_PATIENT);
       setDiscount(null);
       setPayments([{ id: nextRowId(), method: "CARD", amountInput: "" }]);
+      setDocumentType("RECEIPT");
+      setBuyerName("");
+      setBuyerNip("");
+      setBuyerAddress("");
       await mutate();
     } finally {
       setSubmitting(false);
@@ -663,6 +710,12 @@ export default function PosPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-3xl font-semibold tracking-tight">POS - Sprzedaż</h1>
+        <Link
+          href="/admin/pos/history"
+          className="inline-flex h-10 items-center gap-2 rounded-xl border border-zinc-200 px-4 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+        >
+          <History className="h-4 w-4" /> Historia sprzedaży
+        </Link>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
@@ -726,6 +779,7 @@ export default function PosPage() {
                       {product.sku ? (
                         <div className="text-xs text-zinc-400">SKU: {product.sku}</div>
                       ) : null}
+                      <div className="text-xs text-zinc-400">VAT {vatRateLabel(product.vatRate)}</div>
                       <div className="mt-1 flex w-full items-center justify-between">
                         <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
                           {formatPLNFromGrosze(product.salePrice)}
@@ -772,7 +826,9 @@ export default function PosPage() {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">{product.name}</div>
-                      <div className="text-xs text-zinc-500">{formatPLNFromGrosze(product.salePrice)} / {unitLabel(product.unit)}</div>
+                      <div className="text-xs text-zinc-500">
+                        {formatPLNFromGrosze(product.salePrice)} / {unitLabel(product.unit)} · VAT {vatRateLabel(product.vatRate)}
+                      </div>
                     </div>
                     <Input
                       type="number"
@@ -801,6 +857,59 @@ export default function PosPage() {
             <div className="space-y-2 border-t pt-3">
               <Label>Klient</Label>
               <PatientCombobox patients={patients} value={patientId} onChange={setPatientId} />
+            </div>
+
+            <div className="space-y-2 border-t pt-3">
+              <Label>Dokument sprzedaży</Label>
+              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Dokument sprzedaży">
+                {(["RECEIPT", "INVOICE"] as const).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    role="radio"
+                    aria-checked={documentType === type}
+                    onClick={() => chooseDocumentType(type)}
+                    className={
+                      "rounded-xl border px-3 py-2 text-sm font-medium transition " +
+                      (documentType === type
+                        ? "border-emerald-500 bg-emerald-50 text-emerald-800 dark:border-emerald-400/60 dark:bg-emerald-500/10 dark:text-emerald-200"
+                        : "border-zinc-200 bg-white text-zinc-600 hover:border-emerald-300 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300")
+                    }
+                  >
+                    {DOCUMENT_LABELS[type]}
+                  </button>
+                ))}
+              </div>
+              {documentType === "INVOICE" ? (
+                <div className="space-y-2 rounded-xl border p-3 dark:border-zinc-800">
+                  <div className="space-y-1">
+                    <Label htmlFor="buyer-name">Nabywca (firma lub imię i nazwisko) *</Label>
+                    <Input id="buyer-name" value={buyerName} onChange={(e) => setBuyerName(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="buyer-nip">NIP</Label>
+                    <Input
+                      id="buyer-nip"
+                      inputMode="numeric"
+                      value={buyerNip}
+                      onChange={(e) => setBuyerNip(e.target.value)}
+                      placeholder="Puste dla osoby prywatnej"
+                    />
+                    {buyerNip.trim() && !normalizeNip(buyerNip) ? (
+                      <div className="text-xs text-red-600">Nieprawidłowy NIP</div>
+                    ) : null}
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="buyer-address">Adres *</Label>
+                    <Input
+                      id="buyer-address"
+                      value={buyerAddress}
+                      onChange={(e) => setBuyerAddress(e.target.value)}
+                      placeholder="Ulica, kod pocztowy, miasto"
+                    />
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="space-y-2 border-t pt-3">
@@ -915,8 +1024,25 @@ export default function PosPage() {
                   </div>
                 </>
               ) : null}
+              {totalDue > 0 ? (
+                <>
+                  <div className="flex items-center justify-between text-zinc-500">
+                    <span>Netto</span>
+                    <span>{formatPLNFromGrosze(totalDue - vatTotal)}</span>
+                  </div>
+                  {vatRows.map((row) => (
+                    <div key={row.vatRate} className="flex items-center justify-between text-zinc-500">
+                      <span>
+                        {row.vatRate === "ZW" ? "Zwolnione z VAT" : `VAT ${vatRateLabel(row.vatRate)}`}
+                        {vatRows.length > 1 ? ` (od ${formatPLNFromGrosze(row.gross)})` : ""}
+                      </span>
+                      <span>{formatPLNFromGrosze(row.vat)}</span>
+                    </div>
+                  ))}
+                </>
+              ) : null}
               <div className="flex items-center justify-between font-semibold">
-                <span>Do zapłaty</span>
+                <span>Do zapłaty (brutto)</span>
                 <span>{formatPLNFromGrosze(totalDue)}</span>
               </div>
               <div className="flex items-center justify-between text-zinc-500">
@@ -941,15 +1067,25 @@ export default function PosPage() {
               disabled={submitting || cart.length === 0 || !warehouseId || remaining !== 0}
               onClick={finalizeSale}
             >
-              {submitting ? "Zapisywanie…" : "Sfinalizuj sprzedaż"}
+              {submitting
+                ? "Zapisywanie…"
+                : documentType === "INVOICE"
+                  ? "Sfinalizuj sprzedaż (faktura VAT)"
+                  : "Sfinalizuj sprzedaż (paragon)"}
             </Button>
           </CardContent>
         </Card>
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
           <CardTitle>Ostatnie sprzedaże</CardTitle>
+          <Link
+            href="/admin/pos/history"
+            className="text-sm font-medium text-emerald-700 underline underline-offset-2 hover:text-emerald-900 dark:text-emerald-300"
+          >
+            Pełna historia
+          </Link>
         </CardHeader>
         <CardContent className="overflow-auto p-0">
           <table className="w-full text-sm">
@@ -958,6 +1094,7 @@ export default function PosPage() {
                 <th className="p-3">Data</th>
                 <th className="p-3">Produkt</th>
                 <th className="p-3">Klient</th>
+                <th className="p-3">Dokument</th>
                 <th className="p-3">Kto sprzedał</th>
                 <th className="p-3">Status</th>
                 <th className="p-3">Cena</th>
@@ -967,7 +1104,7 @@ export default function PosPage() {
             <tbody>
               {sales.length === 0 && (
                 <tr>
-                  <td className="p-3 text-zinc-500" colSpan={7}>
+                  <td className="p-3 text-zinc-500" colSpan={8}>
                     Brak sprzedaży.
                   </td>
                 </tr>
@@ -991,10 +1128,17 @@ export default function PosPage() {
                     </td>
                     <td className="p-3">{productLabel}</td>
                     <td className="p-3">{sale.patient?.name ?? "Klient anonimowy"}</td>
+                    <td className="p-3">
+                      {DOCUMENT_LABELS[sale.documentType] ?? sale.documentType}
+                      {sale.documentType === "INVOICE" && sale.buyerName ? (
+                        <div className="text-xs text-zinc-500">{sale.buyerName}</div>
+                      ) : null}
+                    </td>
                     <td className="p-3">{sale.soldBy.name}</td>
                     <td className="p-3">{SALE_STATUS_LABELS[sale.status] ?? sale.status}</td>
                     <td className="p-3">
                       {formatPLNFromGrosze(sale.total)}
+                      <span className="ml-1 text-xs text-zinc-500">(VAT {formatPLNFromGrosze(sale.vatAmount)})</span>
                       {sale.discountAmount > 0 ? (
                         <span className="ml-1 text-xs text-emerald-600 dark:text-emerald-300">
                           (zniżka -{formatPLNFromGrosze(sale.discountAmount)})

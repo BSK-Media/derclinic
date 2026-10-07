@@ -85,6 +85,21 @@ enum DiscountType {
   PERCENT
 }
 
+// Stawka VAT (PTU) produktu — ceny sprzedaży są brutto.
+enum VatRate {
+  VAT_23
+  VAT_8
+  VAT_5
+  VAT_0
+  ZW
+}
+
+// Dokument sprzedaży POS: paragon fiskalny albo faktura VAT.
+enum SaleDocumentType {
+  RECEIPT
+  INVOICE
+}
+
 model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -414,7 +429,8 @@ model Product {
   catalogCategory String?
 
   purchasePrice Int? // grosze
-  salePrice     Int? // grosze
+  salePrice     Int? // grosze, brutto
+  vatRate       VatRate @default(VAT_23)
   isActive      Boolean @default(true)
 
   stocks             Stock[]
@@ -666,6 +682,15 @@ model RetailSale {
   // Kwota do zapłaty po zniżce (grosze) — suma płatności musi się z nią zgadzać
   total Int @default(0)
 
+  // VAT zawarty w kwocie do zapłaty (grosze), liczony per stawka jak na paragonie
+  vatAmount Int @default(0)
+
+  documentType SaleDocumentType @default(RECEIPT)
+  // Dane nabywcy — tylko dla faktury VAT
+  buyerName    String?
+  buyerNip     String?
+  buyerAddress String?
+
   discountApprovedById String?
   discountApprovedBy   User?   @relation("RetailSaleDiscountApprover", fields: [discountApprovedById], references: [id], onDelete: SetNull)
 
@@ -682,8 +707,11 @@ model RetailSaleItem {
   product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   quantity  Decimal @db.Decimal(14, 2)
-  unitPrice Int? // grosze
-  total     Int? // grosze
+  unitPrice Int? // grosze, brutto
+  total     Int? // grosze, brutto przed zniżką
+  vatRate   VatRate @default(VAT_23)
+  // VAT pozycji po rozłożeniu zniżki (grosze)
+  vatAmount Int     @default(0)
 
   @@index([saleId])
   @@index([productId])

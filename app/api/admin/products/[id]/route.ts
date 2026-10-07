@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireRole } from "@/lib/api-helpers";
 import { logAudit, diffFields } from "@/lib/audit";
 import { formatPLNFromGrosze } from "@/lib/money";
+import { VAT_RATE_VALUES, vatRateLabel } from "@/lib/vat";
 
 const PatchSchema = z.object({
   name: z.string().min(2).optional(),
@@ -14,6 +15,7 @@ const PatchSchema = z.object({
   catalogCategory: z.string().optional().nullable(),
   purchasePrice: z.number().int().optional().nullable(),
   salePrice: z.number().int().optional().nullable(),
+  vatRate: z.enum(VAT_RATE_VALUES).optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -69,6 +71,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
       catalogCategory: true,
       purchasePrice: true,
       salePrice: true,
+      vatRate: true,
       isActive: true,
     },
   });
@@ -85,6 +88,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
         catalogCategory: parsed.data.catalogCategory === undefined ? undefined : parsed.data.catalogCategory,
         purchasePrice: parsed.data.purchasePrice === undefined ? undefined : parsed.data.purchasePrice,
         salePrice: parsed.data.salePrice === undefined ? undefined : parsed.data.salePrice,
+        vatRate: parsed.data.vatRate,
         isActive: parsed.data.isActive,
       },
     });
@@ -109,6 +113,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
         catalogCategory: updated.catalogCategory,
         purchasePrice: updated.purchasePrice,
         salePrice: updated.salePrice,
+        vatRate: updated.vatRate,
         isActive: updated.isActive,
       })
     : undefined;
@@ -121,18 +126,21 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
     catalogCategory: "kategoria",
     purchasePrice: "cena zakupu",
     salePrice: "cena sprzedaży",
+    vatRate: "stawka VAT",
     isActive: "aktywny",
   };
   const show = (key: string, value: unknown) =>
     typeof value === "number" && (key === "purchasePrice" || key === "salePrice")
       ? formatPLNFromGrosze(value)
-      : typeof value === "boolean"
-        ? value
-          ? "Tak"
-          : "Nie"
-        : value === null || value === undefined || value === ""
-          ? "—"
-          : String(value);
+      : key === "vatRate"
+        ? vatRateLabel(String(value))
+        : typeof value === "boolean"
+          ? value
+            ? "Tak"
+            : "Nie"
+          : value === null || value === undefined || value === ""
+            ? "—"
+            : String(value);
   const parts = Object.entries(changes ?? {}).map(
     ([key, change]) => `${labels[key] ?? key}: ${show(key, change.from)} → ${show(key, change.to)}`,
   );

@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { deleteProductConfirmMessage, deleteProductRequest } from "@/lib/delete-product-client";
 import { eanMatchesGtin, gs1SearchGtin } from "@/lib/barcode";
+import { vatRateLabel } from "@/lib/vat";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 async function fetcher(url: string) {
@@ -71,6 +72,7 @@ type Product = {
   catalogCategory: string | null;
   purchasePrice: number | null;
   salePrice: number | null;
+  vatRate: string;
   isActive: boolean;
   wosWeeks: number | null;
   lots: ProductLot[];
@@ -737,6 +739,7 @@ export default function ProductsPage() {
                       <div className="text-[10px] text-slate-400">Cena sprzedaży</div>
                       <div className="truncate text-xs font-semibold text-slate-800 dark:text-slate-100">
                         {money(product.salePrice)}
+                        <span className="ml-1 font-normal text-slate-400">VAT {vatRateLabel(product.vatRate)}</span>
                       </div>
                     </div>
                     <div className="min-w-0">
@@ -839,7 +842,10 @@ export default function ProductsPage() {
                         <StockBreakdown product={product} warehouses={warehouses} />
                       </TableCell>
                       <TableCell className="whitespace-nowrap">{money(product.purchasePrice)}</TableCell>
-                      <TableCell className="whitespace-nowrap">{money(product.salePrice)}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <div>{money(product.salePrice)}</div>
+                        <div className="text-[11px] text-slate-400">VAT {vatRateLabel(product.vatRate)}</div>
+                      </TableCell>
                       <TableCell className="whitespace-nowrap">
                         <div>{date(expiry)}</div>
                         {lotsCount > 1 ? <div className="text-[11px] text-slate-400">najbliższy z {lotsCount} terminów</div> : null}
