@@ -88,6 +88,9 @@ const FIELD_LABELS: Record<string, string> = {
   vatAmount: "VAT",
   documentType: "Dokument",
   buyerNip: "NIP nabywcy",
+  batchNumber: "Numer partii",
+  serialNumber: "Numer seryjny",
+  expiryDate: "Termin ważności",
 };
 
 const MONEY_KEYS = new Set([

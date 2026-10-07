@@ -113,27 +113,38 @@ export async function POST(req: Request) {
       if (delta > 0) {
         const normalizedBatch = batchNumber?.trim() || `DOSTAWA-${Date.now()}`;
         const serial = serialNumber?.trim() || null;
+        // Ta sama partia, numer seryjny i termin ważności to ta sama partia w magazynie —
+        // zwiększamy jej ilość. Inny numer albo termin zakłada osobną partię.
+        const existingLot = await tx.productLot.findFirst({
+          where: {
+            productId: resolvedProductId,
+            warehouseId,
+            batchNumber: normalizedBatch,
+            serialNumber: serial,
+            expiryDate: parsedExpiry,
+          },
+        });
         if (serial) {
-          // Numer seryjny to jeden fizyczny egzemplarz — nie może być na stanie dwa razy.
+          // Ten sam numer seryjny w innej partii na stanie oznacza pomyłkę przy przyjęciu.
           const sameProductLots = await tx.productLot.findMany({
-            where: { productId: resolvedProductId, quantity: { gt: 0 }, serialNumber: { contains: serial } },
+            where: {
+              productId: resolvedProductId,
+              quantity: { gt: 0 },
+              serialNumber: { contains: serial },
+              ...(existingLot ? { id: { not: existingLot.id } } : {}),
+            },
             select: { serialNumber: true },
           });
           if (sameProductLots.some((lot) => (lot.serialNumber ?? "").split(", ").includes(serial))) {
-            throw new Error(`Egzemplarz o numerze seryjnym ${serial} jest już na stanie.`);
+            throw new Error(`Egzemplarz o numerze seryjnym ${serial} jest już na stanie w innej partii.`);
           }
         }
-        const existingLot = await tx.productLot.findFirst({
-          where: { productId: resolvedProductId, warehouseId, batchNumber: normalizedBatch },
-        });
 
         if (existingLot) {
           await tx.productLot.update({
             where: { id: existingLot.id },
             data: {
               quantity: { increment: new Prisma.Decimal(delta) },
-              serialNumber: serial ? [existingLot.serialNumber, serial].filter(Boolean).join(", ") : undefined,
-              expiryDate: parsedExpiry ?? undefined,
               purchasePrice: product.purchasePrice,
               salePrice: product.salePrice,
             },

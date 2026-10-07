@@ -1,6 +1,7 @@
 "use client";
 
 import { useConfirm } from "@/components/confirm-provider";
+import { LotActions } from "@/components/lot-actions";
 import * as React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -792,7 +793,13 @@ export default function WarehouseDetailsPage() {
                                 <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">Krótki termin</span>
                               ) : null}
                             </TableCell>
-                            <TableCell />
+                            <TableCell>
+                              <LotActions
+                                lot={{ ...lot, warehouseName: warehouse?.name }}
+                                productName={product.name}
+                                onChanged={() => mutate()}
+                              />
+                            </TableCell>
                           </TableRow>
                         );
                       })
