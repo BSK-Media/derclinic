@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LotActions } from "@/components/lot-actions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -112,6 +113,7 @@ export default function ProductDetailsPage() {
                 <TableHead>Lokalizacja</TableHead>
                 <TableHead>Magazyn</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="w-20" aria-label="Akcje" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -125,6 +127,13 @@ export default function ProductDetailsPage() {
                   <TableCell>{lot.location ?? "—"}</TableCell>
                   <TableCell>{lot.warehouse.name}</TableCell>
                   <TableCell>{lot.status ?? "—"}</TableCell>
+                  <TableCell>
+                    <LotActions
+                      lot={{ ...lot, warehouseName: lot.warehouse.name }}
+                      productName={product.name}
+                      onChanged={() => mutate()}
+                    />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

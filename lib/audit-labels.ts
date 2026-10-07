@@ -71,6 +71,7 @@ export const AUDIT_ENTITY_LABELS: Record<string, string> = {
   Product: "Produkt",
   Warehouse: "Magazyn",
   Stock: "Stan magazynowy",
+  ProductLot: "Partia produktu",
   RetailSale: "Sprzedaż (POS)",
   Location: "Lokalizacja",
   ContentImport: "Import treści testowych",
