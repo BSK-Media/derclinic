@@ -4,7 +4,6 @@ import { hasSidebarPermission } from "@/lib/sidebar-permissions";
 import { isAdminLike } from "@/lib/roles";
 import * as React from "react";
 import Link from "next/link";
-import { ResetTestDataCard } from "@/components/reset-test-data-card";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth-provider";
 import { PushToggleCard } from "@/components/push-toggle";
@@ -313,7 +312,6 @@ export default function SettingsPage() {
         </section>
       ) : null}
 
-      {user?.role === "ADMIN" ? <ResetTestDataCard /> : null}
     </div>
   );
 }
