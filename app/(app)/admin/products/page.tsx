@@ -16,6 +16,7 @@ import {
   Plus,
   SlidersHorizontal,
   Trash2,
+  PackageX,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminAddProductDialog } from "@/components/admin-add-product-dialog";
@@ -26,6 +27,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { deleteProductConfirmMessage, deleteProductRequest } from "@/lib/delete-product-client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 async function fetcher(url: string) {
@@ -423,6 +425,19 @@ export default function ProductsPage() {
     setRemoveProduct(product);
     setRemoveWarehouseId("");
     setRemoveOpen(true);
+  }
+
+  async function deleteProductEverywhere(product: Product) {
+    const confirmed = await confirm({
+      message: deleteProductConfirmMessage(product.name),
+      destructive: true,
+      confirmLabel: "Usuń produkt",
+    });
+    if (!confirmed) return;
+    const result = await deleteProductRequest(product.id);
+    if (!result.ok) return toast.error(result.message);
+    toast.success("Produkt został usunięty");
+    await mutate();
   }
 
   async function saveRemove() {
@@ -841,6 +856,15 @@ export default function ProductsPage() {
                             className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30 dark:text-red-300 dark:hover:bg-red-500/10"
                           >
                             <Trash2 className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteProductEverywhere(product)}
+                            title="Usuń produkt z katalogu"
+                            aria-label={`Usuń produkt: ${product.name}`}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-500/10"
+                          >
+                            <PackageX className="h-4 w-4" />
                           </button>
                         </div>
                       </TableCell>

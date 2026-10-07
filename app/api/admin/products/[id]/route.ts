@@ -157,16 +157,54 @@ export async function DELETE(_req: Request, props: { params: Promise<{ id: strin
 
   const target = await prisma.product.findUnique({
     where: { id: params.id },
-    select: { name: true, sku: true, unit: true },
+    select: {
+      name: true,
+      sku: true,
+      unit: true,
+      stocks: { select: { warehouse: { select: { locationId: true } } } },
+    },
   });
-  await prisma.product.delete({ where: { id: params.id } });
+  if (!target) return NextResponse.json({ ok: false, message: "Nie znaleziono produktu" }, { status: 404 });
+
+  // Produkt jest wspólny dla wszystkich lokalizacji — pracownik ograniczony do
+  // jednej lokalizacji nie usuwa produktu, który ma stany w innych.
+  if (user!.locationScopeId && target.stocks.some((stock) => stock.warehouse.locationId !== user!.locationScopeId)) {
+    return NextResponse.json(
+      { ok: false, message: "Produkt ma stany w innych lokalizacjach — usunąć go może administrator." },
+      { status: 403 },
+    );
+  }
+
+  // Historia wizyt i sprzedaży musi pozostać spójna: produkt użyty w zabiegu lub
+  // sprzedaży nie jest usuwany (można go ustawić jako nieaktywny). Wpisy
+  // wewnętrzne (dodanie/odjęcie stanu) nie są taką historią.
+  const [usedInVisitsOrSales, soldCount] = await Promise.all([
+    prisma.consumption.count({ where: { productId: params.id, kind: { not: "INTERNAL" } } }),
+    prisma.retailSaleItem.count({ where: { productId: params.id } }),
+  ]);
+  if (usedInVisitsOrSales > 0 || soldCount > 0) {
+    return NextResponse.json(
+      {
+        ok: false,
+        message:
+          "Tego produktu nie można usunąć, bo był użyty przy wizytach lub sprzedaży (zniekształciłoby to historię). Ustaw go jako nieaktywny na karcie produktu.",
+      },
+      { status: 409 },
+    );
+  }
+
+  await prisma.$transaction([
+    prisma.consumption.deleteMany({ where: { productId: params.id, kind: "INTERNAL" } }),
+    prisma.serviceSuggestedProduct.deleteMany({ where: { productId: params.id } }),
+    prisma.product.delete({ where: { id: params.id } }),
+  ]);
   await logAudit({
     actorId: user!.id,
     action: "DELETE",
     entity: "Product",
     entityId: params.id,
-    summary: `Usunięcie produktu „${target?.name ?? params.id}"`,
-    data: target ?? undefined,
+    summary: `Usunięcie produktu „${target.name}"`,
+    data: { name: target.name, sku: target.sku, unit: target.unit },
   });
 
   return NextResponse.json({ ok: true });

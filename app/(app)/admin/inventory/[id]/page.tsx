@@ -18,7 +18,9 @@ import {
   Plus,
   SlidersHorizontal,
   Trash2,
+  PackageX,
 } from "lucide-react";
+import { deleteProductConfirmMessage, deleteProductRequest } from "@/lib/delete-product-client";
 import { toast } from "sonner";
 import { AdminAddProductDialog } from "@/components/admin-add-product-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -352,6 +354,19 @@ export default function WarehouseDetailsPage() {
     } finally {
       setTransferSaving(false);
     }
+  }
+
+  async function deleteProductEverywhere(product: InventoryProduct) {
+    const confirmed = await confirm({
+      message: deleteProductConfirmMessage(product.name),
+      destructive: true,
+      confirmLabel: "Usuń produkt",
+    });
+    if (!confirmed) return;
+    const result = await deleteProductRequest(product.productId);
+    if (!result.ok) return toast.error(result.message);
+    toast.success("Produkt został usunięty");
+    await mutate();
   }
 
   async function removeProduct(product: InventoryProduct) {
@@ -710,6 +725,9 @@ export default function WarehouseDetailsPage() {
                         </button>
                         <button type="button" onClick={() => removeProduct(product)} disabled={removingId === product.productId} title="Usuń z magazynu" aria-label={`Usuń z magazynu: ${product.name}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50 disabled:opacity-40 dark:text-red-300 dark:hover:bg-red-500/10">
                           <Trash2 className="h-4 w-4" />
+                        </button>
+                        <button type="button" onClick={() => deleteProductEverywhere(product)} title="Usuń produkt z katalogu" aria-label={`Usuń produkt: ${product.name}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-500/10">
+                          <PackageX className="h-4 w-4" />
                         </button>
                       </div>
                     </TableCell>

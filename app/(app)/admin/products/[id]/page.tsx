@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { useConfirm } from "@/components/confirm-provider";
+import { deleteProductConfirmMessage, deleteProductRequest } from "@/lib/delete-product-client";
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
@@ -131,6 +133,8 @@ export default function ProductDetailsPage() {
 }
 
 function EditProductCard({ product, onSaved }: { product: any; onSaved: () => void }) {
+  const router = useRouter();
+  const confirm = useConfirm();
   const [name, setName] = useState("");
   const [manufacturer, setManufacturer] = useState("");
   const [catalogCategory, setCatalogCategory] = useState("");
@@ -238,7 +242,27 @@ function EditProductCard({ product, onSaved }: { product: any; onSaved: () => vo
           </div>
         </div>
         <div className="flex justify-end">
-          <Button onClick={save} disabled={saving}>{saving ? "Zapisywanie..." : "Zapisz zmiany"}</Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={save} disabled={saving}>{saving ? "Zapisywanie..." : "Zapisz zmiany"}</Button>
+            <Button
+              variant="outline"
+              className="text-red-600"
+              onClick={async () => {
+                const confirmed = await confirm({
+                  message: deleteProductConfirmMessage(product.name),
+                  destructive: true,
+                  confirmLabel: "Usuń produkt",
+                });
+                if (!confirmed) return;
+                const result = await deleteProductRequest(product.id);
+                if (!result.ok) return toast.error(result.message);
+                toast.success("Produkt został usunięty");
+                router.push("/admin/products");
+              }}
+            >
+              Usuń produkt
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
