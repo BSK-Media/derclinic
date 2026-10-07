@@ -1,4 +1,4 @@
-import { webcrypto } from "node:crypto";
+import { constants, createHash, publicDecrypt, timingSafeEqual, webcrypto, X509Certificate } from "node:crypto";
 import { PDFDict, PDFDocument, PDFName, PDFString, rgb, type PDFFont } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import * as pkijs from "pkijs";
@@ -226,6 +226,68 @@ function rdnValue(name: pkijs.RelativeDistinguishedNames, oid: string) {
   return entry ? String((entry.value as { valueBlock?: { value?: string } }).valueBlock?.value ?? "") : null;
 }
 
+const DIGEST_OIDS: Record<string, string> = {
+  "2.16.840.1.101.3.4.2.1": "sha256",
+  "2.16.840.1.101.3.4.2.2": "sha384",
+  "2.16.840.1.101.3.4.2.3": "sha512",
+};
+
+/**
+ * Tolerancyjna weryfikacja podpisu RSA (PKCS#1 v1.5) w CMS z atrybutami podpisanymi.
+ * Podpis zaufany z gov.pl zapisuje skrót w strukturze DigestInfo bez pustego
+ * parametru NULL w AlgorithmIdentifier — jest to dopuszczalne (RFC 8017), ale
+ * OpenSSL/WebCrypto odrzucają taki podpis. Sprawdzamy więc to samo, co standardowy
+ * weryfikator (skrót atrybutów, wypełnienie, OID i skrót w DigestInfo), z tą
+ * jedną różnicą: parametry algorytmu mogą być nieobecne albo NULL.
+ */
+function verifyRsaLenient(signedData: pkijs.SignedData, signedBytes: Buffer): boolean {
+  try {
+    const signerInfo = signedData.signerInfos[0];
+    const hashName = DIGEST_OIDS[signerInfo?.digestAlgorithm.algorithmId ?? ""];
+    const attrs = signerInfo?.signedAttrs;
+    const certificate = signedData.certificates?.find((item): item is pkijs.Certificate => item instanceof pkijs.Certificate);
+    if (!hashName || !attrs || !certificate) return false;
+
+    // Skrót dokumentu musi zgadzać się z atrybutem messageDigest.
+    const messageDigest = attrs.attributes.find((attr) => attr.type === "1.2.840.113549.1.9.4");
+    const expected = Buffer.from(
+      (messageDigest?.values[0] as { valueBlock: { valueHexView: Uint8Array } } | undefined)?.valueBlock.valueHexView ?? [],
+    );
+    const actual = createHash(hashName).update(signedBytes).digest();
+    if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return false;
+
+    const key = new X509Certificate(Buffer.from(certificate.toSchema(true).toBER(false))).publicKey;
+    if (key.asymmetricKeyType !== "rsa") return false;
+
+    // Podpisywany jest SET atrybutów (znacznik 0x31 zamiast [0] 0xA0).
+    const attrsDer = Buffer.from(attrs.encodedValue);
+    attrsDer[0] = 0x31;
+    const attrsHash = createHash(hashName).update(attrsDer).digest();
+
+    const signature = Buffer.from(signerInfo.signature.valueBlock.valueHexView);
+    const em = publicDecrypt({ key, padding: constants.RSA_NO_PADDING }, signature);
+    // EM = 00 01 FF…FF 00 DigestInfo
+    if (em[0] !== 0x00 || em[1] !== 0x01) return false;
+    let i = 2;
+    while (i < em.length && em[i] === 0xff) i++;
+    if (i < 10 || em[i] !== 0x00) return false;
+    const digestInfo = em.subarray(i + 1);
+
+    const asn1 = asn1js.fromBER(digestInfo.buffer.slice(digestInfo.byteOffset, digestInfo.byteOffset + digestInfo.byteLength) as ArrayBuffer);
+    if (asn1.offset !== digestInfo.length) return false; // nic poza DigestInfo
+    const seq = asn1.result as asn1js.Sequence;
+    const [algorithm, digest] = seq.valueBlock.value as [asn1js.Sequence, asn1js.OctetString];
+    const oid = (algorithm.valueBlock.value[0] as asn1js.ObjectIdentifier).valueBlock.toString();
+    const params = algorithm.valueBlock.value[1];
+    if (algorithm.valueBlock.value.length > 2 || (params && !(params instanceof asn1js.Null))) return false;
+    if (DIGEST_OIDS[oid] !== hashName) return false;
+    const signedDigest = Buffer.from(digest.valueBlock.valueHexView);
+    return signedDigest.length === attrsHash.length && timingSafeEqual(signedDigest, attrsHash);
+  } catch {
+    return false;
+  }
+}
+
 function trustedIssuers() {
   return (process.env.CONSENT_TRUSTED_ISSUERS ?? "")
     .split(",")
@@ -317,6 +379,7 @@ export async function verifySignedConsent(bytes: Uint8Array, appointmentId: stri
   } catch {
     signatureOk = false;
   }
+  if (!signatureOk) signatureOk = verifyRsaLenient(signedData, signedBytes);
   if (!signatureOk) return reject("Podpis jest nieprawidłowy — dokument mógł zostać zmieniony po podpisaniu.", details);
 
   // Dane podpisującego (do wglądu personelu).
