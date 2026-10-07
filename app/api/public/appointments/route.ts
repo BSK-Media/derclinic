@@ -75,6 +75,8 @@ const BodySchema = z.object({
   // Zgoda na wizerunek (zdjęcia przed/po) — opcjonalna, dotyczy tylko tej
   // jednej wizyty (patrz Appointment.imageConsent w schema.prisma).
   imageConsent: z.boolean().optional().default(false),
+  // Obowiązkowa akceptacja regulaminu — bez niej rezerwacja nie powstaje.
+  termsAccepted: z.literal(true),
 });
 
 const FIELD_LABELS: Record<string, string> = {
@@ -95,6 +97,7 @@ function describeValidationError(error: z.ZodError) {
   const issue = error.issues[0];
   if (!issue) return "Uzupełnij poprawnie wszystkie wymagane pola";
   const field = String(issue.path[0] ?? "");
+  if (field === "termsAccepted") return "Aby zarezerwować wizytę, zaakceptuj regulamin.";
   const label = FIELD_LABELS[field];
   return label ? `${label}: nieprawidłowa wartość` : "Uzupełnij poprawnie wszystkie wymagane pola";
 }
@@ -445,6 +448,7 @@ export async function POST(req: Request) {
           loyaltyPointsUsed,
           loyaltyDiscountAmount,
           imageConsent,
+          termsAccepted: true,
           accountCreated,
           bookedAsLoggedIn,
           hasNote: Boolean(note?.trim()),

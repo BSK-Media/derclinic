@@ -7,6 +7,7 @@ import useSWR from "swr";
 import { Raleway } from "next/font/google";
 import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, Check, Calendar as CalendarIcon, Menu, X, ChevronDown, Instagram, Facebook, Phone, Mail, MapPin } from "lucide-react";
 import { formatPLNFromGrosze } from "@/lib/money";
+import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
 import { maxRedeemablePoints, discountForPoints } from "@/lib/loyalty";
 import { requiresFullPrepayment, resolvePaymentDue, depositAmountGrosze, type PaymentChoice } from "@/lib/booking-payment";
 import { PASSWORD_REQUIREMENTS_HINT, validatePassword } from "@/lib/password-policy";
@@ -192,6 +193,8 @@ export default function PublicBookingPage() {
   // które są jednorazowe. Docelowo podłączymy to pod rządowy system zgód —
   // na razie zwykły checkbox.
   const [imageConsent, setImageConsent] = React.useState(false);
+  // Obowiązkowa akceptacja regulaminu (ostatni krok rezerwacji).
+  const [termsAccepted, setTermsAccepted] = React.useState(false);
   const [accountMode, setAccountMode] = React.useState<"guest" | "register">("guest");
   const [password, setPassword] = React.useState("");
   const [passwordConfirm, setPasswordConfirm] = React.useState("");
@@ -647,6 +650,10 @@ export default function PublicBookingPage() {
         return;
       }
     }
+    if (!termsAccepted) {
+      setSubmitError("Aby zarezerwować wizytę, zaakceptuj regulamin.");
+      return;
+    }
     const finalSpecialistId = isAnySpecialist ? pickedSpecialist?.id : specialistId;
     if (!finalSpecialistId) {
       setSubmitError("Wybierz termin ponownie");
@@ -673,6 +680,7 @@ export default function PublicBookingPage() {
           pointsToRedeem: loggedInPatient && pointsToRedeem > 0 ? pointsToRedeem : undefined,
           paymentChoice,
           imageConsent,
+          termsAccepted,
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -1478,12 +1486,27 @@ export default function PublicBookingPage() {
             </div>
           ) : null}
 
+          <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-xl border border-zinc-200 bg-zinc-50 p-3.5 text-xs text-zinc-700">
+            <input
+              type="checkbox"
+              checked={termsAccepted}
+              onChange={(e) => setTermsAccepted(e.target.checked)}
+              required
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
+            />
+            <span>
+              Zapoznałam/em się z <LegalLink href={TERMS_URL}>regulaminem</LegalLink> rezerwacji wizyt oraz{" "}
+              <LegalLink href={PRIVACY_URL}>polityką prywatności</LegalLink> DerClinic i je akceptuję.{" "}
+              <span className="font-medium text-zinc-900">(wymagane)</span>
+            </span>
+          </label>
+
           {submitError ? <div className="mt-3 text-sm text-red-600">{submitError}</div> : null}
 
           <button
             type="button"
             onClick={submitBooking}
-            disabled={submitting}
+            disabled={submitting || !termsAccepted}
             className="mt-5 w-full rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
           >
             {submitting
@@ -2022,6 +2045,16 @@ function CategoryFilterSidebar({
         ))}
       </div>
     </div>
+  );
+}
+
+// Słowo z dokumentu prawnego: link, gdy adres jest ustawiony (lib/legal.ts), inaczej zwykły tekst.
+function LegalLink({ href, children }: { href: string | null; children: React.ReactNode }) {
+  if (!href) return <span className="font-medium text-zinc-900">{children}</span>;
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className="font-medium text-emerald-700 underline underline-offset-2">
+      {children}
+    </a>
   );
 }
 
