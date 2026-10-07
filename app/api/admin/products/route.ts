@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { VAT_RATE_VALUES } from "@/lib/vat";
 
 const WOS_WEEKS = 10;
 
@@ -80,6 +81,7 @@ const CreateSchema = z.object({
   catalogCategory: z.string().optional().nullable(),
   purchasePrice: z.number().int().optional().nullable(),
   salePrice: z.number().int().optional().nullable(),
+  vatRate: z.enum(VAT_RATE_VALUES).optional(),
 });
 
 export async function POST(req: Request) {
@@ -102,6 +104,7 @@ export async function POST(req: Request) {
       catalogCategory: parsed.data.catalogCategory ?? null,
       purchasePrice: parsed.data.purchasePrice ?? null,
       salePrice: parsed.data.salePrice ?? null,
+      vatRate: parsed.data.vatRate,
     },
   });
 
@@ -118,6 +121,7 @@ export async function POST(req: Request) {
       unit: p.unit,
       purchasePrice: p.purchasePrice,
       salePrice: p.salePrice,
+      vatRate: p.vatRate,
     },
   });
 

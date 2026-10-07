@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { parsePLNToGrosze } from "@/lib/money";
+import { VAT_RATES } from "@/lib/vat";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -145,6 +146,7 @@ function EditProductCard({ product, onSaved }: { product: any; onSaved: () => vo
   const [unit, setUnit] = useState("UNIT");
   const [purchasePrice, setPurchasePrice] = useState("");
   const [salePrice, setSalePrice] = useState("");
+  const [vatRate, setVatRate] = useState("VAT_23");
   const [isActive, setIsActive] = useState("true");
   const [saving, setSaving] = useState(false);
 
@@ -157,6 +159,7 @@ function EditProductCard({ product, onSaved }: { product: any; onSaved: () => vo
     setUnit(product.unit ?? "UNIT");
     setPurchasePrice(product.purchasePrice != null ? (product.purchasePrice / 100).toString() : "");
     setSalePrice(product.salePrice != null ? (product.salePrice / 100).toString() : "");
+    setVatRate(product.vatRate ?? "VAT_23");
     setIsActive(product.isActive ? "true" : "false");
   }, [product.id]);
 
@@ -176,6 +179,7 @@ function EditProductCard({ product, onSaved }: { product: any; onSaved: () => vo
           unit,
           purchasePrice: purchasePrice.trim() ? parsePLNToGrosze(purchasePrice) : null,
           salePrice: salePrice.trim() ? parsePLNToGrosze(salePrice) : null,
+          vatRate,
           isActive: isActive === "true",
         }),
       });
@@ -229,8 +233,19 @@ function EditProductCard({ product, onSaved }: { product: any; onSaved: () => vo
             <Input value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} placeholder="np. 500,50" />
           </div>
           <div className="space-y-2">
-            <Label>Cena sprzedaży (PLN)</Label>
+            <Label>Cena sprzedaży brutto (PLN)</Label>
             <Input value={salePrice} onChange={(e) => setSalePrice(e.target.value)} placeholder="np. 690,69" />
+          </div>
+          <div className="space-y-2">
+            <Label>Stawka VAT</Label>
+            <Select value={vatRate} onValueChange={setVatRate}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {VAT_RATES.map((rate) => (
+                  <SelectItem key={rate.value} value={rate.value}>{rate.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label>Aktywny</Label>

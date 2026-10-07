@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { VAT_RATE_VALUES } from "@/lib/vat";
 
 const NewProductSchema = z.object({
   name: z.string().trim().min(2).max(200),
@@ -14,6 +15,7 @@ const NewProductSchema = z.object({
   unit: z.enum(["UNIT", "ML", "MG", "G", "AMPULE", "BOTOX_UNIT"]).default("UNIT"),
   purchasePrice: z.number().int().nonnegative(),
   salePrice: z.number().int().nonnegative(),
+  vatRate: z.enum(VAT_RATE_VALUES).optional(),
 });
 
 const BodySchema = z.object({
@@ -77,6 +79,7 @@ export async function POST(req: Request) {
               catalogCategory: newProduct.catalogCategory || null,
               purchasePrice: newProduct.purchasePrice,
               salePrice: newProduct.salePrice,
+              vatRate: newProduct.vatRate,
             },
           })
         : await tx.product.findUnique({ where: { id: productId! } });

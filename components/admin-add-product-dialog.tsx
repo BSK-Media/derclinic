@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { parsePLNToGrosze } from "@/lib/money";
+import { VAT_RATES } from "@/lib/vat";
 
 const NEW_PRODUCT = "__new_product__";
 
@@ -59,6 +60,7 @@ export function AdminAddProductDialog({
   const [unit, setUnit] = React.useState("UNIT");
   const [purchasePrice, setPurchasePrice] = React.useState("");
   const [salePrice, setSalePrice] = React.useState("");
+  const [vatRate, setVatRate] = React.useState("VAT_23");
   const [stockQuantity, setStockQuantity] = React.useState("1");
   const [expiryDate, setExpiryDate] = React.useState("");
   const [batchNumber, setBatchNumber] = React.useState("");
@@ -82,6 +84,7 @@ export function AdminAddProductDialog({
     setUnit("UNIT");
     setPurchasePrice("");
     setSalePrice("");
+    setVatRate("VAT_23");
     setStockQuantity("1");
     setExpiryDate("");
     setBatchNumber("");
@@ -149,6 +152,7 @@ export function AdminAddProductDialog({
       unit: string;
       purchasePrice: number;
       salePrice: number;
+      vatRate: string;
     } | undefined;
 
     if (isNewProduct) {
@@ -170,6 +174,7 @@ export function AdminAddProductDialog({
         unit,
         purchasePrice: parsedPurchasePrice,
         salePrice: parsedSalePrice,
+        vatRate,
       };
     }
 
@@ -303,6 +308,17 @@ export function AdminAddProductDialog({
               <div className="space-y-2">
                 <Label htmlFor="new-product-sale-price">Cena sprzedaży (PLN) *</Label>
                 <Input id="new-product-sale-price" inputMode="decimal" value={salePrice} onChange={(event) => setSalePrice(event.target.value)} placeholder="np. 690,00" />
+              </div>
+              <div className="space-y-2">
+                <Label>Stawka VAT *</Label>
+                <Select value={vatRate} onValueChange={setVatRate}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent disablePortal>
+                    {VAT_RATES.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </>
           ) : null}
