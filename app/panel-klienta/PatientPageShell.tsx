@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { LogoutButton } from "./LogoutButton";
 import { PatientBottomNav, useIsStandalone } from "@/components/patient-bottom-nav";
+import { InstallAppButton } from "@/components/install-app";
 
 const NAV = [
   { id: "home", label: "Strona główna", icon: Home, href: "/panel-klienta?tab=home" },
@@ -181,7 +182,10 @@ export function PatientPageShell({
               <nav className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-1 [scrollbar-width:thin]">
                 {navList(() => setMobileNavOpen(false))}
               </nav>
-              <div className="p-3">
+              <div className="space-y-2 p-3">
+                <InstallAppButton className="w-full rounded-xl border border-violet-300 bg-violet-50 px-3 py-2.5 text-sm font-semibold text-violet-800">
+                  Zainstaluj aplikację
+                </InstallAppButton>
                 <LogoutButton />
               </div>
             </div>

@@ -10,6 +10,7 @@ import { formatPLNFromGrosze } from "@/lib/money";
 import { normalizeNip } from "@/lib/vat";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
 import { ProcedureConsentPanel } from "@/components/procedure-consent-panel";
+import { InstallAppButton } from "@/components/install-app";
 import { PaymentRequestPanel } from "@/components/payment-request-panel";
 import { maxRedeemablePoints, discountForPoints } from "@/lib/loyalty";
 import { requiresFullPrepayment, resolvePaymentDue, depositAmountGrosze, type PaymentChoice } from "@/lib/booking-payment";
@@ -867,6 +868,9 @@ export default function PublicBookingPage() {
               <strong>{formatPLNFromGrosze(loyaltyDiscountAmount)}</strong>.
             </p>
           ) : null}
+          <InstallAppButton className="w-full max-w-md rounded-xl bg-violet-600 py-3 text-center text-sm font-semibold text-white transition active:scale-95">
+            Zainstaluj aplikację na telefonie
+          </InstallAppButton>
           {bookedAsLoggedIn ? (
             <div className="w-full max-w-md space-y-3">
               <p className="rounded-xl bg-emerald-50 px-4 py-3 text-xs text-emerald-800">

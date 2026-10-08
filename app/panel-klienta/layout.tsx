@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { PwaRegister } from "@/components/pwa-register";
+import { InstallAppBanner } from "@/components/install-app";
 
 // PWA (patrz public/manifest.webmanifest, public/sw.js) obejmuje wyłącznie
 // panel klienta i rezerwację online (ten layout + app/book/layout.tsx) —
@@ -29,6 +30,7 @@ export default function PanelKlientaLayout({ children }: { children: React.React
   return (
     <>
       <PwaRegister />
+      <InstallAppBanner />
       <div data-light-only className="contents">
         {children}
       </div>

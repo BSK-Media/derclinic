@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { PwaRegister } from "@/components/pwa-register";
+import { InstallAppBanner } from "@/components/install-app";
 
 // app/book/page.tsx jest komponentem klienckim ("use client"), więc metadata
 // nie może być eksportowana bezpośrednio z niego — stąd ten mały layout
@@ -30,6 +31,7 @@ export default function BookLayout({ children }: { children: React.ReactNode }) 
   return (
     <>
       <PwaRegister />
+      <InstallAppBanner autoShow={false} />
       <div data-light-only className="contents">
         {children}
       </div>

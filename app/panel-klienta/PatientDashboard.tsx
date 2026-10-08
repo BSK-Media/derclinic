@@ -28,6 +28,7 @@ import { appointmentStatusLabel } from "@/lib/appointment-status";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { LogoutButton } from "./LogoutButton";
+import { InstallAppButton } from "@/components/install-app";
 import { DeleteAccountCard } from "./DeleteAccountCard";
 import { AddToCalendarButton } from "./AddToCalendarButton";
 import { GoogleLoginButton, googleErrorMessage, useGoogleLoginEnabled } from "@/components/google-login-button";
@@ -1007,7 +1008,10 @@ export function PatientDashboard({
                   );
                 })}
               </nav>
-              <div className="p-3">
+              <div className="space-y-2 p-3">
+                <InstallAppButton className="w-full rounded-xl border border-violet-300 bg-violet-50 px-3 py-2.5 text-sm font-semibold text-violet-800">
+                  Zainstaluj aplikację
+                </InstallAppButton>
                 <LogoutButton />
               </div>
             </div>
