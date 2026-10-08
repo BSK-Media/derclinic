@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { findSimilarCategoryColor } from "@/lib/category-color";
+import { effectiveCategoryColors, findSimilarCategoryColor } from "@/lib/category-color";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import {
@@ -356,14 +356,10 @@ export async function POST(req: Request) {
   if (parsed.data.category && !categoryTemplate && parsed.data.categoryColor) {
     // Nowa kategoria: kolor nie może być zbyt podobny do już używanych.
     const existing = await prisma.service.findMany({
-      where: { category: { not: null }, categoryColor: { not: null }, name: { not: RESERVATION_SERVICE_NAME } },
+      where: { category: { not: null }, name: { not: RESERVATION_SERVICE_NAME } },
       select: { category: true, categoryColor: true },
-      distinct: ["category"],
     });
-    const similar = findSimilarCategoryColor(
-      parsed.data.categoryColor,
-      existing.map((item) => ({ name: item.category!, color: item.categoryColor! })),
-    );
+    const similar = findSimilarCategoryColor(parsed.data.categoryColor, effectiveCategoryColors(existing));
     if (similar) {
       return NextResponse.json(
         { ok: false, message: `Ten kolor jest zbyt podobny do kategorii „${similar.name}”. Wybierz inny.` },

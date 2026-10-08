@@ -37,3 +37,28 @@ export const CATEGORY_COLOR_CANDIDATES = [
 export function freeCategoryColors(used: UsedCategoryColor[]) {
   return CATEGORY_COLOR_CANDIDATES.filter((candidate) => !findSimilarCategoryColor(candidate, used));
 }
+
+const FALLBACK_COLORS = ["#8b5cf6", "#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#06b6d4", "#f97316"] as const;
+
+/** Kolor pokazywany dla kategorii, która nie ma zapisanego koloru (wyliczany z nazwy). */
+export function fallbackCategoryColor(category?: string | null) {
+  const value = category?.trim() || "Bez kategorii";
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return FALLBACK_COLORS[hash % FALLBACK_COLORS.length];
+}
+
+/** Kolory wszystkich kategorii (zapisany albo zastępczy) — to one są "w użyciu" na ekranie. */
+export function effectiveCategoryColors(services: { category: string | null; categoryColor: string | null }[]) {
+  const stored = new Map<string, string>();
+  const names = new Set<string>();
+  for (const service of services) {
+    const name = service.category?.trim();
+    if (!name) continue;
+    names.add(name);
+    if (service.categoryColor && !stored.has(name)) stored.set(name, service.categoryColor);
+  }
+  return [...names].map((name) => ({ name, color: stored.get(name) ?? fallbackCategoryColor(name) }));
+}

@@ -21,7 +21,7 @@ import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
 import { useAuth } from "@/components/auth-provider";
 import { Pencil } from "lucide-react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { findSimilarCategoryColor, freeCategoryColors } from "@/lib/category-color";
+import { effectiveCategoryColors, fallbackCategoryColor, findSimilarCategoryColor, freeCategoryColors } from "@/lib/category-color";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -76,24 +76,7 @@ const CATEGORY_ORDER = [
 
 const ALL_CATEGORIES = "__all__";
 const ALL_SPECIALISTS = "__all_specialists__";
-const CATEGORY_COLORS = [
-  "#8b5cf6",
-  "#3b82f6",
-  "#22c55e",
-  "#f59e0b",
-  "#ec4899",
-  "#06b6d4",
-  "#f97316",
-] as const;
-
-function categoryColor(category?: string | null) {
-  const value = category?.trim() || "Bez kategorii";
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
-  }
-  return CATEGORY_COLORS[hash % CATEGORY_COLORS.length];
-}
+const categoryColor = fallbackCategoryColor;
 
 type Specialist = { id: string; name: string };
 type Service = {
@@ -137,10 +120,7 @@ export default function ServicesPage(props: ServicesPageProps) {
     return colors;
   }, [services]);
   // Kolory już używane przez kategorie — nowa kategoria nie może dostać bardzo podobnego.
-  const usedColors = useMemo(
-    () => [...categoryColors.entries()].map(([name, color]) => ({ name, color })),
-    [categoryColors],
-  );
+  const usedColors = useMemo(() => effectiveCategoryColors(services), [services]);
   const freeColors = useMemo(() => freeCategoryColors(usedColors), [usedColors]);
   const selectableCategories = useMemo(
     () =>
@@ -855,10 +835,10 @@ export default function ServicesPage(props: ServicesPageProps) {
                   }
                 >
                   <span className="flex min-w-0 items-start gap-2 leading-5">
-                    {categoryColors.get(item.name) ? (
+                    {item.name !== "Bez kategorii" ? (
                       <span
                         className="mt-1 h-3 w-3 shrink-0 rounded-full border"
-                        style={{ backgroundColor: categoryColors.get(item.name) }}
+                        style={{ backgroundColor: categoryColors.get(item.name) ?? categoryColor(item.name) }}
                       />
                     ) : null}
                     <span className="min-w-0">{item.name}</span>

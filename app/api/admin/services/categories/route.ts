@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
-import { findSimilarCategoryColor } from "@/lib/category-color";
+import { effectiveCategoryColors, findSimilarCategoryColor } from "@/lib/category-color";
 
 // Kategoria usługi to nazwa i kolor zapisane przy każdej usłudze tej kategorii —
 // edycja zmienia je hurtowo (literówka w nazwie, nowy kolor).
@@ -46,10 +46,7 @@ export async function PATCH(req: Request) {
   }
 
   if (color) {
-    const used = names
-      .map((name) => ({ name, color: services.find((s) => s.category === name && s.categoryColor)?.categoryColor ?? null }))
-      .filter((item): item is { name: string; color: string } => Boolean(item.color));
-    const similar = findSimilarCategoryColor(color, used, category);
+    const similar = findSimilarCategoryColor(color, effectiveCategoryColors(services), category);
     if (similar) return bad(`Ten kolor jest zbyt podobny do kategorii „${similar.name}”. Wybierz inny.`);
   }
 
