@@ -93,6 +93,10 @@ function ActionTile({
 
 const DIALOG_ATTR = "data-global-scan";
 
+function normalizePath(path: string) {
+  return path.length > 1 ? path.replace(/\/+$/, "") : path;
+}
+
 function formatDate(value: string) {
   const [year, month, day] = value.split("-");
   return `${day}.${month}.${year}`;
@@ -125,7 +129,8 @@ export function GlobalScanDialog() {
   const enabled =
     Boolean(user && (user.role === "ADMIN" || user.role === "MANAGER")) &&
     (canSell || canManage) &&
-    !pathname.startsWith("/admin/pos");
+    // Tylko sama strona POS obsługuje skan po swojemu (np. historia sprzedaży już nie).
+    normalizePath(pathname) !== ACTION_TARGETS.sell;
 
   async function lookup(code: string) {
     const requestId = ++requestRef.current;
@@ -165,7 +170,8 @@ export function GlobalScanDialog() {
     close();
     publishScanIntent(action, productId, code);
     const target = ACTION_TARGETS[action];
-    if (!pathname.startsWith(target)) router.push(target);
+    // Dokładne porównanie: karta produktu (/admin/products/…) nie obsługuje akcji listy produktów.
+    if (normalizePath(pathname) !== target) router.push(target);
   }
 
   const product = state?.status === "found" ? state.product : null;
