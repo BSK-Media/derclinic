@@ -147,6 +147,9 @@ export default function ServicesPage(props: ServicesPageProps) {
   );
 
   const [name, setName] = useState("");
+  // Kategoria istnieje, gdy ma ją choć jedna usługa — nową tworzymy wybierając "Nowa kategoria…" i wpisując nazwę.
+  const NEW_CATEGORY = "__new_category__";
+  const [newCategoryName, setNewCategoryName] = useState("");
   const [category, setCategory] = useState<string>(SERVICE_CATEGORIES[0]);
   const [categoryColorValue, setCategoryColorValue] = useState("#8b5cf6");
   const [durationMin, setDurationMin] = useState("30");
@@ -167,6 +170,7 @@ export default function ServicesPage(props: ServicesPageProps) {
 
   function selectNewServiceCategory(value: string) {
     setCategory(value);
+    if (value === NEW_CATEGORY) return;
     setCategoryColorValue(categoryColors.get(value) ?? categoryColor(value));
   }
 
@@ -177,6 +181,14 @@ export default function ServicesPage(props: ServicesPageProps) {
   }
 
   async function create() {
+    let finalCategory = category;
+    if (category === NEW_CATEGORY) {
+      const typed = newCategoryName.trim();
+      if (typed.length < 2) return toast.error("Podaj nazwę nowej kategorii.");
+      // Ta sama nazwa (bez względu na wielkość liter) to istniejąca kategoria — bez duplikatów.
+      finalCategory =
+        selectableCategories.find((item) => item.toLocaleLowerCase("pl") === typed.toLocaleLowerCase("pl")) ?? typed;
+    }
     setSaving(true);
     try {
       const res = await fetch("/api/admin/services", {
@@ -184,7 +196,7 @@ export default function ServicesPage(props: ServicesPageProps) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           name,
-          category,
+          category: finalCategory,
           categoryColor: categoryColorValue,
           durationMin: Number(durationMin),
           price: price ? parsePLNToGrosze(price) : null,
@@ -195,6 +207,7 @@ export default function ServicesPage(props: ServicesPageProps) {
       if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
       toast.success("Usługa dodana");
       setName("");
+      setNewCategoryName("");
       setCategory(SERVICE_CATEGORIES[0]);
       setCategoryColorValue(
         categoryColors.get(SERVICE_CATEGORIES[0]) ??
@@ -372,8 +385,17 @@ export default function ServicesPage(props: ServicesPageProps) {
                     {item}
                   </SelectItem>
                 ))}
+                <SelectItem value={NEW_CATEGORY}>+ Nowa kategoria…</SelectItem>
               </SelectContent>
             </Select>
+            {category === NEW_CATEGORY ? (
+              <Input
+                autoFocus
+                placeholder="Nazwa nowej kategorii"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+              />
+            ) : null}
           </div>
           <div className="space-y-2">
             <Label>Czas trwania (min)</Label>

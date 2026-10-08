@@ -130,6 +130,7 @@ export default function ServiceDetailsPage() {
     [data?.services],
   );
 
+  const [newCategoryMode, setNewCategoryMode] = React.useState(false);
   const [confirmField, setConfirmField] = React.useState<EditableField | null>(
     null,
   );
@@ -179,12 +180,14 @@ export default function ServiceDetailsPage() {
 
   function beginEditing() {
     if (!service || !confirmField) return;
+    setNewCategoryMode(false);
     setDraft(fieldDraft(service, confirmField));
     setEditingField(confirmField);
     setConfirmField(null);
   }
 
   function cancelEditing() {
+    setNewCategoryMode(false);
     setEditingField(null);
     setDraft("");
   }
@@ -196,6 +199,14 @@ export default function ServiceDetailsPage() {
     if (field === "name" && value.length < 2) {
       toast.error("Nazwa usługi musi mieć co najmniej 2 znaki.");
       return;
+    }
+    if (field === "category" && newCategoryMode) {
+      if (value.length < 2) {
+        toast.error("Podaj nazwę nowej kategorii.");
+        return;
+      }
+      // Ta sama nazwa (bez względu na wielkość liter) to istniejąca kategoria — bez duplikatów.
+      value = categories.find((item) => item.toLocaleLowerCase("pl") === String(value).toLocaleLowerCase("pl")) ?? value;
     }
     if (
       field === "category" ||
@@ -402,18 +413,50 @@ export default function ServiceDetailsPage() {
                         className="w-full rounded-xl border border-zinc-200 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-800"
                       />
                     ) : field === "category" ? (
-                      <Select value={draft} onValueChange={setDraft}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Wybierz kategorię" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map((category) => (
-                            <SelectItem key={category} value={category}>
-                              {category}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      newCategoryMode ? (
+                        <div className="space-y-1">
+                          <Input
+                            autoFocus
+                            placeholder="Nazwa nowej kategorii"
+                            value={draft}
+                            onChange={(event) => setDraft(event.target.value)}
+                          />
+                          <button
+                            type="button"
+                            className="text-xs text-zinc-500 underline"
+                            onClick={() => {
+                              setNewCategoryMode(false);
+                              setDraft(service.category ?? "");
+                            }}
+                          >
+                            Wybierz z listy istniejących
+                          </button>
+                        </div>
+                      ) : (
+                        <Select
+                          value={draft}
+                          onValueChange={(selected) => {
+                            if (selected === "__new_category__") {
+                              setNewCategoryMode(true);
+                              setDraft("");
+                            } else {
+                              setDraft(selected);
+                            }
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Wybierz kategorię" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categories.map((category) => (
+                              <SelectItem key={category} value={category}>
+                                {category}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value="__new_category__">+ Nowa kategoria…</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )
                     ) : (
                       <Input
                         autoFocus
