@@ -931,7 +931,8 @@ export default function PublicBookingPage() {
 
   return (
     <BookingShell wide bare>
-      <div className={"grid gap-6 md:grid-cols-[240px_1fr] " + (step === 1 ? "xl:grid-cols-[240px_1fr_440px]" : "")}>
+      {/* minmax(0,1fr): kolumna może być węższa niż jej zawartość — bez tego jedna długa nazwa kategorii rozciąga całą stronę ponad ekran telefonu. */}
+      <div className={"grid grid-cols-[minmax(0,1fr)] gap-6 md:grid-cols-[240px_minmax(0,1fr)] " + (step === 1 ? "xl:grid-cols-[240px_minmax(0,1fr)_440px]" : "")}>
         <div className="hidden self-start md:sticky md:top-8 md:flex md:flex-col md:gap-6">
           <SummarySidebar items={summaryItems} />
           <AccountSidebar loggedInPatient={loggedInPatient} />
@@ -2112,7 +2113,7 @@ function CategoryFilterSidebar({
   onToggleCategory: (category: string) => void;
 }) {
   return (
-    <div className="self-start rounded-2xl border bg-white p-4 shadow-sm md:col-span-2 xl:col-span-1 xl:sticky xl:top-8">
+    <div className="min-w-0 self-start rounded-2xl border bg-white p-4 shadow-sm md:col-span-2 xl:col-span-1 xl:sticky xl:top-8">
       <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">Kategorie</div>
       <label className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1.5 text-sm hover:bg-zinc-50">
         <input
@@ -2136,7 +2137,7 @@ function CategoryFilterSidebar({
               onChange={() => onToggleCategory(category)}
               className="h-4 w-4 shrink-0 accent-emerald-600"
             />
-            <span className="truncate text-zinc-700">{category}</span>
+            <span className="min-w-0 truncate text-zinc-700">{category}</span>
           </label>
         ))}
       </div>
