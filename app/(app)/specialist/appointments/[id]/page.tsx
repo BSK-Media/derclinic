@@ -97,7 +97,8 @@ export default function SpecialistAppointmentDetail() {
   }, [loadedApprovalStatus, loadedStartsAt]);
 
   if (isLoading) return <div className="p-6 text-sm text-zinc-500">Ładowanie…</div>;
-  if (!appt) return <div className="p-6 text-sm text-zinc-500">Nie znaleziono.</div>;
+  // Pokazujemy powód z serwera (brak uprawnień, sesja wygasła…), a nie zawsze "Nie znaleziono".
+  if (!appt) return <div className="p-6 text-sm text-zinc-500">{data?.message || "Nie znaleziono."}</div>;
 
   async function save() {
     if (status === "AWAITING") {

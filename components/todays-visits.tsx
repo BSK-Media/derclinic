@@ -49,7 +49,9 @@ const STATUS_STYLES: Record<string, string> = {
   NO_SHOW: "bg-red-50 text-red-700",
 };
 
-function VisitList({ visits, now }: { visits: VisitRow[]; now: Date }) {
+// Karta wizyty: specjalista otwiera swój widok, a recepcja/manager/admin — kartę z panelu recepcji
+// (strona specjalisty wpuszcza tylko jego samego, admina i managera tej lokalizacji).
+function VisitList({ visits, now, hrefBase }: { visits: VisitRow[]; now: Date; hrefBase: string }) {
   return (
     <ul className="divide-y rounded-2xl border bg-white shadow-sm dark:bg-zinc-950">
       {visits.map((visit) => {
@@ -58,7 +60,7 @@ function VisitList({ visits, now }: { visits: VisitRow[]; now: Date }) {
         return (
           <li key={visit.id}>
             <Link
-              href={`/specialist/appointments/${visit.id}`}
+              href={`${hrefBase}/${visit.id}`}
               className={"flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 hover:bg-zinc-50 dark:hover:bg-white/5 " + (faded ? "opacity-60" : "")}
             >
               <span className="w-24 shrink-0 text-sm font-semibold tabular-nums">
@@ -145,7 +147,7 @@ export function TodaysVisits({ mode }: { mode: "own" | "grouped" }) {
       ) : null}
 
       {mode === "own" ? (
-        visits.length > 0 ? <VisitList visits={visits} now={now} /> : null
+        visits.length > 0 ? <VisitList visits={visits} now={now} hrefBase="/specialist/appointments" /> : null
       ) : (
         groups.map((group) => (
           <section key={group.name} className="space-y-2">
@@ -155,7 +157,7 @@ export function TodaysVisits({ mode }: { mode: "own" | "grouped" }) {
                 {group.visits.length} {group.visits.length === 1 ? "wizyta" : "wizyt"}
               </span>
             </h2>
-            <VisitList visits={group.visits} now={now} />
+            <VisitList visits={group.visits} now={now} hrefBase="/admin/appointments" />
           </section>
         ))
       )}

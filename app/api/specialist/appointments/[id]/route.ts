@@ -25,7 +25,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   if (deny) return deny;
 
   const appt = await prisma.appointment.findFirst({
-    where: { id: params.id, locationId: user!.locationId },
+    where: user!.role === "ADMIN" ? { id: params.id } : { id: params.id, locationId: user!.locationId },
     include: {
       patient: { select: PATIENT_PUBLIC_SELECT },
       service: { include: { suggestedProducts: { include: { product: true } } } },
@@ -37,7 +37,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     return NextResponse.json({ ok: false, message: "Nie znaleziono" }, { status: 404 });
   }
 
-  if (!canAccessSpecialistAppointment(user!, { ...appt, locationId: user!.locationId })) {
+  if (!canAccessSpecialistAppointment(user!, { ...appt, locationId: user!.role === "ADMIN" ? appt.locationId : user!.locationId })) {
     return NextResponse.json({ ok: false, message: "Brak uprawnień" }, { status: 403 });
   }
 
@@ -84,7 +84,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
     return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
   const existing = await prisma.appointment.findFirst({
-    where: { id: params.id, locationId: user!.locationId },
+    where: user!.role === "ADMIN" ? { id: params.id } : { id: params.id, locationId: user!.locationId },
     select: {
       id: true,
       specialistId: true,
