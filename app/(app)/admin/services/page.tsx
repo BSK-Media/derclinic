@@ -19,6 +19,9 @@ import {
 } from "@/components/ui/select";
 import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
 import { useAuth } from "@/components/auth-provider";
+import { Pencil } from "lucide-react";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { findSimilarCategoryColor, freeCategoryColors } from "@/lib/category-color";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -133,6 +136,12 @@ export default function ServicesPage(props: ServicesPageProps) {
     }
     return colors;
   }, [services]);
+  // Kolory już używane przez kategorie — nowa kategoria nie może dostać bardzo podobnego.
+  const usedColors = useMemo(
+    () => [...categoryColors.entries()].map(([name, color]) => ({ name, color })),
+    [categoryColors],
+  );
+  const freeColors = useMemo(() => freeCategoryColors(usedColors), [usedColors]);
   const selectableCategories = useMemo(
     () =>
       Array.from(
@@ -170,7 +179,10 @@ export default function ServicesPage(props: ServicesPageProps) {
 
   function selectNewServiceCategory(value: string) {
     setCategory(value);
-    if (value === NEW_CATEGORY) return;
+    if (value === NEW_CATEGORY) {
+      setCategoryColorValue(freeColors[0] ?? "#8b5cf6");
+      return;
+    }
     setCategoryColorValue(categoryColors.get(value) ?? categoryColor(value));
   }
 
@@ -188,6 +200,10 @@ export default function ServicesPage(props: ServicesPageProps) {
       // Ta sama nazwa (bez względu na wielkość liter) to istniejąca kategoria — bez duplikatów.
       finalCategory =
         selectableCategories.find((item) => item.toLocaleLowerCase("pl") === typed.toLocaleLowerCase("pl")) ?? typed;
+      if (!selectableCategories.includes(finalCategory)) {
+        const similar = findSimilarCategoryColor(categoryColorValue, usedColors);
+        if (similar) return toast.error(`Ten kolor jest zbyt podobny do kategorii „${similar.name}”. Wybierz inny.`);
+      }
     }
     setSaving(true);
     try {
@@ -197,7 +213,8 @@ export default function ServicesPage(props: ServicesPageProps) {
         body: JSON.stringify({
           name,
           category: finalCategory,
-          categoryColor: categoryColorValue,
+          // Kolor ma tylko nowa kategoria; w istniejącej usługa dziedziczy kolor kategorii.
+          categoryColor: category === NEW_CATEGORY && !selectableCategories.includes(finalCategory) ? categoryColorValue : undefined,
           durationMin: Number(durationMin),
           price: price ? parsePLNToGrosze(price) : null,
           specialistIds: newServiceSpecialists,
@@ -225,6 +242,35 @@ export default function ServicesPage(props: ServicesPageProps) {
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORIES);
   const [selectedSpecialist, setSelectedSpecialist] = useState(ALL_SPECIALISTS);
   const [categoryQuery, setCategoryQuery] = useState("");
+  // Edycja kategorii (nazwa i kolor dla wszystkich jej usług).
+  const [editCategory, setEditCategory] = useState<{ name: string; newName: string; color: string } | null>(null);
+  const [savingCategory, setSavingCategory] = useState(false);
+
+  async function saveCategoryEdit() {
+    if (!editCategory) return;
+    const newName = editCategory.newName.trim();
+    const previousColor = categoryColors.get(editCategory.name) ?? categoryColor(editCategory.name);
+    setSavingCategory(true);
+    try {
+      const res = await fetch("/api/admin/services/categories", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          category: editCategory.name,
+          newName: newName !== editCategory.name ? newName : undefined,
+          color: editCategory.color.toLowerCase() !== previousColor.toLowerCase() ? editCategory.color : undefined,
+        }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się zapisać kategorii");
+      toast.success("Kategoria zapisana");
+      if (selectedCategory === editCategory.name && newName) setSelectedCategory(newName);
+      setEditCategory(null);
+      mutate();
+    } finally {
+      setSavingCategory(false);
+    }
+  }
   const [query, setQuery] = useState("");
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -404,21 +450,70 @@ export default function ServicesPage(props: ServicesPageProps) {
               onChange={(e) => setDurationMin(e.target.value)}
             />
           </div>
-          <div className="space-y-2">
-            <Label>Kolor zabiegu</Label>
-            <div className="flex h-10 items-center gap-3 rounded-xl border px-3">
-              <input
-                type="color"
-                value={categoryColorValue}
-                onChange={(event) => setCategoryColorValue(event.target.value)}
-                className="h-7 w-10 cursor-pointer border-0 bg-transparent p-0"
-              />
-              <span className="text-xs uppercase text-zinc-500">
-                {categoryColorValue}
-              </span>
-            </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label>Kolor kategorii</Label>
+            {category === NEW_CATEGORY ? (
+              <div className="space-y-2 rounded-xl border p-3">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={categoryColorValue}
+                    onChange={(event) => setCategoryColorValue(event.target.value)}
+                    className="h-7 w-10 cursor-pointer border-0 bg-transparent p-0"
+                  />
+                  <span className="text-xs uppercase text-zinc-500">{categoryColorValue}</span>
+                </div>
+                {findSimilarCategoryColor(categoryColorValue, usedColors) ? (
+                  <p className="text-xs text-red-600">
+                    Zbyt podobny do kategorii „{findSimilarCategoryColor(categoryColorValue, usedColors)?.name}”. Wybierz inny kolor.
+                  </p>
+                ) : null}
+                {freeColors.length > 0 ? (
+                  <div>
+                    <div className="mb-1 text-xs text-zinc-500">Wolne kolory (kliknij, aby wybrać):</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {freeColors.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          title={color}
+                          onClick={() => setCategoryColorValue(color)}
+                          className={"h-6 w-6 rounded-full border " + (categoryColorValue.toLowerCase() === color ? "ring-2 ring-zinc-900 ring-offset-1" : "")}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {usedColors.length > 0 ? (
+                  <div>
+                    <div className="mb-1 text-xs text-zinc-500">Kolory już używane:</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {usedColors.map((item) => (
+                        <span key={item.name} className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] text-zinc-600">
+                          <span className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
+                          {item.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="flex h-10 items-center gap-3 rounded-xl border bg-zinc-50 px-3 opacity-80 dark:bg-zinc-900">
+                <span
+                  className="h-6 w-6 rounded-full border"
+                  style={{ backgroundColor: categoryColors.get(category) ?? categoryColor(category) }}
+                />
+                <span className="text-xs uppercase text-zinc-500">
+                  {categoryColors.get(category) ?? categoryColor(category)}
+                </span>
+              </div>
+            )}
             <p className="text-xs text-zinc-500">
-              Ustawiany z kategorii, ale możesz wybrać dowolny.
+              {category === NEW_CATEGORY
+                ? "Kolor ustawiasz tylko przy tworzeniu kategorii (później: ikona ołówka przy kategorii)."
+                : "Kolor należy do kategorii — zmienisz go w edycji kategorii (ołówek na liście kategorii)."}
             </p>
           </div>
           <div className="space-y-2">
@@ -742,22 +837,52 @@ export default function ServicesPage(props: ServicesPageProps) {
               <span className="text-xs text-zinc-500">{services.length}</span>
             </button>
             {visibleCategories.map((item) => (
-              <button
+              <div
                 key={item.name}
-                type="button"
-                onClick={() => setSelectedCategory(item.name)}
                 className={
-                  "flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors " +
+                  "flex items-start gap-1 rounded-xl transition-colors " +
                   (selectedCategory === item.name
-                    ? "bg-emerald-100 font-medium text-emerald-900 dark:bg-emerald-500/15 dark:text-emerald-200"
+                    ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-500/15 dark:text-emerald-200"
                     : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-900")
                 }
               >
-                <span className="min-w-0 leading-5">{item.name}</span>
-                <span className="shrink-0 text-xs text-zinc-500">
-                  {item.count}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory(item.name)}
+                  className={
+                    "flex min-w-0 flex-1 items-start justify-between gap-3 px-3 py-2.5 text-left text-sm " +
+                    (selectedCategory === item.name ? "font-medium" : "")
+                  }
+                >
+                  <span className="flex min-w-0 items-start gap-2 leading-5">
+                    {categoryColors.get(item.name) ? (
+                      <span
+                        className="mt-1 h-3 w-3 shrink-0 rounded-full border"
+                        style={{ backgroundColor: categoryColors.get(item.name) }}
+                      />
+                    ) : null}
+                    <span className="min-w-0">{item.name}</span>
+                  </span>
+                  <span className="shrink-0 text-xs text-zinc-500">{item.count}</span>
+                </button>
+                {isAdmin && item.name !== "Bez kategorii" ? (
+                  <button
+                    type="button"
+                    title="Edytuj kategorię"
+                    aria-label={`Edytuj kategorię: ${item.name}`}
+                    onClick={() =>
+                      setEditCategory({
+                        name: item.name,
+                        newName: item.name,
+                        color: categoryColors.get(item.name) ?? categoryColor(item.name),
+                      })
+                    }
+                    className="mr-1 mt-1.5 shrink-0 rounded-lg p-1.5 text-zinc-500 transition hover:bg-white/70 hover:text-zinc-900 dark:hover:bg-white/10"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+              </div>
             ))}
             {visibleCategories.length === 0 ? (
               <div className="px-3 py-6 text-center text-sm text-zinc-500">
@@ -766,6 +891,81 @@ export default function ServicesPage(props: ServicesPageProps) {
             ) : null}
           </div>
         </aside>
+
+        <Dialog open={editCategory !== null} onOpenChange={(open) => (!open && !savingCategory ? setEditCategory(null) : undefined)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edytuj kategorię</DialogTitle>
+            </DialogHeader>
+            {editCategory ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Nazwa kategorii</Label>
+                  <Input
+                    value={editCategory.newName}
+                    onChange={(event) => setEditCategory({ ...editCategory, newName: event.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Kolor kategorii</Label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={editCategory.color}
+                      onChange={(event) => setEditCategory({ ...editCategory, color: event.target.value })}
+                      className="h-7 w-10 cursor-pointer border-0 bg-transparent p-0"
+                    />
+                    <span className="text-xs uppercase text-zinc-500">{editCategory.color}</span>
+                  </div>
+                  {findSimilarCategoryColor(editCategory.color, usedColors, editCategory.name) ? (
+                    <p className="text-xs text-red-600">
+                      Zbyt podobny do kategorii „{findSimilarCategoryColor(editCategory.color, usedColors, editCategory.name)?.name}”.
+                    </p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-1.5">
+                    {freeCategoryColors(usedColors.filter((used) => used.name !== editCategory.name)).map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        title={color}
+                        onClick={() => setEditCategory({ ...editCategory, color })}
+                        className={"h-6 w-6 rounded-full border " + (editCategory.color.toLowerCase() === color ? "ring-2 ring-zinc-900 ring-offset-1" : "")}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {usedColors
+                      .filter((used) => used.name !== editCategory.name)
+                      .map((used) => (
+                        <span key={used.name} className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] text-zinc-600">
+                          <span className="h-3 w-3 rounded-full" style={{ backgroundColor: used.color }} />
+                          {used.name}
+                        </span>
+                      ))}
+                  </div>
+                </div>
+                <p className="text-xs text-zinc-500">Zmiana dotyczy wszystkich usług z tej kategorii.</p>
+              </div>
+            ) : null}
+            <DialogFooter>
+              <Button variant="outline" disabled={savingCategory} onClick={() => setEditCategory(null)}>
+                Anuluj
+              </Button>
+              <Button
+                disabled={
+                  savingCategory ||
+                  !editCategory ||
+                  editCategory.newName.trim().length < 2 ||
+                  Boolean(editCategory && findSimilarCategoryColor(editCategory.color, usedColors, editCategory.name))
+                }
+                onClick={saveCategoryEdit}
+              >
+                {savingCategory ? "Zapisywanie…" : "Zapisz"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <section className="overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-zinc-950">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">

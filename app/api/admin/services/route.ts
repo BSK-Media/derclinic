@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { findSimilarCategoryColor } from "@/lib/category-color";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import {
@@ -337,8 +338,10 @@ export async function POST(req: Request) {
       { status: 400 },
     );
 
+  // Kolor należy do kategorii: usługa w istniejącej kategorii zawsze dostaje jej kolor
+  // (przysłany kolor jest ignorowany); własny kolor ma sens tylko dla nowej kategorii.
   const categoryTemplate =
-    parsed.data.category && parsed.data.categoryColor === undefined
+    parsed.data.category
       ? await prisma.service.findFirst({
           where: {
             category: parsed.data.category,
@@ -350,12 +353,30 @@ export async function POST(req: Request) {
         })
       : null;
 
+  if (parsed.data.category && !categoryTemplate && parsed.data.categoryColor) {
+    // Nowa kategoria: kolor nie może być zbyt podobny do już używanych.
+    const existing = await prisma.service.findMany({
+      where: { category: { not: null }, categoryColor: { not: null }, name: { not: RESERVATION_SERVICE_NAME } },
+      select: { category: true, categoryColor: true },
+      distinct: ["category"],
+    });
+    const similar = findSimilarCategoryColor(
+      parsed.data.categoryColor,
+      existing.map((item) => ({ name: item.category!, color: item.categoryColor! })),
+    );
+    if (similar) {
+      return NextResponse.json(
+        { ok: false, message: `Ten kolor jest zbyt podobny do kategorii „${similar.name}”. Wybierz inny.` },
+        { status: 400 },
+      );
+    }
+  }
+
   const s = await prisma.service.create({
     data: {
       name: parsed.data.name,
       category: parsed.data.category ? parsed.data.category : null,
-      categoryColor:
-        parsed.data.categoryColor ?? categoryTemplate?.categoryColor ?? null,
+      categoryColor: categoryTemplate?.categoryColor ?? parsed.data.categoryColor ?? null,
       description: parsed.data.description ? parsed.data.description : null,
       durationMin: parsed.data.durationMin ?? 30,
       price: parsed.data.price ?? null,

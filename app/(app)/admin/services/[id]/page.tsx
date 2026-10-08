@@ -512,7 +512,7 @@ export default function ServiceDetailsPage() {
                       ) : null}
                       {fieldValue(service, field)}
                     </div>
-                    {isAdmin ? (
+                    {isAdmin && field !== "categoryColor" ? (
                       <button
                         type="button"
                         onClick={() => setConfirmField(field)}
