@@ -475,7 +475,7 @@ export default function PosPage() {
   }
 
   // Produkt wybrany do sprzedaży w oknie skanera z innej strony panelu.
-  useScanIntent("sell", !isLoading && Boolean(warehouseId), (productId) => {
+  useScanIntent(["sell"], !isLoading && Boolean(warehouseId), ({ productId }) => {
     const product = productMap.get(productId);
     if (!product || !product.isActive) return toast.error("Ten produkt nie jest dostępny do sprzedaży");
     // Pusty koszyk, a w wybranym magazynie brak produktu: przełączamy na magazyn, w którym jest.

@@ -250,6 +250,8 @@ export default function ProductsPage() {
   const [sortKey, setSortKey] = React.useState<SortKey>("name");
   const [sortDirection, setSortDirection] = React.useState<SortDirection>("asc");
   const [addProductOpen, setAddProductOpen] = React.useState(false);
+  // Kod zeskanowany globalnym skanerem — przyjęcie zaczyna się od tego opakowania.
+  const [receiveScanCode, setReceiveScanCode] = React.useState<string | null>(null);
   const [mobileFilter, setMobileFilter] = React.useState<MobileProductFilter>("all");
   const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
 
@@ -401,14 +403,29 @@ export default function ProductsPage() {
     setTransferOpen(true);
   }
 
-  // Produkt wybrany do przesunięcia w oknie skanera z innej strony panelu.
-  useScanIntent("transfer", Boolean(data), (productId) => {
+  // Akcja magazynowa wybrana w oknie globalnego skanera (z dowolnej strony panelu).
+  useScanIntent(["receive", "remove", "transfer", "removeAll"], Boolean(data), ({ action, productId, code }) => {
+    if (action === "receive") {
+      setReceiveScanCode(code);
+      setAddProductOpen(true);
+      return;
+    }
     const product = products.find((p) => p.id === productId);
     if (!product) return toast.error("Nie znaleziono produktu w katalogu");
-    if (totalQuantity(product) <= 0) return toast.error(`${product.name}: brak na stanie — nie ma czego przesunąć`);
-    openTransfer(product);
+    if (totalQuantity(product) <= 0) return toast.error(`${product.name}: brak na stanie`);
+    // Gdy produkt leży tylko w jednym magazynie, od razu go wybieramy.
     const sources = product.stocks.filter((stock) => Number(stock.quantity) > 0);
-    if (sources.length === 1) setFromWarehouseId(sources[0].warehouseId);
+    const onlySource = sources.length === 1 ? sources[0].warehouseId : null;
+    if (action === "transfer") {
+      openTransfer(product);
+      if (onlySource) setFromWarehouseId(onlySource);
+    } else if (action === "remove") {
+      openAdjustment("remove", product);
+      if (onlySource) setAdjustWarehouseId(onlySource);
+    } else {
+      openRemove(product);
+      if (onlySource) setRemoveWarehouseId(onlySource);
+    }
   });
 
   async function saveTransfer() {
@@ -982,7 +999,11 @@ export default function ProductsPage() {
 
       <AdminAddProductDialog
         open={addProductOpen}
-        onOpenChange={setAddProductOpen}
+        onOpenChange={(open) => {
+          setAddProductOpen(open);
+          if (!open) setReceiveScanCode(null);
+        }}
+        initialScanCode={receiveScanCode ?? undefined}
         products={products}
         warehouses={warehouses}
         onSaved={() => mutate()}

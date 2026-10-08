@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowRightLeft, PackageSearch, ShoppingCart } from "lucide-react";
+import { ArrowLeft, ArrowRightLeft, PackageMinus, PackagePlus, PackageSearch, Pencil, ShoppingCart, Trash2, Warehouse } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -46,8 +46,50 @@ const UNIT_LABELS: Record<string, string> = {
 
 const ACTION_TARGETS: Record<ScanAction, string> = {
   sell: "/admin/pos",
+  receive: "/admin/products",
   transfer: "/admin/products",
+  remove: "/admin/products",
+  removeAll: "/admin/products",
 };
+
+function ActionTile({
+  icon,
+  title,
+  description,
+  onClick,
+  disabled,
+  tone = "slate",
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  onClick: () => void;
+  disabled?: boolean;
+  tone?: "emerald" | "blue" | "slate" | "red";
+}) {
+  const tones = {
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-400 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200",
+    blue: "border-blue-200 bg-blue-50 text-blue-800 hover:border-blue-400 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200",
+    slate: "border-slate-200 bg-white text-slate-800 hover:border-slate-400 dark:border-white/10 dark:bg-white/5 dark:text-slate-100",
+    red: "border-red-200 bg-white text-red-700 hover:border-red-400 dark:border-red-500/30 dark:bg-white/5 dark:text-red-300",
+  };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={
+        "flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-50 " +
+        tones[tone]
+      }
+    >
+      <span className="flex items-center gap-2 font-semibold">
+        {icon} {title}
+      </span>
+      <span className="text-xs opacity-80">{description}</span>
+    </button>
+  );
+}
 
 const DIALOG_ATTR = "data-global-scan";
 
@@ -74,6 +116,8 @@ export function GlobalScanDialog() {
   const pathname = usePathname();
   const router = useRouter();
   const [state, setState] = React.useState<ScanState | null>(null);
+  // „choose” — sprzedaż albo magazyn; „manage” — lista akcji magazynowych.
+  const [view, setView] = React.useState<"choose" | "manage">("choose");
   const requestRef = React.useRef(0);
 
   const canSell = Boolean(user && hasSidebarPermission(user.role, user.sidebarPermissions, "pos"));
@@ -85,6 +129,7 @@ export function GlobalScanDialog() {
 
   async function lookup(code: string) {
     const requestId = ++requestRef.current;
+    setView("choose");
     setState({ status: "loading", code });
     try {
       const response = await fetch(`/api/admin/products/lookup?code=${encodeURIComponent(code)}`);
@@ -116,8 +161,9 @@ export function GlobalScanDialog() {
   }
 
   function choose(action: ScanAction, productId: string) {
+    const code = state?.code ?? "";
     close();
-    publishScanIntent(action, productId);
+    publishScanIntent(action, productId, code);
     const target = ACTION_TARGETS[action];
     if (!pathname.startsWith(target)) router.push(target);
   }
@@ -151,7 +197,15 @@ export function GlobalScanDialog() {
               Produktu o kodzie <span className="font-mono">{state.code}</span> nie ma w bazie.
             </p>
             {canManage ? (
-              <p className="text-slate-500">Możesz go przyjąć w zakładce Produkty → „Dodaj produkt”.</p>
+              <div className="pt-2">
+                <ActionTile
+                  icon={<PackagePlus className="h-4 w-4" />}
+                  title="Przyjmij jako nowy produkt"
+                  description="Otwórz przyjęcie do magazynu z tym kodem — uzupełnisz nazwę i ceny"
+                  onClick={() => choose("receive", "")}
+                  tone="emerald"
+                />
+              </div>
             ) : null}
           </div>
         ) : null}
@@ -204,54 +258,90 @@ export function GlobalScanDialog() {
               </div>
             ) : null}
 
-            <div className="text-sm font-medium">Co chcesz zrobić z tym produktem?</div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {canSell ? (
-                <button
-                  type="button"
-                  onClick={() => choose("sell", product.id)}
-                  disabled={!product.isActive || totalStock <= 0}
-                  className="flex flex-col items-start gap-1 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-left transition hover:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-500/30 dark:bg-emerald-500/10"
-                >
-                  <span className="flex items-center gap-2 font-semibold text-emerald-800 dark:text-emerald-200">
-                    <ShoppingCart className="h-4 w-4" /> Sprzedaż
-                  </span>
-                  <span className="text-xs text-emerald-800/80 dark:text-emerald-200/80">
-                    Przejdź do POS i dodaj produkt do koszyka klienta
-                  </span>
-                </button>
-              ) : null}
-              {canManage ? (
-                <button
-                  type="button"
-                  onClick={() => choose("transfer", product.id)}
-                  disabled={totalStock <= 0}
-                  className="flex flex-col items-start gap-1 rounded-xl border border-blue-200 bg-blue-50 p-3 text-left transition hover:border-blue-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-500/30 dark:bg-blue-500/10"
-                >
-                  <span className="flex items-center gap-2 font-semibold text-blue-800 dark:text-blue-200">
-                    <ArrowRightLeft className="h-4 w-4" /> Przesunięcie magazynowe
-                  </span>
-                  <span className="text-xs text-blue-800/80 dark:text-blue-200/80">
-                    Przenieś produkt między magazynami
-                  </span>
-                </button>
-              ) : null}
-            </div>
+            {view === "choose" ? (
+              <>
+                <div className="text-sm font-medium">Co chcesz zrobić z tym produktem?</div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {canSell ? (
+                    <ActionTile
+                      icon={<ShoppingCart className="h-4 w-4" />}
+                      title="Sprzedaż"
+                      description="Przejdź do POS i dodaj produkt do koszyka klienta"
+                      onClick={() => choose("sell", product.id)}
+                      disabled={!product.isActive || totalStock <= 0}
+                      tone="emerald"
+                    />
+                  ) : null}
+                  {canManage ? (
+                    <ActionTile
+                      icon={<Warehouse className="h-4 w-4" />}
+                      title="Zarządzanie w magazynie"
+                      description="Przyjęcie na stan, przesunięcie, odjęcie, edycja produktu i partii"
+                      onClick={() => setView("manage")}
+                      tone="blue"
+                    />
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium">Zarządzanie w magazynie</div>
+                  <button
+                    type="button"
+                    onClick={() => setView("choose")}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" /> Wróć
+                  </button>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <ActionTile
+                    icon={<PackagePlus className="h-4 w-4" />}
+                    title="Przyjmij na stan"
+                    description="Dodaj opakowania do magazynu — dane z kodu uzupełnią się same"
+                    onClick={() => choose("receive", product.id)}
+                    tone="emerald"
+                  />
+                  <ActionTile
+                    icon={<ArrowRightLeft className="h-4 w-4" />}
+                    title="Przesuń między magazynami"
+                    description="Przenieś część albo całość stanu do innego magazynu"
+                    onClick={() => choose("transfer", product.id)}
+                    disabled={totalStock <= 0}
+                    tone="blue"
+                  />
+                  <ActionTile
+                    icon={<PackageMinus className="h-4 w-4" />}
+                    title="Odejmij ze stanu"
+                    description="Zmniejsz stan w wybranym magazynie (np. uszkodzenie, zużycie)"
+                    onClick={() => choose("remove", product.id)}
+                    disabled={totalStock <= 0}
+                  />
+                  <ActionTile
+                    icon={<Pencil className="h-4 w-4" />}
+                    title="Edytuj produkt i partie"
+                    description="Karta produktu: dane, cena, VAT, EAN oraz edycja partii i serii"
+                    onClick={() => {
+                      close();
+                      router.push(`/admin/products/${product.id}`);
+                    }}
+                  />
+                  <ActionTile
+                    icon={<Trash2 className="h-4 w-4" />}
+                    title="Usuń cały stan z magazynu"
+                    description="Wyzeruj stan produktu w wybranym magazynie"
+                    onClick={() => choose("removeAll", product.id)}
+                    disabled={totalStock <= 0}
+                    tone="red"
+                  />
+                </div>
+              </>
+            )}
           </div>
         ) : null}
 
         <DialogFooter className="gap-2">
-          {product && canManage ? (
-            <Button
-              variant="outline"
-              onClick={() => {
-                close();
-                router.push(`/admin/products/${product.id}`);
-              }}
-            >
-              Karta produktu
-            </Button>
-          ) : null}
           <Button variant="outline" onClick={close}>
             Zamknij
           </Button>

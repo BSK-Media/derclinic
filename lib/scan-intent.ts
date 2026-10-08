@@ -2,12 +2,12 @@
 
 import * as React from "react";
 
-// Akcja wybrana w globalnym oknie skanera („Sprzedaż” albo „Przesunięcie magazynowe”),
+// Akcja wybrana w globalnym oknie skanera (sprzedaż albo jedna z akcji magazynowych),
 // przekazywana do strony, która ją wykona. Gdy ta strona jest już otwarta, dostaje
 // zdarzenie; gdy dopiero się otwiera, odbiera akcję z sessionStorage po załadowaniu danych.
 
-export type ScanAction = "sell" | "transfer";
-type ScanIntent = { action: ScanAction; productId: string; at: number };
+export type ScanAction = "sell" | "receive" | "remove" | "transfer" | "removeAll";
+export type ScanIntent = { action: ScanAction; productId: string; code: string; at: number };
 
 const STORAGE_KEY = "derclinic:scan-intent";
 const EVENT_NAME = "derclinic:scan-intent";
@@ -31,8 +31,8 @@ function clearPending() {
   }
 }
 
-export function publishScanIntent(action: ScanAction, productId: string) {
-  const intent: ScanIntent = { action, productId, at: Date.now() };
+export function publishScanIntent(action: ScanAction, productId: string, code: string) {
+  const intent: ScanIntent = { action, productId, code, at: Date.now() };
   try {
     window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(intent));
   } catch {
@@ -41,24 +41,26 @@ export function publishScanIntent(action: ScanAction, productId: string) {
   window.dispatchEvent(new CustomEvent(EVENT_NAME));
 }
 
-/** Odbiera akcję danego typu, gdy strona jest gotowa (ready) ją wykonać. */
-export function useScanIntent(action: ScanAction, ready: boolean, handler: (productId: string) => void) {
+/** Odbiera akcje podanych typów, gdy strona jest gotowa (ready) je wykonać. */
+export function useScanIntent(actions: ScanAction[], ready: boolean, handler: (intent: ScanIntent) => void) {
   const handlerRef = React.useRef(handler);
   React.useEffect(() => {
     handlerRef.current = handler;
   });
+  const actionsKey = actions.join(",");
 
   React.useEffect(() => {
     if (!ready) return;
+    const accepted = actionsKey.split(",");
     const consume = () => {
       const intent = readPending();
-      if (!intent || intent.action !== action) return;
+      if (!intent || !accepted.includes(intent.action)) return;
       clearPending();
       if (Date.now() - intent.at > MAX_AGE_MS) return;
-      handlerRef.current(intent.productId);
+      handlerRef.current(intent);
     };
     consume();
     window.addEventListener(EVENT_NAME, consume);
     return () => window.removeEventListener(EVENT_NAME, consume);
-  }, [action, ready]);
+  }, [actionsKey, ready]);
 }
