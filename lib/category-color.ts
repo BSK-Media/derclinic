@@ -51,7 +51,7 @@ export function fallbackCategoryColor(category?: string | null) {
 }
 
 /** Kolory wszystkich kategorii (zapisany albo zastępczy) — to one są "w użyciu" na ekranie. */
-export function effectiveCategoryColors(services: { category: string | null; categoryColor: string | null }[]) {
+export function effectiveCategoryColors(services: { category?: string | null; categoryColor?: string | null }[]) {
   const stored = new Map<string, string>();
   const names = new Set<string>();
   for (const service of services) {
