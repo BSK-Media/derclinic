@@ -2,6 +2,7 @@
 
 import { useConfirm } from "@/components/confirm-provider";
 import { LotActions } from "@/components/lot-actions";
+import { useScanIntent } from "@/lib/scan-intent";
 import * as React from "react";
 import Link from "next/link";
 import useSWR from "swr";
@@ -399,6 +400,16 @@ export default function ProductsPage() {
     setTransferNote("");
     setTransferOpen(true);
   }
+
+  // Produkt wybrany do przesunięcia w oknie skanera z innej strony panelu.
+  useScanIntent("transfer", Boolean(data), (productId) => {
+    const product = products.find((p) => p.id === productId);
+    if (!product) return toast.error("Nie znaleziono produktu w katalogu");
+    if (totalQuantity(product) <= 0) return toast.error(`${product.name}: brak na stanie — nie ma czego przesunąć`);
+    openTransfer(product);
+    const sources = product.stocks.filter((stock) => Number(stock.quantity) > 0);
+    if (sources.length === 1) setFromWarehouseId(sources[0].warehouseId);
+  });
 
   async function saveTransfer() {
     if (!transferProduct || !fromWarehouseId || !toWarehouseId) {

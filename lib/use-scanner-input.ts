@@ -50,3 +50,53 @@ export function useScannerInput(onSubmit: (value: string) => void) {
 
   return { trackChange, onKeyDown };
 }
+
+export function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+}
+
+/**
+ * Skan, gdy kursor nie stoi w żadnym polu tekstowym — przechwytujemy szybką serię
+ * znaków na poziomie okna, żeby kod nie przepadł. Pola tekstowe obsługują się same.
+ */
+export function useWindowScanner(onScan: (code: string) => void, enabled = true) {
+  const scanRef = React.useRef(onScan);
+  React.useEffect(() => {
+    scanRef.current = onScan;
+  });
+
+  React.useEffect(() => {
+    if (!enabled) return;
+    let buffer = "";
+    let lastAt = 0;
+    let timer = 0;
+    const flush = () => {
+      const text = buffer;
+      buffer = "";
+      if (text.length >= SCAN_MIN_LENGTH) scanRef.current(text);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (isEditableTarget(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
+      const now = Date.now();
+      if (now - lastAt > SCAN_MAX_GAP_MS) buffer = "";
+      lastAt = now;
+      window.clearTimeout(timer);
+      if (event.key === "Enter") {
+        if (buffer.length >= SCAN_MIN_LENGTH) event.preventDefault();
+        flush();
+        return;
+      }
+      if (event.key.length !== 1) return;
+      buffer += event.key;
+      timer = window.setTimeout(flush, SCAN_IDLE_MS);
+    };
+    // Faza przechwytywania: elementy, które same obsługują klawisze (np. listy rozwijane
+    // z wyszukiwaniem po literach), nie mogą zatrzymać znaków ze skanera.
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.clearTimeout(timer);
+    };
+  }, [enabled]);
+}

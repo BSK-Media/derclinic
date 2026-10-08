@@ -17,7 +17,22 @@ export async function GET(req: Request) {
   const product = await prisma.product.findFirst({
     where: { ean: { in: scan.productCodes } },
     orderBy: [{ isActive: "desc" }, { createdAt: "asc" }],
-    select: { id: true, name: true, sku: true, manufacturer: true, ean: true },
+    select: {
+      id: true,
+      name: true,
+      sku: true,
+      manufacturer: true,
+      ean: true,
+      unit: true,
+      salePrice: true,
+      vatRate: true,
+      isActive: true,
+      stocks: {
+        where: { quantity: { gt: 0 }, ...(user!.locationScopeId ? { warehouse: { locationId: user!.locationScopeId } } : {}) },
+        select: { quantity: true, warehouse: { select: { id: true, name: true } } },
+        orderBy: { warehouse: { name: "asc" } },
+      },
+    },
   });
 
   return NextResponse.json({ ok: true, scan, product });
