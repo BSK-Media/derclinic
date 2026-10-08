@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { formatPLNFromGrosze } from "@/lib/money";
+import { StaffAccountsManager } from "@/components/staff-accounts-manager";
 import { validatePassword } from "@/lib/password-policy";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -89,9 +90,9 @@ export default function SpecialistsPage() {
 
   const { user } = useAuth();
   const isAdmin = isAdminLike(user?.role);
-  const [activeTab, setActiveTab] = React.useState<"list" | "settlements">("list");
+  const [activeTab, setActiveTab] = React.useState<"list" | "settlements" | "accounts">("list");
   React.useEffect(() => {
-    if (!isAdmin && activeTab === "settlements") setActiveTab("list");
+    if (!isAdmin && activeTab !== "list") setActiveTab("list");
   }, [isAdmin, activeTab]);
   const [editing, setEditing] = React.useState<Specialist | null>(null);
   const [mobileQuery, setMobileQuery] = React.useState("");
@@ -142,14 +143,14 @@ export default function SpecialistsPage() {
       <div>
         <h1 className="text-2xl font-semibold">Specjaliści</h1>
         <p className="mt-1 text-sm text-slate-500 sm:hidden">
-          {activeTab === "list" ? `${specialists.length} profili` : "Rozliczenia"}
+          {activeTab === "list" ? `${specialists.length} profili` : activeTab === "accounts" ? "Konta pracowników" : "Rozliczenia"}
         </p>
         <p className="mt-1 hidden text-sm text-slate-600 dark:text-slate-300 sm:block">
           Profile specjalistów i pracowników recepcji z gotowymi kontami logowania do panelu.
         </p>
       </div>
 
-      <div className="grid w-full grid-cols-2 rounded-2xl border border-white/60 bg-white/70 p-1 shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55 sm:inline-flex sm:w-auto sm:flex-wrap">
+      <div className="grid w-full grid-cols-2 rounded-2xl border border-white/60 bg-white/70 p-1 shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55 sm:inline-flex sm:w-auto sm:flex-wrap" style={isAdmin ? { gridTemplateColumns: "repeat(3, minmax(0, 1fr))" } : undefined}>
         <button
           type="button"
           onClick={() => setActiveTab("list")}
@@ -176,6 +177,20 @@ export default function SpecialistsPage() {
         >
           <span className="sm:hidden">Rozliczenia</span>
           <span className="hidden sm:inline">Rozliczenia Specjalistów</span>
+        </button>
+        ) : null}
+        {isAdmin ? (
+        <button
+          type="button"
+          onClick={() => setActiveTab("accounts")}
+          className={
+            "rounded-xl px-4 py-2 text-sm font-semibold transition " +
+            (activeTab === "accounts"
+              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200"
+              : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5")
+          }
+        >
+          Konta pracowników
         </button>
         ) : null}
       </div>
@@ -445,6 +460,8 @@ export default function SpecialistsPage() {
             </div>
           </Card>
         </>
+      ) : activeTab === "accounts" ? (
+        <StaffAccountsManager />
       ) : (
         <SpecialistFinancialSettlements />
       )}
