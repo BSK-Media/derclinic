@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { downloadFile } from "@/lib/download-file";
 import useSWR from "swr";
 import { AlertTriangle, CheckCircle2, Clock, Download, FileSignature, Upload } from "lucide-react";
 
@@ -70,6 +71,12 @@ export function ProcedureConsentPanel({
     },
     [onLater],
   );
+  // Pobranie przez fetch (patrz lib/download-file.ts): w PWA zwykły link tylko otwierałby PDF.
+  async function handleDownload(event: React.MouseEvent, url: string, fallbackName: string) {
+    event.preventDefault();
+    const result = await downloadFile(url, fallbackName);
+    if (!result.ok) setError(result.message || "Nie udało się pobrać pliku.");
+  }
   const [file, setFile] = React.useState<File | null>(null);
   const [uploading, setUploading] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -136,6 +143,7 @@ export function ProcedureConsentPanel({
           {consent.signedAt ? <div className="mt-1 text-xs text-green-800">Podpisano: {formatDeadline(consent.signedAt)}</div> : null}
           <a
             href={`${base}/signed`}
+            onClick={(event) => handleDownload(event, `${base}/signed`, "zgoda-podpisana-derclinic.pdf")}
             className="mt-3 inline-flex items-center gap-2 rounded-xl border border-green-600 bg-white px-3 py-2 text-xs font-semibold text-green-800 transition hover:bg-green-100"
           >
             <Download className="h-4 w-4" /> Pobierz podpisaną zgodę
@@ -184,6 +192,7 @@ export function ProcedureConsentPanel({
           <div className="mb-2 font-semibold text-zinc-900">1. Pobierz zgodę do podpisania</div>
           <a
             href={`${base}/document`}
+            onClick={(event) => handleDownload(event, `${base}/document`, "zgoda-na-zabieg-derclinic.pdf")}
             className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
           >
             <Download className="h-4 w-4" /> Pobierz zgodę (PDF)

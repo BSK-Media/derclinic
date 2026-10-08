@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { downloadFile } from "@/lib/download-file";
 import Link from "next/link";
 import Image from "next/image";
 import useSWR from "swr";
@@ -654,6 +655,12 @@ function ConsentsPanel() {
                 </div>
                 <a
                   href={`/api/consent/${encodeURIComponent(item.token)}/signed`}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void downloadFile(`/api/consent/${encodeURIComponent(item.token)}/signed`, "zgoda-podpisana-derclinic.pdf").then(
+                      (result) => !result.ok && toast.error(result.message),
+                    );
+                  }}
                   className="shrink-0 rounded-xl border border-emerald-600 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
                 >
                   Pobierz
