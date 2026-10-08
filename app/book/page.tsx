@@ -340,6 +340,12 @@ export default function PublicBookingPage() {
   const [googleError, setGoogleError] = React.useState("");
   // Ekran płatności i ekran potwierdzenia (zgoda) zastępują formularz — zaczynamy od góry strony,
   // a nie od miejsca, w którym była przewinięta poprzednia treść.
+  // Każdy krok rezerwacji (lokalizacja → zabieg → specjalista → termin → dane) zaczyna się od góry strony,
+  // także gdy poprzedni ekran był przewinięty nisko.
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [step]);
+
   const onPaymentStep = Boolean(holdTokenValue && holdInfo && !confirmedAt);
   React.useEffect(() => {
     if (onPaymentStep || confirmedAt) window.scrollTo({ top: 0, behavior: "instant" });
