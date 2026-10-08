@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth-provider";
+import { GlobalScanDialog } from "@/components/global-scan-dialog";
 import { GlobalSearch } from "@/components/global-search";
 import {
   firstAllowedSidebarHref,
@@ -708,6 +709,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ) : null}
         </main>
       </div>
+      {!loading && user ? <GlobalScanDialog /> : null}
     </div>
   );
 }

@@ -98,6 +98,7 @@ export function AdminAddProductDialog({
   warehouses,
   fixedWarehouseId,
   fixedWarehouseName,
+  initialScanCode,
   onSaved,
 }: {
   open: boolean;
@@ -106,6 +107,8 @@ export function AdminAddProductDialog({
   warehouses: WarehouseOption[];
   fixedWarehouseId?: string;
   fixedWarehouseName?: string;
+  // Kod zeskanowany przed otwarciem okna (globalny skaner) — przetwarzany jak pierwszy skan.
+  initialScanCode?: string;
   onSaved: () => void | Promise<void>;
 }) {
   const [warehouseId, setWarehouseId] = React.useState(fixedWarehouseId ?? "");
@@ -257,6 +260,20 @@ export function AdminAddProductDialog({
   }
 
   const scanner = useScannerInput(handleScan);
+
+  const initialScanHandled = React.useRef(false);
+  React.useEffect(() => {
+    if (!open) {
+      initialScanHandled.current = false;
+      return;
+    }
+    if (initialScanCode && !initialScanHandled.current) {
+      initialScanHandled.current = true;
+      handleScan(initialScanCode);
+    }
+    // handleScan korzysta z refów — wystarczy reagować na otwarcie okna i kod.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialScanCode]);
 
   function confirmPromptWarehouse() {
     if (!promptWarehouseId) return toast.error("Wybierz magazyn");

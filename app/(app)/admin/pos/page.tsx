@@ -25,7 +25,8 @@ import {
 } from "@/components/ui/select";
 import { eanMatchesGtin, scannedProductCode } from "@/lib/barcode";
 import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
-import { SCAN_IDLE_MS, SCAN_MAX_GAP_MS, SCAN_MIN_LENGTH, useScannerInput } from "@/lib/use-scanner-input";
+import { useScanIntent } from "@/lib/scan-intent";
+import { useScannerInput, useWindowScanner } from "@/lib/use-scanner-input";
 import { allocateDiscount, normalizeNip, vatRateLabel, vatSummary } from "@/lib/vat";
 
 async function fetcher(url: string) {
@@ -112,11 +113,6 @@ type AppliedDiscount = {
   approvedById: string;
   approvedByName: string;
 };
-
-function isEditableTarget(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return false;
-  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
-}
 
 let rowIdCounter = 0;
 function nextRowId() {
@@ -447,6 +443,22 @@ export default function PosPage() {
 
   const searchInputRef = React.useRef<HTMLInputElement | null>(null);
 
+  // Dodanie produktu do koszyka z kontrolą stanu w wybranym magazynie.
+  function addProductToCart(product: Product) {
+    const stock = stockFor(product);
+    if (stock <= 0) {
+      toast.error(`${product.name}: brak na stanie w wybranym magazynie`);
+      return;
+    }
+    const inCart = parseFloat(cart.find((i) => i.productId === product.id)?.quantity ?? "0") || 0;
+    addToCart(product.id);
+    if (inCart + 1 > stock) {
+      toast.warning(`${product.name}: w koszyku więcej niż na stanie (${stock} ${unitLabel(product.unit)})`);
+    } else {
+      toast.success(`Dodano: ${product.name}`);
+    }
+  }
+
   // Dodanie produktu po zeskanowanym kodzie EAN albo GS1.
   function handleScan(text: string) {
     const code = scannedProductCode(text);
@@ -458,24 +470,27 @@ export default function PosPage() {
       toast.error(`Nie znaleziono produktu o kodzie ${text.trim()}`);
       return true;
     }
-    const stock = stockFor(product);
-    if (stock <= 0) {
-      toast.error(`${product.name}: brak na stanie w wybranym magazynie`);
-      return true;
-    }
-    const inCart = parseFloat(cart.find((i) => i.productId === product.id)?.quantity ?? "0") || 0;
-    addToCart(product.id);
-    if (inCart + 1 > stock) {
-      toast.warning(`${product.name}: w koszyku więcej niż na stanie (${stock} ${unitLabel(product.unit)})`);
-    } else {
-      toast.success(`Dodano: ${product.name}`);
-    }
+    addProductToCart(product);
     return true;
   }
 
-  const handleScanRef = React.useRef(handleScan);
-  React.useEffect(() => {
-    handleScanRef.current = handleScan;
+  // Produkt wybrany do sprzedaży w oknie skanera z innej strony panelu.
+  useScanIntent(["sell"], !isLoading && Boolean(warehouseId), ({ productId }) => {
+    const product = productMap.get(productId);
+    if (!product || !product.isActive) return toast.error("Ten produkt nie jest dostępny do sprzedaży");
+    // Pusty koszyk, a w wybranym magazynie brak produktu: przełączamy na magazyn, w którym jest.
+    if (stockFor(product) <= 0 && cart.length === 0) {
+      const available = warehouses.find((w) =>
+        product.stocks.some((s) => s.warehouseId === w.id && parseFloat(s.quantity) > 0),
+      );
+      if (available) {
+        setWarehouseId(available.id);
+        setCart([{ productId: product.id, quantity: "1" }]);
+        toast.success(`Dodano: ${product.name} (magazyn: ${available.name})`);
+        return;
+      }
+    }
+    addProductToCart(product);
   });
 
   const searchScanner = useScannerInput((value) => {
@@ -489,38 +504,8 @@ export default function PosPage() {
     }
   });
 
-  // Skan, gdy kursor nie stoi w żadnym polu (np. po kliknięciu w koszyk) — przechwytujemy
-  // szybką serię znaków na poziomie okna, żeby kod nie przepadł.
-  React.useEffect(() => {
-    let buffer = "";
-    let lastAt = 0;
-    let timer = 0;
-    const flush = () => {
-      const text = buffer;
-      buffer = "";
-      if (text.length >= SCAN_MIN_LENGTH) handleScanRef.current(text);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (isEditableTarget(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
-      const now = Date.now();
-      if (now - lastAt > SCAN_MAX_GAP_MS) buffer = "";
-      lastAt = now;
-      window.clearTimeout(timer);
-      if (event.key === "Enter") {
-        if (buffer.length >= SCAN_MIN_LENGTH) event.preventDefault();
-        flush();
-        return;
-      }
-      if (event.key.length !== 1) return;
-      buffer += event.key;
-      timer = window.setTimeout(flush, SCAN_IDLE_MS);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.clearTimeout(timer);
-    };
-  }, []);
+  // Skan, gdy kursor nie stoi w żadnym polu (np. po kliknięciu w koszyk).
+  useWindowScanner(handleScan);
 
   function updateQuantity(productId: string, quantity: string) {
     setCart((current) => current.map((i) => (i.productId === productId ? { ...i, quantity } : i)));
