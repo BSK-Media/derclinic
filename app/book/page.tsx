@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import useSWR from "swr";
 import { Raleway } from "next/font/google";
-import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, Check, Calendar as CalendarIcon, Menu, X, ChevronDown, Instagram, Facebook, Phone, Mail, MapPin } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, Check, Calendar as CalendarIcon, Menu, X, ChevronDown, SlidersHorizontal, Instagram, Facebook, Phone, Mail, MapPin } from "lucide-react";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
 import { ProcedureConsentPanel } from "@/components/procedure-consent-panel";
@@ -179,6 +179,7 @@ export default function PublicBookingPage() {
   const [specialistId, setSpecialistId] = React.useState(""); // konkretne id albo ANY_SPECIALIST
   const [serviceQuery, setServiceQuery] = React.useState("");
   const [excludedCategories, setExcludedCategories] = React.useState<Set<string>>(new Set());
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
   const [date, setDate] = React.useState(() => warsawTodayInput());
   const [weekStart, setWeekStart] = React.useState(() => warsawTodayInput());
   const [calendarOpen, setCalendarOpen] = React.useState(false);
@@ -962,6 +963,36 @@ export default function PublicBookingPage() {
 
       {!isLoading && step === 1 ? (
         <StepCard title="Wybierz zabieg" onBack={locations.length > 1 ? () => goToStep(0) : undefined}>
+          {/* Telefon: kategorie jako przycisk filtrów nad listą (panel boczny jest tylko na większych ekranach). */}
+          <div className="mb-3 md:hidden">
+            <button
+              type="button"
+              onClick={() => setMobileFiltersOpen((open) => !open)}
+              aria-expanded={mobileFiltersOpen}
+              className="flex w-full items-center justify-between gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm font-medium text-zinc-700"
+            >
+              <span className="flex items-center gap-2">
+                <SlidersHorizontal className="h-4 w-4" />
+                Filtry kategorii
+                {excludedCategories.size > 0 ? (
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                    {allCategories.length - excludedCategories.size} z {allCategories.length}
+                  </span>
+                ) : null}
+              </span>
+              <ChevronDown className={"h-4 w-4 transition " + (mobileFiltersOpen ? "rotate-180" : "")} />
+            </button>
+            {mobileFiltersOpen ? (
+              <div className="mt-2 rounded-xl border border-zinc-200 bg-white p-3">
+                <CategoryFilterList
+                  categories={allCategories}
+                  excluded={excludedCategories}
+                  onToggleAll={toggleAllCategories}
+                  onToggleCategory={toggleCategory}
+                />
+              </div>
+            ) : null}
+          </div>
           <input
             value={serviceQuery}
             onChange={(e) => setServiceQuery(e.target.value)}
@@ -2101,20 +2132,17 @@ function AccountSidebar({ loggedInPatient }: { loggedInPatient: { id: string; na
   );
 }
 
-function CategoryFilterSidebar({
-  categories,
-  excluded,
-  onToggleAll,
-  onToggleCategory,
-}: {
+type CategoryFilterProps = {
   categories: string[];
   excluded: Set<string>;
   onToggleAll: () => void;
   onToggleCategory: (category: string) => void;
-}) {
+};
+
+// Lista kategorii z polami wyboru — wspólna dla panelu bocznego (komputer) i przycisku filtrów (telefon).
+function CategoryFilterList({ categories, excluded, onToggleAll, onToggleCategory }: CategoryFilterProps) {
   return (
-    <div className="min-w-0 self-start rounded-2xl border bg-white p-4 shadow-sm md:col-span-2 xl:col-span-1 xl:sticky xl:top-8">
-      <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">Kategorie</div>
+    <>
       <label className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1.5 text-sm hover:bg-zinc-50">
         <input
           type="checkbox"
@@ -2141,6 +2169,15 @@ function CategoryFilterSidebar({
           </label>
         ))}
       </div>
+    </>
+  );
+}
+
+function CategoryFilterSidebar(props: CategoryFilterProps) {
+  return (
+    <div className="hidden min-w-0 self-start rounded-2xl border bg-white p-4 shadow-sm md:col-span-2 md:block xl:col-span-1 xl:sticky xl:top-8">
+      <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">Kategorie</div>
+      <CategoryFilterList {...props} />
     </div>
   );
 }
