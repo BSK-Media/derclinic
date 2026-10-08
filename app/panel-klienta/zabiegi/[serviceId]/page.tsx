@@ -171,16 +171,16 @@ export default async function PatientServicePage(props: { params: Promise<{ serv
             Brak przypisanych specjalistów.
           </div>
         ) : (
-          <div className="divide-y divide-zinc-100">
+          <div className="space-y-3">
             {specialists.map((s) => {
               const myVisit = myVisitBySpecialist.get(s.id);
               return (
               <div
                 key={s.id}
+                // Wszystkie kafelki mają tę samą ramkę i szerokość; mój specjalista tylko inny kolor.
                 className={
-                  myVisit
-                    ? "my-1 flex items-center gap-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3.5"
-                    : "flex items-center gap-4 py-3.5 first:pt-0 last:pb-0"
+                  "flex items-center gap-4 rounded-xl border p-3.5 " +
+                  (myVisit ? "border-emerald-200 bg-emerald-50/60" : "border-zinc-200")
                 }
               >
                 <Link href={`/panel-klienta/specjalisci/${s.id}`} className="flex min-w-0 flex-1 items-center gap-4">
@@ -189,8 +189,9 @@ export default async function PatientServicePage(props: { params: Promise<{ serv
                   </span>
                   <div className="min-w-0">
                     {myVisit ? (
-                      <div className="mb-1 inline-flex items-center rounded-full bg-emerald-600 px-2.5 py-0.5 text-[11px] font-semibold text-white">
-                        Twój specjalista · {formatVisitDate(myVisit)}
+                      <div className="mb-1 inline-block rounded-xl bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold leading-tight text-white">
+                        <div>Twój specjalista</div>
+                        <div className="font-medium text-emerald-50">wizyta {formatVisitDate(myVisit)}</div>
                       </div>
                     ) : null}
                     <div className="font-medium text-zinc-900 hover:text-emerald-700">{s.name}</div>
