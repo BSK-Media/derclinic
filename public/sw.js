@@ -14,6 +14,17 @@
 const CACHE_NAME = "derclinic-shell-v1";
 const OFFLINE_FALLBACK_URL = "/panel-klienta";
 
+// Strony pracowników (panel admina/specjalisty, konto, logowanie) zawierają dane pacjentów i
+// kont — nie zapisujemy ich w cache i nie podstawiamy dla nich panelu klienta po utracie sieci.
+function isStaffPath(pathname) {
+  return (
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/specialist") ||
+    pathname.startsWith("/account") ||
+    pathname.startsWith("/login")
+  );
+}
+
 self.addEventListener("install", () => {
   self.skipWaiting();
 });
@@ -51,6 +62,7 @@ self.addEventListener("fetch", (event) => {
   // pokazujemy ostatnią zapisaną wersję TEJ strony, a w ostateczności powłokę
   // panelu klienta zamiast pustego błędu przeglądarki.
   if (request.mode === "navigate") {
+    if (isStaffPath(url.pathname)) return; // zawsze sieć, bez cache'u
     event.respondWith(
       fetch(request)
         .then((response) => {

@@ -9,6 +9,7 @@ import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth-provider";
 import { GlobalScanDialog } from "@/components/global-scan-dialog";
+import { useIsStandalone } from "@/components/patient-bottom-nav";
 import { GlobalSearch } from "@/components/global-search";
 import {
   firstAllowedSidebarHref,
@@ -309,6 +310,65 @@ export function AppSidebar() {
   );
 }
 
+// Dolna nawigacja w zainstalowanej aplikacji (PWA) na telefonie: cztery najczęstsze sekcje
+// dostępne dla roli + "Menu" otwierające pełną listę. W zwykłej przeglądarce i na komputerze
+// jej nie ma (tam jest menu boczne / hamburger).
+const BOTTOM_NAV_PRIORITY = ["today", "appointments", "calendar", "patients", "pos", "dashboard"] as const;
+
+function StaffBottomNav() {
+  const pathname = usePathname();
+  const { user } = useAuth();
+  const standalone = useIsStandalone();
+  if (!standalone || !user) return null;
+
+  const items = BOTTOM_NAV_PRIORITY.map((permission) => NAV.find((item) => item.permission === permission))
+    .filter(
+      (item): item is NavItem =>
+        Boolean(item) &&
+        hasSidebarPermission(user.role, user.sidebarPermissions, item!.permission) &&
+        !(item!.permission === "calendar" && user.role !== "SPECIALIST"),
+    )
+    .slice(0, 4);
+
+  return (
+    <nav
+      aria-label="Nawigacja dolna"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden dark:border-white/10 dark:bg-[#0b1220]/95"
+    >
+      <ul className="mx-auto flex max-w-xl items-stretch justify-around">
+        {items.map((item) => {
+          const href = sidebarHref(item.permission, user.role);
+          const active = pathname === href || (href !== "/admin" && href !== "/specialist" && pathname.startsWith(href));
+          return (
+            <li key={item.permission} className="min-w-0 flex-1">
+              <Link
+                href={href}
+                className={cn(
+                  "flex flex-col items-center gap-0.5 px-1 py-2 text-[11px] font-medium",
+                  active ? "text-emerald-700 dark:text-emerald-300" : "text-slate-500 dark:text-slate-400",
+                )}
+              >
+                <span className="text-xl leading-none">{item.icon}</span>
+                <span className="max-w-full truncate">{item.label}</span>
+              </Link>
+            </li>
+          );
+        })}
+        <li className="min-w-0 flex-1">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event("staff-open-menu"))}
+            className="flex w-full flex-col items-center gap-0.5 px-1 py-2 text-[11px] font-medium text-slate-500 dark:text-slate-400"
+          >
+            <span className="text-xl leading-none">☰</span>
+            <span>Menu</span>
+          </button>
+        </li>
+      </ul>
+    </nav>
+  );
+}
+
 function MobileNav() {
   const pathname = usePathname();
   const { user, logout, switchOperator } = useAuth();
@@ -320,6 +380,13 @@ function MobileNav() {
   React.useEffect(() => {
     setOpen(false);
   }, [pathname]);
+
+  // Przycisk "Menu" w dolnej nawigacji (PWA) otwiera to samo menu boczne.
+  React.useEffect(() => {
+    const openMenu = () => setOpen(true);
+    window.addEventListener("staff-open-menu", openMenu);
+    return () => window.removeEventListener("staff-open-menu", openMenu);
+  }, []);
 
   // Esc zamyka, blokada scrolla tła gdy otwarte
   React.useEffect(() => {
@@ -494,7 +561,7 @@ export function AppHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-white/60 bg-white/70 px-4 py-3 backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 lg:px-6">
+    <header className="sticky top-0 z-40 w-full border-b border-white/60 bg-white/70 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 lg:px-6">
       <div className="flex flex-wrap items-center gap-3 lg:gap-4">
         <MobileNav />
         <GlobalSearch />
@@ -668,6 +735,7 @@ export function AppHeader() {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const standalone = useIsStandalone();
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading, stopImpersonation } = useAuth();
@@ -700,7 +768,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
         <AppHeader />
-        <main className="flex-1 px-4 py-6 lg:px-6">
+        <main className={cn("flex-1 px-4 py-6 lg:px-6", standalone && "pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-6")}>
           {!loading && hasAccess ? children : null}
           {!loading && user && !hasAccess ? (
             <div className="rounded-3xl border border-white/60 bg-white/80 p-6 text-sm text-slate-600 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 dark:text-slate-300">
@@ -710,6 +778,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       {!loading && user ? <GlobalScanDialog /> : null}
+      {user ? <StaffBottomNav /> : null}
     </div>
   );
 }
