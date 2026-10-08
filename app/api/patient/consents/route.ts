@@ -41,12 +41,12 @@ export async function GET() {
     };
   });
 
-  // Zgoda na wizerunek jest per wizyta — lista zabiegów, na które klient ją
-  // wyraził (bez odwołanych i usuniętych wizyt oraz blokad czasu w kalendarzu).
+  // Zgoda na wizerunek jest per wizyta i można ją zawsze udzielić albo cofnąć —
+  // lista wszystkich zabiegów klienta ze stanem zgody (bez odwołanych i usuniętych
+  // wizyt oraz blokad czasu w kalendarzu).
   const imageRows = await prisma.appointment.findMany({
     where: {
       patientId: auth.id,
-      imageConsent: true,
       deletedAt: null,
       status: { not: "CANCELED" },
       service: { name: { not: "__DERCLINIC_REZERWACJA_CZASU__" } },
@@ -55,6 +55,7 @@ export async function GET() {
     select: {
       id: true,
       startsAt: true,
+      imageConsent: true,
       customServiceName: true,
       service: { select: { name: true } },
     },
@@ -68,6 +69,7 @@ export async function GET() {
     id: row.id,
     startsAt: row.startsAt.toISOString(),
     serviceName: row.customServiceName || row.service.name,
+    granted: row.imageConsent,
     revocationPending: pendingIds.has(row.id),
   }));
 

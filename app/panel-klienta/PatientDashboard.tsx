@@ -534,36 +534,49 @@ function ConsentToggle({ granted, onClick, disabled }: { granted: boolean; onCli
 function ConsentsPanel() {
   const { data, mutate, isLoading } = useSWR("/api/patient/consents", dataChangeRequestFetcher);
   const consents: ConsentRow[] = data?.consents ?? [];
-  type ImageConsentItem = { id: string; startsAt: string; serviceName: string; revocationPending: boolean };
+  type ImageConsentItem = { id: string; startsAt: string; serviceName: string; granted: boolean };
   const imageConsents: ImageConsentItem[] = data?.imageConsents ?? [];
   type ProcedureConsentItem = { id: string; startsAt: string; signedAt: string | null; serviceName: string; token: string };
   const procedureConsents: ProcedureConsentItem[] = data?.procedureConsents ?? [];
-  const [revokeTarget, setRevokeTarget] = React.useState<ImageConsentItem | null>(null);
-  const [sendingRevoke, setSendingRevoke] = React.useState(false);
+  const [imageSavingId, setImageSavingId] = React.useState<string | null>(null);
 
-  // "Dalej" w oknie potwierdzenia: zgoda zostaje, dopóki recepcja nie
-  // zaakceptuje prośby. "Cofnij" tylko zamyka okno i niczego nie zmienia.
-  async function sendRevocationRequest() {
-    if (!revokeTarget) return;
-    setSendingRevoke(true);
+  // Zgodę na wizerunek do zabiegu można udzielić i cofnąć zawsze — zmiana działa od razu,
+  // a personel dostaje powiadomienie w aplikacji (bez akceptacji i bez maila).
+  async function setImageConsent(item: ImageConsentItem, granted: boolean) {
+    if (imageSavingId) return;
+    setImageSavingId(item.id);
     try {
-      const res = await fetch("/api/patient/image-consent-requests", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ appointmentId: revokeTarget.id }),
-      });
-      const out = await res.json().catch(() => ({}));
-      if (!res.ok || !out?.ok) {
-        toast.error(out?.message || "Nie udało się wysłać prośby");
-        return;
-      }
-      toast.success("Prośba została wysłana do recepcji");
-      setRevokeTarget(null);
-      mutate();
+      await mutate(
+        async () => {
+          const res = await fetch("/api/patient/image-consent", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ appointmentId: item.id, granted }),
+          });
+          const out = await res.json().catch(() => ({}));
+          if (!res.ok || !out?.ok) throw new Error(out?.message || "Nie udało się zapisać zgody");
+          return undefined;
+        },
+        {
+          optimisticData: (current: any) => ({
+            ...current,
+            imageConsents: (current?.imageConsents ?? []).map((row: ImageConsentItem) =>
+              row.id === item.id ? { ...row, granted } : row,
+            ),
+          }),
+          rollbackOnError: true,
+          populateCache: false,
+          revalidate: true,
+        },
+      );
+      toast.success(granted ? "Zgoda na wizerunek udzielona" : "Zgoda na wizerunek cofnięta");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Nie udało się zapisać zgody");
     } finally {
-      setSendingRevoke(false);
+      setImageSavingId(null);
     }
   }
+
   // Zapisy w toku — ref zamiast stanu, bo przełącznik nie ma się wyszarzać
   // na czas zapisu, a jedynie ignorować kolejne kliknięcia tej samej zgody.
   const savingTypes = React.useRef(new Set<ConsentType>());
@@ -681,9 +694,9 @@ function ConsentsPanel() {
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
           <div className="text-sm font-semibold text-zinc-900">
             Zgoda na wizerunek
-            {imageConsents.length > 0 ? (
+            {imageConsents.some((item) => item.granted) ? (
               <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                {imageConsents.length}
+                {imageConsents.filter((item) => item.granted).length}
               </span>
             ) : null}
           </div>
@@ -691,70 +704,34 @@ function ConsentsPanel() {
           <span className="hidden text-xs text-zinc-400 group-open:inline">Ukryj</span>
         </summary>
         <p className="mt-2 text-xs text-zinc-500">
-          Zgoda na wykorzystanie zdjęć przed/po zabiegu w panelu klienta i mediach społecznościowych jest wyrażana
-          osobno przy każdej rezerwacji wizyty — zaznaczasz ją w formularzu rezerwacji online.
+          Zgoda na wykorzystanie zdjęć przed/po zabiegu w panelu klienta i mediach społecznościowych dotyczy
+          konkretnego zabiegu. Możesz ją udzielić albo cofnąć w każdej chwili — przed zabiegiem i po nim.
         </p>
         {isLoading ? null : imageConsents.length === 0 ? (
-          <p className="mt-3 text-xs text-zinc-400">Nie wyrażono jeszcze zgody na wizerunek przy żadnym zabiegu.</p>
+          <p className="mt-3 text-xs text-zinc-400">Nie masz jeszcze żadnych zabiegów.</p>
         ) : (
-          <>
-            <div className="mt-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
-              Zabiegi, na które wyrażono zgodę
-            </div>
-            <ul className="mt-2 divide-y divide-zinc-200 rounded-xl border border-zinc-200 bg-white">
-              {imageConsents.map((item) => (
-                <li key={item.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-                  <div className="min-w-0">
-                    <div className="truncate font-medium text-zinc-900">{item.serviceName}</div>
-                    <div className="text-xs text-zinc-500">{formatConsentDate(item.startsAt)}</div>
-                  </div>
-                  {item.revocationPending ? (
-                    <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
-                      Prośba wysłana
+          <ul className="mt-3 divide-y divide-zinc-200 rounded-xl border border-zinc-200 bg-white">
+            {imageConsents.map((item) => (
+              <li key={item.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+                <div className="min-w-0">
+                  <div className="truncate font-medium text-zinc-900">{item.serviceName}</div>
+                  <div className="text-xs text-zinc-500">
+                    {formatConsentDate(item.startsAt)} ·{" "}
+                    <span className={item.granted ? "text-emerald-700" : "text-zinc-400"}>
+                      {item.granted ? "zgoda udzielona" : "brak zgody"}
                     </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setRevokeTarget(item)}
-                      className="shrink-0 rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
-                    >
-                      Cofnij zgodę
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </>
+                  </div>
+                </div>
+                <ConsentToggle
+                  granted={item.granted}
+                  disabled={imageSavingId === item.id}
+                  onClick={() => setImageConsent(item, !item.granted)}
+                />
+              </li>
+            ))}
+          </ul>
         )}
       </details>
-
-      <Dialog open={revokeTarget !== null} onOpenChange={(open) => (!open && !sendingRevoke ? setRevokeTarget(null) : undefined)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Cofnięcie zgody na wizerunek</DialogTitle>
-          </DialogHeader>
-          {revokeTarget ? (
-            <div className="space-y-3 text-sm text-zinc-600">
-              <div className="rounded-xl bg-zinc-50 p-3">
-                <div className="font-medium text-zinc-900">{revokeTarget.serviceName}</div>
-                <div className="text-xs text-zinc-500">{formatConsentDate(revokeTarget.startsAt)}</div>
-              </div>
-              <p>
-                Prośba o cofnięcie zgody zostanie wysłana do recepcji. Po jej zaakceptowaniu otrzymasz wiadomość
-                mailową.
-              </p>
-            </div>
-          ) : null}
-          <DialogFooter>
-            <Button variant="outline" disabled={sendingRevoke} onClick={() => setRevokeTarget(null)}>
-              Cofnij
-            </Button>
-            <Button disabled={sendingRevoke} onClick={sendRevocationRequest}>
-              {sendingRevoke ? "Wysyłanie…" : "Dalej"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

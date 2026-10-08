@@ -56,6 +56,8 @@ async function getAdminNotifications(
   includeSecurityAlerts: boolean,
   // null = bez powiadomień o płatnościach; "all" = wszystkie lokalizacje; inaczej id lokalizacji (manager).
   paymentsScope: string | null,
+  // null = wszystkie lokalizacje (administrator); inaczej tylko wizyty z tej lokalizacji.
+  locationId: string | null,
 ): Promise<NotificationItem[]> {
   const pending = await prisma.patientDataChangeRequest.findMany({
     where: { status: "PENDING" },
@@ -89,6 +91,29 @@ async function getAdminNotifications(
     description: `${request.patient.name} — ${serviceName(request.appointment)}`,
     createdAt: request.createdAt,
     href: "/admin/patients/image-consent-requests",
+  }));
+
+  // Zgoda na wizerunek udzielona albo cofnięta przez pacjenta w panelu klienta (po złożeniu
+  // rezerwacji) — samo powiadomienie w aplikacji, bez e-maila.
+  const imageConsentChanges = await prisma.imageConsentChange.findMany({
+    where: {
+      createdAt: { gte: new Date(Date.now() - NOTIFICATIONS_DAYS * 24 * 60 * 60 * 1000) },
+      ...(locationId ? { appointment: { locationId } } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    take: NOTIFICATIONS_LIMIT,
+    include: {
+      patient: { select: { name: true } },
+      appointment: { select: { customServiceName: true, service: { select: { name: true } } } },
+    },
+  });
+  const imageConsentChangeNotifications: NotificationItem[] = imageConsentChanges.map((change) => ({
+    id: `image-consent-change-${change.id}`,
+    kind: "message",
+    title: change.granted ? "Zgoda na wizerunek udzielona" : "Zgoda na wizerunek cofnięta",
+    description: `${change.patient.name} — ${serviceName(change.appointment)}`,
+    createdAt: change.createdAt,
+    href: `/admin/appointments/${change.appointmentId}`,
   }));
 
   // Płatności zgłoszone przez klientów (BLIK / przelew) — potwierdzają admin i manager.
@@ -139,7 +164,7 @@ async function getAdminNotifications(
     href: "/admin/logs",
   }));
 
-  return [...alerts, ...requests, ...imageConsentRequests, ...paymentNotifications]
+  return [...alerts, ...requests, ...imageConsentRequests, ...imageConsentChangeNotifications, ...paymentNotifications]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .slice(0, NOTIFICATIONS_LIMIT);
 }
@@ -302,6 +327,7 @@ export async function GET() {
     notifications = await getAdminNotifications(
       user!.role === "ADMIN",
       user!.role === "ADMIN" ? "all" : user!.role === "MANAGER" ? user!.locationId : null,
+      user!.role === "ADMIN" ? null : user!.locationId,
     );
   } else {
     return NextResponse.json({ ok: true, notifications: [], unreadCount: 0 });

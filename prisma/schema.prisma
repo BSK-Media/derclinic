@@ -238,6 +238,7 @@ model Patient {
   retailSales        RetailSale[]
   dataChangeRequests PatientDataChangeRequest[]
   imageConsentRevocationRequests ImageConsentRevocationRequest[]
+  imageConsentChanges ImageConsentChange[]
   consents           PatientConsent[]
   newsletterListMemberships NewsletterListMember[]
   consentEvents      PatientConsentEvent[]
@@ -597,6 +598,7 @@ model Appointment {
   payments     Payment[]
 
   imageConsentRevocationRequests ImageConsentRevocationRequest[]
+  imageConsentChanges ImageConsentChange[]
 
   // Zgoda pacjenta na zabieg (podpisywana elektronicznie, patrz
   // lib/procedure-consent.ts): NOT_REQUIRED — wizyty sprzed wprowadzenia zgód i
@@ -1209,6 +1211,27 @@ model RateLimitBucket {
 // Znaczniki "powiadomienie przeczytane" per użytkownik. Wcześniej trzymane
 // w AuditLog, ale dziennik zdarzeń musi być niezmienny, a ten stan trzeba
 // móc cofnąć ("oznacz jako nieprzeczytane"), więc ma własną tabelę.
+// Zmiana zgody na wizerunek dokonana przez pacjenta w panelu klienta już PO złożeniu
+// rezerwacji (udzielenie albo cofnięcie, w dowolnym momencie — przed i po zabiegu).
+// Zgoda udzielona w formularzu rezerwacji nie tworzy wpisu. Wpisy zasilają
+// powiadomienia w aplikacji dla administratora, managera i recepcji (bez e-maili).
+model ImageConsentChange {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  // true = udzielono, false = cofnięto
+  granted Boolean
+
+  @@index([createdAt])
+  @@index([appointmentId])
+}
+
 model NotificationRead {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
