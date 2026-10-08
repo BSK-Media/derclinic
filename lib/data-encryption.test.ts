@@ -25,6 +25,13 @@ describe("szyfrowanie danych medycznych (audyt F-09/F-10)", () => {
     expect(decryptField(tampered)).toBeNull();
   });
 
+  it("odrzuca skrócony znacznik uwierzytelniający (GCM)", () => {
+    const sealed = encryptField("alergia")!;
+    const parts = sealed.split(".");
+    const shortTag = Buffer.from(parts[parts.length - 1], "base64url").subarray(0, 4).toString("base64url");
+    expect(decryptField([...parts.slice(0, -1), shortTag].join("."))).toBeNull();
+  });
+
   it("szyfruje tylko wskazane pola w argumentach zapisu", () => {
     const args = encryptWriteArgs("appointment", "update", {
       where: { id: "a1" },
