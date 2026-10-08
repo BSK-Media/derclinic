@@ -7,6 +7,7 @@ import useSWR from "swr";
 import { Raleway } from "next/font/google";
 import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Sparkles, Check, Calendar as CalendarIcon, Menu, X, ChevronDown, SlidersHorizontal, Instagram, Facebook, Phone, Mail, MapPin } from "lucide-react";
 import { formatPLNFromGrosze } from "@/lib/money";
+import { normalizeNip } from "@/lib/vat";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
 import { ProcedureConsentPanel } from "@/components/procedure-consent-panel";
 import { PaymentRequestPanel } from "@/components/payment-request-panel";
@@ -198,6 +199,11 @@ export default function PublicBookingPage() {
   const [imageConsent, setImageConsent] = React.useState(false);
   // Obowiązkowa akceptacja regulaminu (ostatni krok rezerwacji).
   const [termsAccepted, setTermsAccepted] = React.useState(false);
+  // Faktura na życzenie: po zaznaczeniu pokazujemy pola z danymi firmy.
+  const [wantsInvoice, setWantsInvoice] = React.useState(false);
+  const [invoiceNip, setInvoiceNip] = React.useState("");
+  const [invoiceCompanyName, setInvoiceCompanyName] = React.useState("");
+  const [invoiceAddress, setInvoiceAddress] = React.useState("");
   // Link do zgody na zabieg zwracany po rezerwacji (działa też dla gościa bez konta).
   const [consentTokenValue, setConsentTokenValue] = React.useState<string | null>(null);
   const [accountMode, setAccountMode] = React.useState<"guest" | "register">("guest");
@@ -668,6 +674,16 @@ export default function PublicBookingPage() {
         return;
       }
     }
+    if (wantsInvoice) {
+      if (!normalizeNip(invoiceNip)) {
+        setSubmitError("Podaj prawidłowy NIP (10 cyfr).");
+        return;
+      }
+      if (invoiceCompanyName.trim().length < 2) {
+        setSubmitError("Podaj nazwę firmy do faktury.");
+        return;
+      }
+    }
     if (!termsAccepted) {
       setSubmitError("Aby zarezerwować wizytę, zaakceptuj regulamin.");
       return;
@@ -698,6 +714,10 @@ export default function PublicBookingPage() {
           pointsToRedeem: loggedInPatient && pointsToRedeem > 0 ? pointsToRedeem : undefined,
           paymentChoice,
           imageConsent,
+          invoiceRequested: wantsInvoice,
+          invoiceNip: wantsInvoice ? invoiceNip.trim() : undefined,
+          invoiceCompanyName: wantsInvoice ? invoiceCompanyName.trim() : undefined,
+          invoiceAddress: wantsInvoice ? invoiceAddress.trim() || undefined : undefined,
           termsAccepted,
         }),
       });
@@ -1556,6 +1576,54 @@ export default function PublicBookingPage() {
                 </span>
               </label>
             </div>
+          </div>
+
+          <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-3.5">
+            <label className="flex cursor-pointer items-center gap-2.5 text-sm font-medium text-zinc-800">
+              <input
+                type="checkbox"
+                checked={wantsInvoice}
+                onChange={(e) => setWantsInvoice(e.target.checked)}
+                className="h-4 w-4 shrink-0 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              Chcę otrzymać fakturę
+            </label>
+            {wantsInvoice ? (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <Field label="NIP *">
+                  <input
+                    className="input"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="np. 5252955037"
+                    value={invoiceNip}
+                    onChange={(e) => setInvoiceNip(e.target.value)}
+                  />
+                  {invoiceNip.trim() && !normalizeNip(invoiceNip) ? (
+                    <span className="text-xs text-red-600">Nieprawidłowy NIP</span>
+                  ) : null}
+                </Field>
+                <Field label="Nazwa firmy *">
+                  <input
+                    className="input"
+                    autoComplete="organization"
+                    value={invoiceCompanyName}
+                    onChange={(e) => setInvoiceCompanyName(e.target.value)}
+                  />
+                </Field>
+                <div className="sm:col-span-2">
+                  <Field label="Adres firmy (opcjonalnie)">
+                    <input
+                      className="input"
+                      autoComplete="street-address"
+                      placeholder="ulica, kod pocztowy, miasto"
+                      value={invoiceAddress}
+                      onChange={(e) => setInvoiceAddress(e.target.value)}
+                    />
+                  </Field>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {selectedService?.price ? (

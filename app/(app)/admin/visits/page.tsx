@@ -1,6 +1,7 @@
 "use client";
 
 import useSWR from "swr";
+import { InvoiceRequestBadge } from "@/components/invoice-request-badge";
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -653,6 +654,7 @@ export default function AdminVisitsPage({
                     </td>
                     <td className="p-3 font-medium">
                       {a.patient?.name ?? "—"}
+                      <InvoiceRequestBadge requested={a.invoiceRequested} />
                     </td>
                     <td className="p-3">{a.specialist?.name ?? "—"}</td>
                     <td className="p-3">
@@ -755,6 +757,7 @@ export default function AdminVisitsPage({
                         ) : (
                           a.patient?.name
                         )}
+                        <InvoiceRequestBadge requested={a.invoiceRequested} />
                       </td>
                       <td className="p-3">
                         {a.specialist?.id ? (

@@ -32,6 +32,8 @@ export type BookingPayload = {
   pointsToRedeem: number;
   paymentChoice: PaymentChoice;
   imageConsent: boolean;
+  // Faktura na życzenie: dane nabywcy (null = klient nie chce faktury).
+  invoice?: { nip: string; companyName: string; address: string | null } | null;
   // Zalogowany pacjent z chwili rezerwacji (wizyta trafia na jego konto).
   patientAuthId: string | null;
 };
@@ -405,6 +407,10 @@ export async function finalizeBooking(
         priceFinal,
         note: ["Rezerwacja online (strona WWW)", payload.note?.trim()].filter(Boolean).join(" — "),
         imageConsent: payload.imageConsent,
+        invoiceRequested: Boolean(payload.invoice),
+        invoiceNip: payload.invoice?.nip ?? null,
+        invoiceCompanyName: payload.invoice?.companyName ?? null,
+        invoiceAddress: payload.invoice?.address ?? null,
         // Rezerwacja online wymaga podpisanej zgody na zabieg (patrz lib/procedure-consent.ts).
         consentStatus: "NOT_SIGNED",
       },
@@ -436,6 +442,7 @@ export async function finalizeBooking(
         loyaltyPointsUsed,
         loyaltyDiscountAmount,
         imageConsent: payload.imageConsent,
+        invoiceRequested: Boolean(payload.invoice),
         termsAccepted: true,
         accountCreated,
         bookedAsLoggedIn,

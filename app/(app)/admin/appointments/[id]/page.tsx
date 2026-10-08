@@ -979,6 +979,20 @@ export default function AdminAppointmentDetail() {
         </div>
       </Card>
 
+      {appt.invoiceRequested ? (
+        <div className="space-y-2 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-100">
+          <div className="font-semibold">Klient prosi o fakturę</div>
+          <dl className="grid gap-x-6 gap-y-1 sm:grid-cols-[auto_1fr]">
+            <dt className="text-sky-700 dark:text-sky-300">Nazwa firmy</dt>
+            <dd className="font-medium">{appt.invoiceCompanyName ?? "—"}</dd>
+            <dt className="text-sky-700 dark:text-sky-300">NIP</dt>
+            <dd className="font-medium tabular-nums">{appt.invoiceNip ?? "—"}</dd>
+            <dt className="text-sky-700 dark:text-sky-300">Adres</dt>
+            <dd className="font-medium">{appt.invoiceAddress ?? "— (do uzupełnienia z klientem)"}</dd>
+          </dl>
+        </div>
+      ) : null}
+
       <div
         className={
           "rounded-xl border p-3 text-sm " +

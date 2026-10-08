@@ -1,4 +1,5 @@
 import { NextResponse, after } from "next/server";
+import { normalizeNip } from "@/lib/vat";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
@@ -46,6 +47,11 @@ const BodySchema = z.object({
   // Zgoda na wizerunek (zdjęcia przed/po) — opcjonalna, dotyczy tylko tej
   // jednej wizyty (patrz Appointment.imageConsent w schema.prisma).
   imageConsent: z.boolean().optional().default(false),
+  // Faktura na życzenie: NIP (z cyfrą kontrolną) i nazwa firmy są wtedy obowiązkowe.
+  invoiceRequested: z.boolean().optional().default(false),
+  invoiceNip: z.string().trim().max(30).optional().or(z.literal("")),
+  invoiceCompanyName: z.string().trim().max(200).optional().or(z.literal("")),
+  invoiceAddress: z.string().trim().max(300).optional().or(z.literal("")),
   // Obowiązkowa akceptacja regulaminu — bez niej rezerwacja nie powstaje.
   termsAccepted: z.literal(true),
 });
@@ -62,6 +68,9 @@ const FIELD_LABELS: Record<string, string> = {
   locationId: "Lokalizacja",
   specialistId: "Specjalista",
   serviceId: "Zabieg",
+  invoiceNip: "NIP",
+  invoiceCompanyName: "Nazwa firmy",
+  invoiceAddress: "Adres firmy",
 };
 
 function describeValidationError(error: z.ZodError) {
@@ -102,6 +111,15 @@ export async function POST(req: Request) {
     if (passwordIssue) return bad(`Hasło: ${passwordIssue}`);
   }
 
+  // Faktura na życzenie: walidacja NIP i nazwy firmy.
+  let invoiceData: BookingPayload["invoice"] = null;
+  if (body.invoiceRequested) {
+    const nip = normalizeNip(body.invoiceNip ?? "");
+    if (!nip) return bad("NIP: nieprawidłowy numer (10 cyfr z poprawną cyfrą kontrolną).");
+    if ((body.invoiceCompanyName ?? "").length < 2) return bad("Nazwa firmy: podaj nazwę do faktury.");
+    invoiceData = { nip, companyName: body.invoiceCompanyName!, address: body.invoiceAddress || null };
+  }
+
   const payload: BookingPayload = {
     locationId: body.locationId,
     specialistId: body.specialistId,
@@ -117,6 +135,7 @@ export async function POST(req: Request) {
     pointsToRedeem: body.pointsToRedeem ?? 0,
     paymentChoice: body.paymentChoice,
     imageConsent: body.imageConsent,
+    invoice: invoiceData,
     patientAuthId: patientAuth?.id ?? null,
   };
 

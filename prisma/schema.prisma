@@ -584,6 +584,13 @@ model Appointment {
   // rządowy system zgód.
   imageConsent Boolean @default(false)
 
+  // Faktura na życzenie klienta (checkbox "Chcę fakturę" przy rezerwacji online): dane
+  // nabywcy do wystawienia faktury przez recepcję/administratora.
+  invoiceRequested   Boolean @default(false)
+  invoiceNip         String?
+  invoiceCompanyName String?
+  invoiceAddress     String?
+
   loyaltyPointsTransactions LoyaltyPointsTransaction[]
 
   consumptions Consumption[]
