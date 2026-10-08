@@ -8,6 +8,7 @@ import { resolveStaffNames } from "@/lib/audit";
 const TIME_ZONE = "Europe/Warsaw";
 const NOTIFICATIONS_DAYS = 30;
 const NOTIFICATIONS_LIMIT = 20;
+const READ_NOTIFICATION_VISIBLE_MS = 24 * 60 * 60 * 1000;
 
 type NotificationKind = "new" | "changed" | "canceled" | "approved" | "rejected" | "message";
 
@@ -339,14 +340,22 @@ export async function GET() {
           userId: user!.id,
           notificationId: { in: notifications.map((notification) => notification.id) },
         },
-        select: { notificationId: true },
+        select: { notificationId: true, createdAt: true },
       })
     : [];
   const readIds = new Set(readRows.map((row) => row.notificationId));
-  const shaped = notifications.map((notification) => ({
-    ...notification,
-    read: readIds.has(notification.id),
-  }));
+  // Przeczytane powiadomienie zostaje na liście jeszcze przez 24 godziny od chwili
+  // zaznaczenia ptaszka, potem znika (createdAt wiersza NotificationRead = moment przeczytania).
+  const hideBefore = Date.now() - READ_NOTIFICATION_VISIBLE_MS;
+  const expiredIds = new Set(
+    readRows.filter((row) => row.createdAt.getTime() < hideBefore).map((row) => row.notificationId),
+  );
+  const shaped = notifications
+    .filter((notification) => !expiredIds.has(notification.id))
+    .map((notification) => ({
+      ...notification,
+      read: readIds.has(notification.id),
+    }));
 
   return NextResponse.json({
     ok: true,
