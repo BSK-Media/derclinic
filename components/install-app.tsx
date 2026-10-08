@@ -129,7 +129,11 @@ function InstallInstructions({ ctx, onCopyLink }: { ctx: InstallContext; onCopyL
   return (
     <ol className="space-y-3">
       <Step n={1}>
-        {safari ? (
+        {ctx.safariMenuLayout ? (
+          <>
+            Dotknij menu <strong>•••</strong> w prawym dolnym rogu przeglądarki.
+          </>
+        ) : safari ? (
           <>
             Dotknij ikony <strong>Udostępnij</strong> <Share className="mx-0.5 inline h-4 w-4 align-text-bottom" />{" "}
             na dolnym pasku przeglądarki.
@@ -142,7 +146,15 @@ function InstallInstructions({ ctx, onCopyLink }: { ctx: InstallContext; onCopyL
         )}
       </Step>
       <Step n={2}>
-        Przewiń listę i wybierz <strong>„Do ekranu początkowego”</strong>{" "}
+        {ctx.safariMenuLayout ? (
+          <>
+            Wybierz <strong>„Udostępnij”</strong> <Share className="mx-0.5 inline h-4 w-4 align-text-bottom" />, a na
+            liście{" "}
+          </>
+        ) : (
+          "Przewiń listę i wybierz "
+        )}
+        <strong>„Do ekranu początkowego”</strong>{" "}
         <PlusSquare className="mx-0.5 inline h-4 w-4 align-text-bottom" />.
       </Step>
       <Step n={3}>
@@ -303,7 +315,13 @@ export function InstallAppBanner({ autoShow = true }: { autoShow?: boolean }) {
 
       {/* Strzałka pokazująca, gdzie na iPhonie dotknąć "Udostępnij". */}
       {showArrowBottom ? (
-        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(0.25rem+env(safe-area-inset-bottom))] z-[300] flex justify-center">
+        <div
+          className={
+            "pointer-events-none fixed bottom-[calc(0.25rem+env(safe-area-inset-bottom))] z-[300] flex " +
+            // iOS 26: menu "•••" jest przy prawej krawędzi dolnego paska; wcześniej "Udostępnij" był na środku.
+            (ctx.safariMenuLayout ? "right-[2.2rem]" : "inset-x-0 justify-center")
+          }
+        >
           <ArrowDown className="h-10 w-10 animate-bounce text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]" />
         </div>
       ) : null}

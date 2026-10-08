@@ -3,6 +3,8 @@ import { parseInstallContext } from "./install-app";
 
 const IPHONE_SAFARI =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+const IPHONE_SAFARI_26 =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1";
 const IPHONE_CHROME =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/126.0.6478.153 Mobile/15E148 Safari/604.1";
 const IPHONE_CHROME_OLD =
@@ -18,6 +20,11 @@ describe("parseInstallContext", () => {
   it("rozpoznaje Safari na iPhonie", () => {
     const ctx = parseInstallContext(IPHONE_SAFARI);
     expect(ctx).toMatchObject({ platform: "ios", iosBrowser: "safari", inApp: false, canInstallFromThisBrowser: true });
+  });
+
+  it("Safari z iOS 26 ma Udostępnij w menu z trzema kropkami", () => {
+    expect(parseInstallContext(IPHONE_SAFARI_26)).toMatchObject({ iosBrowser: "safari", safariMenuLayout: true });
+    expect(parseInstallContext(IPHONE_SAFARI).safariMenuLayout).toBe(false);
   });
 
   it("Chrome na iOS 16.4+ może zainstalować, na starszym nie", () => {

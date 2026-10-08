@@ -11,6 +11,8 @@ export type InstallContext = {
   inApp: boolean;
   iosBrowser: IosBrowser | null;
   iosVersion: [number, number] | null;
+  // Safari z iOS 26+: pasek na dole ma tylko wstecz, adres i menu "•••" — "Udostępnij" jest w tym menu.
+  safariMenuLayout: boolean;
   // iOS od 16.4 pozwala dodać stronę do ekranu początkowego także z Chrome, Firefoksa i Edge.
   canInstallFromThisBrowser: boolean;
 };
@@ -37,16 +39,19 @@ export function parseInstallContext(userAgent: string, maxTouchPoints = 0): Inst
           : /Safari/.test(ua)
             ? "safari"
             : "other";
+    // Od iOS 26 Safari podaje w UA zamrożoną wersję systemu (18_6), a prawdziwa jest w "Version/26".
+    const safariMajor = Number(/Version\/(\d+)/.exec(ua)?.[1] ?? 0);
+    const safariMenuLayout = iosBrowser === "safari" && safariMajor >= 26;
     const modern = iosVersion ? iosVersion[0] > 16 || (iosVersion[0] === 16 && iosVersion[1] >= 4) : false;
     const canInstallFromThisBrowser = !inApp && (iosBrowser === "safari" || (modern && iosBrowser !== "other"));
-    return { platform: "ios", inApp, iosBrowser, iosVersion, canInstallFromThisBrowser };
+    return { platform: "ios", inApp, iosBrowser, iosVersion, safariMenuLayout, canInstallFromThisBrowser };
   }
 
   if (isAndroid) {
-    return { platform: "android", inApp, iosBrowser: null, iosVersion: null, canInstallFromThisBrowser: !inApp };
+    return { platform: "android", inApp, iosBrowser: null, iosVersion: null, safariMenuLayout: false, canInstallFromThisBrowser: !inApp };
   }
 
-  return { platform: "other", inApp: false, iosBrowser: null, iosVersion: null, canInstallFromThisBrowser: false };
+  return { platform: "other", inApp: false, iosBrowser: null, iosVersion: null, safariMenuLayout: false, canInstallFromThisBrowser: false };
 }
 
 export const INSTALL_DISMISS_KEY = "derclinic-install-dismissed-until";
