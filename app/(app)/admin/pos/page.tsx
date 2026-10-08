@@ -411,6 +411,8 @@ export default function PosPage() {
     const code = scannedProductCode(query);
     return products.filter((p) => {
       if (!p.isActive) return false;
+      // Każdy magazyn ma własny asortyment — pokazujemy tylko to, co w nim faktycznie leży.
+      if (!p.stocks.some((s) => s.warehouseId === warehouseId && parseFloat(s.quantity) > 0)) return false;
       if (!q) return true;
       if (code && eanMatchesGtin(p.ean, code)) return true;
       return (
@@ -419,7 +421,7 @@ export default function PosPage() {
         (p.ean ?? "").toLowerCase().includes(q)
       );
     });
-  }, [products, query]);
+  }, [products, query, warehouseId]);
 
   function stockFor(product: Product) {
     if (!warehouseId) return 0;
@@ -710,7 +712,9 @@ export default function PosPage() {
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredProducts.length === 0 ? (
-                  <div className="col-span-full text-sm text-zinc-500">Brak produktów.</div>
+                  <div className="col-span-full text-sm text-zinc-500">
+                    {query.trim() ? "Brak pasujących produktów w tym magazynie." : "Brak produktów na stanie w tym magazynie."}
+                  </div>
                 ) : null}
                 {filteredProducts.map((product) => {
                   const stock = stockFor(product);
