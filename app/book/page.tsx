@@ -1050,7 +1050,8 @@ export default function PublicBookingPage() {
           title="Wybierz termin"
           onBack={() => goToStep(qualifyingSpecialists.length <= 1 ? 1 : 2)}
         >
-          <div className="relative mb-4 flex items-center gap-2">
+          {/* Telefon: pasek 7 dni dostaje cały wiersz (inaczej dni są ~24 px i nachodzą na siebie), a strzałki i kalendarz trafiają pod niego. */}
+          <div className="relative mb-4 flex flex-wrap items-center gap-2 sm:flex-nowrap">
             <button
               type="button"
               onClick={goPrevWeek}
@@ -1061,7 +1062,7 @@ export default function PublicBookingPage() {
               <ChevronLeft className="h-4 w-4" />
             </button>
 
-            <div className="grid min-w-0 flex-1 grid-cols-7 gap-1.5 sm:gap-2">
+            <div className="order-first grid w-full min-w-0 grid-cols-7 gap-1 sm:order-none sm:w-auto sm:flex-1 sm:gap-2">
               {weekDays.map((value) => {
                 const active = value === date;
                 const beyondRange = value > maxDate;
@@ -1101,7 +1102,7 @@ export default function PublicBookingPage() {
               <ChevronRight className="h-4 w-4" />
             </button>
 
-            <div className="relative shrink-0" ref={calendarRef}>
+            <div className="relative ml-auto shrink-0 sm:ml-0" ref={calendarRef}>
               <button
                 type="button"
                 onClick={() => setCalendarOpen((open) => !open)}
