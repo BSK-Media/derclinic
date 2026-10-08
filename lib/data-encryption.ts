@@ -1,6 +1,8 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { getEncryptionKeys, keyId } from "@/lib/auth-keys";
 
+const GCM_TAG_LENGTH = 16;
+
 // Szyfrowanie aplikacyjne danych medycznych w bazie (audyt F-09/F-10):
 // zdjęcia przed/po oraz notatki do wizyt i pacjentów. Zrzut bazy (backup,
 // wyciek) nie zawiera ich w postaci jawnej — klucz (DATA_ENCRYPTION_KEY) jest
@@ -34,8 +36,11 @@ export function decryptField(value: string | null | undefined): string | null | 
     return null;
   }
   try {
-    const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64url"));
-    decipher.setAuthTag(Buffer.from(tag, "base64url"));
+    const authTag = Buffer.from(tag, "base64url");
+    // Pełny 16-bajtowy znacznik — skrócony pozwalałby podrabiać szyfrogramy.
+    if (authTag.length !== GCM_TAG_LENGTH) throw new Error("Nieprawidłowy znacznik uwierzytelniający");
+    const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64url"), { authTagLength: GCM_TAG_LENGTH });
+    decipher.setAuthTag(authTag);
     return Buffer.concat([decipher.update(Buffer.from(ciphertext, "base64url")), decipher.final()]).toString("utf8");
   } catch {
     console.error("[data-encryption] Nie udało się odszyfrować pola (uszkodzone dane lub zły klucz)");

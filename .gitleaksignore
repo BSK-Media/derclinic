@@ -1,0 +1,7 @@
+# Wyjątki gitleaks (kontrola „Wykrywanie sekretów w repozytorium”).
+# Każdy wpis to odcisk konkretnego znaleziska: <commit>:<plik>:<reguła>:<linia>.
+# Dodawaj tylko sprawdzone fałszywe alarmy — prawdziwy sekret trzeba unieważnić.
+
+# env.example: pusty wzór „MFA_ENCRYPTION_KEY=""” — reguła bierze nazwę
+# MFA_ENCRYPTION_KEY_PREVIOUS z następnej linii za wartość klucza. Brak sekretu.
+5265fb48f78ed776217348772d347df19ff2887e:env.example:generic-api-key:19

@@ -53,18 +53,18 @@ function toDateInput(d: Date) {
 const ALL_SPECIALISTS = "__ALL__";
 
 type AdminVisitsPageProps = {
-  searchParams?: {
+  // W Next.js 16 searchParams to Promise — strona kliencka odczytuje je przez React.use().
+  searchParams: Promise<{
     view?: string | string[];
-  };
+  }>;
 };
 
 export default function AdminVisitsPage({
   searchParams,
 }: AdminVisitsPageProps) {
   const router = useRouter();
-  const requestedView = Array.isArray(searchParams?.view)
-    ? searchParams?.view[0]
-    : searchParams?.view;
+  const { view: viewParam } = React.use(searchParams);
+  const requestedView = Array.isArray(viewParam) ? viewParam[0] : viewParam;
   // Domyślnym widokiem po wejściu w "Wizyty" (admin i recepcja) jest kalendarz.
   // Lista i usunięte wizyty pozostają dostępne po jawnym wybraniu (?view=list / ?view=deleted).
   const normalizedRequestedView =
