@@ -448,12 +448,12 @@ export default function ServiceDetailsPage() {
                             <SelectValue placeholder="Wybierz kategorię" />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="__new_category__">+ Nowa kategoria…</SelectItem>
                             {categories.map((category) => (
                               <SelectItem key={category} value={category}>
                                 {category}
                               </SelectItem>
                             ))}
-                            <SelectItem value="__new_category__">+ Nowa kategoria…</SelectItem>
                           </SelectContent>
                         </Select>
                       )

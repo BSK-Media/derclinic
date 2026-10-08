@@ -380,12 +380,12 @@ export default function ServicesPage(props: ServicesPageProps) {
                 <SelectValue placeholder="Wybierz kategorię" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={NEW_CATEGORY}>+ Nowa kategoria…</SelectItem>
                 {selectableCategories.map((item) => (
                   <SelectItem key={item} value={item}>
                     {item}
                   </SelectItem>
                 ))}
-                <SelectItem value={NEW_CATEGORY}>+ Nowa kategoria…</SelectItem>
               </SelectContent>
             </Select>
             {category === NEW_CATEGORY ? (
