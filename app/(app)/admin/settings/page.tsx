@@ -86,6 +86,52 @@ function AvatarPreview({ name, avatarUrl }: { name?: string | null; avatarUrl?: 
   );
 }
 
+// JEDNORAZOWE — do usunięcia w następnym commicie (razem z /api/admin/settings/purge-test-data).
+function PurgeTestDataCard() {
+  const [busy, setBusy] = React.useState(false);
+
+  async function purge() {
+    setBusy(true);
+    try {
+      const info = await fetch("/api/admin/settings/purge-test-data").then((r) => r.json());
+      if (!info?.ok) return toast.error(info?.message || "Nie udało się pobrać danych");
+      const typed = window.prompt(
+        `Zostanie NIEODWRACALNIE usuniętych ${info.patients} pacjentów i ${info.appointments} wizyt wraz z danymi zależnymi (zdjęcia, zgody, płatności wizyt). Aby potwierdzić, wpisz: USUŃ`,
+      );
+      if (typed !== "USUŃ") return;
+      const res = await fetch("/api/admin/settings/purge-test-data", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirm: "USUŃ" }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się usunąć");
+      toast.success(`Usunięto: pacjenci ${out.patients}, wizyty ${out.appointments}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-4 rounded-3xl border border-rose-200 bg-rose-50/60 p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-rose-500/30 dark:bg-rose-500/5">
+      <div>
+        <h2 className="text-lg font-semibold text-rose-800 dark:text-rose-300">Usuń dane testowe</h2>
+        <p className="mt-1 text-sm text-rose-700/80 dark:text-rose-200/70">
+          Jednorazowo usuwa wszystkich pacjentów i wszystkie wizyty. Operacji nie można cofnąć.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={purge}
+        disabled={busy}
+        className="shrink-0 rounded-full bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:opacity-60"
+      >
+        {busy ? "Trwa…" : "Usuń pacjentów i wizyty"}
+      </button>
+    </section>
+  );
+}
+
 export default function SettingsPage() {
   const { user, refresh } = useAuth();
   const [avatar, setAvatar] = React.useState<string | null>(null);
@@ -187,6 +233,8 @@ export default function SettingsPage() {
         className="rounded-3xl border border-white/60 bg-white/80 p-6 text-slate-900 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 dark:text-white"
       />
 
+
+      {user?.role === "ADMIN" ? <PurgeTestDataCard /> : null}
 
       {user && ["ADMIN", "MANAGER", "RECEPTION"].includes(user.role) ? (
         <section className="flex flex-col gap-4 rounded-3xl border border-white/60 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55 sm:flex-row sm:items-center sm:justify-between">
