@@ -124,6 +124,7 @@ export function AdminAddProductDialog({
 
   // Ręczne dodawanie pozycji (bez czytnika).
   const [manualProduct, setManualProduct] = React.useState("");
+  const [manualDraft, setManualDraft] = React.useState<NewProductDraft>(() => emptyDraft(""));
   const [manualQuantity, setManualQuantity] = React.useState("1");
   const [manualExpiry, setManualExpiry] = React.useState("");
   const [manualBatch, setManualBatch] = React.useState("");
@@ -166,6 +167,7 @@ export function AdminAddProductDialog({
     setPendingScans([]);
     setPromptWarehouseId("");
     setManualProduct("");
+    setManualDraft(emptyDraft(""));
     setManualQuantity("1");
     setManualExpiry("");
     setManualBatch("");
@@ -289,7 +291,8 @@ export function AdminAddProductDialog({
     let productRef = manualProduct;
     let label = productNames.get(manualProduct) ?? "Produkt";
     if (manualProduct === NEW_PRODUCT) {
-      const draft = emptyDraft("");
+      if (manualDraft.name.trim().length < 2) return toast.error("Podaj nazwę nowego produktu");
+      const draft = { ...manualDraft };
       commitDrafts({ ...draftsRef.current, [draft.id]: draft });
       productRef = `${NEW_REF_PREFIX}${draft.id}`;
       label = "Nowy produkt";
@@ -299,6 +302,7 @@ export function AdminAddProductDialog({
       label,
     );
     setManualProduct("");
+    setManualDraft(emptyDraft(""));
     setManualQuantity("1");
     setManualExpiry("");
     setManualBatch("");
@@ -325,6 +329,74 @@ export function AdminAddProductDialog({
     const draft = draftsRef.current[id];
     if (!draft) return;
     commitDrafts({ ...draftsRef.current, [id]: { ...draft, ...patch } });
+  }
+
+  function renderDraftFields(draft: NewProductDraft, patch: (patch: Partial<NewProductDraft>) => void) {
+    return (
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1 sm:col-span-2">
+          <Label htmlFor={`${draft.id}-name`}>Nazwa *</Label>
+          <Input id={`${draft.id}-name`} value={draft.name} onChange={(event) => patch({ name: event.target.value })} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`${draft.id}-manufacturer`}>Firma (opcjonalnie)</Label>
+          <Input id={`${draft.id}-manufacturer`} value={draft.manufacturer} onChange={(event) => patch({ manufacturer: event.target.value })} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`${draft.id}-category`}>Kategoria (opcjonalnie)</Label>
+          <Select
+            value={draft.catalogCategory || NO_CATEGORY}
+            onValueChange={(value) => patch({ catalogCategory: value === NO_CATEGORY ? "" : value })}
+          >
+            <SelectTrigger id={`${draft.id}-category`}><SelectValue /></SelectTrigger>
+            <SelectContent disablePortal>
+              <SelectItem value={NO_CATEGORY}>— brak —</SelectItem>
+              {categoryChoices(listOptions, draft.catalogCategory).map((name) => (
+                <SelectItem key={name} value={name}>{name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`${draft.id}-ean`}>EAN (opcjonalnie)</Label>
+          <Input id={`${draft.id}-ean`} value={draft.ean} onChange={(event) => patch({ ean: event.target.value })} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`${draft.id}-sku`}>SKU (opcjonalnie)</Label>
+          <Input id={`${draft.id}-sku`} value={draft.sku} onChange={(event) => patch({ sku: event.target.value })} />
+        </div>
+        <div className="space-y-1">
+          <Label>Jednostka miary</Label>
+          <Select value={draft.unit} onValueChange={(unit) => patch({ unit })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent disablePortal>
+              {unitChoices(listOptions, draft.unit).map((option) => (
+                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label>Stawka VAT *</Label>
+          <Select value={draft.vatRate} onValueChange={(vatRate) => patch({ vatRate })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent disablePortal>
+              {VAT_RATES.map((option) => (
+                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`${draft.id}-purchase`}>Cena zakupu (PLN) *</Label>
+          <Input id={`${draft.id}-purchase`} inputMode="decimal" value={draft.purchasePrice} onChange={(event) => patch({ purchasePrice: event.target.value })} placeholder="np. 500,00" />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`${draft.id}-sale`}>Cena sprzedaży brutto (PLN) *</Label>
+          <Input id={`${draft.id}-sale`} inputMode="decimal" value={draft.salePrice} onChange={(event) => patch({ salePrice: event.target.value })} placeholder="np. 690,00" />
+        </div>
+      </div>
+    );
   }
 
   const usedDrafts = Object.values(drafts).filter((draft) =>
@@ -607,81 +679,19 @@ export function AdminAddProductDialog({
               <div className="text-sm font-semibold">
                 Nowy produkt{draft.ean ? ` — EAN ${draft.ean}` : ""}
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1 sm:col-span-2">
-                  <Label htmlFor={`${draft.id}-name`}>Nazwa *</Label>
-                  <Input id={`${draft.id}-name`} value={draft.name} onChange={(event) => updateDraft(draft.id, { name: event.target.value })} />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor={`${draft.id}-manufacturer`}>Firma (opcjonalnie)</Label>
-                  <Input id={`${draft.id}-manufacturer`} value={draft.manufacturer} onChange={(event) => updateDraft(draft.id, { manufacturer: event.target.value })} />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor={`${draft.id}-category`}>Kategoria (opcjonalnie)</Label>
-                  <Select
-                    value={draft.catalogCategory || NO_CATEGORY}
-                    onValueChange={(value) => updateDraft(draft.id, { catalogCategory: value === NO_CATEGORY ? "" : value })}
-                  >
-                    <SelectTrigger id={`${draft.id}-category`}><SelectValue /></SelectTrigger>
-                    <SelectContent disablePortal>
-                      <SelectItem value={NO_CATEGORY}>— brak —</SelectItem>
-                      {categoryChoices(listOptions, draft.catalogCategory).map((name) => (
-                        <SelectItem key={name} value={name}>{name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor={`${draft.id}-ean`}>EAN (opcjonalnie)</Label>
-                  <Input id={`${draft.id}-ean`} value={draft.ean} onChange={(event) => updateDraft(draft.id, { ean: event.target.value })} />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor={`${draft.id}-sku`}>SKU (opcjonalnie)</Label>
-                  <Input id={`${draft.id}-sku`} value={draft.sku} onChange={(event) => updateDraft(draft.id, { sku: event.target.value })} />
-                </div>
-                <div className="space-y-1">
-                  <Label>Jednostka miary</Label>
-                  <Select value={draft.unit} onValueChange={(unit) => updateDraft(draft.id, { unit })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent disablePortal>
-                      {unitChoices(listOptions, draft.unit).map((option) => (
-                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Stawka VAT *</Label>
-                  <Select value={draft.vatRate} onValueChange={(vatRate) => updateDraft(draft.id, { vatRate })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent disablePortal>
-                      {VAT_RATES.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor={`${draft.id}-purchase`}>Cena zakupu (PLN) *</Label>
-                  <Input id={`${draft.id}-purchase`} inputMode="decimal" value={draft.purchasePrice} onChange={(event) => updateDraft(draft.id, { purchasePrice: event.target.value })} placeholder="np. 500,00" />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor={`${draft.id}-sale`}>Cena sprzedaży brutto (PLN) *</Label>
-                  <Input id={`${draft.id}-sale`} inputMode="decimal" value={draft.salePrice} onChange={(event) => updateDraft(draft.id, { salePrice: event.target.value })} placeholder="np. 690,00" />
-                </div>
-              </div>
+              {renderDraftFields(draft, (patch) => updateDraft(draft.id, patch))}
             </div>
           ))}
 
-          <details className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
-            <summary className="cursor-pointer text-sm font-medium">Dodaj pozycję ręcznie (bez czytnika)</summary>
+          <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+            <div className="text-sm font-medium">Dodaj pozycję ręcznie (bez czytnika)</div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <div className="space-y-1 sm:col-span-2">
                 <Label>Produkt</Label>
                 <Select value={manualProduct} onValueChange={setManualProduct}>
                   <SelectTrigger><SelectValue placeholder="Wybierz produkt" /></SelectTrigger>
                   <SelectContent disablePortal>
-                    <SelectItem value={NEW_PRODUCT}>Inny produkt (nowy)</SelectItem>
+                    <SelectItem value={NEW_PRODUCT}>+ Nowy produkt</SelectItem>
                     {productOptions.map((product) => (
                       <SelectItem key={product.id} value={product.id}>
                         {product.sku ? `${product.sku} • ` : ""}{product.name}{product.manufacturer ? ` • ${product.manufacturer}` : ""}
@@ -690,6 +700,14 @@ export function AdminAddProductDialog({
                   </SelectContent>
                 </Select>
               </div>
+              <fieldset
+                disabled={manualProduct !== NEW_PRODUCT}
+                className={`min-w-0 sm:col-span-2 space-y-1 transition ${manualProduct !== NEW_PRODUCT ? "pointer-events-none select-none opacity-60 blur-[2px]" : ""}`}
+                aria-label="Dane nowego produktu"
+              >
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nowy produkt</div>
+                {renderDraftFields(manualDraft, (patch) => setManualDraft((current) => ({ ...current, ...patch })))}
+              </fieldset>
               <div className="space-y-1">
                 <Label htmlFor="manual-quantity">Ilość</Label>
                 <Input id="manual-quantity" inputMode="decimal" value={manualQuantity} onChange={(event) => setManualQuantity(event.target.value)} />
@@ -710,7 +728,7 @@ export function AdminAddProductDialog({
                 <Button type="button" variant="outline" onClick={addManualLine}>Dodaj pozycję</Button>
               </div>
             </div>
-          </details>
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="new-stock-note">Notatka do przyjęcia (opcjonalnie)</Label>
