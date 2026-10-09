@@ -1,6 +1,7 @@
 "use client";
 
 import { SuggestedLotHint } from "@/components/suggested-lot-hint";
+import { NoteHistory } from "@/components/note-history";
 import { useConfirm } from "@/components/confirm-provider";
 import useSWR from "swr";
 import { useEffect, useState } from "react";
@@ -579,6 +580,7 @@ export default function AdminAppointmentDetail() {
           <div className="space-y-2 md:col-span-4">
             <Label>Notatka</Label>
             <Input value={note} onChange={(e) => setNote(e.target.value)} />
+            <NoteHistory entity="APPOINTMENT" id={id} />
           </div>
         </div>
         <Button onClick={save} disabled={status === "AWAITING"}>
@@ -694,7 +696,19 @@ export default function AdminAppointmentDetail() {
                 const busy = consumptionSavingId === c.id;
                 return (
                   <tr key={c.id} className="border-t">
-                    <td className="p-3">{c.product.name}</td>
+                    <td className="p-3">
+                      {c.product.name}
+                      {Array.isArray(c.lotAllocations) && c.lotAllocations.length > 0 ? (
+                        <div className="text-[11px] text-zinc-500">
+                          Partia:{" "}
+                          {c.lotAllocations
+                            .map((lot: { batchNumber: string; serialNumber: string | null; quantity: number }) =>
+                              `${lot.batchNumber}${lot.serialNumber ? ` (nr ser. ${lot.serialNumber})` : ""} × ${lot.quantity}`,
+                            )
+                            .join(", ")}
+                        </div>
+                      ) : null}
+                    </td>
                     <td className="p-3">{c.warehouse?.name ?? "—"}</td>
                     <td className="p-3">
                       <Input

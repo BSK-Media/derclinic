@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { decryptBytes } from "@/lib/data-encryption";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 
@@ -24,8 +25,13 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   });
   if (!submission) return NextResponse.json({ ok: false, message: "Nie znaleziono pliku" }, { status: 404 });
 
+  const fileBytes = decryptBytes(submission.data);
+  if (!fileBytes) {
+    return NextResponse.json({ ok: false, message: "Nie udało się odszyfrować pliku (sprawdź klucze szyfrowania)." }, { status: 500 });
+  }
+
   const safeName = submission.fileName.replace(/[^\w.\-]+/g, "_").slice(0, 100) || "zgoda.pdf";
-  return new NextResponse(new Uint8Array(submission.data), {
+  return new NextResponse(new Uint8Array(fileBytes), {
     headers: {
       "Content-Type": submission.mimeType === "application/pdf" ? "application/pdf" : "application/octet-stream",
       "Content-Disposition": `attachment; filename="${safeName}"`,

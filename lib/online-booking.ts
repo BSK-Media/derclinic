@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
 import { prisma } from "@/lib/prisma";
 import { parseDateInput, warsawWallTimeToUtc } from "@/lib/warsaw-time";
 import { busyRangesForWarsawDay, computeFreeSlots, slotToUtc } from "@/lib/public-booking";
@@ -407,6 +408,8 @@ export async function finalizeBooking(
         priceFinal,
         note: ["Rezerwacja online (strona WWW)", payload.note?.trim()].filter(Boolean).join(" — "),
         imageConsent: payload.imageConsent,
+        termsVersion: TERMS_VERSION,
+        privacyVersion: PRIVACY_VERSION,
         invoiceRequested: Boolean(payload.invoice),
         invoiceNip: payload.invoice?.nip ?? null,
         invoiceCompanyName: payload.invoice?.companyName ?? null,
@@ -444,6 +447,8 @@ export async function finalizeBooking(
         imageConsent: payload.imageConsent,
         invoiceRequested: Boolean(payload.invoice),
         termsAccepted: true,
+        termsVersion: TERMS_VERSION,
+        privacyVersion: PRIVACY_VERSION,
         accountCreated,
         bookedAsLoggedIn,
         hasNote: Boolean(payload.note?.trim()),

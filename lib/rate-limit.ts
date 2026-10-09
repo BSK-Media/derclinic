@@ -43,6 +43,7 @@ export const RATE_LIMITS = {
   paymentActionIp: { scope: "payment-action-ip", limit: 60, windowMs: HOUR },
   emailTest: { scope: "email-test", limit: 10, windowMs: HOUR },
   pushManual: { scope: "push-manual", limit: 30, windowMs: HOUR },
+  patientExport: { scope: "patient-export", limit: 5, windowMs: HOUR },
 } satisfies Record<string, RateLimitRule>;
 
 export async function clientIp(): Promise<string> {

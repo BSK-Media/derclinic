@@ -89,7 +89,10 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
         quantity: new Prisma.Decimal(0).minus(parsed.data.quantity),
       },
     });
-    await applyLotChange(prisma, parsed.data.productId, warehouseId, parsed.data.quantity);
+    const lotAllocations = await applyLotChange(prisma, parsed.data.productId, warehouseId, parsed.data.quantity);
+    if (lotAllocations.length > 0) {
+      await prisma.consumption.update({ where: { id: c.id }, data: { lotAllocations } });
+    }
   }
 
   await logAudit({

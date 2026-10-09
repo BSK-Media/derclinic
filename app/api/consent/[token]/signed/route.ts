@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { decryptBytes } from "@/lib/data-encryption";
 import { prisma } from "@/lib/db";
 import { consentLinkProblem, appointmentForConsentToken } from "@/lib/procedure-consent-server";
 
@@ -17,8 +18,13 @@ export async function GET(_req: Request, props: { params: Promise<{ token: strin
     return NextResponse.json({ ok: false, message: "Brak podpisanej zgody do tej wizyty." }, { status: 404 });
   }
 
+  const fileBytes = decryptBytes(submission.data);
+  if (!fileBytes) {
+    return NextResponse.json({ ok: false, message: "Nie udało się odczytać pliku zgody." }, { status: 500 });
+  }
+
   const safeName = submission.fileName.replace(/[^\w.\- ]+/g, "_") || "zgoda-podpisana.pdf";
-  return new NextResponse(new Uint8Array(submission.data), {
+  return new NextResponse(new Uint8Array(fileBytes), {
     headers: {
       "Content-Type": submission.mimeType || "application/pdf",
       "Content-Disposition": `attachment; filename="${safeName}"`,

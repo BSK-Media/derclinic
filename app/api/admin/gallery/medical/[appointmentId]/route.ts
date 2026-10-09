@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logRecordAccess } from "@/lib/access-log";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { dataUrlToImageResponse } from "@/lib/data-url-response";
@@ -23,6 +24,14 @@ export async function GET(req: Request, props: { params: Promise<{ appointmentId
       ? (await prisma.appointment.findFirst({ where, select: { photoBefore: true } }))?.photoBefore
       : (await prisma.appointment.findFirst({ where, select: { photoAfter: true } }))?.photoAfter;
 
+  if (photo) {
+    await logRecordAccess({
+      actorId: user!.id,
+      entity: "AppointmentPhoto",
+      entityId: params.appointmentId,
+      summary: `Podgląd zdjęcia z wizyty (${slot === "before" ? "przed" : "po"}) w galerii`,
+    });
+  }
   const response = dataUrlToImageResponse(photo);
   // Dane medyczne: bez cache'owania po stronie przeglądarki i proxy.
   response.headers.set("cache-control", "private, no-store");

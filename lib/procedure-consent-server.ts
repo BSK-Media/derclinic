@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { encryptBytes } from "@/lib/data-encryption";
 import { logAudit } from "@/lib/audit";
 import {
   appointmentIdFromConsentToken,
@@ -113,7 +114,8 @@ export async function submitSignedConsent(
         fileName: file.name.slice(0, 200),
         mimeType: file.mimeType.slice(0, 100),
         size: file.bytes.length,
-        data: Buffer.from(file.bytes),
+        // Plik zgody zawiera dane zdrowotne — szyfrowany aplikacyjnie (lib/data-encryption.ts).
+        data: encryptBytes(file.bytes),
         status: verification.outcome,
         reason: verification.reason,
         details: verification.details as object,

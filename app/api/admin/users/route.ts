@@ -33,7 +33,7 @@ export async function GET() {
         ? {}
         : { role: { in: manageableRoles(user!.role) as ("RECEPTION" | "SPECIALIST")[] }, locationId: user!.locationId },
     orderBy: [{ role: "asc" }, { name: "asc" }],
-    select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true, location: true, locationId: true, assignedLocation: { select: { id: true, name: true } }, specialization: true, createdAt: true, mfaEnabledAt: true },
+    select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true, location: true, locationId: true, assignedLocation: { select: { id: true, name: true } }, specialization: true, createdAt: true, mfaEnabledAt: true, disabledAt: true },
   });
   return NextResponse.json({
     ok: true,

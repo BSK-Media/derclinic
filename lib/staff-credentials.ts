@@ -65,6 +65,23 @@ export async function verifyStaffCredentials(
     };
   }
 
+  if (user.disabledAt) {
+    await logAudit({
+      actor: { type: "GUEST", name: user.name, contact: login },
+      action: "LOGIN_FAILED",
+      entity: "User",
+      entityId: user.id,
+      summary: `Logowanie odrzucone (${context}): konto „${login}" jest wyłączone`,
+      data: { login, reason: "account_disabled" },
+    });
+    return {
+      response: NextResponse.json(
+        { ok: false, message: "To konto zostało wyłączone. Skontaktuj się z administratorem." },
+        { status: 403 },
+      ),
+    };
+  }
+
   await resetRateLimit(RATE_LIMITS.staffLoginAccount, login);
   return { user };
 }

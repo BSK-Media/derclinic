@@ -14,6 +14,7 @@ import { ENCRYPTED_FIELDS, ENCRYPTED_PREFIX, encryptField } from "@/lib/data-enc
 
 const TABLES = {
   appointment: "Appointment",
+  noteVersion: "NoteVersion",
   patient: "Patient",
   consumption: "Consumption",
 } as const;

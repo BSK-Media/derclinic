@@ -113,6 +113,8 @@ model User {
   // Hasło nadane przez administratora (albo niespełniające obecnej polityki)
   // jest tymczasowe — przy logowaniu pracownik musi ustawić własne.
   mustChangePassword Boolean @default(false)
+  // Konto wyłączone: brak logowania, sesje unieważnione; historia (wizyty, dziennik) zostaje.
+  disabledAt         DateTime?
 
   // Reset hasła przez link z e-maila ("Nie pamiętam hasła" na ekranie
   // logowania personelu): hash jednorazowego tokenu i jego data wygaśnięcia —
@@ -223,6 +225,10 @@ model Patient {
   // Klient usunął konto w panelu: dostęp (hasło, Google/Facebook, sesje, push)
   // jest odebrany, ale karta z historią wizyt, zgodami i punktami zostaje.
   accountDeletedAt DateTime?
+
+  // Ograniczenie przetwarzania (art. 18 RODO): dane zostają, ale nie są używane do marketingu
+  // ani powiadomień; personel widzi oznaczenie na karcie.
+  processingRestrictedAt DateTime?
 
   // Program lojalnościowy: 1 pkt za każde wydane 10 zł (na podstawie
   // priceFinal zaakceptowanej wizyty), 1 pkt = 1 zł rabatu przy kolejnej
@@ -587,6 +593,10 @@ model Appointment {
 
   // Faktura na życzenie klienta (checkbox "Chcę fakturę" przy rezerwacji online): dane
   // nabywcy do wystawienia faktury przez recepcję/administratora.
+  // Wersje regulaminu i polityki prywatności zaakceptowane przy rezerwacji online (lib/legal.ts).
+  termsVersion       String?
+  privacyVersion     String?
+
   invoiceRequested   Boolean @default(false)
   invoiceNip         String?
   invoiceCompanyName String?
@@ -645,6 +655,9 @@ model Consumption {
   createdBy   User   @relation("ConsumptionCreator", fields: [createdById], references: [id], onDelete: Restrict)
 
   note String?
+
+  // Partie, z których zeszło zużycie (FEFO): [{ lotId, batchNumber, serialNumber, expiryDate, quantity }]
+  lotAllocations Json?
 
   // Workflow akceptacji: gdy specjalista zmieni sugerowaną ilość preparatu,
   // wpis trafia jako PENDING i nie jest odejmowany z magazynu do czasu akceptacji admina.
@@ -1230,6 +1243,24 @@ model ImageConsentChange {
 
   @@index([createdAt])
   @@index([appointmentId])
+}
+
+// Poprzednie treści notatek (wizyty, pacjenta) — dokumentacja nie może po cichu tracić historii.
+// Treść jest szyfrowana aplikacyjnie jak oryginalne notatki (lib/data-encryption.ts).
+model NoteVersion {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // "APPOINTMENT" albo "PATIENT"
+  entity   String
+  entityId String
+
+  note String @db.Text
+
+  // Kto zmienił notatkę (poprzednia treść zostaje tutaj)
+  createdById String?
+
+  @@index([entity, entityId, createdAt])
 }
 
 model NotificationRead {

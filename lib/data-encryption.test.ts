@@ -56,3 +56,20 @@ describe("szyfrowanie danych medycznych (audyt F-09/F-10)", () => {
     expect(result.startsAt).toBeInstanceOf(Date);
   });
 });
+
+describe("szyfrowanie plików binarnych (zgoda na zabieg)", () => {
+  it("szyfruje i odszyfrowuje plik, a w bazie nie ma jawnych bajtów", async () => {
+    const { encryptBytes, decryptBytes } = await import("./data-encryption");
+    const pdf = Buffer.concat([Buffer.from("%PDF-1.7\n"), Buffer.from(Array.from({ length: 500 }, (_, i) => i % 256))]);
+    const stored = encryptBytes(pdf);
+    expect(stored.subarray(0, 4).toString()).not.toBe("%PDF");
+    expect(stored.toString("utf8").startsWith("enc:v1.")).toBe(true);
+    expect(decryptBytes(stored)?.equals(pdf)).toBe(true);
+  });
+
+  it("plik sprzed szyfrowania odczytuje bez zmian", async () => {
+    const { decryptBytes } = await import("./data-encryption");
+    const legacy = Buffer.from("%PDF-1.4 stary plik");
+    expect(decryptBytes(legacy)?.equals(legacy)).toBe(true);
+  });
+});

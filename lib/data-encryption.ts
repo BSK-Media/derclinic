@@ -53,6 +53,7 @@ export const ENCRYPTED_FIELDS = {
   appointment: ["photoBefore", "photoAfter", "note"],
   patient: ["note"],
   consumption: ["note"],
+  noteVersion: ["note"],
 } as const;
 
 type EncryptedModel = keyof typeof ENCRYPTED_FIELDS;
@@ -109,4 +110,21 @@ export function decryptDeep<T>(value: T): T {
 
 export function isEncryptedModel(model: string): model is EncryptedModel {
   return model in ENCRYPTED_FIELDS;
+}
+
+// --- Pliki binarne (np. podpisana zgoda na zabieg) ---------------------------------------
+// Plik jest kodowany do base64 i szyfrowany jak pole tekstowe (te same klucze i rotacja); w bazie
+// leży jako bajty tekstu "enc:v1…". Starsze pliki zapisane jawnie odczytujemy bez zmian.
+
+export function encryptBytes(bytes: Uint8Array): Buffer {
+  const sealed = encryptField(Buffer.from(bytes).toString("base64"));
+  return Buffer.from(String(sealed), "utf8");
+}
+
+export function decryptBytes(stored: Uint8Array | Buffer): Buffer | null {
+  const buffer = Buffer.from(stored);
+  const head = buffer.subarray(0, ENCRYPTED_PREFIX.length).toString("utf8");
+  if (head !== ENCRYPTED_PREFIX) return buffer; // plik sprzed szyfrowania
+  const plain = decryptField(buffer.toString("utf8"));
+  return plain == null ? null : Buffer.from(plain, "base64");
 }

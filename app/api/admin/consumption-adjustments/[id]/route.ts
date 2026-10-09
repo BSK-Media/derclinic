@@ -89,7 +89,10 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
           quantity: new Prisma.Decimal(0).minus(consumption.quantity),
         },
       });
-      await applyLotChange(tx, consumption.productId, consumption.warehouseId, consumption.quantity);
+      const lotAllocations = await applyLotChange(tx, consumption.productId, consumption.warehouseId, consumption.quantity);
+      if (lotAllocations.length > 0) {
+        await tx.consumption.update({ where: { id: consumption.id }, data: { lotAllocations } });
+      }
     }
 
     return tx.consumption.update({

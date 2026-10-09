@@ -14,14 +14,23 @@ const FEFO_ORDER: Prisma.ProductLotOrderByWithRelationInput[] = [{ expiryDate: {
  * Stan produktu (Stock) może być większy niż suma partii (dane sprzed partii) — wtedy
  * brakująca część po prostu nie ma partii; ilość partii nigdy nie schodzi poniżej zera.
  */
+export type LotAllocation = {
+  lotId: string;
+  batchNumber: string;
+  serialNumber: string | null;
+  expiryDate: string | null;
+  quantity: number;
+};
+
 export async function applyLotChange(
   db: Db,
   productId: string,
   warehouseId: string,
   consumed: Prisma.Decimal | number,
-) {
+): Promise<LotAllocation[]> {
   let remaining = new Prisma.Decimal(consumed);
-  if (remaining.isZero()) return;
+  const allocations: LotAllocation[] = [];
+  if (remaining.isZero()) return allocations;
 
   if (remaining.gt(0)) {
     const lots = await db.productLot.findMany({
@@ -32,9 +41,16 @@ export async function applyLotChange(
       if (remaining.lte(0)) break;
       const take = Prisma.Decimal.min(lot.quantity, remaining);
       await db.productLot.update({ where: { id: lot.id }, data: { quantity: { decrement: take } } });
+      allocations.push({
+        lotId: lot.id,
+        batchNumber: lot.batchNumber,
+        serialNumber: lot.serialNumber,
+        expiryDate: lot.expiryDate ? lot.expiryDate.toISOString() : null,
+        quantity: Number(take),
+      });
       remaining = remaining.minus(take);
     }
-    return;
+    return allocations;
   }
 
   // Zwrot: do ostatnio ruszanej partii tego produktu w magazynie (jeśli żadnej nie ma, nic nie robimy —
@@ -46,6 +62,7 @@ export async function applyLotChange(
   if (lastTouched) {
     await db.productLot.update({ where: { id: lastTouched.id }, data: { quantity: { increment: remaining.abs() } } });
   }
+  return allocations;
 }
 
 export type LotSuggestion = {

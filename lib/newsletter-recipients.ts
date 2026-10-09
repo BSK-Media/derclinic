@@ -22,6 +22,7 @@ export function subscribedPatientWhere(locationScopeId: string | null): Prisma.P
     email: { not: null },
     NOT: { email: "" },
     accountDeletedAt: null,
+    processingRestrictedAt: null,
     consents: { some: { type: "MARKETING", granted: true } },
     ...(locationScopeId ? { locationId: locationScopeId } : {}),
   };

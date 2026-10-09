@@ -1,4 +1,6 @@
 import { isAdminLike } from "@/lib/roles";
+import { logRecordAccess } from "@/lib/access-log";
+import { recordNoteVersion } from "@/lib/note-versions";
 import { suggestLotsByProduct } from "@/lib/lot-allocation";
 import { NextResponse, after } from "next/server";
 import {
@@ -80,6 +82,13 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
         }
       : appt.service,
   };
+
+  await logRecordAccess({
+    actorId: user!.id,
+    entity: "Appointment",
+    entityId: appt.id,
+    summary: `Otwarcie karty wizyty (${appt.patient.name})`,
+  });
 
   const [products, warehouses, services, specialistAssignments] =
     await Promise.all([
@@ -286,6 +295,10 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
         : {}),
     },
   });
+
+  if (parsed.data.note !== undefined) {
+    await recordNoteVersion(prisma, "APPOINTMENT", appt.id, existing.note, parsed.data.note || null, user!.id);
+  }
 
   // Stan przed i po — żeby dało się odpowiedzieć "kto zmienił z czego na co".
   const changes = diffFields(

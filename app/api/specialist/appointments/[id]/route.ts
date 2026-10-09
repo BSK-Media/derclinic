@@ -1,4 +1,6 @@
 import { canAccessSpecialistAppointment, isAdminLike } from "@/lib/roles";
+import { logRecordAccess } from "@/lib/access-log";
+import { recordNoteVersion } from "@/lib/note-versions";
 import { suggestLotsByProduct } from "@/lib/lot-allocation";
 import { NextResponse, after } from "next/server";
 import {
@@ -40,6 +42,13 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   if (!canAccessSpecialistAppointment(user!, { ...appt, locationId: user!.role === "ADMIN" ? appt.locationId : user!.locationId })) {
     return NextResponse.json({ ok: false, message: "Brak uprawnień" }, { status: 403 });
   }
+
+  await logRecordAccess({
+    actorId: user!.id,
+    entity: "Appointment",
+    entityId: appt.id,
+    summary: `Otwarcie karty wizyty (${appt.patient.name})`,
+  });
 
   const lotSuggestions = await suggestLotsByProduct(
     prisma,
@@ -148,6 +157,10 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
       endsAt: newEnds,
     },
   });
+
+  if (parsed.data.note !== undefined) {
+    await recordNoteVersion(prisma, "APPOINTMENT", appt.id, existing.note, parsed.data.note || null, user!.id);
+  }
 
   const changes = diffFields(
     appointmentSnapshot(existing),

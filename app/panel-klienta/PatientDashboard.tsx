@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { LogoutButton } from "./LogoutButton";
 import { InstallAppButton } from "@/components/install-app";
+import { DataExportCard } from "./DataExportCard";
 import { DeleteAccountCard } from "./DeleteAccountCard";
 import { AddToCalendarButton } from "./AddToCalendarButton";
 import { GoogleLoginButton, googleErrorMessage, useGoogleLoginEnabled } from "@/components/google-login-button";
@@ -1247,6 +1248,7 @@ export function PatientDashboard({
                     ) : null}
                   </div>
                   ) : null}
+                  <DataExportCard />
                   <DeleteAccountCard hasPassword={Boolean(profile.hasPassword)} />
                 </div>
                 <DataChangeRequestCard />

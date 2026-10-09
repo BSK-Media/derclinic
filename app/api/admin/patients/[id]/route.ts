@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { recordNoteVersion } from "@/lib/note-versions";
+import { medicalRetentionEnd } from "@/lib/retention";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
@@ -19,6 +21,8 @@ const PatchSchema = z.object({
     .optional()
     .or(z.literal("")),
   note: z.string().trim().max(1000).optional().or(z.literal("")),
+  // Ograniczenie przetwarzania na wniosek pacjenta (art. 18 RODO).
+  processingRestricted: z.boolean().optional(),
   // Ręczne ustawienie hasła do panelu klienta przez recepcję/admina — np. gdy
   // wysyłka maili resetujących nie działa. Nigdy nie zwracamy hasha w
   // odpowiedzi (patrz `select` przy update poniżej).
@@ -71,6 +75,8 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
       email:
         parsed.data.email === undefined ? undefined : parsed.data.email ? parsed.data.email : null,
       note: parsed.data.note === undefined ? undefined : parsed.data.note ? parsed.data.note : null,
+      processingRestrictedAt:
+        parsed.data.processingRestricted === undefined ? undefined : parsed.data.processingRestricted ? new Date() : null,
       ...(parsed.data.password
         ? {
             passwordHash: await bcrypt.hash(parsed.data.password, 10),
@@ -82,6 +88,9 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
     },
     select: PATIENT_SAFE_SELECT,
   });
+  if (parsed.data.note !== undefined) {
+    await recordNoteVersion(prisma, "PATIENT", params.id, visiblePatient.note, parsed.data.note || null, user!.id);
+  }
   // Nowe hasło nadane przez recepcję wylogowuje pacjenta ze wszystkich urządzeń.
   if (parsed.data.password) await revokeAllPatientSessions(params.id, "password_set_by_staff");
 
@@ -94,6 +103,9 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
     key === "note" ? "zmieniono notatkę" : `${fieldLabels[key]}: ${change.from ?? "—"} → ${change.to ?? "—"}`,
   );
   if (parsed.data.password) parts.push("ustawiono nowe hasło do panelu klienta");
+  if (parsed.data.processingRestricted !== undefined) {
+    parts.push(parsed.data.processingRestricted ? "ograniczono przetwarzanie danych (art. 18 RODO)" : "zdjęto ograniczenie przetwarzania");
+  }
   await logAudit({
     actorId: user!.id,
     action: "UPDATE",
@@ -121,6 +133,37 @@ export async function DELETE(_req: Request, props: { params: Promise<{ id: strin
     select: { id: true, name: true, phone: true, email: true },
   });
   if (!visiblePatient) return NextResponse.json({ ok: false, message: "Nie znaleziono pacjenta" }, { status: 404 });
+
+  // Dokumentacja medyczna musi być przechowywana (20 lat od końca roku ostatniego wpisu) — karty,
+  // w której powstała dokumentacja (zakończona wizyta, zużyte preparaty, zdjęcia), nie usuwamy
+  // przed upływem tego okresu. Kartę bez dokumentacji (np. założoną omyłkowo) usunąć można.
+  const documented = await prisma.appointment.findMany({
+    where: {
+      patientId: params.id,
+      service: { name: { not: "__DERCLINIC_REZERWACJA_CZASU__" } },
+      OR: [
+        { status: "COMPLETED" },
+        { consumptions: { some: {} } },
+        { photoBefore: { not: null } },
+        { photoAfter: { not: null } },
+      ],
+    },
+    select: { startsAt: true },
+    orderBy: { startsAt: "desc" },
+    take: 1,
+  });
+  if (documented.length > 0) {
+    const keepUntil = medicalRetentionEnd(documented[0].startsAt);
+    if (keepUntil.getTime() > Date.now()) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: `Nie można usunąć karty: pacjent ma dokumentację z zabiegów, którą trzeba przechowywać do ${keepUntil.toLocaleDateString("pl-PL")}. Zamiast usuwania możesz ograniczyć przetwarzanie danych pacjenta.`,
+        },
+        { status: 409 },
+      );
+    }
+  }
 
   // Usunięcie pacjenta kasuje kaskadowo jego wizyty — zapisujemy ich liczbę
   // razem z migawką danych, bo po usunięciu nie da się tego odtworzyć.

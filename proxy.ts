@@ -108,7 +108,9 @@ async function authorize(req: NextRequest, requestHeaders: Headers): Promise<Nex
     pathname.startsWith("/api/hold/") ||
     // Zadania cykliczne (Vercel Cron) — bez sesji, autoryzowane sekretem
     // CRON_SECRET sprawdzanym w samym endpoincie.
-    pathname.startsWith("/api/cron/")
+    pathname.startsWith("/api/cron/") ||
+    // Kontrola dostępności dla zewnętrznego monitoringu (bez danych).
+    pathname === "/api/health"
   ) {
     return null;
   }

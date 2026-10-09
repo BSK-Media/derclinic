@@ -81,6 +81,8 @@ const staffUserSelect = {
   role: true,
   sidebarPermissions: true,
   mfaEnabledAt: true,
+  // Konto wyłączone przez administratora — żadna sesja nie jest ważna.
+  disabledAt: true,
   // Czy konto jest wspólne (ma operatorów z PIN-em) — wtedy sesja czeka na PIN.
   operators: { select: { id: true }, take: 1 },
 } as const;
@@ -95,6 +97,7 @@ export async function validateStaffToken(token: string | undefined | null) {
     include: { user: { select: staffUserSelect }, operator: { select: { id: true, name: true } } },
   });
   if (!session || session.userId !== parsed.subject) return null;
+  if (session.user.disabledAt) return null;
   if (!isActive(session, SESSION_POLICY.staff.idleMs)) return null;
   // Konto bez aktywnego MFA nie może mieć pełnej sesji (np. po resecie MFA).
   // Wyjątek: sesja administratora wchodzącego na to konto (jego MFA już sprawdzono).

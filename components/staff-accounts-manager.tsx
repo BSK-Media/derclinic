@@ -19,7 +19,7 @@ import { OperatorsDialog } from "@/components/operators-dialog";
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 type Role = "ADMIN" | "MANAGER" | "RECEPTION" | "SPECIALIST";
-type U = { id: string; login: string; name: string; role: Role; email?: string | null; payoutPercent?: number; location?: string | null; locationId: string; mfaEnabledAt?: string | null };
+type U = { id: string; login: string; name: string; role: Role; email?: string | null; payoutPercent?: number; location?: string | null; locationId: string; mfaEnabledAt?: string | null; disabledAt?: string | null };
 
 const ROLE_LABELS: Record<Role, string> = {
   ADMIN: "Administrator",
@@ -197,6 +197,23 @@ export function StaffAccountsManager({ showBackLink = false }: { showBackLink?: 
     if (!ok) toast.error("Nie udało się wejść na konto.");
   }
 
+  async function toggleDisabled(u: U) {
+    const disabling = !u.disabledAt;
+    const message = disabling
+      ? `Wyłączyć konto „${u.login}” (${u.name})? Pracownik zostanie wylogowany ze wszystkich urządzeń i nie zaloguje się, dopóki konto nie zostanie włączone. Historia wizyt i dziennik zostają.`
+      : `Włączyć ponownie konto „${u.login}” (${u.name})?`;
+    if (!(await confirm({ message, confirmLabel: disabling ? "Wyłącz konto" : "Włącz konto", destructive: disabling }))) return;
+    const res = await fetch(`/api/admin/users/${u.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ disabled: disabling }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się zmienić stanu konta.");
+    toast.success(disabling ? "Konto wyłączone" : "Konto włączone");
+    mutate();
+  }
+
   async function remove(u: U) {
     if (!(await confirm({ message: `Trwale usunąć konto „${u.login}” (${u.name})? Tej operacji nie można cofnąć.`, destructive: true, confirmLabel: "Usuń konto" }))) return;
     const res = await fetch(`/api/admin/users/${u.id}`, { method: "DELETE" });
@@ -358,6 +375,7 @@ export function StaffAccountsManager({ showBackLink = false }: { showBackLink?: 
                     <td className="p-3 font-medium">
                       {u.login}
                       {isMe ? <span className="ml-2 text-xs font-normal text-zinc-500">(Ty)</span> : null}
+                      {u.disabledAt ? <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">Wyłączone</span> : null}
                     </td>
                     <td className="p-3">{u.name}</td>
                     <td className="p-3">
@@ -419,6 +437,11 @@ export function StaffAccountsManager({ showBackLink = false }: { showBackLink?: 
                         {isAdmin && !isMe && u.role !== "ADMIN" ? (
                           <Button variant="outline" size="sm" onClick={() => enterAccount(u)}>
                             Wejdź na konto
+                          </Button>
+                        ) : null}
+                        {!isMe && (isAdmin || u.role === "RECEPTION" || u.role === "SPECIALIST") ? (
+                          <Button variant="outline" size="sm" onClick={() => toggleDisabled(u)}>
+                            {u.disabledAt ? "Włącz konto" : "Wyłącz konto"}
                           </Button>
                         ) : null}
                         {isAdmin && !isMe ? (

@@ -19,6 +19,8 @@ const PatchSchema = z.object({
   specialistCode: z.number().int().optional(),
   isVisible: z.boolean().optional(),
   isAvailable: z.boolean().optional(),
+  // true = wyłącz konto (offboarding bez usuwania), false = włącz ponownie.
+  disabled: z.boolean().optional(),
   avatarUrl: z
     .string()
     .refine((v) => v === "" || v.startsWith("data:image/") || /^https?:\/\//.test(v), "Niepoprawne zdjęcie")
@@ -44,7 +46,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
   if (!parsed.success) return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
 
   // Zmiana roli albo hasła to operacja wysokiego ryzyka — wymaga ponownego MFA.
-  const sensitive = parsed.data.role !== undefined || Boolean(parsed.data.password);
+  const sensitive = parsed.data.role !== undefined || Boolean(parsed.data.password) || parsed.data.disabled !== undefined;
   if (sensitive) {
     const stepUp = requireStepUp(user!);
     if (stepUp) return stepUp;
@@ -63,6 +65,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
       isVisible: true,
       isAvailable: true,
       jobTitle: true,
+      disabledAt: true,
       locationId: true,
       specialization: true,
       sourceProfileUrl: true,
@@ -101,7 +104,29 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
     );
   }
 
+  if (parsed.data.disabled !== undefined) {
+    if (params.id === user!.id) {
+      return NextResponse.json({ ok: false, message: "Nie możesz wyłączyć własnego konta." }, { status: 400 });
+    }
+    if (parsed.data.disabled && before.role === "ADMIN") {
+      const otherActiveAdmins = await prisma.user.count({
+        where: { role: "ADMIN", disabledAt: null, id: { not: params.id } },
+      });
+      if (otherActiveAdmins < 1) {
+        return NextResponse.json({ ok: false, message: "W systemie musi zostać co najmniej jeden aktywny administrator." }, { status: 400 });
+      }
+    }
+  }
+
   const data: any = {};
+  if (parsed.data.disabled !== undefined) {
+    data.disabledAt = parsed.data.disabled ? new Date() : null;
+    // Wyłączony specjalista znika z rezerwacji online (po ponownym włączeniu widoczność ustawia administrator).
+    if (parsed.data.disabled) {
+      data.isVisible = false;
+      data.isAvailable = false;
+    }
+  }
   if (parsed.data.name !== undefined) data.name = parsed.data.name;
   if (parsed.data.role !== undefined) data.role = parsed.data.role;
   if (parsed.data.email !== undefined) data.email = parsed.data.email ? parsed.data.email : null;
@@ -145,6 +170,10 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
 
   // Nowa rola lub hasło unieważniają aktywne sesje tego pracownika
   // (przy zmianie własnego hasła zostaje bieżąca sesja administratora).
+  if (parsed.data.disabled === true) {
+    await revokeAllStaffSessions(params.id, "account_disabled");
+    await prisma.pushSubscription.deleteMany({ where: { userId: params.id } });
+  }
   const roleChanged = data.role !== undefined && data.role !== before?.role;
   if (roleChanged || data.passwordHash) {
     await revokeAllStaffSessions(
@@ -170,6 +199,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
     ([key, change]) => `${key}: ${change.from ?? "—"} → ${change.to ?? "—"}`,
   );
   if (data.passwordHash) parts.push("ustawiono nowe hasło");
+  if (parsed.data.disabled !== undefined) parts.push(parsed.data.disabled ? "konto WYŁĄCZONE" : "konto włączone ponownie");
   if (data.avatarUrl !== undefined) parts.push("zmieniono zdjęcie profilowe");
   await logAudit({
     actorId: user!.id,

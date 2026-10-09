@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db";
+import { logRecordAccess } from "@/lib/access-log";
+import { PatientRestrictionControl } from "@/components/patient-restriction-control";
 import { isAdminLike } from "@/lib/roles";
 import { PatientDetailsForm } from "@/components/patient-details-form";
 import { PatientStatistics } from "@/components/patient-statistics";
@@ -12,6 +14,9 @@ export default async function AdminPatientDetailPage(props: { params: Promise<{ 
   const isAdmin = isAdminLike(user?.role);
   const patient = await prisma.patient.findUnique({ where: { id: params.id } });
   if (!patient) return <div className="p-6 text-sm">Nie znaleziono pacjenta.</div>;
+  if (user?.id) {
+    await logRecordAccess({ actorId: user.id, entity: "Patient", entityId: patient.id, summary: `Otwarcie karty pacjenta ${patient.name}` });
+  }
 
   const [appts, sales, consentState, consentEvents] = await Promise.all([
     prisma.appointment.findMany({
@@ -45,6 +50,12 @@ export default async function AdminPatientDetailPage(props: { params: Promise<{ 
 
   return (
     <div className="space-y-6">
+      {isAdmin ? (
+        <PatientRestrictionControl
+          patientId={patient.id}
+          restrictedAt={patient.processingRestrictedAt ? patient.processingRestrictedAt.toISOString() : null}
+        />
+      ) : null}
       <PatientDetailsForm
         patient={{
           id: patient.id,

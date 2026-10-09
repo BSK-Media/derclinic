@@ -251,7 +251,7 @@ export async function POST(req: Request) {
     // Create consumptions + decrement stock
     for (const it of items) {
       const q = parseFloat(it.quantity);
-      await tx.consumption.create({
+      const saleConsumption = await tx.consumption.create({
         data: {
           kind: "SALE",
           productId: it.productId,
@@ -266,7 +266,10 @@ export async function POST(req: Request) {
         where: { productId_warehouseId: { productId: it.productId, warehouseId } },
         data: { quantity: { decrement: q } },
       });
-      await applyLotChange(tx, it.productId, warehouseId, q);
+      const lotAllocations = await applyLotChange(tx, it.productId, warehouseId, q);
+      if (lotAllocations.length > 0) {
+        await tx.consumption.update({ where: { id: saleConsumption.id }, data: { lotAllocations } });
+      }
     }
 
     await logAudit({
