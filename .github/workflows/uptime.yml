@@ -1,0 +1,40 @@
+# Monitoring dostępności (rejestr luk L-15): co 5 minut sprawdza GET /api/health.
+# Gdy aplikacja lub baza nie odpowiada (po 3 próbach), zadanie kończy się błędem, a GitHub
+# wysyła powiadomienie e-mail o nieudanym workflow do właściciela repozytorium
+# (Settings → Notifications → Actions: "Send notifications for failed workflows only").
+#
+# Wymaga w repozytorium (Settings → Secrets and variables → Actions → Variables):
+#   * variable APP_URL — adres aplikacji, np. https://app.derclinic.pl
+# Dopóki jej nie ma, workflow nic nie robi (kończy się sukcesem).
+# Uwaga: harmonogram GitHub Actions bywa opóźniany o kilka minut — to monitoring pomocniczy,
+# nie zastępuje usługi z SLA (np. UptimeRobot), jeśli potrzebna jest szybsza reakcja.
+name: Monitoring dostępności
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Sprawdź /api/health
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          if [ -z "$APP_URL" ]; then
+            echo "Brak APP_URL — pomijam."
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            if curl --fail --silent --show-error --max-time 20 "${APP_URL%/}/api/health" | grep -q '"ok":true'; then
+              echo "Aplikacja odpowiada (próba $attempt)."
+              exit 0
+            fi
+            echo "Brak poprawnej odpowiedzi (próba $attempt)."
+            sleep 20
+          done
+          echo "::error::Aplikacja lub baza danych nie odpowiada na /api/health."
+          exit 1

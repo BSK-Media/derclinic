@@ -11,6 +11,8 @@ i migracje w `prisma/migrations`.
 - Ochrona formularzy publicznych przed botami (L-17): pole-pułapka, minimalny czas wypełnienia, limity na endpointach dostępności terminów.
 - Lista kart do brakowania po 20 latach (L-12): Pacjenci → „Do brakowania” (tylko administrator).
 - Szyfrowanie aplikacyjne imienia, telefonu i e-maila pacjenta (pkt 5.2 dokumentacji) z indeksami ślepymi do wyszukiwania po dokładnej wartości; wyszukiwanie „zawiera” w pamięci. Migracja `20261024120000_patient_blind_index`.
+- Szyfrowanie danych do faktury (NIP, nazwa firmy, adres nabywcy) w wizytach i sprzedaży.
+- Monitoring dostępności (L-15): workflow GitHub Actions sprawdzający /api/health co 5 minut (wymaga zmiennej APP_URL).
 - Ten dziennik zmian (L-26).
 
 ## Wcześniej

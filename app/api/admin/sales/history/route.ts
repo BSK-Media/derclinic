@@ -38,6 +38,21 @@ export async function GET(req: Request) {
 
   // Imię pacjenta jest zaszyfrowane — dopasowanie robimy w pamięci i łączymy po identyfikatorach.
   const patientIds = q ? await patientIdsMatching(q, scopedLocationWhere(user!), ["name"]) : [];
+  // Dane nabywcy (nazwa, NIP) są zaszyfrowane — dopasowanie w pamięci.
+  const buyerSaleIds = q
+    ? await prisma.retailSale
+        .findMany({
+          where: { ...scopedLocationWhere(user!), OR: [{ buyerName: { not: null } }, { buyerNip: { not: null } }] },
+          select: { id: true, buyerName: true, buyerNip: true },
+        })
+        .then((rows) => {
+          const needle = q.toLocaleLowerCase("pl");
+          const nip = q.replace(/[\s-]/g, "");
+          return rows
+            .filter((row) => (row.buyerName ?? "").toLocaleLowerCase("pl").includes(needle) || (nip && (row.buyerNip ?? "").includes(nip)))
+            .map((row) => row.id);
+        })
+    : [];
 
   const where: Prisma.RetailSaleWhereInput = {
     ...scopedLocationWhere(user!),
@@ -49,8 +64,7 @@ export async function GET(req: Request) {
           OR: [
             { id: q },
             { note: { contains: q, mode: "insensitive" } },
-            { buyerName: { contains: q, mode: "insensitive" } },
-            { buyerNip: { contains: q.replace(/[\s-]/g, "") } },
+            ...(buyerSaleIds.length ? [{ id: { in: buyerSaleIds } }] : []),
             ...(patientIds.length ? [{ patientId: { in: patientIds } }] : []),
             { items: { some: { product: { name: { contains: q, mode: "insensitive" } } } } },
             { items: { some: { product: { ean: q } } } },

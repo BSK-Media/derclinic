@@ -18,6 +18,7 @@ const TABLES = {
   noteVersion: "NoteVersion",
   patient: "Patient",
   consumption: "Consumption",
+  retailSale: "RetailSale",
 } as const;
 const BATCH = 25;
 

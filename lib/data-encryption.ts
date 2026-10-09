@@ -50,10 +50,12 @@ export function decryptField(value: string | null | undefined): string | null | 
 
 // Pola szyfrowane per model (nazwy modeli jak w Prisma, z małej litery).
 export const ENCRYPTED_FIELDS = {
-  appointment: ["photoBefore", "photoAfter", "note"],
+  appointment: ["photoBefore", "photoAfter", "note", "invoiceNip", "invoiceCompanyName", "invoiceAddress"],
   // Dane identyfikacyjne pacjenta; do porównań służą skróty z lib/blind-index.ts (nameHash, emailHash, phoneHash).
   patient: ["note", "name", "phone", "email"],
   consumption: ["note"],
+  // Dane do faktury (NIP, nazwa firmy, adres) — bez wyszukiwania w bazie, filtrowanie w pamięci.
+  retailSale: ["buyerName", "buyerNip", "buyerAddress"],
   noteVersion: ["note"],
 } as const;
 
