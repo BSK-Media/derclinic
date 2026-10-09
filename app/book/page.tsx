@@ -1,5 +1,7 @@
 "use client";
 
+import { botGuardFields } from "@/lib/bot-guard-client";
+import { HoneypotField } from "@/components/honeypot-field";
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -712,6 +714,7 @@ export default function PublicBookingPage() {
           serviceId,
           date,
           time,
+          ...botGuardFields(),
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           phone: `+48${phoneDigitsOnly(phone)}`,
@@ -962,6 +965,7 @@ export default function PublicBookingPage() {
 
   return (
     <BookingShell wide bare>
+      <HoneypotField />
       {/* minmax(0,1fr): kolumna może być węższa niż jej zawartość — bez tego jedna długa nazwa kategorii rozciąga całą stronę ponad ekran telefonu. */}
       <div className={"grid grid-cols-[minmax(0,1fr)] gap-6 md:grid-cols-[240px_minmax(0,1fr)] " + (step === 1 ? "xl:grid-cols-[240px_minmax(0,1fr)_440px]" : "")}>
         <div className="hidden self-start md:sticky md:top-8 md:flex md:flex-col md:gap-6">

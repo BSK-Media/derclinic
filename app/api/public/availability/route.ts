@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { publicReadLimited } from "@/lib/rate-limit";
 import { heldRanges } from "@/lib/booking-hold-server";
 import { prisma } from "@/lib/db";
 import { parseDateInput, warsawWallTimeToUtc } from "@/lib/warsaw-time";
@@ -9,6 +10,8 @@ function bad(message: string, status = 400) {
 }
 
 export async function GET(req: Request) {
+  const limited = await publicReadLimited();
+  if (limited) return limited;
   const url = new URL(req.url);
   const specialistId = url.searchParams.get("specialistId") ?? "";
   const serviceId = url.searchParams.get("serviceId") ?? "";

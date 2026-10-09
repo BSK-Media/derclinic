@@ -43,6 +43,7 @@ export const RATE_LIMITS = {
   paymentActionIp: { scope: "payment-action-ip", limit: 60, windowMs: HOUR },
   emailTest: { scope: "email-test", limit: 10, windowMs: HOUR },
   pushManual: { scope: "push-manual", limit: 30, windowMs: HOUR },
+  publicReadIp: { scope: "public-read-ip", limit: 300, windowMs: 5 * MINUTE },
   patientExport: { scope: "patient-export", limit: 5, windowMs: HOUR },
 } satisfies Record<string, RateLimitRule>;
 
@@ -153,4 +154,10 @@ export function tooManyRequests(result: RateLimitResult, message?: string) {
 export async function failureDelay(failures: number) {
   const ms = Math.min(3000, Math.max(0, failures) * 500);
   if (ms > 0) await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Limit dla publicznych endpointów tylko do odczytu (dostępność terminów, dane rezerwacji) — ochrona przed skanowaniem. */
+export async function publicReadLimited(): Promise<NextResponse | null> {
+  const result = await hitRateLimit(RATE_LIMITS.publicReadIp, await clientIp());
+  return result.allowed ? null : tooManyRequests(result);
 }

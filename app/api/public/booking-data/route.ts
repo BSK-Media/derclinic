@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { publicReadLimited } from "@/lib/rate-limit";
 import { prisma } from "@/lib/db";
 
 // Wewnętrzna usługa używana do blokowania czasu w kalendarzu — nigdy nie
@@ -6,6 +7,8 @@ import { prisma } from "@/lib/db";
 const RESERVATION_SERVICE_NAME = "__DERCLINIC_REZERWACJA_CZASU__";
 
 export async function GET() {
+  const limited = await publicReadLimited();
+  if (limited) return limited;
   const [locations, specialists, services] = await Promise.all([
     prisma.location.findMany({
       where: { isActive: true },

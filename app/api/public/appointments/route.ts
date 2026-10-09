@@ -18,6 +18,7 @@ import {
   resolveBookingEntities,
   type BookingPayload,
 } from "@/lib/online-booking";
+import { botGuardRejects, botRejectedResponse } from "@/lib/bot-guard";
 import { RATE_LIMITS, clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 function bad(message: string, status = 400) {
@@ -94,6 +95,7 @@ export async function POST(req: Request) {
   }
 
   const json = await req.json().catch(() => null);
+  if (botGuardRejects(json)) return botRejectedResponse();
   const parsed = BodySchema.safeParse(json);
   if (!parsed.success) return bad(describeValidationError(parsed.error));
   const body = parsed.data;

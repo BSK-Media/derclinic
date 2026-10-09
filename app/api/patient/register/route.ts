@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { validatePassword } from "@/lib/password-policy";
+import { botGuardRejects, botRejectedResponse } from "@/lib/bot-guard";
 import { RATE_LIMITS, clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 function bad(message: string, status = 400, extra?: Record<string, unknown>) {
@@ -23,6 +24,7 @@ const BodySchema = z.object({
 
 export async function POST(req: Request) {
   const json = await req.json().catch(() => null);
+  if (botGuardRejects(json)) return botRejectedResponse();
   const parsed = BodySchema.safeParse(json);
   if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "Uzupełnij poprawnie wszystkie pola");
 

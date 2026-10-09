@@ -1,5 +1,7 @@
 "use client";
 
+import { botGuardFields } from "@/lib/bot-guard-client";
+import { HoneypotField } from "@/components/honeypot-field";
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -79,6 +81,7 @@ export default function PatientRegisterPage() {
           phone: `+48${digits}`,
           email: email.trim(),
           password,
+          ...botGuardFields(),
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -126,6 +129,7 @@ export default function PatientRegisterPage() {
         <GoogleLoginDivider />
 
         <form className="space-y-4" onSubmit={submit}>
+          <HoneypotField />
           <div className="grid grid-cols-2 gap-3">
             <label className="block space-y-1.5">
               <span className="text-xs font-medium text-zinc-600">Imię *</span>

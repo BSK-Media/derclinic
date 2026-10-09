@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { publicReadLimited } from "@/lib/rate-limit";
 import { heldRanges } from "@/lib/booking-hold-server";
 import { prisma } from "@/lib/db";
 import { parseDateInput, warsawWallTimeToUtc } from "@/lib/warsaw-time";
@@ -16,6 +17,8 @@ function dateKey(p: { year: number; month: number; day: number }) {
 // godzin) — używane do wyszarzania pustych dni na pasku tygodnia, jednym zapytaniem
 // dla całego widocznego zakresu zamiast osobno dla każdego dnia.
 export async function GET(req: Request) {
+  const limited = await publicReadLimited();
+  if (limited) return limited;
   const url = new URL(req.url);
   const serviceId = url.searchParams.get("serviceId") ?? "";
   const specialistId = url.searchParams.get("specialistId") ?? "";
