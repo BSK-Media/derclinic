@@ -702,7 +702,7 @@ export function AdminAddProductDialog({
               </div>
               <fieldset
                 disabled={manualProduct !== NEW_PRODUCT}
-                className={`min-w-0 sm:col-span-2 space-y-1 transition ${manualProduct !== NEW_PRODUCT ? "pointer-events-none select-none opacity-60 blur-[2px]" : ""}`}
+                className={`min-w-0 sm:col-span-2 space-y-1 transition ${manualProduct !== NEW_PRODUCT ? "pointer-events-none select-none opacity-50 grayscale" : ""}`}
                 aria-label="Dane nowego produktu"
               >
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nowy produkt</div>
