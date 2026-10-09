@@ -201,6 +201,12 @@ model Patient {
   email String?
   note  String?
 
+  // Skróty HMAC (indeksy ślepe) do wyszukiwania po dokładnej wartości — pola name/phone/email są
+  // zaszyfrowane aplikacyjnie (lib/blind-index.ts). Nie wychodzą poza warstwę dostępu do danych.
+  nameHash  String?
+  emailHash String?
+  phoneHash String?
+
   // Hasło konta pacjenta (opcjonalne — ustawiane, gdy klient zakłada konto przy
   // rezerwacji online zamiast kontynuować jako gość). Panel logowania klienta
   // to osobny, przyszły etap; na razie tylko zapisujemy dane konta.
@@ -251,8 +257,9 @@ model Patient {
   sessions           PatientSession[]
   pushSubscriptions  PushSubscription[]
 
-  @@index([name])
-  @@index([phone])
+  @@index([nameHash])
+  @@index([emailHash])
+  @@index([phoneHash])
   @@index([locationId])
   @@index([passwordResetTokenHash])
 }

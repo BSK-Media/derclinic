@@ -1,3 +1,4 @@
+import { patientIdsMatching } from "@/lib/patient-search";
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
@@ -35,6 +36,9 @@ export async function GET(req: Request) {
     });
   }
 
+  // Imię pacjenta jest zaszyfrowane — dopasowanie robimy w pamięci i łączymy po identyfikatorach.
+  const patientIds = q ? await patientIdsMatching(q, scopedLocationWhere(user!), ["name"]) : [];
+
   const where: Prisma.RetailSaleWhereInput = {
     ...scopedLocationWhere(user!),
     ...(from || to ? { createdAt } : {}),
@@ -47,7 +51,7 @@ export async function GET(req: Request) {
             { note: { contains: q, mode: "insensitive" } },
             { buyerName: { contains: q, mode: "insensitive" } },
             { buyerNip: { contains: q.replace(/[\s-]/g, "") } },
-            { patient: { name: { contains: q, mode: "insensitive" } } },
+            ...(patientIds.length ? [{ patientId: { in: patientIds } }] : []),
             { items: { some: { product: { name: { contains: q, mode: "insensitive" } } } } },
             { items: { some: { product: { ean: q } } } },
           ],

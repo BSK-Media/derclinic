@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { subscribedPatientWhere } from "@/lib/newsletter-recipients";
+import { comparePolish, patientIdsMatching } from "@/lib/patient-search";
 
 // Wyszukiwarka klientów do wyboru odbiorców i do list newslettera. Każdy wynik
 // ma flagę `subscribed`: czy klient w ogóle może dostać newsletter (zgoda
@@ -18,20 +19,13 @@ export async function GET(req: Request) {
   const ids = (url.searchParams.get("ids") ?? "").split(",").filter(Boolean).slice(0, 500);
   const scope = user!.locationScopeId ? { locationId: user!.locationScopeId } : {};
 
+  // Imię, telefon i e-mail są zaszyfrowane — wyszukiwanie i sortowanie po nazwisku robimy w pamięci.
+  const matchedIds = !ids.length && q ? await patientIdsMatching(q, scope) : null;
   const where = ids.length
     ? { id: { in: ids }, ...scope }
-    : {
-        ...scope,
-        ...(q
-          ? {
-              OR: [
-                { name: { contains: q, mode: "insensitive" as const } },
-                { email: { contains: q, mode: "insensitive" as const } },
-                { phone: { contains: q } },
-              ],
-            }
-          : {}),
-      };
+    : matchedIds
+      ? { ...scope, id: { in: matchedIds } }
+      : scope;
 
   const select = { id: true, name: true, email: true, phone: true } as const;
   const subscribedWhere = subscribedPatientWhere(null);
@@ -40,21 +34,15 @@ export async function GET(req: Request) {
   // bez zgody (też alfabetycznie). Dwa zapytania, żeby limit wyników nie
   // wycinał klientów ze zgodą na rzecz tych bez zgody.
   const limit = ids.length ? 500 : 30;
-  const withConsent = await prisma.patient.findMany({
-    where: { AND: [where, subscribedWhere] },
-    orderBy: { name: "asc" },
-    take: limit,
-    select,
-  });
+  const byName = <T extends { name: string }>(rows: T[]) => rows.sort((a, b) => comparePolish(a.name, b.name));
+  const withConsent = byName(await prisma.patient.findMany({ where: { AND: [where, subscribedWhere] }, select })).slice(0, limit);
   const withoutConsent =
     withConsent.length >= limit
       ? []
-      : await prisma.patient.findMany({
-          where: { AND: [where, { NOT: subscribedWhere }] },
-          orderBy: { name: "asc" },
-          take: limit - withConsent.length,
-          select,
-        });
+      : byName(await prisma.patient.findMany({ where: { AND: [where, { NOT: subscribedWhere }] }, select })).slice(
+          0,
+          limit - withConsent.length,
+        );
 
   return NextResponse.json({
     ok: true,

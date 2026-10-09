@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { isAdminLike } from "@/lib/roles";
+import { patientIdsMatching } from "@/lib/patient-search";
 
 export async function GET(req: Request) {
   const { user, error } = await requireAuth();
@@ -15,16 +16,12 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const q = (url.searchParams.get("q") ?? "").trim();
 
+  // Imię, telefon i e-mail są zaszyfrowane — szukamy w pamięci (lib/patient-search.ts).
+  const matchedIds = q ? await patientIdsMatching(q, scopedLocationWhere(user!)) : null;
+
   const patients = await prisma.patient.findMany({
-    where: q
-      ? {
-          ...scopedLocationWhere(user!),
-          OR: [
-            { name: { contains: q, mode: "insensitive" } },
-            { phone: { contains: q, mode: "insensitive" } },
-            { email: { contains: q, mode: "insensitive" } },
-          ],
-        }
+    where: matchedIds
+      ? { ...scopedLocationWhere(user!), id: { in: matchedIds } }
       : scopedLocationWhere(user!),
     orderBy: { createdAt: "desc" },
     take: 200,

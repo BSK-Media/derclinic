@@ -22,10 +22,10 @@ export async function POST() {
   const stepUp = requireStepUp(user!);
   if (stepUp) return stepUp;
 
-  const candidates = await prisma.patient.findMany({
-    where: { phone: { startsWith: "+4848" } },
-    select: { id: true, phone: true },
-  });
+  // Telefon jest zaszyfrowany w bazie — kandydatów wybieramy w pamięci.
+  const candidates = (
+    await prisma.patient.findMany({ where: { phone: { not: null } }, select: { id: true, phone: true } })
+  ).filter((patient) => patient.phone?.startsWith("+4848"));
 
   let fixed = 0;
   for (const patient of candidates) {

@@ -28,12 +28,13 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       id: true,
       name: true,
       members: {
-        orderBy: { patient: { name: "asc" } },
         select: { patient: { select: { id: true, name: true, email: true, phone: true } } },
       },
     },
   });
   if (!list) return bad("Nie znaleziono listy", 404);
+  // Imię pacjenta jest zaszyfrowane — sortowanie alfabetyczne w pamięci.
+  list.members.sort((a, b) => a.patient.name.localeCompare(b.patient.name, "pl", { sensitivity: "base" }));
 
   const subscribedIds = new Set(
     (

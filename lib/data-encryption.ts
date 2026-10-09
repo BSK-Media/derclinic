@@ -51,7 +51,8 @@ export function decryptField(value: string | null | undefined): string | null | 
 // Pola szyfrowane per model (nazwy modeli jak w Prisma, z małej litery).
 export const ENCRYPTED_FIELDS = {
   appointment: ["photoBefore", "photoAfter", "note"],
-  patient: ["note"],
+  // Dane identyfikacyjne pacjenta; do porównań służą skróty z lib/blind-index.ts (nameHash, emailHash, phoneHash).
+  patient: ["note", "name", "phone", "email"],
   consumption: ["note"],
   noteVersion: ["note"],
 } as const;
@@ -91,6 +92,9 @@ export function encryptWriteArgs(model: EncryptedModel, operation: string, args:
  * Odszyfrowuje wszystkie zaszyfrowane wartości w wyniku zapytania — także
  * w relacjach dołączonych przez include/select (np. wizyta → pacjent → notatka).
  */
+// Skróty z indeksów ślepych to szczegół techniczny bazy — nie wychodzą poza warstwę dostępu do danych.
+const HIDDEN_KEYS = new Set(["nameHash", "emailHash", "phoneHash"]);
+
 export function decryptDeep<T>(value: T): T {
   if (typeof value === "string") return (isEncrypted(value) ? decryptField(value) : value) as T;
   if (!value || typeof value !== "object") return value;
@@ -103,6 +107,10 @@ export function decryptDeep<T>(value: T): T {
   const proto = Object.getPrototypeOf(value);
   if (proto !== Object.prototype && proto !== null) return value;
   for (const key of Object.keys(value as Record<string, unknown>)) {
+    if (HIDDEN_KEYS.has(key)) {
+      delete (value as Record<string, unknown>)[key];
+      continue;
+    }
     (value as Record<string, unknown>)[key] = decryptDeep((value as Record<string, unknown>)[key]);
   }
   return value;

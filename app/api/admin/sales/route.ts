@@ -1,3 +1,4 @@
+import { comparePolish } from "@/lib/patient-search";
 import { NextResponse } from "next/server";
 import { applyLotChange } from "@/lib/lot-allocation";
 import { PATIENT_PUBLIC_SELECT } from "@/lib/patient-select";
@@ -34,12 +35,10 @@ export async function GET() {
       },
     }),
     prisma.warehouse.findMany({ where: scopedLocationWhere(user!), orderBy: [{ parentId: "asc" }, { name: "asc" }] }),
-    prisma.patient.findMany({
-      where: scopedLocationWhere(user!),
-      orderBy: { name: "asc" },
-      take: 500,
-      select: PATIENT_PUBLIC_SELECT,
-    }),
+    // Imię jest zaszyfrowane — sortowanie alfabetyczne i limit w pamięci.
+    prisma.patient
+      .findMany({ where: scopedLocationWhere(user!), select: PATIENT_PUBLIC_SELECT })
+      .then((rows) => rows.sort((a, b) => comparePolish(a.name, b.name)).slice(0, 500)),
     prisma.retailSale.findMany({
       where: scopedLocationWhere(user!),
       orderBy: { createdAt: "desc" },

@@ -1,3 +1,4 @@
+import { comparePolish } from "@/lib/patient-search";
 import { NextResponse, after } from "next/server";
 import { appBaseUrl, notifyAppointmentBooked } from "@/lib/email-notifications";
 import { PATIENT_PUBLIC_SELECT } from "@/lib/patient-select";
@@ -92,13 +93,14 @@ export async function GET(req: Request) {
         },
         take: 500,
       }),
-      prisma.patient.findMany({
-        where: { ...locationWhere, name: { not: RESERVATION_PATIENT_NAME } },
-        orderBy: { name: "asc" },
-        take: 500,
-        // Bez hasha hasła i tokenu resetu.
-        select: PATIENT_PUBLIC_SELECT,
-      }),
+      // Imię jest zaszyfrowane — sortowanie alfabetyczne i limit w pamięci.
+      prisma.patient
+        .findMany({
+          where: { ...locationWhere, name: { not: RESERVATION_PATIENT_NAME } },
+          // Bez hasha hasła i tokenu resetu.
+          select: PATIENT_PUBLIC_SELECT,
+        })
+        .then((rows) => rows.sort((a, b) => comparePolish(a.name, b.name)).slice(0, 500)),
       prisma.user.findMany({
         where: { role: "SPECIALIST", ...locationWhere },
         orderBy: { name: "asc" },

@@ -5,6 +5,7 @@ import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { requireStepUp } from "@/lib/mfa";
 import { ENCRYPTED_FIELDS, ENCRYPTED_PREFIX, encryptField } from "@/lib/data-encryption";
+import { BLIND_COLUMNS, blindIndex, type BlindField } from "@/lib/blind-index";
 
 // Jednorazowe zaszyfrowanie danych zapisanych przed wdrożeniem szyfrowania
 // (zdjęcia z wizyt, notatki). Nowe dane są szyfrowane automatycznie
@@ -31,8 +32,37 @@ async function countPlain(model: Model, field: string) {
   return Number(rows[0]?.count ?? 0);
 }
 
+// Pacjenci, którzy mają zaszyfrowane imię/telefon/e-mail, ale nie mają jeszcze skrótu do wyszukiwania.
+const BLIND_FIELDS = Object.keys(BLIND_COLUMNS) as BlindField[];
+function missingBlindWhere() {
+  return Prisma.sql`("name" <> '' AND "nameHash" IS NULL) OR ("email" <> '' AND "emailHash" IS NULL) OR ("phone" <> '' AND "phoneHash" IS NULL)`;
+}
+
+async function countMissingBlind() {
+  const rows = await prisma.$queryRaw<{ count: bigint }[]>`
+    SELECT COUNT(*)::bigint AS count FROM "Patient" WHERE ${missingBlindWhere()}`;
+  return Number(rows[0]?.count ?? 0);
+}
+
+async function fillBlindIndexes(limit: number) {
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT "id" FROM "Patient" WHERE ${missingBlindWhere()} LIMIT ${limit}`;
+  let filled = 0;
+  for (const row of rows) {
+    const patient = await prisma.patient.findUnique({ where: { id: row.id }, select: { name: true, email: true, phone: true } });
+    if (!patient) continue;
+    for (const field of BLIND_FIELDS) {
+      const hash = blindIndex(field, patient[field]);
+      const column = Prisma.raw(`"${BLIND_COLUMNS[field]}"`);
+      await prisma.$executeRaw`UPDATE "Patient" SET ${column} = ${hash} WHERE "id" = ${row.id}`;
+    }
+    filled++;
+  }
+  return filled;
+}
+
 async function remaining() {
-  let total = 0;
+  let total = await countMissingBlind();
   for (const [model, fields] of Object.entries(ENCRYPTED_FIELDS) as [Model, readonly string[]][]) {
     for (const field of fields) total += await countPlain(model, field);
   }
@@ -75,6 +105,9 @@ export async function POST() {
       if (encrypted >= BATCH) break outer;
     }
   }
+
+  // Skróty do wyszukiwania pacjentów (po zaszyfrowaniu imienia, telefonu, e-maila).
+  if (encrypted < BATCH) encrypted += await fillBlindIndexes(BATCH - encrypted);
 
   const left = await remaining();
   if (encrypted > 0) {

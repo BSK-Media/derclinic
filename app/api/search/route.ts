@@ -1,3 +1,4 @@
+import { comparePolish, patientIdsMatching } from "@/lib/patient-search";
 import { NextResponse } from "next/server";
 import { parseScan } from "@/lib/barcode";
 import { prisma } from "@/lib/db";
@@ -40,12 +41,14 @@ export async function GET(req: Request) {
 
   // ── SPECJALISTA: wyszukiwanie tylko własnych wizyt ─────────────────────
   if (user!.role === "SPECIALIST") {
+    // Imię pacjenta jest zaszyfrowane — dopasowanie w pamięci (tylko pacjenci tego specjalisty).
+    const ownPatientIds = await patientIdsMatching(q, { appointments: { some: { specialistId: user!.id } } }, ["name"]);
     const appointments = await prisma.appointment.findMany({
       where: {
         specialistId: user!.id,
         deletedAt: null,
         OR: [
-          { patient: { name: contains } },
+          { patientId: { in: ownPatientIds } },
           { service: { name: contains } },
           { customServiceName: contains },
         ],
@@ -79,15 +82,18 @@ export async function GET(req: Request) {
   }
 
   // ── ADMIN / RECEPCJA: kategorie zgodne z uprawnieniami sidebara ────────
+  // Imię, telefon i e-mail pacjenta są zaszyfrowane — dopasowanie w pamięci.
+  const matchedPatientIds = can("patients") || can("appointments") ? await patientIdsMatching(q, locationWhere) : [];
+  const matchedNameIds = new Set(await patientIdsMatching(q, locationWhere, ["name"]));
   const [patients, appointments, specialists, products, services, warehouses, locations] =
     await Promise.all([
       can("patients")
-        ? prisma.patient.findMany({
-            where: { ...locationWhere, OR: [{ name: contains }, { phone: contains }, { email: contains }] },
-            select: { id: true, name: true, phone: true, email: true },
-            orderBy: { name: "asc" },
-            take: LIMIT,
-          })
+        ? prisma.patient
+            .findMany({
+              where: { ...locationWhere, id: { in: matchedPatientIds } },
+              select: { id: true, name: true, phone: true, email: true },
+            })
+            .then((rows) => rows.sort((a, b) => comparePolish(a.name, b.name)).slice(0, LIMIT))
         : Promise.resolve([]),
       can("appointments")
         ? prisma.appointment.findMany({
@@ -95,7 +101,7 @@ export async function GET(req: Request) {
               deletedAt: null,
               ...locationWhere,
               OR: [
-                { patient: { name: contains } },
+                { patientId: { in: [...matchedNameIds] } },
                 { service: { name: contains } },
                 { customServiceName: contains },
                 { specialist: { name: contains } },

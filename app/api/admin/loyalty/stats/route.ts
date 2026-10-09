@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
+import { comparePolish, patientIdsMatching } from "@/lib/patient-search";
 
 const LIMIT = 200;
 
@@ -18,28 +19,19 @@ export async function GET(req: Request) {
   const onlyWithPoints = url.searchParams.get("onlyWithPoints") === "1";
   const scope = user!.locationScopeId ? { locationId: user!.locationScopeId } : {};
 
-  const where = {
+  const base = {
     ...scope,
     ...(onlyWithPoints ? { loyaltyPoints: { gt: 0 } } : {}),
-    ...(q
-      ? {
-          OR: [
-            { name: { contains: q, mode: "insensitive" as const } },
-            { email: { contains: q, mode: "insensitive" as const } },
-            { phone: { contains: q } },
-          ],
-        }
-      : {}),
   };
+  // Imię, telefon i e-mail są zaszyfrowane — wyszukiwanie i sortowanie po nazwisku robimy w pamięci.
+  const matchedIds = q ? await patientIdsMatching(q, base) : null;
+  const where = matchedIds ? { ...base, id: { in: matchedIds } } : base;
 
-  const [patients, totalPatients, balance, withPoints, byType] = await Promise.all([
+  const [allMatching, balance, withPoints, byType] = await Promise.all([
     prisma.patient.findMany({
       where,
-      orderBy: [{ loyaltyPoints: "desc" }, { name: "asc" }],
-      take: LIMIT,
       select: { id: true, name: true, phone: true, email: true, loyaltyPoints: true },
     }),
-    prisma.patient.count({ where }),
     prisma.patient.aggregate({ where: scope, _sum: { loyaltyPoints: true } }),
     prisma.patient.count({ where: { ...scope, loyaltyPoints: { gt: 0 } } }),
     prisma.loyaltyPointsTransaction.groupBy({
@@ -48,6 +40,10 @@ export async function GET(req: Request) {
       _sum: { points: true },
     }),
   ]);
+
+  allMatching.sort((a, b) => b.loyaltyPoints - a.loyaltyPoints || comparePolish(a.name, b.name));
+  const totalPatients = allMatching.length;
+  const patients = allMatching.slice(0, LIMIT);
 
   const perPatient = patients.length
     ? await prisma.loyaltyPointsTransaction.groupBy({
