@@ -43,6 +43,7 @@ type Product = {
   ean: string | null;
   category: "PREPARATION" | "COSMETIC";
   unit: string;
+  customUnit?: string | null;
   salePrice: number | null;
   vatRate: string;
   isActive: boolean;
@@ -96,7 +97,8 @@ const SALE_STATUS_LABELS: Record<string, string> = {
 
 const NO_PATIENT = "__NONE__";
 
-function unitLabel(unit: string) {
+function unitLabel(unit: string, customUnit?: string | null) {
+  if (customUnit) return customUnit;
   return UNIT_LABELS[unit] ?? unit;
 }
 
@@ -455,7 +457,7 @@ export default function PosPage() {
     const inCart = parseFloat(cart.find((i) => i.productId === product.id)?.quantity ?? "0") || 0;
     addToCart(product.id);
     if (inCart + 1 > stock) {
-      toast.warning(`${product.name}: w koszyku więcej niż na stanie (${stock} ${unitLabel(product.unit)})`);
+      toast.warning(`${product.name}: w koszyku więcej niż na stanie (${stock} ${unitLabel(product.unit, product.customUnit)})`);
     } else {
       toast.success(`Dodano: ${product.name}`);
     }
@@ -744,7 +746,7 @@ export default function PosPage() {
                           {formatPLNFromGrosze(product.salePrice)}
                         </span>
                         <span className="text-xs text-zinc-500">
-                          Stan: {stock} {unitLabel(product.unit)}
+                          Stan: {stock} {unitLabel(product.unit, product.customUnit)}
                         </span>
                       </div>
                       {inCart ? (
@@ -786,7 +788,7 @@ export default function PosPage() {
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">{product.name}</div>
                       <div className="text-xs text-zinc-500">
-                        {formatPLNFromGrosze(product.salePrice)} / {unitLabel(product.unit)} · VAT {vatRateLabel(product.vatRate)}
+                        {formatPLNFromGrosze(product.salePrice)} / {unitLabel(product.unit, product.customUnit)} · VAT {vatRateLabel(product.vatRate)}
                       </div>
                     </div>
                     <Input

@@ -16,18 +16,14 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { parsePLNToGrosze } from "@/lib/money";
 import { VAT_RATES } from "@/lib/vat";
+import { categoryChoices, unitChoices, unitFromSelectValue, unitSelectValue, type ProductOptions } from "@/lib/product-options";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-const UNIT_OPTIONS = [
-  { value: "UNIT", label: "szt." },
-  { value: "ML", label: "ml" },
-  { value: "AMPULE", label: "ampułka" },
-  { value: "BOTOX_UNIT", label: "jedn. botox" },
-] as const;
+const NO_CATEGORY = "__none__";
 
-function unitLabel(unit: string) {
-  return UNIT_OPTIONS.find((u) => u.value === unit)?.label ?? unit;
+function unitLabel(value: string) {
+  return unitChoices(undefined, value).find((u) => u.value === value)?.label ?? value;
 }
 
 function money(value: number | null | undefined) {
@@ -79,7 +75,7 @@ export default function ProductDetailsPage() {
 
       <ServicesUsingProductCard
         productId={product.id}
-        productUnit={product.unit}
+        productUnit={unitSelectValue(product.unit, product.customUnit)}
         suggestions={(product.serviceSuggestions ?? []) as Suggestion[]}
         services={services}
         onChanged={() => mutate()}
@@ -153,6 +149,10 @@ function EditProductCard({ product, onSaved }: { product: any; onSaved: () => vo
   const [sku, setSku] = useState("");
   const [ean, setEan] = useState("");
   const [unit, setUnit] = useState("UNIT");
+  const { data: productOptions } = useSWR<{ ok: boolean } & ProductOptions>(
+    "/api/admin/settings/product-options",
+    (url: string) => fetch(url).then((r) => r.json()),
+  );
   const [purchasePrice, setPurchasePrice] = useState("");
   const [salePrice, setSalePrice] = useState("");
   const [vatRate, setVatRate] = useState("VAT_23");
@@ -165,7 +165,7 @@ function EditProductCard({ product, onSaved }: { product: any; onSaved: () => vo
     setCatalogCategory(product.catalogCategory ?? "");
     setSku(product.sku ?? "");
     setEan(product.ean ?? "");
-    setUnit(product.unit ?? "UNIT");
+    setUnit(unitSelectValue(product.unit, product.customUnit));
     setPurchasePrice(product.purchasePrice != null ? (product.purchasePrice / 100).toString() : "");
     setSalePrice(product.salePrice != null ? (product.salePrice / 100).toString() : "");
     setVatRate(product.vatRate ?? "VAT_23");
@@ -185,7 +185,7 @@ function EditProductCard({ product, onSaved }: { product: any; onSaved: () => vo
           catalogCategory: catalogCategory.trim() || null,
           sku: sku.trim(),
           ean: ean.trim(),
-          unit,
+          ...unitFromSelectValue(unit),
           purchasePrice: purchasePrice.trim() ? parsePLNToGrosze(purchasePrice) : null,
           salePrice: salePrice.trim() ? parsePLNToGrosze(salePrice) : null,
           vatRate,
@@ -216,7 +216,15 @@ function EditProductCard({ product, onSaved }: { product: any; onSaved: () => vo
           </div>
           <div className="space-y-2">
             <Label>Kategoria</Label>
-            <Input value={catalogCategory} onChange={(e) => setCatalogCategory(e.target.value)} />
+            <Select value={catalogCategory || NO_CATEGORY} onValueChange={(v) => setCatalogCategory(v === NO_CATEGORY ? "" : v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_CATEGORY}>— brak —</SelectItem>
+                {categoryChoices(productOptions, catalogCategory).map((name) => (
+                  <SelectItem key={name} value={name}>{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label>SKU</Label>
@@ -227,11 +235,11 @@ function EditProductCard({ product, onSaved }: { product: any; onSaved: () => vo
             <Input value={ean} onChange={(e) => setEan(e.target.value)} placeholder="np. 5901234123457" />
           </div>
           <div className="space-y-2">
-            <Label>Jednostka</Label>
+            <Label>Jednostka miary</Label>
             <Select value={unit} onValueChange={setUnit}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {UNIT_OPTIONS.map((u) => (
+                {unitChoices(productOptions, unit).map((u) => (
                   <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
                 ))}
               </SelectContent>
@@ -413,7 +421,7 @@ function ServicesUsingProductCard({
                 <TableHead>Zabieg</TableHead>
                 <TableHead>Kategoria</TableHead>
                 <TableHead className="w-40">Ilość na zabieg</TableHead>
-                <TableHead className="w-28">Jednostka</TableHead>
+                <TableHead className="w-28">Jednostka miary</TableHead>
                 <TableHead className="w-56">Działania</TableHead>
               </TableRow>
             </TableHeader>
@@ -503,11 +511,11 @@ function ServicesUsingProductCard({
               <Input value={newQty} onChange={(e) => setNewQty(e.target.value)} placeholder="np. 1, 0.5, 20" />
             </div>
             <div className="space-y-2">
-              <Label>Jednostka</Label>
+              <Label>Jednostka miary</Label>
               <Select value={productUnit} disabled>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {UNIT_OPTIONS.map((u) => (
+                  {unitChoices(undefined, productUnit).map((u) => (
                     <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
                   ))}
                 </SelectContent>

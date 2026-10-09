@@ -19,6 +19,8 @@ import {
 } from "@/lib/receiving";
 import { useScannerInput } from "@/lib/use-scanner-input";
 import { VAT_RATES } from "@/lib/vat";
+import useSWR from "swr";
+import { categoryChoices, unitChoices, unitFromSelectValue, type ProductOptions } from "@/lib/product-options";
 
 const NEW_PRODUCT = "__new_product__";
 const NEW_REF_PREFIX = "new:";
@@ -55,14 +57,7 @@ type LookupResult = {
   product: (ProductOption & { ean: string | null }) | null;
 };
 
-const UNIT_OPTIONS = [
-  { value: "UNIT", label: "szt." },
-  { value: "ML", label: "ml" },
-  { value: "MG", label: "mg" },
-  { value: "G", label: "g" },
-  { value: "AMPULE", label: "ampułka" },
-  { value: "BOTOX_UNIT", label: "jednostka botoksu" },
-] as const;
+const NO_CATEGORY = "__none__";
 
 let idCounter = 0;
 function nextId(prefix: string) {
@@ -111,6 +106,10 @@ export function AdminAddProductDialog({
   initialScanCode?: string;
   onSaved: () => void | Promise<void>;
 }) {
+  const { data: listOptions } = useSWR<{ ok: boolean } & ProductOptions>(
+    "/api/admin/settings/product-options",
+    (url: string) => fetch(url).then((r) => r.json()),
+  );
   const [warehouseId, setWarehouseId] = React.useState(fixedWarehouseId ?? "");
   const [lines, setLines] = React.useState<ReceiptLine[]>([]);
   const [drafts, setDrafts] = React.useState<Record<string, NewProductDraft>>({});
@@ -354,7 +353,7 @@ export function AdminAddProductDialog({
         ean: draft.ean.trim() || undefined,
         sku: draft.sku.trim() || undefined,
         catalogCategory: draft.catalogCategory.trim() || undefined,
-        unit: draft.unit,
+        ...unitFromSelectValue(draft.unit),
         purchasePrice: purchase,
         salePrice: sale,
         vatRate: draft.vatRate,
@@ -619,7 +618,18 @@ export function AdminAddProductDialog({
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor={`${draft.id}-category`}>Kategoria (opcjonalnie)</Label>
-                  <Input id={`${draft.id}-category`} value={draft.catalogCategory} onChange={(event) => updateDraft(draft.id, { catalogCategory: event.target.value })} />
+                  <Select
+                    value={draft.catalogCategory || NO_CATEGORY}
+                    onValueChange={(value) => updateDraft(draft.id, { catalogCategory: value === NO_CATEGORY ? "" : value })}
+                  >
+                    <SelectTrigger id={`${draft.id}-category`}><SelectValue /></SelectTrigger>
+                    <SelectContent disablePortal>
+                      <SelectItem value={NO_CATEGORY}>— brak —</SelectItem>
+                      {categoryChoices(listOptions, draft.catalogCategory).map((name) => (
+                        <SelectItem key={name} value={name}>{name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor={`${draft.id}-ean`}>EAN (opcjonalnie)</Label>
@@ -630,11 +640,11 @@ export function AdminAddProductDialog({
                   <Input id={`${draft.id}-sku`} value={draft.sku} onChange={(event) => updateDraft(draft.id, { sku: event.target.value })} />
                 </div>
                 <div className="space-y-1">
-                  <Label>Jednostka</Label>
+                  <Label>Jednostka miary</Label>
                   <Select value={draft.unit} onValueChange={(unit) => updateDraft(draft.id, { unit })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent disablePortal>
-                      {UNIT_OPTIONS.map((option) => (
+                      {unitChoices(listOptions, draft.unit).map((option) => (
                         <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                       ))}
                     </SelectContent>

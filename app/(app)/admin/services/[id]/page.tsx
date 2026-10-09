@@ -668,7 +668,7 @@ export default function ServiceDetailsPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Jednostka</Label>
+              <Label>Jednostka miary</Label>
               <Select value={selectedProduct?.unit} disabled>
                 <SelectTrigger>
                   <SelectValue placeholder="Wybierz preparat" />

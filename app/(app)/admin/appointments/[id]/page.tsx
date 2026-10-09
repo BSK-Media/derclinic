@@ -646,7 +646,7 @@ export default function AdminAppointmentDetail() {
             <Input value={qty} onChange={(e) => setQty(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>Jednostka</Label>
+            <Label>Jednostka miary</Label>
             <Select value={selectedProduct?.unit} disabled>
               <SelectTrigger>
                 <SelectValue placeholder="Wybierz produkt" />

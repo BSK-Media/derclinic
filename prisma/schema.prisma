@@ -434,6 +434,7 @@ model Product {
   unit            UnitType        @default(UNIT)
   manufacturer    String?
   catalogCategory String?
+  customUnit      String? // własna jednostka miary (przy unit = UNIT), z listy ProductUnitOption
 
   purchasePrice Int? // grosze
   salePrice     Int? // grosze, brutto
@@ -1356,4 +1357,16 @@ model PushConfig {
   createdAt          DateTime @default(now())
   vapidPublicKey     String
   vapidPrivateKeyEnc String
+}
+
+model ProductCategoryOption {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  name      String   @unique
+}
+
+model ProductUnitOption {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  name      String   @unique
 }
