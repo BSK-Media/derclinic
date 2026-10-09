@@ -9,6 +9,7 @@ i migracje w `prisma/migrations`.
 - Okno „Dodaj produkty do magazynu”: wszystkie pola widoczne od razu, pola nowego produktu wyszarzone do wyboru „Nowy produkt”.
 - Kotwica dziennika zdarzeń (L-07): codzienny e-mail do administratorów ze skrótem dziennika, `/api/cron/audit-anchor`.
 - Ochrona formularzy publicznych przed botami (L-17): pole-pułapka, minimalny czas wypełnienia, limity na endpointach dostępności terminów.
+- Lista kart do brakowania po 20 latach (L-12): Pacjenci → „Do brakowania” (tylko administrator).
 - Ten dziennik zmian (L-26).
 
 ## Wcześniej

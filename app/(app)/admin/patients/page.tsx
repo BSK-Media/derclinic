@@ -254,6 +254,14 @@ export default function AdminPatientsPage() {
               Duplikaty
             </Link>
           ) : null}
+          {isAdmin ? (
+            <Link
+              href="/admin/patients/retention"
+              className="hidden shrink-0 items-center rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900 md:inline-flex"
+            >
+              Do brakowania
+            </Link>
+          ) : null}
           <Link
             href="/admin/patients/data-change-requests"
             className="relative inline-flex shrink-0 items-center rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
