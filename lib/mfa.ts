@@ -6,7 +6,7 @@ import type { User } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getKey } from "@/lib/auth-keys";
 import { ISSUER, revokeAllStaffSessions } from "@/lib/session-core";
-import { keyedHash, keyedHashCandidates, openSecret } from "@/lib/secret-box";
+import { isSealedWithCurrentKey, keyedHash, keyedHashCandidates, openSecret, sealSecret } from "@/lib/secret-box";
 import { verifyTotp } from "@/lib/totp";
 import { logAudit } from "@/lib/audit";
 import { RATE_LIMITS, clientIp, failureDelay, hitRateLimit, peekRateLimit, resetRateLimit, tooManyRequests } from "@/lib/rate-limit";
@@ -185,8 +185,17 @@ export async function verifySecondFactor(
   let method: "TOTP" | "RECOVERY_CODE" | null = null;
 
   if (input.code && user.mfaTotpSecretEnc) {
-    const step = verifyTotp(openSecret(user.mfaTotpSecretEnc), input.code, { lastUsedStep: user.mfaTotpLastStep });
+    const totpSecret = openSecret(user.mfaTotpSecretEnc);
+    const step = verifyTotp(totpSecret, input.code, { lastUsedStep: user.mfaTotpLastStep });
     if (step !== null) {
+      // Sekret zaszyfrowany starszym kluczem (np. wyprowadzonym z AUTH_SECRET) przepisujemy
+      // na bieżący klucz przy pierwszym udanym logowaniu.
+      if (!isSealedWithCurrentKey(user.mfaTotpSecretEnc)) {
+        await prisma.user.updateMany({
+          where: { id: user.id, mfaTotpSecretEnc: user.mfaTotpSecretEnc },
+          data: { mfaTotpSecretEnc: sealSecret(totpSecret) },
+        });
+      }
       // Warunek na lastStep chroni przed równoległym użyciem tego samego kodu.
       const updated = await prisma.user.updateMany({
         where: {

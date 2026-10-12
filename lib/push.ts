@@ -9,7 +9,7 @@
 
 import webpush from "web-push";
 import { prisma } from "@/lib/db";
-import { openSecret, sealSecret } from "@/lib/secret-box";
+import { isSealedWithCurrentKey, openSecret, sealSecret } from "@/lib/secret-box";
 import type { EmailType } from "@/lib/email-types";
 
 const CONFIG_ID = "default";
@@ -60,7 +60,17 @@ export async function getVapidKeys(): Promise<VapidKeys> {
   }
   if (!row) throw new Error("Nie udało się przygotować kluczy powiadomień push");
 
-  cachedKeys = { publicKey: row.vapidPublicKey, privateKey: openSecret(row.vapidPrivateKeyEnc) };
+  const privateKey = openSecret(row.vapidPrivateKeyEnc);
+  // Klucz zaszyfrowany starszym kluczem przepisujemy na bieżący (jednorazowo).
+  if (!isSealedWithCurrentKey(row.vapidPrivateKeyEnc)) {
+    await prisma.pushConfig
+      .updateMany({
+        where: { id: CONFIG_ID, vapidPrivateKeyEnc: row.vapidPrivateKeyEnc },
+        data: { vapidPrivateKeyEnc: sealSecret(privateKey) },
+      })
+      .catch(() => {});
+  }
+  cachedKeys = { publicKey: row.vapidPublicKey, privateKey };
   return cachedKeys;
 }
 

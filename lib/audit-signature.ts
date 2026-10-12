@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { getKey } from "@/lib/auth-keys";
+import { getKey, getVerificationKeys } from "@/lib/auth-keys";
 
 // Podpis wpisu dziennika zdarzeń (audyt F-11). Klucz nie jest przechowywany
 // w bazie, więc osoba z dostępem wyłącznie do bazy nie podrobi podpisu po
@@ -56,13 +56,21 @@ function canonical(entry: SignableAuditEntry) {
   ]);
 }
 
-export function signAuditEntry(entry: SignableAuditEntry) {
-  return createHmac("sha256", getKey("audit")).update(canonical(entry)).digest("hex");
+function signWith(key: Uint8Array, entry: SignableAuditEntry) {
+  return createHmac("sha256", key).update(canonical(entry)).digest("hex");
 }
 
+export function signAuditEntry(entry: SignableAuditEntry) {
+  return signWith(getKey("audit"), entry);
+}
+
+// Wpisy podpisane przed ustawieniem AUDIT_SIGNING_KEY (kluczem z AUTH_SECRET) też są ważne.
 export function verifyAuditEntry(entry: SignableAuditEntry & { signature: string | null }) {
   if (!entry.signature) return "unsigned" as const;
-  const expected = Buffer.from(signAuditEntry(entry), "hex");
   const actual = Buffer.from(entry.signature, "hex");
-  return expected.length === actual.length && timingSafeEqual(expected, actual) ? ("valid" as const) : ("invalid" as const);
+  for (const key of getVerificationKeys("audit")) {
+    const expected = Buffer.from(signWith(key, entry), "hex");
+    if (expected.length === actual.length && timingSafeEqual(expected, actual)) return "valid" as const;
+  }
+  return "invalid" as const;
 }

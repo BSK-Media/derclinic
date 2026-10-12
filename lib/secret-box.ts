@@ -31,6 +31,11 @@ export function openSecret(sealed: string): string {
   return Buffer.concat([decipher.update(Buffer.from(ciphertext, "base64url")), decipher.final()]).toString("utf8");
 }
 
+/** Czy sekret jest zaszyfrowany bieżącym kluczem (false = starszym — warto go przepisać). */
+export function isSealedWithCurrentKey(sealed: string): boolean {
+  return sealed.split(".")[1] === keyId(getMfaKeys()[0]);
+}
+
 /** Deterministyczny, kluczowany hash (np. kodów odzyskiwania) — HMAC-SHA256 bieżącym kluczem MFA. */
 export function keyedHash(value: string, key = getMfaKeys()[0]): string {
   return createHmac("sha256", key).update(value).digest("hex");
