@@ -1,0 +1,133 @@
+# Kopia zapasowa poza platformą + kotwica dziennika w magazynie WORM (rejestr luk L-05, L-07).
+#
+# Co noc:
+#   1. pg_dump całej bazy (w tym zdjęć i plików zgód — są w bazie) i sprawdzenie, czy zrzut się czyta,
+#   2. szyfrowanie zrzutu kluczem publicznym age (klucz prywatny tylko w sejfie — L-06),
+#   3. kotwica dziennika zdarzeń (ten sam skrót co /api/cron/audit-anchor),
+#   4. zapis obu plików do S3 z Object Lock w trybie COMPLIANCE — nikt, także konto root AWS,
+#      nie usunie ani nie nadpisze ich przed upływem retencji.
+#
+# Retencja: kopie dzienne 35 dni, kopia z 1. dnia miesiąca 400 dni, kotwice 400 dni.
+#
+# Wymaga w repozytorium (Settings → Secrets and variables → Actions):
+#   secrets:   BACKUP_DATABASE_URL — DATABASE_URL_UNPOOLED z Vercela (bez "-pooler" w hoście)
+#              AWS_BACKUP_ACCESS_KEY_ID, AWS_BACKUP_SECRET_ACCESS_KEY — klucz użytkownika IAM
+#                derclinic-github-backup (uprawnienie wyłącznie s3:PutObject/PutObjectRetention;
+#                OIDC jest zablokowane polityką organizacji AWS). Wymiana klucza raz w roku.
+#   variables: BACKUP_BUCKET       — derclinic-backups-eu-north
+#              BACKUP_AGE_RECIPIENT — klucz publiczny age (age1...)
+#              PG_MAJOR            — (opcjonalnie) wersja Postgresa w Neon, domyślnie 17
+name: Kopia zapasowa (S3, WORM)
+
+on:
+  schedule:
+    - cron: "15 4 * * *" # 04:15 UTC — po zadaniach maintenance (03:00) i kotwicy (03:30)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04 # stała wersja — klient PostgreSQL instalowany z repozytorium PGDG
+    timeout-minutes: 60
+    env:
+      AWS_REGION: eu-north-1
+      BUCKET: ${{ vars.BACKUP_BUCKET }}
+      AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+      PG_MAJOR: ${{ vars.PG_MAJOR || '17' }}
+    steps:
+      - name: Sprawdź konfigurację
+        env:
+          DB: ${{ secrets.BACKUP_DATABASE_URL }}
+          KEY_ID: ${{ secrets.AWS_BACKUP_ACCESS_KEY_ID }}
+          KEY_SECRET: ${{ secrets.AWS_BACKUP_SECRET_ACCESS_KEY }}
+        run: |
+          missing=""
+          [ -z "$DB" ] && missing="$missing BACKUP_DATABASE_URL"
+          [ -z "$KEY_ID" ] && missing="$missing AWS_BACKUP_ACCESS_KEY_ID"
+          [ -z "$KEY_SECRET" ] && missing="$missing AWS_BACKUP_SECRET_ACCESS_KEY"
+          [ -z "$BUCKET" ] && missing="$missing BACKUP_BUCKET"
+          [ -z "$AGE_RECIPIENT" ] && missing="$missing BACKUP_AGE_RECIPIENT"
+          if [ -n "$missing" ]; then
+            echo "::error::Brak konfiguracji:$missing"
+            exit 1
+          fi
+          case "$DB" in *-pooler.*) echo "::error::BACKUP_DATABASE_URL wskazuje na pooler — użyj adresu bez -pooler"; exit 1;; esac
+
+      - name: Zainstaluj klienta PostgreSQL ${{ env.PG_MAJOR }} i age
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common age
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq "postgresql-client-${PG_MAJOR}"
+          echo "/usr/lib/postgresql/${PG_MAJOR}/bin" >> "$GITHUB_PATH"
+
+      - name: Zrzut bazy
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          STAMP=$(date -u +%Y-%m-%dT%H%M%SZ)
+          echo "STAMP=$STAMP" >> "$GITHUB_ENV"
+          pg_dump --version
+          pg_dump "$DATABASE_URL" --format=custom --compress=9 --no-owner --no-privileges --file=db.dump
+          # Kontrola: zrzut musi się dać odczytać i zawierać kluczowe tabele.
+          pg_restore --list db.dump > toc.txt
+          for table in Patient Appointment AuditLog ProcedureConsentSubmission User; do
+            grep -Eq "TABLE DATA public \"?$table\"?( |$)" toc.txt || { echo "::error::Brak danych tabeli $table w zrzucie"; exit 1; }
+          done
+          ls -lh db.dump
+
+      - name: Kotwica dziennika zdarzeń
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          # Ten sam algorytm co app/api/cron/audit-anchor: sha256 z "id:podpis\n" w kolejności (createdAt, id).
+          q="SELECT id || ':' || coalesce(signature, '') FROM \"AuditLog\""
+          TOTAL_COUNT=$(psql "$DATABASE_URL" -Atc 'SELECT count(*) FROM "AuditLog"')
+          TOTAL_HASH=$(psql "$DATABASE_URL" -Atc "$q ORDER BY \"createdAt\", id" | sha256sum | cut -d' ' -f1)
+          RECENT_COUNT=$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM \"AuditLog\" WHERE \"createdAt\" >= now() - interval '1 day'")
+          RECENT_HASH=$(psql "$DATABASE_URL" -Atc "$q WHERE \"createdAt\" >= now() - interval '1 day' ORDER BY \"createdAt\", id" | sha256sum | cut -d' ' -f1)
+          DUMP_SHA=$(sha256sum db.dump | cut -d' ' -f1)
+          cat > anchor.json <<EOF
+          {"at":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","totalCount":$TOTAL_COUNT,"totalHash":"$TOTAL_HASH","last24hCount":$RECENT_COUNT,"last24hHash":"$RECENT_HASH","dumpSha256":"$DUMP_SHA","run":"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"}
+          EOF
+          cat anchor.json
+
+      - name: Szyfrowanie zrzutu
+        run: |
+          set -euo pipefail
+          age --encrypt --recipient "$AGE_RECIPIENT" --output db.dump.age db.dump
+          shred -u db.dump
+          ls -lh db.dump.age
+
+      - name: Logowanie do AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_BACKUP_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_BACKUP_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Zapis do S3 z Object Lock (COMPLIANCE)
+        run: |
+          set -euo pipefail
+          DAY=$(date -u +%d)
+          until_days() { date -u -d "+$1 days" +%Y-%m-%dT%H:%M:%SZ; }
+          put() { # plik klucz dni
+            aws s3api put-object --bucket "$BUCKET" --key "$2" --body "$1" \
+              --checksum-algorithm SHA256 \
+              --object-lock-mode COMPLIANCE --object-lock-retain-until-date "$(until_days "$3")" \
+              --output text --query 'VersionId' > /dev/null
+            echo "✅ s3://$BUCKET/$2 (blokada $3 dni)"
+          }
+          put db.dump.age "daily/derclinic-${STAMP}.dump.age" 35
+          put anchor.json "anchors/anchor-${STAMP}.json" 400
+          if [ "$DAY" = "01" ]; then
+            put db.dump.age "monthly/derclinic-${STAMP}.dump.age" 400
+          fi
