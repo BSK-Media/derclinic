@@ -41,16 +41,23 @@ function warnOnce(message: string) {
 // zmiana AUTH_SECRET bezpowrotnie niszczy zaszyfrowane zdjęcia i sekrety 2FA.
 export const REQUIRED_IN_PRODUCTION: KeyPurpose[] = ["mfa", "data", "audit"];
 
+/** Klucz wyprowadzany z AUTH_SECRET — używany, dopóki nie ustawiono osobnego klucza. */
+function legacyKey(purpose: KeyPurpose): Uint8Array | null {
+  const legacy = process.env.AUTH_SECRET;
+  if (!legacy) return null;
+  return new Uint8Array(hkdfSync("sha256", legacy, "derclinic", `derclinic/${purpose}/v1`, 32));
+}
+
 function deriveFromLegacy(purpose: KeyPurpose): Uint8Array {
   if (process.env.NODE_ENV === "production" && REQUIRED_IN_PRODUCTION.includes(purpose)) {
     throw new Error(`Brak ${ENV_NAMES[purpose]} — na produkcji ten klucz musi być ustawiony jawnie (patrz env.example).`);
   }
-  const legacy = process.env.AUTH_SECRET;
-  if (!legacy) throw new Error(`Brak ${ENV_NAMES[purpose]} (ani AUTH_SECRET) — nie można podpisać/zaszyfrować danych.`);
+  const key = legacyKey(purpose);
+  if (!key) throw new Error(`Brak ${ENV_NAMES[purpose]} (ani AUTH_SECRET) — nie można podpisać/zaszyfrować danych.`);
   warnOnce(
     `${ENV_NAMES[purpose]} nie jest ustawiony — klucz wyprowadzany z AUTH_SECRET. Ustaw osobny, losowy sekret.`,
   );
-  return new Uint8Array(hkdfSync("sha256", legacy, "derclinic", `derclinic/${purpose}/v1`, 32));
+  return key;
 }
 
 function fromEnv(name: string): Uint8Array | null {
@@ -67,12 +74,32 @@ export function getKey(purpose: KeyPurpose): Uint8Array {
   return fromEnv(ENV_NAMES[purpose]) ?? deriveFromLegacy(purpose);
 }
 
-/** Klucze szyfrowania: [bieżący, poprzedni?] — do odszyfrowania próbujemy po kolei. */
+// Przejście na osobne klucze: dane zaszyfrowane/podpisane wcześniej kluczem wyprowadzonym
+// z AUTH_SECRET dalej dają się odczytać i zweryfikować, dopóki AUTH_SECRET się nie zmieni.
+// Ten klucz służy wyłącznie do odczytu — nowe dane zawsze idą bieżącym kluczem.
+function withLegacy(purpose: KeyPurpose, keys: Uint8Array[]): Uint8Array[] {
+  const legacy = fromEnv(ENV_NAMES[purpose]) ? legacyKey(purpose) : null;
+  const all = legacy ? [...keys, legacy] : keys;
+  const seen = new Set<string>();
+  return all.filter((key) => {
+    const id = keyId(key);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+/** Klucze szyfrowania: [bieżący, poprzedni?, z AUTH_SECRET?] — do odszyfrowania próbujemy po kolei. */
 export function getEncryptionKeys(purpose: "mfa" | "data"): Uint8Array[] {
   const keys = [getKey(purpose)];
   const previous = fromEnv(`${ENV_NAMES[purpose]}_PREVIOUS`);
   if (previous) keys.push(previous);
-  return keys;
+  return withLegacy(purpose, keys);
+}
+
+/** Klucze do weryfikacji podpisów/skrótów: [bieżący, z AUTH_SECRET?] (bieżący zawsze pierwszy). */
+export function getVerificationKeys(purpose: "audit" | "data"): Uint8Array[] {
+  return withLegacy(purpose, [getKey(purpose)]);
 }
 
 export function getMfaKeys(): Uint8Array[] {

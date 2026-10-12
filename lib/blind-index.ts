@@ -1,5 +1,5 @@
 import { createHmac, hkdfSync } from "node:crypto";
-import { getKey } from "@/lib/auth-keys";
+import { getVerificationKeys } from "@/lib/auth-keys";
 
 // Indeksy ślepe (blind index) dla zaszyfrowanych danych identyfikacyjnych pacjenta
 // (imię i nazwisko, telefon, e-mail). Zaszyfrowanego pola (AES-GCM z losowym IV) nie da się
@@ -9,7 +9,9 @@ import { getKey } from "@/lib/auth-keys";
 // w pamięci na odszyfrowanych danych.
 //
 // Klucz: BLIND_INDEX_KEY, a gdy go nie ma — wyprowadzony z DATA_ENCRYPTION_KEY (wymaganego na
-// produkcji). Zmiana klucza wymaga przeliczenia skrótów (narzędzie w "Bezpieczeństwo konta").
+// produkcji). Nowe skróty liczymy bieżącym kluczem; wyszukiwanie porównuje też ze skrótami
+// policzonymi kluczem z AUTH_SECRET (sprzed ustawienia DATA_ENCRYPTION_KEY), żeby po
+// dodaniu klucza pacjenci dalej się odnajdywali (logowanie, rezerwacja, duplikaty).
 
 export type BlindField = "name" | "email" | "phone";
 
@@ -19,17 +21,28 @@ export const BLIND_COLUMNS: Record<BlindField, string> = {
   phone: "phoneHash",
 };
 
-let cachedKey: Uint8Array | null = null;
+let cachedKeys: Uint8Array[] | null = null;
 let cachedFor = "";
 
-function indexKey(): Uint8Array {
+function deriveIndexKey(source: string | Buffer) {
+  return new Uint8Array(hkdfSync("sha256", source, "derclinic", "derclinic/blind-index/v1", 32));
+}
+
+/** [bieżący, starszy?] — pierwszy do zapisu, wszystkie do wyszukiwania. */
+function indexKeys(): Uint8Array[] {
   const explicit = process.env.BLIND_INDEX_KEY;
-  const marker = explicit ?? `data:${process.env.DATA_ENCRYPTION_KEY ?? process.env.AUTH_SECRET ?? ""}`;
-  if (cachedKey && cachedFor === marker) return cachedKey;
-  const source = explicit && explicit.length >= 32 ? explicit : Buffer.from(getKey("data"));
-  cachedKey = new Uint8Array(hkdfSync("sha256", source, "derclinic", "derclinic/blind-index/v1", 32));
+  const marker = `${explicit ?? ""}|${process.env.DATA_ENCRYPTION_KEY ?? ""}|${process.env.AUTH_SECRET ?? ""}`;
+  if (cachedKeys && cachedFor === marker) return cachedKeys;
+  cachedKeys =
+    explicit && explicit.length >= 32
+      ? [deriveIndexKey(explicit)]
+      : getVerificationKeys("data").map((key) => deriveIndexKey(Buffer.from(key)));
   cachedFor = marker;
-  return cachedKey;
+  return cachedKeys;
+}
+
+function hashWith(key: Uint8Array, field: BlindField, normalized: string) {
+  return createHmac("sha256", key).update(`${field}:${normalized}`).digest("hex");
 }
 
 export function normalizeBlind(field: BlindField, value: string): string {
@@ -39,12 +52,37 @@ export function normalizeBlind(field: BlindField, value: string): string {
   return trimmed;
 }
 
-/** Skrót do porównań równościowych; puste wartości → null (tak samo jak brak wartości). */
+/** Skrót do zapisu (bieżący klucz); puste wartości → null (tak samo jak brak wartości). */
 export function blindIndex(field: BlindField, value: string | null | undefined): string | null {
   if (value === null || value === undefined) return null;
   const normalized = normalizeBlind(field, value);
   if (!normalized) return null;
-  return createHmac("sha256", indexKey()).update(`${field}:${normalized}`).digest("hex");
+  return hashWith(indexKeys()[0], field, normalized);
+}
+
+/** Wszystkie skróty, pod którymi wartość mogła zostać zapisana (bieżący i starszy klucz). */
+export function blindIndexCandidates(field: BlindField, value: string | null | undefined): string[] {
+  if (value === null || value === undefined) return [];
+  const normalized = normalizeBlind(field, value);
+  if (!normalized) return [];
+  return indexKeys().map((key) => hashWith(key, field, normalized));
+}
+
+function candidatesFor(field: BlindField, values: string[]) {
+  return [...new Set(values.flatMap((value) => blindIndexCandidates(field, value)))];
+}
+
+/** Warunek równości: pusta wartość oznacza brak skrótu (null), jak przy zapisie. */
+function equalsClause(column: string, field: BlindField, value: string) {
+  const candidates = candidatesFor(field, [value]);
+  if (candidates.length === 0) return { [column]: null };
+  return { [column]: candidates.length === 1 ? candidates[0] : { in: candidates } };
+}
+
+function notEqualsClause(column: string, field: BlindField, value: string) {
+  const candidates = candidatesFor(field, [value]);
+  const differs = candidates.length === 0 ? { not: null } : candidates.length === 1 ? { not: candidates[0] } : { notIn: candidates };
+  return { OR: [{ [column]: null }, { [column]: differs }] };
 }
 
 const FIELDS = Object.keys(BLIND_COLUMNS) as BlindField[];
@@ -69,7 +107,7 @@ const OPERATORS_EQUALITY = new Set(["equals", "not", "in", "notIn", "mode"]);
 function clauseFor(field: BlindField, condition: unknown): Record<string, unknown> {
   const column = BLIND_COLUMNS[field];
   if (condition === null) return { [column]: null };
-  if (typeof condition === "string") return { [column]: blindIndex(field, condition) };
+  if (typeof condition === "string") return equalsClause(column, field, condition);
   if (!condition || typeof condition !== "object") return {};
   const ops = condition as Record<string, unknown>;
   const parts: Record<string, unknown>[] = [];
@@ -80,12 +118,12 @@ function clauseFor(field: BlindField, condition: unknown): Record<string, unknow
       );
     }
     if (op === "mode") continue;
-    if (op === "equals") parts.push({ [column]: value === null ? null : blindIndex(field, value as string) });
-    else if (op === "in") parts.push({ [column]: { in: (value as string[]).map((v) => blindIndex(field, v)).filter((h): h is string => !!h) } });
-    else if (op === "notIn") parts.push({ OR: [{ [column]: null }, { [column]: { notIn: (value as string[]).map((v) => blindIndex(field, v)).filter((h): h is string => !!h) } }] });
+    if (op === "equals") parts.push(value === null ? { [column]: null } : equalsClause(column, field, value as string));
+    else if (op === "in") parts.push({ [column]: { in: candidatesFor(field, value as string[]) } });
+    else if (op === "notIn") parts.push({ OR: [{ [column]: null }, { [column]: { notIn: candidatesFor(field, value as string[]) } }] });
     else if (op === "not") {
       if (value === null) parts.push({ [column]: { not: null } });
-      else if (typeof value === "string") parts.push({ OR: [{ [column]: null }, { [column]: { not: blindIndex(field, value) } }] });
+      else if (typeof value === "string") parts.push(notEqualsClause(column, field, value));
       else throw new Error(`Zagnieżdżony warunek „not” po zaszyfrowanym polu pacjenta „${field}” nie jest obsługiwany.`);
     }
   }
