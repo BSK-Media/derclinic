@@ -76,6 +76,18 @@ function workWindowForDay({
   };
 }
 
+/** Czy specjalista pracuje w danym dniu (grafik tygodniowy lub niestandardowy dzień pracy, bez całodniowego wolnego). */
+export function isWorkingOnDay(input: {
+  year: number;
+  month: number;
+  day: number;
+  workDays: WorkDay[];
+  customWorkDays: CustomWorkDay[];
+  timeOffs: TimeOff[];
+}) {
+  return workWindowForDay(input) !== null;
+}
+
 // Zwraca dostępne godziny startu (HH:MM czasu warszawskiego) dla danego dnia.
 export function computeFreeSlots({
   year,

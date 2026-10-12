@@ -5,6 +5,7 @@ import Link from "next/link";
 import useSWR from "swr";
 import { effectiveAppointmentStatus, appointmentStatusLabel } from "@/lib/appointment-status";
 import { warsawParts, warsawWallTimeToUtc } from "@/lib/warsaw-time";
+import { isWorkingOnDay, type CustomWorkDay, type TimeOff, type WorkDay } from "@/lib/public-booking";
 
 const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then((response) => response.json());
 
@@ -21,6 +22,16 @@ type VisitRow = {
   service?: { name?: string | null } | null;
   specialist?: { id: string; name: string } | null;
 };
+
+type SpecialistRow = {
+  id: string;
+  name: string;
+  workDays: WorkDay[];
+  customWorkDays: CustomWorkDay[];
+  timeOffs: TimeOff[];
+};
+
+const ONLY_WORKING_KEY = "todaysVisits.onlyWorking";
 
 /** Granice bieżącego dnia (czas warszawski) jako znaczniki UTC: [od, do). */
 function todayRange(now: Date) {
@@ -110,16 +121,69 @@ export function TodaysVisits({ mode }: { mode: "own" | "grouped" }) {
     [data],
   );
 
+  // Filtr „Pracujący dziś": tylko specjaliści, którzy według grafiku (z dniami niestandardowymi i wolnymi)
+  // dziś pracują. Domyślnie włączony; wybór zapamiętujemy w przeglądarce.
+  const [onlyWorking, setOnlyWorking] = React.useState(true);
+  React.useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(ONLY_WORKING_KEY);
+      if (saved !== null) setOnlyWorking(saved === "1");
+    } catch {
+      /* brak dostępu do pamięci przeglądarki — zostaje wartość domyślna */
+    }
+  }, []);
+  function toggleOnlyWorking(value: boolean) {
+    setOnlyWorking(value);
+    try {
+      window.localStorage.setItem(ONLY_WORKING_KEY, value ? "1" : "0");
+    } catch {
+      /* ignorujemy */
+    }
+  }
+
+  const workingToday = React.useMemo(() => {
+    const { year, month, day } = warsawParts(now);
+    const ids = new Set<string>();
+    for (const specialist of (data?.specialists ?? []) as SpecialistRow[]) {
+      if (
+        isWorkingOnDay({
+          year,
+          month,
+          day,
+          workDays: specialist.workDays ?? [],
+          customWorkDays: specialist.customWorkDays ?? [],
+          timeOffs: specialist.timeOffs ?? [],
+        })
+      ) {
+        ids.add(specialist.id);
+      }
+    }
+    return ids;
+  }, [data, now]);
+
+  const filtering = mode === "grouped" && onlyWorking && !isLoading;
+  const shownVisits = React.useMemo(
+    () => (filtering ? visits.filter((visit) => !visit.specialist?.id || workingToday.has(visit.specialist.id)) : visits),
+    [filtering, visits, workingToday],
+  );
+  const hiddenVisitsCount = visits.length - shownVisits.length;
+
   const groups = React.useMemo(() => {
     const map = new Map<string, { name: string; visits: VisitRow[] }>();
-    for (const visit of visits) {
+    // Przy włączonym filtrze pokazujemy wszystkich pracujących dziś specjalistów, także bez wizyt.
+    if (filtering) {
+      for (const specialist of (data?.specialists ?? []) as SpecialistRow[]) {
+        if (workingToday.has(specialist.id)) map.set(specialist.id, { name: specialist.name, visits: [] });
+      }
+    }
+    for (const visit of shownVisits) {
       const key = visit.specialist?.id ?? "unknown";
       const group = map.get(key) ?? { name: visit.specialist?.name ?? "Bez przypisanego pracownika", visits: [] };
       group.visits.push(visit);
       map.set(key, group);
     }
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "pl"));
-  }, [visits]);
+  }, [filtering, data, workingToday, shownVisits]);
 
   const dateLabel = now.toLocaleDateString("pl-PL", {
     timeZone: "Europe/Warsaw",
@@ -135,14 +199,36 @@ export function TodaysVisits({ mode }: { mode: "own" | "grouped" }) {
         <h1 className="text-2xl font-semibold">Wizyty dziś</h1>
         <p className="text-sm capitalize text-zinc-500">
           {dateLabel}
-          {!isLoading ? ` · ${visits.length} ${visits.length === 1 ? "wizyta" : "wizyt"}` : ""}
+          {!isLoading ? ` · ${shownVisits.length} ${shownVisits.length === 1 ? "wizyta" : "wizyt"}` : ""}
         </p>
+        {mode === "grouped" ? (
+          <label className="mt-3 inline-flex cursor-pointer items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={onlyWorking}
+              onChange={(event) => toggleOnlyWorking(event.target.checked)}
+              className="h-4 w-4 rounded border-zinc-300 accent-emerald-600"
+            />
+            Pracujący dziś
+          </label>
+        ) : null}
+        {filtering && hiddenVisitsCount > 0 ? (
+          <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+            Ukryto {hiddenVisitsCount} {hiddenVisitsCount === 1 ? "wizytę" : "wizyt"} specjalistów, którzy dziś nie pracują
+            według grafiku. Odznacz „Pracujący dziś”, żeby je zobaczyć.
+          </p>
+        ) : null}
       </div>
 
       {isLoading ? <p className="text-sm text-zinc-500">Ładowanie…</p> : null}
-      {!isLoading && visits.length === 0 ? (
+      {!isLoading && visits.length === 0 && !(filtering && groups.length > 0) ? (
         <div className="rounded-2xl border bg-white p-6 text-center text-sm text-zinc-500 shadow-sm dark:bg-zinc-950">
           Brak wizyt na dziś.
+        </div>
+      ) : null}
+      {filtering && groups.length === 0 && visits.length > 0 ? (
+        <div className="rounded-2xl border bg-white p-6 text-center text-sm text-zinc-500 shadow-sm dark:bg-zinc-950">
+          Dziś nie pracuje żaden specjalista według grafiku.
         </div>
       ) : null}
 
@@ -157,7 +243,11 @@ export function TodaysVisits({ mode }: { mode: "own" | "grouped" }) {
                 {group.visits.length} {group.visits.length === 1 ? "wizyta" : "wizyt"}
               </span>
             </h2>
-            <VisitList visits={group.visits} now={now} hrefBase="/admin/appointments" />
+            {group.visits.length > 0 ? (
+              <VisitList visits={group.visits} now={now} hrefBase="/admin/appointments" />
+            ) : (
+              <p className="rounded-2xl border bg-white px-4 py-3 text-sm text-zinc-500 dark:bg-zinc-950">Brak wizyt.</p>
+            )}
           </section>
         ))
       )}
