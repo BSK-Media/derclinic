@@ -10,10 +10,13 @@ import { isSealedWithCurrentKey, keyedHash, keyedHashCandidates, openSecret, sea
 const KEYS = ["MFA_ENCRYPTION_KEY", "DATA_ENCRYPTION_KEY", "AUDIT_SIGNING_KEY", "BLIND_INDEX_KEY"];
 let saved: Record<string, string | undefined> = {};
 
+// Wartości testowe budowane w locie (min. 32 znaki), żeby nie przypominały prawdziwych sekretów.
+const testKey = (label: string) => `${label}:`.padEnd(40, label[0]);
+
 function setNewKeys() {
-  process.env.MFA_ENCRYPTION_KEY = "nowy-klucz-mfa-0123456789-0123456789-abcdef";
-  process.env.DATA_ENCRYPTION_KEY = "nowy-klucz-danych-0123456789-0123456789-abc";
-  process.env.AUDIT_SIGNING_KEY = "nowy-klucz-dziennika-0123456789-0123456789-a";
+  process.env.MFA_ENCRYPTION_KEY = testKey("mfa");
+  process.env.DATA_ENCRYPTION_KEY = testKey("data");
+  process.env.AUDIT_SIGNING_KEY = testKey("audit");
 }
 
 beforeEach(() => {

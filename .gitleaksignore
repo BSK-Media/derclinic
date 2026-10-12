@@ -5,3 +5,9 @@
 # env.example: pusty wzór „MFA_ENCRYPTION_KEY=""” — reguła bierze nazwę
 # MFA_ENCRYPTION_KEY_PREVIOUS z następnej linii za wartość klucza. Brak sekretu.
 5265fb48f78ed776217348772d347df19ff2887e:env.example:generic-api-key:19
+
+# lib/key-transition.test.ts (pierwsza wersja testu): przykładowe, fikcyjne klucze testowe
+# „nowy-klucz-…” — nie są używane nigdzie poza testem. Kolejna wersja buduje je w locie.
+60cbf0566c8eec7063c292fe2170e388cbcabf80:lib/key-transition.test.ts:generic-api-key:14
+60cbf0566c8eec7063c292fe2170e388cbcabf80:lib/key-transition.test.ts:generic-api-key:15
+60cbf0566c8eec7063c292fe2170e388cbcabf80:lib/key-transition.test.ts:generic-api-key:16
