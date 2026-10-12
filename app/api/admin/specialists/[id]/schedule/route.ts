@@ -234,7 +234,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     }
 
     const dates = [...new Set(parsed.data.dates)];
-    const normalizedDates = dates.map((date) => new Date(`${date}T00:00:00`));
+    const normalizedDates = dates.map((date) => new Date(`${date}T00:00:00.000Z`));
     const existingDays = await prisma.specialistTimeOff.findMany({
       where: {
         specialistId: params.id,
@@ -252,7 +252,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
       await prisma.specialistTimeOff.createMany({
         data: datesToCreate.map((date) => ({
           specialistId: params.id,
-          date: new Date(`${date}T00:00:00`),
+          date: new Date(`${date}T00:00:00.000Z`),
           allDay: true,
           startTime: null,
           endTime: null,

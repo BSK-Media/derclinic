@@ -103,6 +103,9 @@ const LOGICAL = new Set(["AND", "OR", "NOT"]);
 export function rewritePatientWhere(where: unknown, isPatient: boolean): unknown {
   if (!where || typeof where !== "object") return where;
   if (Array.isArray(where)) return where.map((item) => rewritePatientWhere(item, isPatient));
+  // Date, Buffer, Decimal itp. zostawiamy bez zmian — przepisujemy wyłącznie zwykłe obiekty warunków.
+  const proto = Object.getPrototypeOf(where);
+  if (proto !== Object.prototype && proto !== null) return where;
   const input = where as Record<string, unknown>;
   const output: Record<string, unknown> = {};
   const extra: unknown[] = [];
@@ -118,7 +121,7 @@ export function rewritePatientWhere(where: unknown, isPatient: boolean): unknown
       output[key] = "is" in rel || "isNot" in rel
         ? Object.fromEntries(Object.entries(rel).map(([k, v]) => [k, rewritePatientWhere(v, true)]))
         : rewritePatientWhere(rel, true);
-    } else if (value && typeof value === "object" && !(value instanceof Date)) {
+    } else if (value && typeof value === "object") {
       output[key] = rewritePatientWhere(value, false);
     } else {
       output[key] = value;

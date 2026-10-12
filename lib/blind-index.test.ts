@@ -51,6 +51,16 @@ describe("rewritePatientWhere", () => {
       service: { name: { not: "Y" } },
     });
   });
+  it("nie niszczy dat, buforów i innych nie-zwykłych obiektów (np. in: [Date])", () => {
+    const d1 = new Date("2026-10-21T00:00:00Z");
+    const d2 = new Date("2026-10-22T00:00:00Z");
+    const out = rewritePatientWhere({ specialistId: "x", allDay: true, date: { in: [d1, d2] }, createdAt: d1 }, false) as any;
+    expect(out.date.in[0]).toBe(d1);
+    expect(out.date.in[1]).toBe(d2);
+    expect(out.createdAt).toBe(d1);
+    const buf = Buffer.from("a");
+    expect((rewritePatientWhere({ file: buf }, true) as any).file).toBe(buf);
+  });
   it("zgłasza błąd dla wyszukiwania częściowego po zaszyfrowanym polu", () => {
     expect(() => rewritePatientWhere({ name: { contains: "an" } }, true)).toThrow(/w pamięci/);
     expect(() => rewritePatientWhere({ patient: { phone: { startsWith: "+48" } } }, false)).toThrow(/w pamięci/);
