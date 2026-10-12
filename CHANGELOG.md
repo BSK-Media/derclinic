@@ -3,6 +3,17 @@
 Format: najnowsze na górze, zmiany pogrupowane według daty wdrożenia. Szczegóły techniczne: historia commitów
 i migracje w `prisma/migrations`.
 
+## 2026-10-12
+### Dodano
+- Nocna kopia zapasowa poza platformą (L-05): workflow `backup.yml` — `pg_dump` całej bazy, szyfrowanie age, zapis do S3 `derclinic-backups-eu-north` (eu-north-1) z Object Lock COMPLIANCE (dzienne 35 dni, miesięczne 400 dni).
+- Kotwica dziennika zdarzeń w magazynie WORM (L-07): codzienny zapis liczby wpisów i skrótów do `anchors/` w S3 (400 dni), obok e-maila z `/api/cron/audit-anchor`.
+- Vercel Firewall (L-17): limit 30 żądań POST/min na IP dla logowania, rejestracji, resetu hasła, MFA i rezerwacji; Bot Protection (tryb Log), AI Bots: Deny; wyjątek dla `/api/cron/` i `/api/health`.
+
+### Zmieniono
+- Produkcja: ustawione jawnie klucze `DATA_ENCRYPTION_KEY`, `MFA_ENCRYPTION_KEY`, `AUDIT_SIGNING_KEY`, `STAFF_AUTH_SECRET`, `PATIENT_AUTH_SECRET` oraz `CRON_SECRET` (L-06, L-07). Sekrety 2FA przeniesione na nowy klucz skryptem jednorazowym; kody odzyskiwania do ponownego wygenerowania. Wpisy dziennika sprzed 12.10.2026 były podpisane kluczem wyprowadzonym z `AUTH_SECRET` i nie przechodzą weryfikacji nowym kluczem.
+- Gałąź `production` w Neon chroniona przed usunięciem i resetem (L-05).
+- Workflow zgód (`consent-cron.yml`) i monitoring dostępności (`uptime.yml`) aktywne po ustawieniu `APP_URL` i `CRON_SECRET` w GitHub Actions.
+
 ## 2026-10-09
 ### Dodano
 - Kategorie produktów i jednostki miary wybierane z list; zarządzanie nimi w Ustawienia → Produkty (admin, manager, recepcja). Migracja `20261023120000_product_category_unit_options`.
