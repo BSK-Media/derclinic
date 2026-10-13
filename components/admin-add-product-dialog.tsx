@@ -112,6 +112,9 @@ export function AdminAddProductDialog({
   );
   const [warehouseId, setWarehouseId] = React.useState(fixedWarehouseId ?? "");
   const [lines, setLines] = React.useState<ReceiptLine[]>([]);
+  // Tryb czytnika: po zeskanowaniu czegokolwiek sekcja „Dodaj pozycję ręcznie” znika i zostają
+  // tylko pola czytnika. Wraca, gdy lista pozycji zostanie opróżniona (albo po ponownym otwarciu okna).
+  const [scanMode, setScanMode] = React.useState(false);
   const [drafts, setDrafts] = React.useState<Record<string, NewProductDraft>>({});
   const [lastLineId, setLastLineId] = React.useState<string | null>(null);
   const [scanCode, setScanCode] = React.useState("");
@@ -159,6 +162,7 @@ export function AdminAddProductDialog({
     warehouseRef.current = fixedWarehouseId ?? "";
     lookupCache.current.clear();
     setLines([]);
+    setScanMode(false);
     setDrafts({});
     setLastLineId(null);
     setWarehouseId(fixedWarehouseId ?? "");
@@ -200,6 +204,7 @@ export function AdminAddProductDialog({
   }
 
   function applyScan(result: LookupResult) {
+    setScanMode(true);
     const { scan, product } = result;
     const gs1 = scan.kind === "gs1" ? scan.data : null;
     let productRef: string;
@@ -320,6 +325,11 @@ export function AdminAddProductDialog({
     if (next === 0) return removeLine(id);
     updateLine(id, { quantity: String(Math.round(next * 100) / 100) });
   }
+
+  // Gdy usunięto wszystkie pozycje, wracamy do dodawania ręcznego.
+  React.useEffect(() => {
+    if (lines.length === 0) setScanMode(false);
+  }, [lines.length]);
 
   function removeLine(id: string) {
     commitLines(linesRef.current.filter((line) => line.id !== id));
@@ -683,6 +693,7 @@ export function AdminAddProductDialog({
             </div>
           ))}
 
+          {!scanMode ? (
           <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
             <div className="text-sm font-medium">Dodaj pozycję ręcznie (bez czytnika)</div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -729,6 +740,7 @@ export function AdminAddProductDialog({
               </div>
             </div>
           </div>
+          ) : null}
 
           <div className="space-y-2">
             <Label htmlFor="new-stock-note">Notatka do przyjęcia (opcjonalnie)</Label>
