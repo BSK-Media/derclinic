@@ -19,7 +19,7 @@ import { startStaffSession, type AuthUser } from "@/lib/auth-cookie";
 // /api/auth. Pełna sesja (lib/auth-cookie.ts → startStaffSession) powstaje
 // dopiero po potwierdzeniu drugiego składnika albo po jego konfiguracji.
 
-export const MFA_ISSUER_NAME = "DerClinic OS";
+export const MFA_ISSUER_NAME = "DerClinic CRM";
 const MFA_COOKIE = "bsk_mfa";
 const MFA_AUDIENCE = "derclinic:staff-mfa";
 const MFA_CHALLENGE_TTL_SEC = 10 * 60;

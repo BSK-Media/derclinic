@@ -443,7 +443,7 @@ export function staffPasswordResetEmail(data: { name: string; login: string; res
       heading: "Ustaw nowe hasło do panelu",
       paragraphs: [
         greeting(data.name),
-        "Otrzymaliśmy prośbę o zresetowanie hasła do panelu DerClinic OS. Link poniżej jest ważny przez godzinę.",
+        "Otrzymaliśmy prośbę o zresetowanie hasła do panelu DerClinic CRM. Link poniżej jest ważny przez godzinę.",
       ],
       rows: [["Login", data.login]],
       button: { label: "Ustaw nowe hasło", url: data.resetUrl },
@@ -465,7 +465,7 @@ export function staffAccountCreatedEmail(data: {
       heading: "Założono Ci konto w panelu",
       paragraphs: [
         greeting(data.name),
-        "Administrator założył Ci konto w panelu DerClinic OS. Kliknij przycisk poniżej, żeby od razu ustawić własne hasło — link jest ważny przez 3 dni.",
+        "Administrator założył Ci konto w panelu DerClinic CRM. Kliknij przycisk poniżej, żeby od razu ustawić własne hasło — link jest ważny przez 3 dni.",
       ],
       rows: [
         ["Login", data.login],

@@ -70,7 +70,7 @@ export async function GET(req: Request) {
   for (const admin of admins) {
     const result = await sendEmail({
       to: admin.email!,
-      subject: `DerClinic OS — kotwica dziennika zdarzeń ${anchor.at.slice(0, 10)}`,
+      subject: `DerClinic CRM — kotwica dziennika zdarzeń ${anchor.at.slice(0, 10)}`,
       text:
         `Kotwica dziennika zdarzeń (kopia poza bazą danych).\n\n` +
         `Czas: ${anchor.at}\n` +

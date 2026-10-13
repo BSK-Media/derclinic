@@ -1,4 +1,4 @@
-# DerClinic OS — Dedykowane oprogramowanie dla kliniki
+# DerClinic CRM — Dedykowane oprogramowanie dla kliniki
 
 Stack: **Next.js (App Router) + TypeScript + Tailwind + minimalistyczny UI (shadcn‑like) + Prisma + PostgreSQL + auth (JWT w httpOnly cookie)**.
 

@@ -170,7 +170,7 @@ export default function LoginClient() {
   }
 
   function downloadCodes(codes: string[]) {
-    const text = `DerClinic OS — kody odzyskiwania (konto: ${login})\nKażdy kod działa tylko raz.\n\n${codes.join("\n")}\n`;
+    const text = `DerClinic CRM — kody odzyskiwania (konto: ${login})\nKażdy kod działa tylko raz.\n\n${codes.join("\n")}\n`;
     const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
     const a = document.createElement("a");
     a.href = url;
@@ -208,7 +208,7 @@ export default function LoginClient() {
           <div className="flex items-center justify-center">
             <Image src="/derclinic-logo.webp" alt="DerClinic" width={220} height={220} priority />
           </div>
-          <CardTitle className="text-center">Panel DerClinic OS</CardTitle>
+          <CardTitle className="text-center">Panel DerClinic CRM</CardTitle>
           <p className="text-center text-sm text-zinc-500">{subtitle}</p>
         </CardHeader>
         <CardContent>

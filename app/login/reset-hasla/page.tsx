@@ -69,7 +69,7 @@ function ResetForm() {
           <p className="text-center text-sm text-zinc-500">
             {doneLogin !== null
               ? "Hasło zostało zmienione."
-              : "Ustaw nowe hasło do panelu DerClinic OS."}
+              : "Ustaw nowe hasło do panelu DerClinic CRM."}
           </p>
         </CardHeader>
         <CardContent>

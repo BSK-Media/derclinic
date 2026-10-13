@@ -11,7 +11,7 @@ import {
 
 // Sesja pacjenta jest całkowicie osobna od sesji personelu (lib/auth-cookie.ts):
 // inne ciasteczko, inny klucz podpisu (PATIENT_AUTH_SECRET), inna tabela sesji.
-// Dzięki temu panel klienta nie koliduje z logowaniem do DerClinic OS —
+// Dzięki temu panel klienta nie koliduje z logowaniem do DerClinic CRM —
 // można być jednocześnie zalogowanym jako pracownik i jako pacjent.
 
 export type PatientAuthUser = {

@@ -4,7 +4,7 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/ui/sonner";
 
-export const metadata: Metadata = { title: "DerClinic OS" };
+export const metadata: Metadata = { title: "DerClinic CRM" };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Nonce z Content-Security-Policy (proxy.ts). Odczyt nagłówków sprawia, że

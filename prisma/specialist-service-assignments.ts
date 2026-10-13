@@ -1,5 +1,5 @@
 // Wygenerowano z eksportu Amelia przekazanego przez DerClinic.
-// Klucz to login pracownika w DerClinic OS, wartości to dokładne nazwy usług.
+// Klucz to login pracownika w DerClinic CRM, wartości to dokładne nazwy usług.
 
 export const SPECIALIST_SERVICE_ASSIGNMENTS: Record<string, readonly string[]> = {
   "marta.szyderska": [

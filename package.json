@@ -71,7 +71,7 @@
     "vite": "^8.3.1",
     "vitest": "^5.0.3"
   },
-  "description": "DerClinic OS – system rezerwacji, wizyt i magazynu",
+  "description": "DerClinic CRM – system rezerwacji, wizyt i magazynu",
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   }

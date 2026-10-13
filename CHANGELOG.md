@@ -1,4 +1,4 @@
-# Dziennik zmian — DerClinic OS
+# Dziennik zmian — DerClinic CRM
 
 Format: najnowsze na górze, zmiany pogrupowane według daty wdrożenia. Szczegóły techniczne: historia commitów
 i migracje w `prisma/migrations`.
