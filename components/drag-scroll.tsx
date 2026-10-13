@@ -25,6 +25,51 @@ function horizontalScroller(start: HTMLElement | null): HTMLElement | null {
   return null;
 }
 
+/**
+ * Czy wskaźnik jest dokładnie nad znakami tekstu? Wtedy przeciąganie ma zaznaczać tekst (np. EAN, nazwę),
+ * a nie przewijać listę — przewijamy dopiero po chwyceniu pustego miejsca (tło, odstępy, marginesy komórek).
+ */
+function pointIsOverText(x: number, y: number): boolean {
+  let node: Node | null = null;
+  let offset = 0;
+  const doc = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+  };
+  if (doc.caretPositionFromPoint) {
+    const position = doc.caretPositionFromPoint(x, y);
+    if (position) {
+      node = position.offsetNode;
+      offset = position.offset;
+    }
+  } else if (doc.caretRangeFromPoint) {
+    const range = doc.caretRangeFromPoint(x, y);
+    if (range) {
+      node = range.startContainer;
+      offset = range.startOffset;
+    }
+  }
+  if (!node || node.nodeType !== Node.TEXT_NODE) return false;
+  const text = node.textContent ?? "";
+  const length = text.length;
+  if (length === 0) return false;
+  const probe = document.createRange();
+  // Znak tuż przed i tuż za pozycją kursora — jeden z nich leży pod wskaźnikiem, jeśli klikamy w tekst.
+  const candidates: Array<[number, number]> = [
+    [Math.max(0, offset - 1), Math.min(length, offset)],
+    [Math.min(offset, length - 1), Math.min(length, offset + 1)],
+  ];
+  for (const [start, end] of candidates) {
+    if (start >= end || /^\s$/.test(text.slice(start, end))) continue;
+    probe.setStart(node, start);
+    probe.setEnd(node, end);
+    for (const rect of Array.from(probe.getClientRects())) {
+      if (x >= rect.left - 1 && x <= rect.right + 1 && y >= rect.top - 1 && y <= rect.bottom + 1) return true;
+    }
+  }
+  return false;
+}
+
 export function DragScroll() {
   React.useEffect(() => {
     let state: {
@@ -40,6 +85,8 @@ export function DragScroll() {
       const target = event.target as HTMLElement | null;
       if (!target || !(target instanceof HTMLElement)) return;
       if (target.closest(INTERACTIVE)) return;
+      // Chwycenie samego tekstu = zaznaczanie tekstu (np. skopiowanie EAN), nie przewijanie.
+      if (pointIsOverText(event.clientX, event.clientY)) return;
       const container = horizontalScroller(target);
       if (!container) return;
       state = {
