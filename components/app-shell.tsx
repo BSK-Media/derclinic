@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React from "react";
+import { DragScroll } from "@/components/drag-scroll";
 import useSWR from "swr";
 import { createPortal } from "react-dom";
 import { useTheme } from "next-themes";
@@ -777,6 +778,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ) : null}
         </main>
       </div>
+      <DragScroll />
       {!loading && user ? <GlobalScanDialog /> : null}
       {user ? <StaffBottomNav /> : null}
     </div>

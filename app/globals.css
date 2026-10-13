@@ -92,3 +92,10 @@ html:has([data-light-only]) {
 .dark [class~="dark:hover:bg-zinc-900"]:hover {
   background-color: rgb(var(--app-dark-surface-raised) / 0.9) !important;
 }
+
+/* Przewijanie poziome przeciąganiem myszką (components/drag-scroll.tsx) */
+body.drag-scrolling,
+body.drag-scrolling * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
