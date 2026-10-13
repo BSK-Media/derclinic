@@ -940,7 +940,7 @@ async function main() {
       data: { id: "treatment-warehouse", name: "Recepcja Grodzisk Mazowiecki", locationId: "grodzisk-mazowiecki", parentId: mainWh.id },
     });
     await prisma.warehouse.create({
-      data: { id: "warsaw-warehouse", name: "Magazyn Warszawa", locationId: "grodzisk-mazowiecki" },
+      data: { id: "warsaw-warehouse", name: "Magazyn Warszawa", locationId: "warszawa" },
     });
   } else if (hasLegacyWarehouseNames) {
     if (mainWh) {
@@ -957,7 +957,7 @@ async function main() {
     }
     if (!existingWarsaw) {
       await prisma.warehouse.create({
-        data: { id: "warsaw-warehouse", name: "Magazyn Warszawa", locationId: "grodzisk-mazowiecki" },
+        data: { id: "warsaw-warehouse", name: "Magazyn Warszawa", locationId: "warszawa" },
       });
     }
   }

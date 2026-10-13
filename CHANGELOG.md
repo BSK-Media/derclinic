@@ -4,6 +4,9 @@ Format: najnowsze na górze, zmiany pogrupowane według daty wdrożenia. Szczeg�
 i migracje w `prisma/migrations`.
 
 ## 2026-10-13
+### Naprawiono
+- „Magazyn Warszawa” był przypisany do lokalizacji Grodzisk Mazowiecki, więc widziała go recepcja z Grodziska. Migracja `20261026120000_warsaw_warehouse_location` przenosi go do lokalizacji Warszawa (tylko jeśli jest pusty).
+
 ### Dodano
 - Szczegóły specjalisty: lista przypisanych zabiegów z procentem i wyjątki procentowe od ogólnego procentu (nadpisują go dla danego zabiegu). Wyjątki uwzględniają rozliczenia miesięczne, podsumowanie finansowe, szczegóły specjalisty i pulpit specjalisty. Migracja `20261025120000_specialist_service_percent`.
 - Kalendarz wizyt (widok dnia): filtr „Pracujący tego dnia”.
