@@ -1,3 +1,4 @@
+import { effectivePercent, loadPercentOverrides } from "@/lib/payout-percent";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
@@ -42,6 +43,7 @@ export async function GET(req: Request) {
     select: {
       id: true,
       specialistId: true,
+      serviceId: true,
       priceEstimate: true,
       priceFinal: true,
       consumptions: {
@@ -54,7 +56,10 @@ export async function GET(req: Request) {
     take: 10000,
   });
 
+  const overridesBySpecialist = await loadPercentOverrides(specialistIds);
+
   const rows = specialists.map((specialist) => {
+    const overrides = overridesBySpecialist.get(specialist.id);
     const completed = appointments.filter(
       (appointment) => appointment.specialistId === specialist.id,
     );
@@ -76,7 +81,10 @@ export async function GET(req: Request) {
       materialCost += appointmentMaterials;
       // Wypłata = (przychód − materiały) × % pracownika, zaokrąglana per wizyta —
       // identycznie jak w szczegółach pracownika, żeby sumy się zgadzały co do grosza.
-      payout += Math.round(((appointmentRevenue - appointmentMaterials) * percent) / 100);
+      // Wyjątek procentowy od zabiegu nadpisuje ogólny procent pracownika.
+      payout += Math.round(
+        ((appointmentRevenue - appointmentMaterials) * effectivePercent(percent, overrides, appointment.serviceId)) / 100,
+      );
     }
 
     return {

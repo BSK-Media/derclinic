@@ -165,6 +165,7 @@ model User {
   discountApprovals                RetailSale[]               @relation("RetailSaleDiscountApprover")
   notificationReads                NotificationRead[]
   serviceRates                     SpecialistServiceRate[]
+  servicePercents                  SpecialistServicePercent[]
   warehouseAssignments             SpecialistWarehouse[]
   approvedAppointments             Appointment[]              @relation("AppointmentApprover")
   deletedAppointments              Appointment[]              @relation("AppointmentDeleter")
@@ -303,6 +304,7 @@ model Service {
   suggestedProducts     ServiceSuggestedProduct[]
   appointments          Appointment[]
   specialistRates       SpecialistServiceRate[]
+  specialistPercents    SpecialistServicePercent[]
   specialistAssignments SpecialistService[]
 
   @@index([name])
@@ -338,6 +340,26 @@ model SpecialistServiceRate {
 
   // Stawka kwotowa pracownika za ten zabieg (grosze)
   amount Int
+
+  @@unique([specialistId, serviceId])
+  @@index([specialistId])
+  @@index([serviceId])
+}
+
+// Wyjątek od ogólnego procentu pracownika (User.payoutPercent): inny procent dla konkretnego zabiegu.
+// Brak wiersza = obowiązuje procent ogólny.
+model SpecialistServicePercent {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  specialistId String
+  specialist   User   @relation(fields: [specialistId], references: [id], onDelete: Cascade)
+
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  percent Int // 0–100
 
   @@unique([specialistId, serviceId])
   @@index([specialistId])

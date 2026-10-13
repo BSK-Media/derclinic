@@ -1,3 +1,4 @@
+import { effectivePercent, loadPercentOverrides } from "@/lib/payout-percent";
 import type { ReactNode } from "react";
 import { PATIENT_PUBLIC_SELECT } from "@/lib/patient-select";
 import type { Prisma } from "@prisma/client";
@@ -282,6 +283,7 @@ export default async function SpecialistHome() {
         startsAt: { gte: monthStart, lt: nextMonthStart },
       },
       select: {
+        serviceId: true,
         priceFinal: true,
         priceEstimate: true,
         consumptions: {
@@ -367,13 +369,16 @@ export default async function SpecialistHome() {
     (appointment) => appointment.status === "CANCELED" || appointment.approvalStatus === "REJECTED",
   ).length;
 
+  // Wyjątki procentowe od zabiegów nadpisują ogólny procent specjalisty.
+  const percentOverrides = (await loadPercentOverrides([auth.id])).get(auth.id);
   const monthlyEarnings = monthlyCompleted.reduce((sum, appointment) => {
     const revenue = appointment.priceFinal ?? appointment.priceEstimate ?? 0;
     const materials = appointment.consumptions.reduce((materialSum, consumption) => {
       const purchasePrice = consumption.product.purchasePrice ?? 0;
       return materialSum + Math.round(purchasePrice * Math.abs(Number(consumption.quantity)));
     }, 0);
-    return sum + Math.round(((revenue - materials) * specialist.payoutPercent) / 100);
+    const percent = effectivePercent(specialist.payoutPercent, percentOverrides, appointment.serviceId);
+    return sum + Math.round(((revenue - materials) * percent) / 100);
   }, 0);
 
   const nearestAppointment = upcomingAppointments[0] ?? null;

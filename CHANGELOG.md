@@ -3,6 +3,11 @@
 Format: najnowsze na górze, zmiany pogrupowane według daty wdrożenia. Szczegóły techniczne: historia commitów
 i migracje w `prisma/migrations`.
 
+## 2026-10-13
+### Dodano
+- Szczegóły specjalisty: lista przypisanych zabiegów z procentem i wyjątki procentowe od ogólnego procentu (nadpisują go dla danego zabiegu). Wyjątki uwzględniają rozliczenia miesięczne, podsumowanie finansowe, szczegóły specjalisty i pulpit specjalisty. Migracja `20261025120000_specialist_service_percent`.
+- Kalendarz wizyt (widok dnia): filtr „Pracujący tego dnia”.
+
 ## 2026-10-12
 ### Dodano
 - Nocna kopia zapasowa poza platformą (L-05): workflow `backup.yml` — `pg_dump` całej bazy, szyfrowanie age, zapis do S3 `derclinic-backups-eu-north` (eu-north-1) z Object Lock COMPLIANCE (dzienne 35 dni, miesięczne 400 dni).

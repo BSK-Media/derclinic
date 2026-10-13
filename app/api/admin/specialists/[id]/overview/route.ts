@@ -1,3 +1,4 @@
+import { effectivePercent, loadPercentOverrides } from "@/lib/payout-percent";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
@@ -52,6 +53,8 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   });
 
   const percent = specialist.payoutPercent ?? 0;
+  // Wyjątki procentowe od zabiegów nadpisują ogólny procent pracownika.
+  const percentOverrides = (await loadPercentOverrides([params.id])).get(params.id);
 
   const rows = appointments.map((a) => {
     const materialCost = a.consumptions.reduce((sum, c) => {
@@ -62,7 +65,8 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
     const revenue = a.priceFinal ?? a.priceEstimate ?? 0;
     // Nowy model rozliczeń: baza = przychód − materiały, wypłata = baza × % pracownika
     const base = revenue - materialCost;
-    const payout = Math.round((base * percent) / 100);
+    const rowPercent = effectivePercent(percent, percentOverrides, a.serviceId);
+    const payout = Math.round((base * rowPercent) / 100);
 
     return {
       id: a.id,
@@ -82,6 +86,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
         cost: Math.round((c.product.purchasePrice ?? 0) * Math.abs(parseFloat(String(c.quantity)))),
       })),
       base,
+      percent: rowPercent,
       payout,
     };
   });

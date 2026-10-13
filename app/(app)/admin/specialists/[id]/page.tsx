@@ -351,6 +351,7 @@ export default function SpecialistDetailPage() {
                 percent={stats?.percent}
                 onSaved={() => mutate()}
               />
+              <ServicePercentsSection specialistId={id} onChanged={() => mutate()} />
             </>
           ) : null}
 
@@ -1046,6 +1047,163 @@ function SidebarPermissionsSection({
   );
 }
 
+type ServicePercentRow = {
+  id: string;
+  name: string;
+  category: string | null;
+  overridePercent: number | null;
+  effectivePercent: number;
+};
+
+function ServicePercentsSection({ specialistId, onChanged }: { specialistId: string; onChanged: () => void }) {
+  const { data, mutate, isLoading } = useSWR<{
+    ok: boolean;
+    generalPercent: number;
+    services: ServicePercentRow[];
+    message?: string;
+  }>(`/api/admin/specialists/${specialistId}/service-percents`, fetcher);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [value, setValue] = React.useState("");
+  const [busyId, setBusyId] = React.useState<string | null>(null);
+  const [query, setQuery] = React.useState("");
+
+  const services = data?.services ?? [];
+  const filtered = query.trim()
+    ? services.filter((service) => service.name.toLocaleLowerCase("pl").includes(query.trim().toLocaleLowerCase("pl")))
+    : services;
+  const exceptions = services.filter((service) => service.overridePercent !== null).length;
+
+  async function save(serviceId: string, percent: number | null) {
+    setBusyId(serviceId);
+    try {
+      const res = await fetch(`/api/admin/specialists/${specialistId}/service-percents`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ serviceId, percent }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się zapisać procentu");
+      toast.success(percent === null ? "Usunięto wyjątek — obowiązuje procent ogólny" : "Zapisano wyjątek procentowy");
+      setEditingId(null);
+      await mutate();
+      onChanged();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function startEdit(service: ServicePercentRow) {
+    setEditingId(service.id);
+    setValue(String(service.overridePercent ?? service.effectivePercent));
+  }
+
+  function submit(serviceId: string) {
+    const n = Number(value.replace(",", "."));
+    if (!Number.isInteger(n) || n < 0 || n > 100) {
+      return toast.error("Podaj procent jako liczbę całkowitą od 0 do 100.");
+    }
+    void save(serviceId, n);
+  }
+
+  return (
+    <Card className="space-y-3 p-4">
+      <div>
+        <div className="font-medium">Zabiegi specjalisty i ich procenty</div>
+        <div className="mt-1 text-xs text-slate-500">
+          Lista zabiegów przypisanych do tego specjalisty. Domyślnie każdy zabieg rozlicza się według procentu
+          ogólnego{data ? ` (${data.generalPercent}%)` : ""}. Przy wybranym zabiegu możesz dodać wyjątek z innym
+          procentem — nadpisuje on procent ogólny tylko dla tego zabiegu.
+          {exceptions > 0 ? ` Wyjątków: ${exceptions}.` : ""}
+        </div>
+      </div>
+
+      {services.length > 8 ? (
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Szukaj zabiegu…"
+          className="max-w-sm"
+        />
+      ) : null}
+
+      {isLoading ? <div className="text-sm text-slate-500">Ładowanie…</div> : null}
+      {!isLoading && data?.ok && services.length === 0 ? (
+        <div className="text-sm text-slate-500">
+          Do tego specjalisty nie są przypisane żadne zabiegi. Przypisz je w zakładce Zabiegi i procedury.
+        </div>
+      ) : null}
+      {!isLoading && data && !data.ok ? (
+        <div className="text-sm text-red-600">{data.message || "Nie udało się pobrać zabiegów."}</div>
+      ) : null}
+
+      {filtered.length > 0 ? (
+        <ul className="divide-y rounded-xl border">
+          {filtered.map((service) => {
+            const editing = editingId === service.id;
+            const hasException = service.overridePercent !== null;
+            return (
+              <li key={service.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">{service.name}</div>
+                  {service.category ? <div className="truncate text-xs text-slate-500">{service.category}</div> : null}
+                </div>
+
+                {editing ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      className="h-9 w-20"
+                      value={value}
+                      onChange={(e) => setValue(e.target.value)}
+                      inputMode="numeric"
+                      autoFocus
+                      onFocus={(e) => e.target.select()}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") submit(service.id);
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                    />
+                    <span className="text-sm text-slate-500">%</span>
+                    <Button size="sm" onClick={() => submit(service.id)} disabled={busyId === service.id}>
+                      Zapisz
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditingId(null)} disabled={busyId === service.id}>
+                      Anuluj
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold tabular-nums">{service.effectivePercent}%</span>
+                    {hasException ? (
+                      <Badge variant="outline" className="border-amber-300 text-amber-700">
+                        wyjątek
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-slate-400">ogólny</span>
+                    )}
+                    <Button size="sm" variant="outline" onClick={() => startEdit(service)}>
+                      {hasException ? "Zmień" : "Dodaj wyjątek"}
+                    </Button>
+                    {hasException ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => save(service.id, null)}
+                        disabled={busyId === service.id}
+                      >
+                        Usuń wyjątek
+                      </Button>
+                    ) : null}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </Card>
+  );
+}
+
 function PayoutPercentSection({
   specialistId,
   percent,
@@ -1088,8 +1246,9 @@ function PayoutPercentSection({
       <div>
         <div className="font-medium">Procent od zabiegów</div>
         <div className="mt-1 text-xs text-slate-500">
-          Rozliczenie: (przychód z zabiegu − koszt zużytych materiałów) × procent pracownika. Ten
-          sam procent obowiązuje dla wszystkich zabiegów tego pracownika.
+          Rozliczenie: (przychód z zabiegu − koszt zużytych materiałów) × procent pracownika. To jest
+          procent ogólny, obowiązuje dla wszystkich zabiegów tego pracownika, chyba że dla danego zabiegu
+          ustawisz wyjątek poniżej (wyjątek nadpisuje procent ogólny).
         </div>
       </div>
       <div className="flex flex-wrap items-end gap-3">

@@ -1,3 +1,4 @@
+import { effectivePercent, loadPercentOverrides } from "@/lib/payout-percent";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
@@ -39,7 +40,10 @@ export async function GET(req: Request) {
     take: 5000,
   });
 
+  const overridesBySpecialist = await loadPercentOverrides(specialistIds);
+
   const rows = specialists.map((s) => {
+    const overrides = overridesBySpecialist.get(s.id);
     const appts = appointments.filter((a) => a.specialistId === s.id);
     const revenue = appts.reduce((sum, a) => sum + (a.priceFinal ?? a.priceEstimate ?? 0), 0);
     const materials = appts.flatMap((a) => a.consumptions);
@@ -48,9 +52,20 @@ export async function GET(req: Request) {
       const q = Math.abs(parseFloat(String(c.quantity)));
       return sum + Math.round(purchase * q);
     }, 0);
-    const payout = Math.round((revenue * (s.payoutPercent ?? 50)) / 100);
+    // Procent liczony per wizyta: wyjątek od zabiegu nadpisuje ogólny procent pracownika.
+    const percentOf = (a: (typeof appts)[number]) => effectivePercent(s.payoutPercent ?? 50, overrides, a.serviceId);
+    const payout = appts.reduce(
+      (sum, a) => sum + Math.round(((a.priceFinal ?? a.priceEstimate ?? 0) * percentOf(a)) / 100),
+      0,
+    );
     const profit = revenue - materialCost;
-    const payoutFromProfit = Math.round((profit * (s.payoutPercent ?? 50)) / 100);
+    const payoutFromProfit = appts.reduce((sum, a) => {
+      const cost = a.consumptions.reduce(
+        (acc, c) => acc + Math.round((c.product.purchasePrice ?? 0) * Math.abs(parseFloat(String(c.quantity)))),
+        0,
+      );
+      return sum + Math.round((((a.priceFinal ?? a.priceEstimate ?? 0) - cost) * percentOf(a)) / 100);
+    }, 0);
     return {
       specialistId: s.id,
       name: s.name,
