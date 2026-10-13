@@ -219,6 +219,24 @@ export function AppointmentCalendar({
 }) {
   const [clock, setClock] = React.useState(() => new Date());
   const [mode, setMode] = React.useState<CalendarViewMode>("day");
+  // Filtr „Pracujący tego dnia": w widoku dnia pokazuje kolumny tylko tych specjalistów, którzy
+  // w wybranym dniu pracują (grafik, dni niestandardowe, całodniowe wolne). Wybór jest zapamiętywany.
+  const [onlyWorking, setOnlyWorking] = React.useState(false);
+  React.useEffect(() => {
+    try {
+      if (window.localStorage.getItem("calendar.onlyWorking") === "1") setOnlyWorking(true);
+    } catch {
+      /* brak dostępu do pamięci przeglądarki */
+    }
+  }, []);
+  function toggleOnlyWorking(value: boolean) {
+    setOnlyWorking(value);
+    try {
+      window.localStorage.setItem("calendar.onlyWorking", value ? "1" : "0");
+    } catch {
+      /* ignorujemy */
+    }
+  }
   const [miniMonth, setMiniMonth] = React.useState(() => startOfMonth(anchor));
   const [mobileWeekAnimation, setMobileWeekAnimation] = React.useState<
     "next" | "previous" | null
@@ -892,6 +910,17 @@ export function AppointmentCalendar({
   }
 
   function renderSpecialistDayGrid(day: Date) {
+    const columnSpecialists = onlyWorking
+      ? specialists.filter((specialist) => specialistWorkRange(specialist, day) !== null)
+      : specialists;
+    const hiddenCount = specialists.length - columnSpecialists.length;
+    if (columnSpecialists.length === 0) {
+      return (
+        <div className="px-4 py-10 text-center text-sm text-zinc-500">
+          Tego dnia nie pracuje żaden specjalista według grafiku.
+        </div>
+      );
+    }
     const gridHeight = hours.length * HOUR_HEIGHT;
     const isToday = sameDay(day, today);
     const nowOffset =
@@ -901,15 +930,20 @@ export function AppointmentCalendar({
 
     return (
       <div className="overflow-auto">
-        <div style={{ minWidth: Math.max(760, specialists.length * 220 + 58) }}>
+        {onlyWorking && hiddenCount > 0 ? (
+          <div className="border-b bg-zinc-50 px-3 py-1.5 text-xs text-zinc-500 dark:bg-white/5">
+            Ukryto {hiddenCount} {hiddenCount === 1 ? "specjalistę" : "specjalistów"}, którzy tego dnia nie pracują.
+          </div>
+        ) : null}
+        <div style={{ minWidth: Math.max(760, columnSpecialists.length * 220 + 58) }}>
           <div
             className="sticky top-0 z-30 grid border-b bg-white dark:bg-zinc-950"
             style={{
-              gridTemplateColumns: `58px repeat(${specialists.length}, minmax(210px, 1fr))`,
+              gridTemplateColumns: `58px repeat(${columnSpecialists.length}, minmax(210px, 1fr))`,
             }}
           >
             <div className="sticky left-0 z-40 border-r bg-white shadow-[4px_0_8px_-8px_rgba(0,0,0,0.45)] dark:bg-zinc-950" />
-            {specialists.map((specialist) => {
+            {columnSpecialists.map((specialist) => {
               const work = specialistWorkRange(specialist, day);
               return (
                 <div
@@ -936,7 +970,7 @@ export function AppointmentCalendar({
           <div
             className="grid"
             style={{
-              gridTemplateColumns: `58px repeat(${specialists.length}, minmax(210px, 1fr))`,
+              gridTemplateColumns: `58px repeat(${columnSpecialists.length}, minmax(210px, 1fr))`,
             }}
           >
             <div
@@ -954,7 +988,7 @@ export function AppointmentCalendar({
               ))}
             </div>
 
-            {specialists.map((specialist) => {
+            {columnSpecialists.map((specialist) => {
               const work = specialistWorkRange(specialist, day);
               const list = appointments.filter(
                 (appointment) =>
@@ -1694,6 +1728,17 @@ export function AppointmentCalendar({
             ) : null}
           </div>
           <div className="flex items-center gap-3">
+            {mode === "day" && specialists.length > 0 ? (
+              <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={onlyWorking}
+                  onChange={(event) => toggleOnlyWorking(event.target.checked)}
+                  className="h-4 w-4 rounded border-zinc-300 accent-emerald-600"
+                />
+                Pracujący tego dnia
+              </label>
+            ) : null}
             <div className="inline-flex rounded-xl border bg-white p-1 text-sm shadow-sm dark:bg-zinc-950">
               {(
                 [
