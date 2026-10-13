@@ -580,106 +580,96 @@ export function AdminAddProductDialog({
                 (ta sama partia, numer seryjny i termin) zwiększają ilość.
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-white/10">
-                <table className="w-full min-w-[720px] text-sm">
-                  <thead className="bg-slate-50 text-left text-xs text-slate-500 dark:bg-white/5">
-                    <tr>
-                      <th className="px-3 py-2">Produkt</th>
-                      <th className="px-2 py-2">Partia</th>
-                      <th className="px-2 py-2">Nr seryjny</th>
-                      <th className="px-2 py-2">Termin ważności</th>
-                      <th className="px-2 py-2">Ilość</th>
-                      <th className="w-10 px-2 py-2" aria-label="Usuń" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lines.map((line) => (
-                      <tr
-                        key={line.id}
-                        className={
-                          "border-t border-slate-100 dark:border-white/10 " +
-                          (line.id === lastLineId ? "bg-emerald-50/70 dark:bg-emerald-500/10" : "")
-                        }
+              <div className="space-y-3">
+                {lines.map((line) => (
+                  <div
+                    key={line.id}
+                    className={
+                      "space-y-3 rounded-xl border p-4 " +
+                      (line.id === lastLineId
+                        ? "border-emerald-300 bg-emerald-50/70 dark:border-emerald-500/40 dark:bg-emerald-500/10"
+                        : "border-slate-200 dark:border-white/10")
+                    }
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold">{lineProductName(line)}</div>
+                        {line.productRef.startsWith(NEW_REF_PREFIX) ? (
+                          <div className="text-xs text-amber-700 dark:text-amber-300">nowy produkt</div>
+                        ) : null}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeLine(line.id)}
+                        className="shrink-0 text-slate-400 hover:text-red-600"
+                        aria-label="Usuń pozycję"
                       >
-                        <td className="px-3 py-2 font-medium">
-                          {lineProductName(line)}
-                          {line.productRef.startsWith(NEW_REF_PREFIX) ? (
-                            <div className="text-xs font-normal text-amber-700 dark:text-amber-300">nowy produkt</div>
-                          ) : null}
-                        </td>
-                        <td className="px-2 py-2">
-                          <Input
-                            aria-label="Numer partii"
-                            value={line.batchNumber}
-                            onChange={(event) => updateLine(line.id, { batchNumber: event.target.value })}
-                            onBlur={() => commitLines(mergeDuplicateLines(linesRef.current))}
-                            placeholder="auto"
-                            className="h-9"
-                          />
-                        </td>
-                        <td className="px-2 py-2">
-                          <Input
-                            aria-label="Numer seryjny"
-                            value={line.serialNumber}
-                            onChange={(event) => updateLine(line.id, { serialNumber: event.target.value })}
-                            onBlur={() => commitLines(mergeDuplicateLines(linesRef.current))}
-                            className="h-9"
-                          />
-                        </td>
-                        <td className="px-2 py-2">
-                          <Input
-                            aria-label="Termin ważności"
-                            type="date"
-                            value={line.expiryDate}
-                            title={formatExpiry(line.expiryDate)}
-                            onChange={(event) => {
-                              updateLine(line.id, { expiryDate: event.target.value });
-                              commitLines(mergeDuplicateLines(linesRef.current));
-                            }}
-                            className="h-9"
-                          />
-                        </td>
-                        <td className="px-2 py-2">
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => changeQuantity(line.id, -1)}
-                              className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
-                              aria-label="Zmniejsz ilość"
-                            >
-                              <Minus className="h-3.5 w-3.5" />
-                            </button>
-                            <Input
-                              aria-label="Ilość"
-                              inputMode="decimal"
-                              value={line.quantity}
-                              onChange={(event) => updateLine(line.id, { quantity: event.target.value })}
-                              className="h-9 w-16 text-center"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => changeQuantity(line.id, 1)}
-                              className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
-                              aria-label="Zwiększ ilość"
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                        <td className="px-2 py-2">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label htmlFor={`${line.id}-qty`}>Ilość</Label>
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => removeLine(line.id)}
-                            className="text-slate-400 hover:text-red-600"
-                            aria-label="Usuń pozycję"
+                            onClick={() => changeQuantity(line.id, -1)}
+                            className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
+                            aria-label="Zmniejsz ilość"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Minus className="h-4 w-4" />
                           </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          <Input
+                            id={`${line.id}-qty`}
+                            inputMode="decimal"
+                            value={line.quantity}
+                            onChange={(event) => updateLine(line.id, { quantity: event.target.value })}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => changeQuantity(line.id, 1)}
+                            className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
+                            aria-label="Zwiększ ilość"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`${line.id}-expiry`}>Termin ważności (opcjonalnie)</Label>
+                        <Input
+                          id={`${line.id}-expiry`}
+                          type="date"
+                          value={line.expiryDate}
+                          title={formatExpiry(line.expiryDate)}
+                          onChange={(event) => {
+                            updateLine(line.id, { expiryDate: event.target.value });
+                            commitLines(mergeDuplicateLines(linesRef.current));
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`${line.id}-batch`}>Numer partii (opcjonalnie)</Label>
+                        <Input
+                          id={`${line.id}-batch`}
+                          value={line.batchNumber}
+                          onChange={(event) => updateLine(line.id, { batchNumber: event.target.value })}
+                          onBlur={() => commitLines(mergeDuplicateLines(linesRef.current))}
+                          placeholder="Zostanie wygenerowany automatycznie"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`${line.id}-serial`}>Numer seryjny (opcjonalnie)</Label>
+                        <Input
+                          id={`${line.id}-serial`}
+                          value={line.serialNumber}
+                          onChange={(event) => updateLine(line.id, { serialNumber: event.target.value })}
+                          onBlur={() => commitLines(mergeDuplicateLines(linesRef.current))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
