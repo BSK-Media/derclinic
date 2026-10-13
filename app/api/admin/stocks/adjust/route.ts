@@ -13,7 +13,7 @@ const NewProductSchema = z.object({
   manufacturer: z.string().trim().max(200).optional(),
   catalogCategory: z.string().trim().max(200).optional(),
   unit: z.enum(["UNIT", "ML", "MG", "G", "AMPULE", "BOTOX_UNIT"]).default("UNIT"),
-  customUnit: z.string().trim().max(60).optional(),
+  customUnit: z.string().trim().max(60).optional().nullable(),
   purchasePrice: z.number().int().nonnegative(),
   salePrice: z.number().int().nonnegative(),
   vatRate: z.enum(VAT_RATE_VALUES).optional(),
