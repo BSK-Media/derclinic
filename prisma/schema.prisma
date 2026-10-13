@@ -1196,6 +1196,22 @@ model PaymentSettings {
   note          String?
 }
 
+// Dane podmiotu (kliniki) — jeden wiersz "clinic". Ustawia administrator w Ustawieniach → Dane kliniki.
+// Trafiają m.in. do dokumentu zgody na zabieg (nazwa, adres, NIP, REGON, numer w rejestrze podmiotów leczniczych).
+model ClinicProfile {
+  id        String   @id
+  updatedAt DateTime @updatedAt
+
+  name      String?
+  legalForm String?
+  address   String?
+  nip       String?
+  regon     String?
+  krs       String?
+  // Numer wpisu do Rejestru Podmiotów Wykonujących Działalność Leczniczą
+  rpwdl     String?
+}
+
 model PatientSession {
   id            String    @id // SHA-256 identyfikatora z tokenu
   patientId     String

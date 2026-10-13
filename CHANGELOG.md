@@ -4,6 +4,9 @@ Format: najnowsze na górze, zmiany pogrupowane według daty wdrożenia. Szczeg�
 i migracje w `prisma/migrations`.
 
 ## 2026-10-13
+### Dodano
+- Ustawienia → Dane kliniki (administrator): nazwa, adres, NIP, REGON, KRS i numer w rejestrze podmiotów leczniczych; dane trafiają do dokumentu zgody na zabieg. Migracja `20261027120000_clinic_profile`.
+
 ### Naprawiono
 - „Magazyn Warszawa” był przypisany do lokalizacji Grodzisk Mazowiecki, więc widziała go recepcja z Grodziska. Migracja `20261026120000_warsaw_warehouse_location` przenosi go do lokalizacji Warszawa (tylko jeśli jest pusty).
 

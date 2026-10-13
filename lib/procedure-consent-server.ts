@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getClinicProfile } from "@/lib/clinic-profile";
 import { encryptBytes } from "@/lib/data-encryption";
 import { logAudit } from "@/lib/audit";
 import {
@@ -71,6 +72,7 @@ export async function consentLinkProblem(token: string) {
 export type ConsentAppointment = NonNullable<Awaited<ReturnType<typeof appointmentForConsentToken>>>;
 
 export async function consentPdfFor(appointment: ConsentAppointment, baseUrl: string) {
+  const clinic = await getClinicProfile();
   return buildConsentPdf(
     {
       appointmentId: appointment.id,
@@ -79,6 +81,7 @@ export async function consentPdfFor(appointment: ConsentAppointment, baseUrl: st
       specialistName: appointment.specialist.name,
       locationName: appointment.location?.name ?? null,
       startsAt: appointment.startsAt,
+      clinic,
     },
     await loadConsentFonts(baseUrl),
   );

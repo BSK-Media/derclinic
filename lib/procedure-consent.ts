@@ -44,6 +44,14 @@ export type ConsentDocumentData = {
   specialistName: string;
   locationName: string | null;
   startsAt: Date;
+  /** Dane podmiotu leczniczego (Ustawienia → Dane kliniki); gdy brak — dokument ich nie zawiera. */
+  clinic?: {
+    name: string | null;
+    address: string | null;
+    nip: string | null;
+    regon: string | null;
+    rpwdl: string | null;
+  } | null;
 };
 
 // UWAGA: poniższa treść to ROBOCZY wzór. Przed użyciem produkcyjnym musi ją
@@ -154,6 +162,17 @@ export async function buildConsentPdf(
     ["Specjalista", data.specialistName],
     ["Miejsce", data.locationName ? `DerClinic, ${data.locationName}` : "DerClinic"],
   ];
+  const clinic = data.clinic;
+  if (clinic) {
+    const ids = [
+      clinic.nip ? `NIP ${clinic.nip}` : null,
+      clinic.regon ? `REGON ${clinic.regon}` : null,
+      clinic.rpwdl ? `RPWDL ${clinic.rpwdl}` : null,
+    ].filter((part): part is string => Boolean(part));
+    if (clinic.name) rows.push(["Podmiot", clinic.name]);
+    if (clinic.address) rows.push(["Adres", clinic.address]);
+    if (ids.length) rows.push(["Dane podmiotu", ids.join(", ")]);
+  }
   for (const [label, value] of rows) {
     ensureSpace(18);
     page.drawText(`${label}:`, { x: margin, y: y - 10.5, size: 10.5, font: bold, color: ink });

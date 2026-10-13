@@ -66,6 +66,7 @@ export const AUDIT_ENTITY_LABELS: Record<string, string> = {
   SpecialistServiceRate: "Stawka specjalisty",
   SpecialistBaseRate: "Stawka bazowa specjalisty",
   SpecialistServicePercent: "Procent specjalisty za zabieg",
+  ClinicProfile: "Dane kliniki",
   SpecialistService: "Zabiegi specjalisty",
   SpecialistWarehouse: "Magazyny specjalisty",
   SpecialistWorkDay: "Grafik tygodniowy",

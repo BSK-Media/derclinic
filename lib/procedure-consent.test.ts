@@ -112,6 +112,18 @@ describe("zgoda na zabieg", () => {
     expect(original.length).toBeGreaterThan(5_000);
   });
 
+  it("dokument z danymi kliniki jest dłuższy i ma ten sam znacznik wizyty", async () => {
+    const withClinic = await buildConsentPdf(
+      { ...data, clinic: { name: "Klinika Testowa Sp. z o.o.", address: "ul. Przykładowa 1, 00-001 Warszawa", nip: "5260001246", regon: "123456789", rpwdl: "000000000001" } },
+      fonts,
+    );
+    expect(withClinic.length).toBeGreaterThan(original.length);
+    expect(Buffer.from(withClinic).toString("latin1")).toContain("DERCLINIC-CONSENT:appt123");
+    // puste dane kliniki nie zmieniają dokumentu
+    const emptyClinic = await buildConsentPdf({ ...data, clinic: { name: null, address: null, nip: null, regon: null, rpwdl: null } }, fonts);
+    expect(Math.abs(emptyClinic.length - original.length)).toBeLessThan(200);
+  });
+
   it("link do zgody działa tylko z poprawnym podpisem", () => {
     const token = consentToken("appt123");
     expect(appointmentIdFromConsentToken(token)).toBe("appt123");
