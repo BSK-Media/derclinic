@@ -3,6 +3,10 @@
 Format: najnowsze na górze, zmiany pogrupowane według daty wdrożenia. Szczegóły techniczne: historia commitów
 i migracje w `prisma/migrations`.
 
+## 2026-10-14
+### Zmieniono
+- Kotwica dziennika zdarzeń (L-07): kontrola nadal codziennie (skróty i weryfikacja podpisów z ostatniej doby), ale e-mail do administratorów wychodzi raz w miesiącu jako zbiorcze zestawienie wszystkich dni; natychmiastowe ostrzeżenie tylko przy anomalii.
+
 ## 2026-10-13
 ### Dodano
 - Ustawienia → Dane kliniki (administrator): nazwa, adres, NIP, REGON, KRS i numer w rejestrze podmiotów leczniczych; dane trafiają do dokumentu zgody na zabieg. Migracja `20261027120000_clinic_profile`.
