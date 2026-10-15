@@ -4,6 +4,7 @@ import { PatientRestrictionControl } from "@/components/patient-restriction-cont
 import { isAdminLike } from "@/lib/roles";
 import { PatientDetailsForm } from "@/components/patient-details-form";
 import { PatientStatistics } from "@/components/patient-statistics";
+import { RfmBadge } from "@/components/rfm-panel";
 import { PatientHistoryTabs } from "@/components/patient-history-tabs";
 import { PatientConsents } from "@/components/patient-consents";
 import { getEffectiveAuth } from "@/lib/effective-auth";
@@ -65,6 +66,7 @@ export default async function AdminPatientDetailPage(props: { params: Promise<{ 
           note: patient.note,
         }}
       >
+        {isAdmin ? <RfmBadge patientId={patient.id} /> : null}
         <PatientStatistics patientId={patient.id} showSpending={isAdmin} />
       </PatientDetailsForm>
 

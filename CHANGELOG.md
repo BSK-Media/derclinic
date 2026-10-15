@@ -3,6 +3,10 @@
 Format: najnowsze na górze, zmiany pogrupowane według daty wdrożenia. Szczegóły techniczne: historia commitów
 i migracje w `prisma/migrations`.
 
+## 2026-10-15
+### Dodano
+- Analityka → Segmentacja pacjentów (RFM): oceny 1–5 za świeżość, częstotliwość i wartość, segmenty VIP / Lojalni / Nowi / Do odzyskania / Zagrożeni / Uśpieni oraz lista pacjentów w segmencie. Na karcie pacjenta odznaka segmentu. Widoczne tylko dla administratora i managera; bez migracji bazy.
+
 ## 2026-10-14
 ### Zmieniono
 - Kotwica dziennika zdarzeń (L-07): kontrola nadal codziennie (skróty i weryfikacja podpisów z ostatniej doby), ale e-mail do administratorów wychodzi raz w miesiącu jako zbiorcze zestawienie wszystkich dni; natychmiastowe ostrzeżenie tylko przy anomalii.
