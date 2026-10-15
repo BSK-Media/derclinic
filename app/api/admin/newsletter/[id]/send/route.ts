@@ -7,6 +7,7 @@ import { appBaseUrl, getEmailSettings, sendTrackedEmail } from "@/lib/email-noti
 import { newsletterEmail } from "@/lib/email-templates";
 import { htmlToText, newsletterUnsubscribeToken } from "@/lib/newsletter";
 import { audienceFromCampaign, newsletterRecipientsWhere } from "@/lib/newsletter-recipients";
+import { syncRfmListsIfSelected } from "@/lib/rfm-lists";
 import { mailerConfig } from "@/lib/mailer";
 
 // Wysyłka idzie po kolei (limit żądań na sekundę u dostawcy poczty), a jedno
@@ -69,6 +70,8 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
   }
 
   const prefix = `newsletter:${campaign.id}:`;
+  // Listy automatyczne (segmenty RFM) przeliczamy tuż przed wysyłką, żeby skład był aktualny.
+  if (campaign.audienceType === "LISTS") await syncRfmListsIfSelected(campaign.audienceListIds, user!.id);
   const recipients = await prisma.patient.findMany({
     where: newsletterRecipientsWhere(user!.locationScopeId, audienceFromCampaign(campaign)),
     orderBy: { createdAt: "asc" },

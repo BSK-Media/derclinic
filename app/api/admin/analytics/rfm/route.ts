@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getRfmSettings } from "@/lib/rfm-settings";
-import { requireAuth, requireStrictRole, scopedLocationWhere } from "@/lib/api-helpers";
+import { loadRfm } from "@/lib/rfm-data";
+import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import {
   RFM_SEGMENT_LABELS,
   RFM_SEGMENT_ORDER,
-  computeRfm,
   type RfmSegment,
 } from "@/lib/rfm";
 
@@ -25,49 +24,7 @@ export async function GET(req: Request) {
   const segmentParam = url.searchParams.get("segment");
   const segment = RFM_SEGMENT_ORDER.includes(segmentParam as RfmSegment) ? (segmentParam as RfmSegment) : "VIP";
 
-  const now = new Date();
-  const settings = await getRfmSettings();
-  const windowStart = new Date(now.getTime() - settings.windowDays * 24 * 3600 * 1000);
-  const scope = scopedLocationWhere(user!);
-
-  const [appointments, sales] = await Promise.all([
-    prisma.appointment.findMany({
-      where: {
-        status: "COMPLETED",
-        approvalStatus: "APPROVED",
-        deletedAt: null,
-        service: { name: { not: "__DERCLINIC_REZERWACJA_CZASU__" } },
-        patient: { ...scope },
-        ...scope,
-      },
-      select: { patientId: true, startsAt: true, priceFinal: true, priceEstimate: true },
-      take: 100000,
-    }),
-    prisma.retailSale.findMany({
-      where: { status: "COMPLETED", patientId: { not: null }, ...scope },
-      select: { patientId: true, createdAt: true, total: true },
-      take: 100000,
-    }),
-  ]);
-
-  const agg = new Map<string, { lastAt: Date; frequency: number; monetary: number }>();
-  const add = (id: string, at: Date, amount: number) => {
-    const cur = agg.get(id) ?? { lastAt: at, frequency: 0, monetary: 0 };
-    if (at > cur.lastAt) cur.lastAt = at;
-    if (at >= windowStart) {
-      cur.frequency += 1;
-      cur.monetary += amount;
-    }
-    agg.set(id, cur);
-  };
-  for (const a of appointments) add(a.patientId, a.startsAt, a.priceFinal ?? a.priceEstimate ?? 0);
-  for (const s of sales) if (s.patientId) add(s.patientId, s.createdAt, s.total);
-
-  const scored = computeRfm(
-    [...agg.entries()].map(([id, v]) => ({ patientId: id, ...v })),
-    now,
-    { thresholds: settings.thresholds },
-  );
+  const { settings, scored } = await loadRfm(user!.locationScopeId);
 
   if (patientId) {
     const one = scored.find((r) => r.patientId === patientId);

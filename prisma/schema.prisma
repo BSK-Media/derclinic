@@ -1063,6 +1063,10 @@ model NewsletterList {
 
   name String
 
+  // Lista automatyczna: skład wyznacza segment RFM (VIP, Do odzyskania…) i jest przeliczany sam —
+  // pacjent trafiający do innego segmentu znika z tej listy. Listy automatyczne są tylko do odczytu.
+  rfmSegment String? @unique
+
   members NewsletterListMember[]
 
   createdById String?

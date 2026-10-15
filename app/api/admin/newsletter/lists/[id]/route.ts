@@ -27,6 +27,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     select: {
       id: true,
       name: true,
+      rfmSegment: true,
       members: {
         select: { patient: { select: { id: true, name: true, email: true, phone: true } } },
       },
@@ -50,6 +51,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     list: {
       id: list.id,
       name: list.name,
+      auto: list.rfmSegment !== null,
       members: list.members.map((m) => ({ ...m.patient, subscribed: subscribedIds.has(m.patient.id) })),
     },
   });
@@ -66,8 +68,9 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
   const parsed = PatchSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "Niepoprawne dane");
 
-  const list = await prisma.newsletterList.findUnique({ where: { id: params.id }, select: { id: true, name: true } });
+  const list = await prisma.newsletterList.findUnique({ where: { id: params.id }, select: { id: true, name: true, rfmSegment: true } });
   if (!list) return bad("Nie znaleziono listy", 404);
+  if (list.rfmSegment) return bad("Lista automatyczna (segment RFM) jest przeliczana sama i nie można jej edytować");
 
   const { name, addPatientIds, removePatientIds } = parsed.data;
   let added = 0;
@@ -116,8 +119,9 @@ export async function DELETE(_req: Request, props: { params: Promise<{ id: strin
   const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
-  const list = await prisma.newsletterList.findUnique({ where: { id: params.id }, select: { id: true, name: true } });
+  const list = await prisma.newsletterList.findUnique({ where: { id: params.id }, select: { id: true, name: true, rfmSegment: true } });
   if (!list) return bad("Nie znaleziono listy", 404);
+  if (list.rfmSegment) return bad("Listy automatycznej (segment RFM) nie można usunąć");
 
   await prisma.newsletterList.delete({ where: { id: list.id } });
   await logAudit({

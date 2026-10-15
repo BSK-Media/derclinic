@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { AudienceSchema, newsletterRecipientsWhere } from "@/lib/newsletter-recipients";
+import { syncRfmListsIfSelected } from "@/lib/rfm-lists";
 
 // Ilu klientów faktycznie dostanie wysyłkę dla wybranych odbiorców (po
 // uwzględnieniu zgody marketingowej, adresu e-mail i lokalizacji).
@@ -19,6 +20,7 @@ export async function POST(req: Request) {
   if ((audience.type === "LISTS" && audience.listIds.length === 0) || (audience.type === "PATIENTS" && audience.patientIds.length === 0)) {
     return NextResponse.json({ ok: true, count: 0 });
   }
+  if (audience.type === "LISTS") await syncRfmListsIfSelected(audience.listIds, user!.id);
   const count = await prisma.patient.count({ where: newsletterRecipientsWhere(user!.locationScopeId, audience) });
   return NextResponse.json({ ok: true, count });
 }

@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { subscribedPatientWhere } from "@/lib/newsletter-recipients";
+import { syncRfmLists } from "@/lib/rfm-lists";
+import { RFM_SEGMENT_LABELS, type RfmSegment } from "@/lib/rfm";
 
 const CreateSchema = z.object({ name: z.string().trim().min(2, "Podaj nazwę listy (min. 2 znaki)").max(80) });
 
@@ -15,9 +17,14 @@ export async function GET() {
   const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
+  // Pierwsze wejście: listy automatyczne (segmenty RFM) jeszcze nie istnieją — tworzymy je i przeliczamy.
+  if ((await prisma.newsletterList.count({ where: { rfmSegment: { not: null } } })) === 0) {
+    await syncRfmLists(user!.id);
+  }
+
   const lists = await prisma.newsletterList.findMany({
     orderBy: { name: "asc" },
-    select: { id: true, name: true, createdAt: true, _count: { select: { members: true } } },
+    select: { id: true, name: true, rfmSegment: true, createdAt: true, _count: { select: { members: true } } },
   });
   const subscribedCounts = await Promise.all(
     lists.map((list) =>
@@ -33,6 +40,8 @@ export async function GET() {
       id: list.id,
       name: list.name,
       createdAt: list.createdAt,
+      auto: list.rfmSegment !== null,
+      hint: list.rfmSegment ? RFM_SEGMENT_LABELS[list.rfmSegment as RfmSegment]?.hint ?? null : null,
       members: list._count.members,
       subscribed: subscribedCounts[index],
     })),

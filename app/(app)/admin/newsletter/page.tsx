@@ -30,7 +30,7 @@ type Campaign = CampaignRow & {
 };
 
 type AudienceType = "ALL" | "LISTS" | "PATIENTS";
-type ListRow = { id: string; name: string; members: number; subscribed: number };
+type ListRow = { id: string; name: string; members: number; subscribed: number; auto?: boolean; hint?: string | null };
 
 const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then((r) => r.json());
 
@@ -136,6 +136,15 @@ export default function NewsletterPage() {
     setAudienceType(source?.audienceType ?? "ALL");
     setAudienceListIds(source?.audienceListIds ?? []);
     setAudiencePatientIds(source?.audiencePatientIds ?? []);
+  }
+
+  async function refreshAutoLists() {
+    const res = await fetch("/api/admin/newsletter/lists/sync", { method: "POST" });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się przeliczyć list.");
+    toast.success("Listy automatyczne przeliczone");
+    await mutateLists();
+    setAudienceListIds((ids) => [...ids]);
   }
 
   async function createList() {
@@ -353,8 +362,16 @@ export default function NewsletterPage() {
           <div className="mt-6 border-t border-slate-200 pt-4 dark:border-white/10">
             <h2 className="mb-1 text-sm font-semibold text-slate-900 dark:text-white">Listy odbiorców</h2>
             <p className="mb-3 text-xs text-slate-500">
-              Np. „Klientki botoksu” albo „VIP”. Przy wysyłce wybierasz jedną lub kilka list.
+              Np. „Klientki botoksu” albo „VIP”. Przy wysyłce wybierasz jedną lub kilka list. Listy „RFM ·” są automatyczne:
+              przeliczają się codziennie i tuż przed wysyłką, a pacjent zmieniający segment przechodzi na inną listę.
             </p>
+            <button
+              type="button"
+              onClick={() => void refreshAutoLists()}
+              className="mb-3 text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-300"
+            >
+              Przelicz listy automatyczne teraz
+            </button>
             <ul className="space-y-2">
               {lists.map((list) => (
                 <li key={list.id}>
@@ -363,7 +380,15 @@ export default function NewsletterPage() {
                     onClick={() => setListDialogId(list.id)}
                     className="w-full rounded-2xl border border-slate-200 p-3 text-left transition hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
                   >
-                    <div className="truncate text-sm font-medium text-slate-900 dark:text-white">{list.name}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="truncate text-sm font-medium text-slate-900 dark:text-white">{list.name}</div>
+                      {list.auto ? (
+                        <span className="shrink-0 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200">
+                          auto
+                        </span>
+                      ) : null}
+                    </div>
+                    {list.hint ? <div className="mt-0.5 text-xs text-slate-400">{list.hint}</div> : null}
                     <div className="mt-0.5 text-xs text-slate-500">
                       {list.members} {list.members === 1 ? "klient" : "klientów"} · {list.subscribed} ze zgodą
                     </div>

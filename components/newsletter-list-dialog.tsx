@@ -23,6 +23,8 @@ export function NewsletterListDialog({
   const confirm = useConfirm();
   const [name, setName] = React.useState("");
   const [originalName, setOriginalName] = React.useState("");
+  const [auto, setAuto] = React.useState(false);
+  const [autoMembers, setAutoMembers] = React.useState<PickerClient[]>([]);
   const [memberIds, setMemberIds] = React.useState<string[]>([]);
   const [originalIds, setOriginalIds] = React.useState<string[]>([]);
   const [unsubscribedCount, setUnsubscribedCount] = React.useState(0);
@@ -43,6 +45,8 @@ export function NewsletterListDialog({
         return onOpenChange(false);
       }
       const members: PickerClient[] = out.list.members;
+      setAuto(Boolean(out.list.auto));
+      setAutoMembers(members);
       setName(out.list.name);
       setOriginalName(out.list.name);
       setMemberIds(members.map((m) => m.id));
@@ -110,6 +114,32 @@ export function NewsletterListDialog({
           <div className="py-8 text-center text-sm text-slate-500">Ładowanie…</div>
         ) : (
           <div className="space-y-4">
+            {auto ? (
+              <div className="space-y-3">
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900 dark:border-indigo-400/30 dark:bg-indigo-500/10 dark:text-indigo-200">
+                  <strong>{name}</strong> — lista automatyczna. Skład wyznacza segment pacjentów (RFM) i jest przeliczany
+                  sam: gdy pacjent trafi do innego segmentu, znika z tej listy. Nie edytuje się jej ręcznie.
+                </div>
+                <div className="max-h-72 space-y-1 overflow-y-auto text-sm">
+                  {autoMembers.length === 0 ? (
+                    <div className="text-slate-500">Na liście nie ma teraz nikogo.</div>
+                  ) : (
+                    autoMembers.map((m) => (
+                      <div key={m.id} className="flex items-center justify-between gap-2 border-b border-slate-100 py-1 dark:border-white/5">
+                        <span className="truncate">{m.name}</span>
+                        {!m.subscribed ? <span className="shrink-0 text-xs text-amber-700 dark:text-amber-300">bez zgody</span> : null}
+                      </div>
+                    ))
+                  )}
+                </div>
+                {unsubscribedCount > 0 ? (
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    {unsubscribedCount} z listy nie ma zgody marketingowej lub adresu e-mail — nie dostaną newslettera.
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+            <>
             <div className="space-y-1">
               <Label htmlFor="list-name">Nazwa listy</Label>
               <Input id="list-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
@@ -126,20 +156,28 @@ export function NewsletterListDialog({
                 </p>
               ) : null}
             </div>
+            </>
+            )}
           </div>
         )}
 
         <DialogFooter className="sm:justify-between">
-          <Button variant="destructive" onClick={remove} disabled={loading || saving}>
-            Usuń listę
-          </Button>
+          {auto ? (
+            <span />
+          ) : (
+            <Button variant="destructive" onClick={remove} disabled={loading || saving}>
+              Usuń listę
+            </Button>
+          )}
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Zamknij
             </Button>
-            <Button onClick={save} disabled={loading || saving || !dirty}>
-              {saving ? "Zapisywanie…" : "Zapisz"}
-            </Button>
+            {auto ? null : (
+              <Button onClick={save} disabled={loading || saving || !dirty}>
+                {saving ? "Zapisywanie…" : "Zapisz"}
+              </Button>
+            )}
           </div>
         </DialogFooter>
       </DialogContent>
