@@ -5,6 +5,8 @@ import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { getDisabledPushTypes, saveDisabledPushTypes } from "@/lib/push";
 import { EMAIL_TYPE_INFO } from "@/lib/email-types";
+import { RFM_SEGMENT_LABELS, RFM_SEGMENT_ORDER } from "@/lib/rfm";
+import { pushRecipientCountsBySegment } from "@/lib/rfm-audience";
 
 const TOGGLEABLE_TYPES = EMAIL_TYPE_INFO.filter((info) => info.toggleable).map((info) => info.type as string);
 
@@ -15,7 +17,7 @@ export async function GET() {
   const deny = requireStrictRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
-  const [disabledPushTypes, patientDevices, patients, staffDevices, staff, marketingPatients, logs] = await Promise.all([
+  const [disabledPushTypes, patientDevices, patients, staffDevices, staff, marketingPatients, logs, segmentCounts] = await Promise.all([
     getDisabledPushTypes(),
     prisma.pushSubscription.count({ where: { patientId: { not: null } } }),
     prisma.patient.count({ where: { pushSubscriptions: { some: {} } } }),
@@ -30,12 +32,19 @@ export async function GET() {
       take: 50,
       select: { id: true, createdAt: true, type: true, recipient: true, subject: true, status: true, error: true },
     }),
+    pushRecipientCountsBySegment(user!.locationScopeId),
   ]);
 
   return NextResponse.json({
     ok: true,
     disabledPushTypes,
     stats: { patientDevices, patients, staffDevices, staff, marketingPatients },
+    segments: RFM_SEGMENT_ORDER.map((segment) => ({
+      segment,
+      label: RFM_SEGMENT_LABELS[segment].label,
+      hint: RFM_SEGMENT_LABELS[segment].hint,
+      count: segmentCounts[segment],
+    })),
     logs,
   });
 }

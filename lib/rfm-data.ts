@@ -2,13 +2,17 @@ import { prisma } from "@/lib/db";
 import { computeRfm, type RfmResult } from "@/lib/rfm";
 import { getRfmSettings } from "@/lib/rfm-settings";
 
-// Wspólne źródło danych RFM (Analityka, karta pacjenta, listy newslettera). Liczone są zakończone,
-// zaakceptowane i nieusunięte wizyty oraz sprzedaż detaliczna przypisana do pacjenta — te same
-// kryteria co w statystykach pacjenta. Ustawienia (okno, progi) pochodzą z Ustawień → Segmentacja RFM.
+// Wspólne źródło danych RFM (Analityka, karta pacjenta, lista pacjentów, powiadomienia push, listy
+// newslettera). Liczone są zakończone, zaakceptowane i nieusunięte wizyty oraz sprzedaż detaliczna
+// przypisana do pacjenta — te same kryteria co w statystykach pacjenta. Ustawienia (okno, progi) pochodzą
+// z Ustawień → Segmentacja RFM.
+//
+// Oceny liczymy ZAWSZE dla całej kliniki, żeby ten sam pacjent miał ten sam segment w każdym miejscu
+// aplikacji. Parametr locationId tylko zawęża wynik do pacjentów danej lokalizacji (widok managera).
 export async function loadRfm(locationId: string | null, now: Date = new Date()) {
   const settings = await getRfmSettings();
   const windowStart = new Date(now.getTime() - settings.windowDays * 24 * 3600 * 1000);
-  const scope = locationId ? { locationId } : {};
+  const scope = {};
 
   const [appointments, sales] = await Promise.all([
     prisma.appointment.findMany({
@@ -43,10 +47,21 @@ export async function loadRfm(locationId: string | null, now: Date = new Date())
   for (const a of appointments) add(a.patientId, a.startsAt, a.priceFinal ?? a.priceEstimate ?? 0);
   for (const s of sales) if (s.patientId) add(s.patientId, s.createdAt, s.total);
 
-  const scored: RfmResult[] = computeRfm(
+  let scored: RfmResult[] = computeRfm(
     [...agg.entries()].map(([id, v]) => ({ patientId: id, ...v })),
     now,
     { thresholds: settings.thresholds },
   );
+  if (locationId && scored.length) {
+    const inLocation = new Set(
+      (
+        await prisma.patient.findMany({
+          where: { id: { in: scored.map((r) => r.patientId) }, locationId },
+          select: { id: true },
+        })
+      ).map((p) => p.id),
+    );
+    scored = scored.filter((r) => inLocation.has(r.patientId));
+  }
   return { settings, scored };
 }

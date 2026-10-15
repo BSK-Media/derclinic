@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { sendPushToPatient, sendPushToPatients, type PushPayload } from "@/lib/push";
+import { isRfmSegment, pushRecipientIdsForSegment } from "@/lib/rfm-audience";
+import { RFM_SEGMENT_LABELS } from "@/lib/rfm";
 import { RATE_LIMITS, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 export const maxDuration = 60;
@@ -12,15 +14,21 @@ const BodySchema = z
   .object({
     // patient   — jeden wskazany klient,
     // all       — wszyscy klienci z włączonymi powiadomieniami (informacje organizacyjne),
-    // marketing — tylko klienci ze zgodą marketingową (promocje, nowości).
-    audience: z.enum(["patient", "all", "marketing"]),
+    // marketing — tylko klienci ze zgodą marketingową (promocje, nowości),
+    // segment   — klienci z wybranego segmentu RFM (VIP, Do odzyskania…) ze zgodą marketingową.
+    audience: z.enum(["patient", "all", "marketing", "segment"]),
     patientId: z.string().min(1).max(100).optional(),
+    segment: z.string().max(40).optional(),
     title: z.string().trim().min(2, "Podaj tytuł powiadomienia").max(60, "Tytuł może mieć najwyżej 60 znaków"),
     body: z.string().trim().min(2, "Podaj treść powiadomienia").max(180, "Treść może mieć najwyżej 180 znaków"),
   })
   .refine((value) => value.audience !== "patient" || Boolean(value.patientId), {
     message: "Wybierz klienta",
     path: ["patientId"],
+  })
+  .refine((value) => value.audience !== "segment" || isRfmSegment(value.segment), {
+    message: "Wybierz segment pacjentów",
+    path: ["segment"],
   });
 
 // Ręczna wysyłka powiadomienia push do klientów — wyłącznie administrator.
@@ -41,7 +49,7 @@ export async function POST(req: Request) {
   const limit = await hitRateLimit(RATE_LIMITS.pushManual, user!.id);
   if (!limit.allowed) return tooManyRequests(limit, "Zbyt wiele ręcznych powiadomień. Spróbuj ponownie później.");
 
-  const { audience, patientId, title, body } = parsed.data;
+  const { audience, patientId, segment, title, body } = parsed.data;
   const payload: PushPayload = { title, body, url: "/panel-klienta" };
 
   let result;
@@ -51,6 +59,10 @@ export async function POST(req: Request) {
     if (!patient) return NextResponse.json({ ok: false, message: "Nie znaleziono klienta" }, { status: 404 });
     recipientLabel = patient.name;
     result = await sendPushToPatient(patient.id, payload, { type: "MANUAL", recipientLabel });
+  } else if (audience === "segment" && isRfmSegment(segment)) {
+    const ids = await pushRecipientIdsForSegment(segment, user!.locationScopeId);
+    recipientLabel = `Segment „${RFM_SEGMENT_LABELS[segment].label}" (${ids.length})`;
+    result = await sendPushToPatients(ids, payload, { type: "MANUAL", recipientLabel });
   } else if (audience === "marketing") {
     const patients = await prisma.patient.findMany({
       where: { pushSubscriptions: { some: {} }, consents: { some: { type: "MARKETING", granted: true } } },

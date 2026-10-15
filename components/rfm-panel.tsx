@@ -21,7 +21,7 @@ type PatientRow = {
   monetary: number;
 };
 
-const SEGMENT_TONE: Record<RfmSegment, string> = {
+export const SEGMENT_TONE: Record<RfmSegment, string> = {
   VIP: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
   LOYAL: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300",
   NEW: "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300",
@@ -142,5 +142,30 @@ export function RfmBadge({ patientId }: { patientId: string }) {
       </span>
       <span className="text-xs text-zinc-500">{rfm.hint}</span>
     </Card>
+  );
+}
+
+const SEGMENT_SHORT_LABEL: Record<RfmSegment, string> = {
+  VIP: "VIP",
+  LOYAL: "Lojalni",
+  NEW: "Nowi",
+  WIN_BACK: "Do odzyskania",
+  AT_RISK: "Zagrożeni",
+  DORMANT: "Uśpieni",
+  OTHER: "Pozostali",
+};
+
+export const RFM_SEGMENT_FILTER_OPTIONS: { value: RfmSegment; label: string }[] = (
+  ["VIP", "LOYAL", "NEW", "WIN_BACK", "AT_RISK", "DORMANT"] as RfmSegment[]
+).map((value) => ({ value, label: SEGMENT_SHORT_LABEL[value] }));
+
+/** Mała odznaka segmentu do list pacjentów. */
+export function RfmSegmentBadge({ segment }: { segment?: string | null }) {
+  if (!segment || !(segment in SEGMENT_TONE)) return null;
+  const key = segment as RfmSegment;
+  return (
+    <span className={"inline-block shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold " + SEGMENT_TONE[key]}>
+      {SEGMENT_SHORT_LABEL[key]}
+    </span>
   );
 }

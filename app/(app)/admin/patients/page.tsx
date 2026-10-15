@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatPLNFromGrosze } from "@/lib/money";
+import { RFM_SEGMENT_FILTER_OPTIONS, RfmSegmentBadge } from "@/components/rfm-panel";
 import { cn } from "@/lib/utils";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -43,6 +44,7 @@ type Patient = {
   lastVisitAt?: string | null;
   totalSpent?: number;
   completedVisits?: number;
+  rfmSegment?: string | null;
 };
 
 type SortKey = "name" | "createdAt" | "lastVisitAt" | "totalSpent" | "completedVisits";
@@ -112,15 +114,17 @@ export default function AdminPatientsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [emailFilter, setEmailFilter] = useState<"all" | "with" | "without">("all");
   const [onlyWithNote, setOnlyWithNote] = useState(false);
+  const [segmentFilter, setSegmentFilter] = useState<string>("all");
   const [visibleCount, setVisibleCount] = useState(MOBILE_PAGE_SIZE);
 
-  const activeFilterCount = (emailFilter === "all" ? 0 : 1) + (onlyWithNote ? 1 : 0);
+  const activeFilterCount = (emailFilter === "all" ? 0 : 1) + (onlyWithNote ? 1 : 0) + (segmentFilter === "all" ? 0 : 1);
 
   const sortedPatients = useMemo(() => {
     const filtered = patients.filter((patient) => {
       if (emailFilter === "with" && !patient.email) return false;
       if (emailFilter === "without" && patient.email) return false;
       if (onlyWithNote && !patient.note?.trim()) return false;
+      if (segmentFilter !== "all" && patient.rfmSegment !== segmentFilter) return false;
       return true;
     });
 
@@ -147,11 +151,11 @@ export default function AdminPatientsPage() {
             : (right[sortKey] ?? 0);
       return sortDirection === "asc" ? leftValue - rightValue : rightValue - leftValue;
     });
-  }, [emailFilter, onlyWithNote, patients, sortDirection, sortKey]);
+  }, [emailFilter, onlyWithNote, patients, segmentFilter, sortDirection, sortKey]);
 
   useEffect(() => {
     setVisibleCount(MOBILE_PAGE_SIZE);
-  }, [emailFilter, onlyWithNote, q, sortDirection, sortKey]);
+  }, [emailFilter, onlyWithNote, q, segmentFilter, sortDirection, sortKey]);
 
   function applyQuickSort(next: QuickSort) {
     setQuickSort(next);
@@ -444,6 +448,28 @@ export default function AdminPatientsPage() {
                 Tylko z notatką
               </button>
             </div>
+            {isAdmin ? (
+              <div className="space-y-2 border-t pt-3">
+                <div className="text-xs font-medium text-zinc-500">Segment pacjenta (RFM)</div>
+                <div className="flex flex-wrap gap-2">
+                  {[{ value: "all", label: "Wszystkie segmenty" }, ...RFM_SEGMENT_FILTER_OPTIONS].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setSegmentFilter(option.value)}
+                      className={cn(
+                        "rounded-full border px-3 py-2 text-sm font-medium",
+                        segmentFilter === option.value
+                          ? "border-indigo-300 bg-indigo-50 text-indigo-800 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-200"
+                          : "bg-white text-zinc-600 dark:bg-[#0b1220] dark:text-zinc-300",
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </Card>
         ) : null}
 
@@ -517,8 +543,11 @@ export default function AdminPatientsPage() {
                   {initials(patient.name)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-base font-semibold text-zinc-950 dark:text-zinc-50">
-                    {patient.name}
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="truncate text-base font-semibold text-zinc-950 dark:text-zinc-50">
+                      {patient.name}
+                    </div>
+                    <RfmSegmentBadge segment={patient.rfmSegment} />
                   </div>
                   <div className="mt-1 space-y-0.5 text-sm text-zinc-500 dark:text-zinc-400">
                     <div className="flex min-w-0 items-center gap-2">
@@ -648,7 +677,8 @@ export default function AdminPatientsPage() {
                   <td className="p-3 font-medium">
                     <Link className="underline" href={`/admin/patients/${p.id}`}>
                       {p.name}
-                    </Link>
+                    </Link>{" "}
+                    <RfmSegmentBadge segment={p.rfmSegment} />
                   </td>
                   <td className="p-3">{p.phone ?? "—"}</td>
                   <td className="p-3">{p.email ?? "—"}</td>

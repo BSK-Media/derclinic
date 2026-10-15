@@ -6,6 +6,7 @@ import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers
 import { logAudit } from "@/lib/audit";
 import { isAdminLike } from "@/lib/roles";
 import { patientIdsMatching } from "@/lib/patient-search";
+import { segmentByPatient } from "@/lib/rfm-audience";
 
 export async function GET(req: Request) {
   const { user, error } = await requireAuth();
@@ -102,8 +103,12 @@ export async function GET(req: Request) {
     }
   }
 
+  // Segment RFM tylko dla administratora i managera (dane o wartości pacjenta).
+  const segments = isAdminLike(user!.role) ? await segmentByPatient(null) : null;
+
   const patientsWithStats = patients.map((patient) => ({
     ...patient,
+    ...(segments ? { rfmSegment: segments.get(patient.id) ?? null } : {}),
     ...(isAdminLike(user!.role)
       ? { totalSpent: totalsByPatient.get(patient.id)?.totalSpent ?? 0 }
       : {}),

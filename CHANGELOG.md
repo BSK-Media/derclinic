@@ -5,6 +5,7 @@ i migracje w `prisma/migrations`.
 
 ## 2026-10-15
 ### Dodano
+- Segmenty RFM w całej aplikacji: powiadomienia push można wysłać do wybranego segmentu pacjentów (VIP, Do odzyskania…; tylko osoby z włączonymi powiadomieniami i zgodą marketingową, bez ograniczenia przetwarzania), lista pacjentów ma odznakę segmentu i filtr segmentu (administrator i manager). Oceny RFM liczone są zawsze dla całej kliniki, więc pacjent ma ten sam segment w Analityce, na karcie, na liście, w newsletterze i w push; manager widzi tylko pacjentów swojej lokalizacji.
 - Newsletter: automatyczne listy odbiorców według segmentów RFM (RFM · VIP, Lojalni, Nowi, Do odzyskania, Zagrożeni, Uśpieni). Skład przelicza się codziennie (04:00), tuż przed wysyłką i na żądanie; pacjent, który zmieni segment, znika z poprzedniej listy i trafia na nową. Listy są tylko do odczytu; zgoda marketingowa nadal obowiązuje. Migracja `20261029120000_newsletter_rfm_lists`.
 - Analityka → Segmentacja pacjentów (RFM): oceny 1–5 za świeżość, częstotliwość i wartość, segmenty VIP / Lojalni / Nowi / Do odzyskania / Zagrożeni / Uśpieni oraz lista pacjentów w segmencie. Na karcie pacjenta odznaka segmentu. Widoczne tylko dla administratora i managera.
 - Ustawienia → Segmentacja pacjentów (RFM): administrator ustawia okno obliczeń (30–1095 dni) oraz wybiera ocenianie automatyczne (kwintyle) albo własne progi ocen świeżości, częstotliwości i wartości. Zmiany zapisują się w dzienniku zdarzeń. Migracja `20261028120000_rfm_settings`.

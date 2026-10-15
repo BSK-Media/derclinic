@@ -10,7 +10,8 @@ import { EMAIL_STATUS_LABELS, EMAIL_TYPE_INFO, emailTypeLabel } from "@/lib/emai
 type Stats = { patientDevices: number; patients: number; staffDevices: number; staff: number; marketingPatients: number };
 type LogRow = { id: string; createdAt: string; type: string; recipient: string; subject: string; status: string; error: string | null };
 type Recipient = { id: string; name: string; phone: string | null; devices: number };
-type Audience = "patient" | "all" | "marketing";
+type Audience = "patient" | "all" | "marketing" | "segment";
+type SegmentRow = { segment: string; label: string; hint: string; count: number };
 
 const SECTION =
   "rounded-3xl border border-white/60 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/55";
@@ -100,6 +101,8 @@ export default function PushSettingsPage() {
   const [logs, setLogs] = React.useState<LogRow[]>([]);
   const [loading, setLoading] = React.useState(true);
 
+  const [segments, setSegments] = React.useState<SegmentRow[]>([]);
+  const [segment, setSegment] = React.useState<string>("");
   const [audience, setAudience] = React.useState<Audience>("patient");
   const [query, setQuery] = React.useState("");
   const [results, setResults] = React.useState<Recipient[]>([]);
@@ -116,6 +119,7 @@ export default function PushSettingsPage() {
       return;
     }
     setStats(result.stats);
+    setSegments(result.segments ?? []);
     setDisabled(result.disabledPushTypes ?? []);
     setLogs(result.logs ?? []);
   }, []);
@@ -166,9 +170,16 @@ export default function PushSettingsPage() {
   async function send(event: React.FormEvent) {
     event.preventDefault();
     if (audience === "patient" && !recipient) return toast.error("Wybierz klienta z listy.");
+    if (audience === "segment" && !segment) return toast.error("Wybierz segment pacjentów.");
     if (audience !== "patient") {
-      const count = audience === "all" ? stats?.patients : stats?.marketingPatients;
-      const group = audience === "all" ? "wszystkich klientów z włączonymi powiadomieniami" : "klientów ze zgodą marketingową";
+      const picked = segments.find((row) => row.segment === segment);
+      const count = audience === "all" ? stats?.patients : audience === "segment" ? picked?.count : stats?.marketingPatients;
+      const group =
+        audience === "all"
+          ? "wszystkich klientów z włączonymi powiadomieniami"
+          : audience === "segment"
+            ? `klientów z segmentu „${picked?.label ?? ""}” (ze zgodą marketingową)`
+            : "klientów ze zgodą marketingową";
       if (!(await confirm({ title: "Wysłać powiadomienie?", message: `Wysłać to powiadomienie do ${group} (${count ?? 0})?\n\n„${title.trim()}”\n${body.trim()}`, confirmLabel: "Wyślij" }))) return;
     }
 
@@ -177,7 +188,7 @@ export default function PushSettingsPage() {
       const response = await fetch("/api/admin/push/send", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ audience, patientId: recipient?.id, title: title.trim(), body: body.trim() }),
+        body: JSON.stringify({ audience, patientId: recipient?.id, segment: audience === "segment" ? segment : undefined, title: title.trim(), body: body.trim() }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result?.ok) {
@@ -257,6 +268,7 @@ export default function PushSettingsPage() {
                       ["patient", "Wybrany klient"],
                       ["all", `Wszyscy klienci (${stats.patients})`],
                       ["marketing", `Ze zgodą marketingową (${stats.marketingPatients})`],
+                      ["segment", "Wg segmentu pacjentów"],
                     ] as [Audience, string][]
                   ).map(([value, label]) => (
                     <button
@@ -275,6 +287,33 @@ export default function PushSettingsPage() {
                     </button>
                   ))}
                 </div>
+                {audience === "segment" ? (
+                  <div className="mt-3 space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      {segments.map((row) => (
+                        <button
+                          key={row.segment}
+                          type="button"
+                          aria-pressed={segment === row.segment}
+                          onClick={() => setSegment(row.segment)}
+                          title={row.hint}
+                          className={
+                            "rounded-full border px-3 py-1.5 text-sm font-medium transition " +
+                            (segment === row.segment
+                              ? "border-indigo-600 bg-indigo-600 text-white"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200")
+                          }
+                        >
+                          {row.label} ({row.count})
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      {segments.find((row) => row.segment === segment)?.hint ??
+                        "Segmenty wyznacza analiza RFM (Ustawienia → Segmentacja pacjentów). W nawiasie: ilu pacjentów dostanie powiadomienie — mają włączone powiadomienia i zgodę marketingową."}
+                    </p>
+                  </div>
+                ) : null}
                 {audience === "all" ? (
                   <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
                     Do wszystkich wysyłaj tylko informacje organizacyjne (np. zmiana godzin pracy). Promocje i nowości
@@ -394,7 +433,7 @@ export default function PushSettingsPage() {
 
               <button
                 type="submit"
-                disabled={sending || title.trim().length < 2 || body.trim().length < 2 || (audience === "patient" && !recipient)}
+                disabled={sending || title.trim().length < 2 || body.trim().length < 2 || (audience === "patient" && !recipient) || (audience === "segment" && !segment)}
                 className={PRIMARY_BUTTON}
               >
                 {sending ? "Wysyłanie…" : "Wyślij powiadomienie"}
