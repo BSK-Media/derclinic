@@ -1415,3 +1415,13 @@ model ProductUnitOption {
   createdAt DateTime @default(now())
   name      String   @unique
 }
+
+// Ustawienia analizy RFM — jeden wiersz "rfm". Administrator ustawia w Ustawieniach → Segmentacja pacjentów (RFM)
+// okno obliczeń (dni) oraz opcjonalnie własne progi ocen 1–5; brak progów = automatyczne kwintyle.
+model RfmSettings {
+  id         String   @id
+  updatedAt  DateTime @updatedAt
+  windowDays Int      @default(365)
+  // { r: [d1,d2,d3,d4] (dni), f: [..] (liczba), m: [..] (zł) } albo null
+  thresholds Json?
+}

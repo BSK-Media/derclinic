@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyRfm, computeRfm } from "./rfm";
+import { classifyRfm, computeRfm, parseRfmThresholds } from "./rfm";
 
 const now = new Date("2026-10-15T12:00:00Z");
 const daysAgo = (d: number) => new Date(now.getTime() - d * 24 * 3600 * 1000);
@@ -46,5 +46,21 @@ describe("computeRfm", () => {
   it("liczy dni od ostatniej wizyty", () => {
     const res = computeRfm([{ patientId: "a", lastAt: daysAgo(42), frequency: 1, monetary: 100 }], now);
     expect(res[0].daysSince).toBe(42);
+  });
+});
+
+describe("własne progi", () => {
+  const thresholds = { r: [30, 90, 180, 365], f: [2, 3, 5, 8], m: [300, 800, 2000, 5000] };
+  it("ocenia wg progów, nie względem innych pacjentów", () => {
+    const [a] = computeRfm([{ patientId: "a", lastAt: daysAgo(20), frequency: 9, monetary: 600000 }], now, { thresholds });
+    expect([a.r, a.f, a.m]).toEqual([5, 5, 5]);
+    const [b] = computeRfm([{ patientId: "b", lastAt: daysAgo(400), frequency: 1, monetary: 10000 }], now, { thresholds });
+    expect([b.r, b.f, b.m]).toEqual([1, 1, 1]);
+    const [c] = computeRfm([{ patientId: "c", lastAt: daysAgo(100), frequency: 3, monetary: 90000 }], now, { thresholds });
+    expect([c.r, c.f, c.m]).toEqual([3, 3, 3]);
+  });
+  it("niepoprawne progi są odrzucane", () => {
+    expect(parseRfmThresholds({ r: [5, 3, 2, 1], f: [1, 2, 3, 4], m: [1, 2, 3, 4] })).toBeNull();
+    expect(parseRfmThresholds(thresholds)).toEqual(thresholds);
   });
 });

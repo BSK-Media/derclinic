@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getRfmSettings } from "@/lib/rfm-settings";
 import { requireAuth, requireStrictRole, scopedLocationWhere } from "@/lib/api-helpers";
 import {
   RFM_SEGMENT_LABELS,
   RFM_SEGMENT_ORDER,
-  RFM_WINDOW_DAYS,
   computeRfm,
   type RfmSegment,
 } from "@/lib/rfm";
@@ -26,7 +26,8 @@ export async function GET(req: Request) {
   const segment = RFM_SEGMENT_ORDER.includes(segmentParam as RfmSegment) ? (segmentParam as RfmSegment) : "VIP";
 
   const now = new Date();
-  const windowStart = new Date(now.getTime() - RFM_WINDOW_DAYS * 24 * 3600 * 1000);
+  const settings = await getRfmSettings();
+  const windowStart = new Date(now.getTime() - settings.windowDays * 24 * 3600 * 1000);
   const scope = scopedLocationWhere(user!);
 
   const [appointments, sales] = await Promise.all([
@@ -65,13 +66,14 @@ export async function GET(req: Request) {
   const scored = computeRfm(
     [...agg.entries()].map(([id, v]) => ({ patientId: id, ...v })),
     now,
+    { thresholds: settings.thresholds },
   );
 
   if (patientId) {
     const one = scored.find((r) => r.patientId === patientId);
     return NextResponse.json({
       ok: true,
-      windowDays: RFM_WINDOW_DAYS,
+      windowDays: settings.windowDays,
       rfm: one
         ? {
             r: one.r,
@@ -110,7 +112,7 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     ok: true,
-    windowDays: RFM_WINDOW_DAYS,
+    windowDays: settings.windowDays,
     total: scored.length,
     segments,
     segment,

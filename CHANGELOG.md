@@ -5,7 +5,8 @@ i migracje w `prisma/migrations`.
 
 ## 2026-10-15
 ### Dodano
-- Analityka → Segmentacja pacjentów (RFM): oceny 1–5 za świeżość, częstotliwość i wartość, segmenty VIP / Lojalni / Nowi / Do odzyskania / Zagrożeni / Uśpieni oraz lista pacjentów w segmencie. Na karcie pacjenta odznaka segmentu. Widoczne tylko dla administratora i managera; bez migracji bazy.
+- Analityka → Segmentacja pacjentów (RFM): oceny 1–5 za świeżość, częstotliwość i wartość, segmenty VIP / Lojalni / Nowi / Do odzyskania / Zagrożeni / Uśpieni oraz lista pacjentów w segmencie. Na karcie pacjenta odznaka segmentu. Widoczne tylko dla administratora i managera.
+- Ustawienia → Segmentacja pacjentów (RFM): administrator ustawia okno obliczeń (30–1095 dni) oraz wybiera ocenianie automatyczne (kwintyle) albo własne progi ocen świeżości, częstotliwości i wartości. Zmiany zapisują się w dzienniku zdarzeń. Migracja `20261028120000_rfm_settings`.
 
 ## 2026-10-14
 ### Zmieniono
