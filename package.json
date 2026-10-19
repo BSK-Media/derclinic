@@ -16,8 +16,7 @@
     "content:test": "tsx prisma/update-test-content.ts",
     "pwa:icons": "node scripts/generate-pwa-icons.mjs",
     "db:deploy": "prisma generate && node scripts/migrate-deploy.mjs",
-    "admin:bootstrap": "tsx scripts/bootstrap-admin.ts",
-    "import:booksy": "tsx scripts/import-booksy.ts"
+    "admin:bootstrap": "tsx scripts/bootstrap-admin.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
