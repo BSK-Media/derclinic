@@ -8,3 +8,6 @@ out/
 .env
 .env.*
 !env.example
+
+# raport importu z Booksy (zawiera dane operacyjne)
+/booksy-import-report/
