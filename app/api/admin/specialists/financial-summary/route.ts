@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   }
 
   const specialists = await prisma.user.findMany({
-    where: { role: "SPECIALIST", ...scopedLocationWhere(user!) },
+    where: { role: "SPECIALIST", isArchived: false, ...scopedLocationWhere(user!) },
     orderBy: [{ specialistCode: "asc" }, { name: "asc" }],
     select: {
       id: true,

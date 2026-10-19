@@ -123,6 +123,7 @@ export async function GET(req: Request) {
         ? prisma.user.findMany({
             where: {
               role: "SPECIALIST",
+              isArchived: false,
               ...locationWhere,
               OR: [{ name: contains }, { email: contains }],
             },
@@ -149,7 +150,7 @@ export async function GET(req: Request) {
         : Promise.resolve([]),
       can("services")
         ? prisma.service.findMany({
-            where: { OR: [{ name: contains }, { category: contains }] },
+            where: { isArchived: false, OR: [{ name: contains }, { category: contains }] },
             select: { id: true, name: true, category: true },
             orderBy: { name: "asc" },
             take: LIMIT,

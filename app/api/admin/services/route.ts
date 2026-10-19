@@ -173,7 +173,7 @@ export async function GET(req: Request) {
 
   const [services, products, specialists] = await Promise.all([
     prisma.service.findMany({
-      where: { name: { not: RESERVATION_SERVICE_NAME } },
+      where: { name: { not: RESERVATION_SERVICE_NAME }, isArchived: false },
       orderBy: { name: "asc" },
       include: {
         suggestedProducts: { include: { product: true } },
@@ -182,7 +182,7 @@ export async function GET(req: Request) {
     }),
     prisma.product.findMany({ orderBy: { name: "asc" } }),
     prisma.user.findMany({
-      where: { role: "SPECIALIST", ...scopedLocationWhere(user!) },
+      where: { role: "SPECIALIST", isArchived: false, ...scopedLocationWhere(user!) },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),

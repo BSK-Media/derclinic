@@ -30,6 +30,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     prisma.user.findMany({
       where: {
         role: "SPECIALIST",
+        isArchived: false,
         ...(user!.locationScopeId ? { locationId: user!.locationScopeId } : {}),
       },
       orderBy: { name: "asc" },

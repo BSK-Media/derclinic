@@ -39,7 +39,7 @@ export async function GET() {
 
   const scheduleContext = getWarsawScheduleContext();
   const specialists = await prisma.user.findMany({
-    where: { OR: [{ role: "SPECIALIST" }, { role: "RECEPTION" }], ...scopedLocationWhere(user!) },
+    where: { OR: [{ role: "SPECIALIST" }, { role: "RECEPTION" }], isArchived: false, ...scopedLocationWhere(user!) },
     orderBy: [{ specialistCode: "asc" }, { name: "asc" }],
     select: {
       id: true,

@@ -22,7 +22,7 @@ export async function GET(req: Request) {
   const { start, end } = ymToRange(ym);
 
   const specialists = await prisma.user.findMany({
-    where: { role: "SPECIALIST", ...scopedLocationWhere(user!) },
+    where: { role: "SPECIALIST", isArchived: false, ...scopedLocationWhere(user!) },
     orderBy: { name: "asc" },
   });
   const specialistIds = specialists.map((s) => s.id);

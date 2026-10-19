@@ -102,7 +102,7 @@ export async function GET(req: Request) {
         })
         .then((rows) => rows.sort((a, b) => comparePolish(a.name, b.name)).slice(0, 500)),
       prisma.user.findMany({
-        where: { role: "SPECIALIST", ...locationWhere },
+        where: { role: "SPECIALIST", isArchived: false, ...locationWhere },
         orderBy: { name: "asc" },
         include: {
           assignedServices: { select: { serviceId: true } },
@@ -114,6 +114,7 @@ export async function GET(req: Request) {
       prisma.user.findMany({
         where: {
           role: "SPECIALIST",
+          isArchived: false,
           ...(user!.role === "ADMIN" ? {} : locationWhere),
         },
         orderBy: { name: "asc" },

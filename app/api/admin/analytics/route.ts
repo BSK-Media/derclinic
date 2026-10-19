@@ -100,7 +100,7 @@ export async function GET(req: Request) {
         take: 20000,
       }),
       prisma.user.findMany({
-        where: { role: "SPECIALIST", ...(locationId ? { locationId } : {}) },
+        where: { role: "SPECIALIST", isArchived: false, ...(locationId ? { locationId } : {}) },
         select: { id: true, name: true },
         orderBy: { name: "asc" },
       }),

@@ -115,6 +115,9 @@ model User {
   mustChangePassword Boolean @default(false)
   // Konto wyłączone: brak logowania, sesje unieważnione; historia (wizyty, dziennik) zostaje.
   disabledAt         DateTime?
+  // Konto archiwalne (np. dawny specjalista z importu historii): nie pojawia się na listach pracowników,
+  // w kalendarzu ani w rozliczeniach; wizyty z jego nazwiskiem zostają w historii. Widoczne w Ustawienia → Archiwum.
+  isArchived         Boolean   @default(false)
 
   // Reset hasła przez link z e-maila ("Nie pamiętam hasła" na ekranie
   // logowania personelu): hash jednorazowego tokenu i jego data wygaśnięcia —
