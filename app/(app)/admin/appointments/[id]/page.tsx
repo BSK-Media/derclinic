@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -59,6 +60,7 @@ export default function AdminAppointmentDetail() {
   const [priceFinal, setPriceFinal] = useState<string>("");
   const [priceEstimate, setPriceEstimate] = useState<string>("");
   const [note, setNote] = useState<string>("");
+  const [noteSaving, setNoteSaving] = useState(false);
 
   const [productId, setProductId] = useState<string>("");
   const [warehouseId, setWarehouseId] = useState<string>("");
@@ -181,7 +183,6 @@ export default function AdminAppointmentDetail() {
         status,
         priceFinal: priceFinal ? parsePLNToGrosze(priceFinal) : null,
         priceEstimate: priceEstimate ? parsePLNToGrosze(priceEstimate) : null,
-        note,
         ...(serviceId && serviceId !== appt.serviceId ? { serviceId } : {}),
       }),
     });
@@ -189,6 +190,25 @@ export default function AdminAppointmentDetail() {
     if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
     toast.success("Zapisano");
     mutate();
+  }
+
+  // Notatka wewnętrzna: zapis tylko pola notatki — działa dla każdej wizyty (stara, nowa, trwająca, odwołana…),
+  // niezależnie od statusu, akceptacji i płatności, i niczego innego nie zmienia.
+  async function saveNote() {
+    setNoteSaving(true);
+    try {
+      const res = await fetch(`/api/admin/appointments/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ note }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się zapisać notatki");
+      toast.success("Notatka zapisana");
+      mutate();
+    } finally {
+      setNoteSaving(false);
+    }
   }
 
   async function addConsumption() {
@@ -577,11 +597,6 @@ export default function AdminAppointmentDetail() {
               </div>
             </div>
           ) : null}
-          <div className="space-y-2 md:col-span-4">
-            <Label>Notatka</Label>
-            <Input value={note} onChange={(e) => setNote(e.target.value)} />
-            <NoteHistory entity="APPOINTMENT" id={id} />
-          </div>
         </div>
         <Button onClick={save} disabled={status === "AWAITING"}>
           Zapisz
@@ -590,6 +605,30 @@ export default function AdminAppointmentDetail() {
           Płatności: {formatPLNFromGrosze(paymentsSum)} • Pozostało do zapłaty:{" "}
           {formatPLNFromGrosze(paymentRemaining)}
         </div>
+      </Card>
+
+      <Card className="space-y-3 p-4">
+        <div>
+          <div className="font-medium">Notatka wewnętrzna</div>
+          <div className="text-xs text-zinc-500">
+            Tylko dla personelu — pacjent jej nie widzi. Można ją dodawać i zmieniać przy każdej wizycie, także starej,
+            trwającej i odwołanej.
+          </div>
+        </div>
+        <Textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={4}
+          placeholder="Wpisz notatkę do wizyty…"
+          aria-label="Notatka wewnętrzna do wizyty"
+        />
+        <div className="flex items-center gap-3">
+          <Button onClick={saveNote} disabled={noteSaving || note === (appt.note ?? "")}>
+            {noteSaving ? "Zapisywanie…" : "Zapisz notatkę"}
+          </Button>
+          {note !== (appt.note ?? "") ? <span className="text-xs text-amber-600">Niezapisane zmiany</span> : null}
+        </div>
+        <NoteHistory entity="APPOINTMENT" id={id} />
       </Card>
 
       <Card className="space-y-4 p-4">
