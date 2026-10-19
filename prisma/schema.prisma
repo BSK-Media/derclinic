@@ -188,6 +188,8 @@ model User {
   pushSubscriptions                PushSubscription[]
   mfaRecoveryCodes                 MfaRecoveryCode[]
   passkeys                         WebAuthnPasskey[]
+  sentChatMessages                 StaffMessage[]             @relation("StaffMessageSender")
+  receivedChatMessages             StaffMessage[]             @relation("StaffMessageRecipient")
 
   @@index([role])
   @@index([locationId])
@@ -1436,4 +1438,28 @@ model RfmSettings {
   thresholds Json?
   // Reguły przydziału do segmentów (kolejność = priorytet) albo null = reguły domyślne.
   segmentRules Json?
+}
+
+// Czat wewnętrzny personelu: wiadomość między dwoma pracownikami (każdy z każdym). Treść jest zaszyfrowana
+// aplikacyjnie (jak notatki) — w wiadomościach mogą pojawiać się dane pacjentów. Klient nigdy ich nie widzi.
+model StaffMessage {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  senderId String
+  sender   User   @relation("StaffMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  // Konto wspólne (recepcja): imię osoby wybranej PIN-em, która napisała wiadomość.
+  senderOperatorName String?
+
+  recipientId String
+  recipient   User   @relation("StaffMessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  body String @db.Text
+
+  // Moment przeczytania przez adresata (null = nieprzeczytana).
+  readAt DateTime?
+
+  @@index([recipientId, readAt])
+  @@index([senderId, recipientId, createdAt])
+  @@index([recipientId, senderId, createdAt])
 }

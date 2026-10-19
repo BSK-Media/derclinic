@@ -29,6 +29,20 @@ function useThemeToggle() {
   return { isDark, toggle };
 }
 
+// Liczba nieprzeczytanych wiadomości czatu przy pozycji menu „Czat”.
+function ChatUnreadBadge() {
+  const { data } = useSWR<{ ok: boolean; unread?: number }>("/api/chat/unread", (url: string) => fetch(url).then((r) => r.json()), {
+    refreshInterval: 15000,
+  });
+  const unread = data?.unread ?? 0;
+  if (unread <= 0) return null;
+  return (
+    <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1.5 text-[11px] font-bold text-white">
+      {unread > 99 ? "99+" : unread}
+    </span>
+  );
+}
+
 type NavItem = {
   label: string;
   permission: SidebarPermission;
@@ -127,6 +141,7 @@ const NAV: NavItem[] = [
   { label: "Logi", permission: "logs", icon: <span className="text-lg">🧾</span> },
   { label: "Powiadomienia push", permission: "push", icon: <span className="text-lg">🔔</span> },
   { label: "Newsletter", permission: "newsletter", icon: <span className="text-lg">📰</span> },
+  { label: "Czat", permission: "chat", icon: <span className="text-lg">💬</span> },
   // Ustawienia zawsze na samym końcu menu.
   { label: "Ustawienia", permission: "settings", icon: <span className="text-lg">⚙️</span> },
 ];
@@ -279,6 +294,7 @@ export function AppSidebar() {
                   {item.icon}
                 </span>
                 <span className="truncate">{item.label}</span>
+                {item.permission === "chat" ? <ChatUnreadBadge /> : null}
               </Link>
             );
           })}
@@ -351,6 +367,7 @@ function StaffBottomNav() {
               >
                 <span className="text-xl leading-none">{item.icon}</span>
                 <span className="max-w-full truncate">{item.label}</span>
+                {item.permission === "chat" ? <ChatUnreadBadge /> : null}
               </Link>
             </li>
           );
@@ -468,6 +485,7 @@ function MobileNav() {
                           {item.icon}
                         </span>
                         <span className="truncate">{item.label}</span>
+                        {item.permission === "chat" ? <ChatUnreadBadge /> : null}
                       </Link>
                     );
                   })}

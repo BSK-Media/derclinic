@@ -24,7 +24,7 @@ describe("uprawnienie logs (dziennik zdarzeń) — tylko administrator", () => {
     expect(hasSidebarPermission("RECEPTION", stored, "logs")).toBe(false);
     expect(hasSidebarPermission("SPECIALIST", stored, "logs")).toBe(false);
     // pozostałe uprawnienia zostają
-    expect(normalizeSidebarPermissions("RECEPTION", stored)).toEqual(["today", "appointments", "patients"]);
+    expect(normalizeSidebarPermissions("RECEPTION", stored)).toEqual(["today", "appointments", "patients", "chat"]);
   });
 
   it("ścieżki strony i API wymagają uprawnienia logs (middleware blokuje resztę)", () => {
@@ -35,7 +35,23 @@ describe("uprawnienie logs (dziennik zdarzeń) — tylko administrator", () => {
   });
 
   it("pracownik bez uprawnienia nie ma logs jako pierwszej strony docelowej", () => {
-    expect(firstAllowedSidebarHref("RECEPTION", ["logs"])).toBe("/access-denied");
+    // Zostaje tylko czat (dostępny dla każdego pracownika), a nie dziennik zdarzeń.
+    expect(firstAllowedSidebarHref("RECEPTION", ["logs"])).toBe("/chat");
+  });
+});
+
+describe("czat wewnętrzny — dla każdego pracownika", () => {
+  it("każda rola ma czat, także gdy zapisane uprawnienia go nie zawierają", () => {
+    for (const role of ["ADMIN", "MANAGER", "RECEPTION", "SPECIALIST"]) {
+      expect(hasSidebarPermission(role, null, "chat")).toBe(true);
+      expect(hasSidebarPermission(role, ["patients"], "chat")).toBe(true);
+    }
+  });
+  it("ścieżki strony i API czatu wymagają uprawnienia chat", () => {
+    expect(sidebarPermissionForPath("/chat")).toBe("chat");
+    expect(sidebarPermissionForPath("/api/chat/messages")).toBe("chat");
+    expect(sidebarHref("chat", "SPECIALIST")).toBe("/chat");
+    expect(sidebarHref("chat", "RECEPTION")).toBe("/chat");
   });
 });
 

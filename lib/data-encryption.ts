@@ -57,6 +57,8 @@ export const ENCRYPTED_FIELDS = {
   // Dane do faktury (NIP, nazwa firmy, adres) — bez wyszukiwania w bazie, filtrowanie w pamięci.
   retailSale: ["buyerName", "buyerNip", "buyerAddress"],
   noteVersion: ["note"],
+  // Czat wewnętrzny personelu — treść wiadomości.
+  staffMessage: ["body"],
 } as const;
 
 type EncryptedModel = keyof typeof ENCRYPTED_FIELDS;

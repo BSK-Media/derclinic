@@ -43,6 +43,7 @@ export const RATE_LIMITS = {
   paymentActionIp: { scope: "payment-action-ip", limit: 60, windowMs: HOUR },
   emailTest: { scope: "email-test", limit: 10, windowMs: HOUR },
   pushManual: { scope: "push-manual", limit: 30, windowMs: HOUR },
+  chatSend: { scope: "chat-send", limit: 120, windowMs: 10 * MINUTE },
   publicReadIp: { scope: "public-read-ip", limit: 300, windowMs: 5 * MINUTE },
   patientExport: { scope: "patient-export", limit: 5, windowMs: HOUR },
 } satisfies Record<string, RateLimitRule>;

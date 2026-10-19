@@ -28,6 +28,8 @@ export const SIDEBAR_PERMISSION_KEYS = [
   // Newsletter (wiadomości e-mail do klientów ze zgodą marketingową) — jak push
   // i poczta, tylko administrator i manager.
   "newsletter",
+  // Czat wewnętrzny — dostępny dla każdego pracownika (nie ma osobnej opcji w ustawieniach kont).
+  "chat",
 ] as const;
 
 export type SidebarPermission = (typeof SIDEBAR_PERMISSION_KEYS)[number];
@@ -70,11 +72,12 @@ const DEFAULT_NON_ADMIN_PERMISSIONS: SidebarPermission[] = SIDEBAR_PERMISSION_KE
 
 export function normalizeSidebarPermissions(role: string, value: unknown): SidebarPermission[] {
   const base = normalizeBasePermissions(role, value);
-  // Kto widzi Wizyty, widzi też Wizyty dziś (zapisane w bazie listy uprawnień nie znają tego klucza).
-  if (base.includes("appointments") && !base.includes("today")) {
-    return SIDEBAR_PERMISSION_KEYS.filter((key) => key === "today" || base.includes(key));
-  }
-  return base;
+  // Kto widzi Wizyty, widzi też Wizyty dziś, a każdy pracownik ma Czat (zapisane w bazie listy uprawnień nie znają tych kluczy).
+  const withExtras = (extra: SidebarPermission[]) =>
+    SIDEBAR_PERMISSION_KEYS.filter((key) => extra.includes(key) || base.includes(key));
+  const extras: SidebarPermission[] = ["chat"];
+  if (base.includes("appointments")) extras.push("today");
+  return withExtras(extras);
 }
 
 function normalizeBasePermissions(role: string, value: unknown): SidebarPermission[] {
@@ -205,6 +208,7 @@ export function sidebarPermissionForPath(pathname: string): SidebarPermission | 
   if (path.startsWith("/admin/newsletter") || path.startsWith("/api/admin/newsletter")) {
     return "newsletter";
   }
+  if (path.startsWith("/chat") || path.startsWith("/api/chat")) return "chat";
   if (path.startsWith("/admin/settings") || path.startsWith("/admin/profile")) {
     return "settings";
   }
@@ -242,6 +246,7 @@ export function sidebarHref(permission: SidebarPermission, role: string) {
     push: "/admin/push",
     email: "/admin/email",
     newsletter: "/admin/newsletter",
+    chat: "/chat",
   };
 
   return hrefs[permission];

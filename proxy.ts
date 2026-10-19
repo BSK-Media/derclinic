@@ -54,6 +54,7 @@ async function authorize(req: NextRequest, requestHeaders: Headers): Promise<Nex
     pathname.startsWith("/specialist") ||
     pathname.startsWith("/access-denied") ||
     pathname.startsWith("/account") ||
+    pathname.startsWith("/chat") ||
     pathname.startsWith("/api");
   if (!needsAuth) return null;
 

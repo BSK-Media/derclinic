@@ -19,6 +19,7 @@ const TABLES = {
   patient: "Patient",
   consumption: "Consumption",
   retailSale: "RetailSale",
+  staffMessage: "StaffMessage",
 } as const;
 const BATCH = 25;
 
