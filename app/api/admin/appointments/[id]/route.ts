@@ -97,7 +97,8 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
         where: { locationId: appt.locationId },
         orderBy: { name: "asc" },
       }),
-      prisma.service.findMany({ orderBy: { name: "asc" } }),
+      // Usługi archiwalne nie są do wyboru, ale usługa tej wizyty zostaje na liście.
+      prisma.service.findMany({ where: { OR: [{ isArchived: false }, { id: appt.serviceId }] }, orderBy: { name: "asc" } }),
       appt.specialistId
         ? prisma.specialistService.findMany({
             where: { specialistId: appt.specialistId },

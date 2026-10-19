@@ -73,7 +73,7 @@ export async function GET(req: Request) {
       take: 500,
     }),
     prisma.service.findMany({
-      where: { specialistAssignments: { some: { specialistId } } },
+      where: { specialistAssignments: { some: { specialistId } }, isArchived: false },
       orderBy: [{ category: "asc" }, { name: "asc" }],
       select: {
         id: true,

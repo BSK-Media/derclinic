@@ -4,7 +4,17 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { requireStepUp } from "@/lib/mfa";
 import { logAudit } from "@/lib/audit";
-import { applyBooksyPlan, loadExistingState, planBooksyImport } from "@/lib/booksy-import-runner";
+import {
+  applyBooksyPlan,
+  loadExistingState,
+  planBooksyImport,
+  previewSegments,
+  type ServiceDecisions,
+} from "@/lib/booksy-import-runner";
+import { getRfmSettings } from "@/lib/rfm-settings";
+import { loadRfm } from "@/lib/rfm-data";
+import { syncRfmLists } from "@/lib/rfm-lists";
+import { RFM_SEGMENT_LABELS, RFM_SEGMENT_ORDER } from "@/lib/rfm";
 
 // TYMCZASOWE: jednorazowy import historii z Booksy (klienci i wizyty). Tylko administrator.
 // Pliki CSV przychodzą spakowane (gzip) z przeglądarki, żeby zmieściły się w limicie żądania.
@@ -45,8 +55,18 @@ export async function POST(req: Request) {
     const location = await prisma.location.findUnique({ where: { id: LOCATION_ID }, select: { id: true } });
     if (!location) return NextResponse.json({ ok: false, message: `Brak lokalizacji „${LOCATION_ID}”` }, { status: 409 });
 
+    let decisions: ServiceDecisions = {};
+    const rawDecisions = form.get("decisions");
+    if (typeof rawDecisions === "string" && rawDecisions) {
+      const parsed = JSON.parse(rawDecisions) as unknown;
+      if (parsed && typeof parsed === "object") {
+        decisions = Object.fromEntries(Object.entries(parsed).filter(([, v]) => typeof v === "string")) as ServiceDecisions;
+      }
+    }
+
     const state = await loadExistingState(prisma);
-    const plan = planBooksyImport({ clientsCsv, appointmentsCsv }, state);
+    const plan = planBooksyImport({ clientsCsv, appointmentsCsv }, state, new Date(), decisions);
+    const rfm = await getRfmSettings();
 
     let applied: Awaited<ReturnType<typeof applyBooksyPlan>> | null = null;
     if (apply) {
@@ -59,14 +79,29 @@ export async function POST(req: Request) {
         summary: `Import z Booksy: pacjenci ${applied.patientsDone}, wizyty ${applied.appointmentsDone}, płatności ${applied.paymentsDone}, konta archiwalne ${applied.archivalUsers}`,
         data: { ...applied, summary: plan.summary },
       });
+      // Zaimportowani pacjenci od razu trafiają do segmentów RFM i na automatyczne listy newslettera.
+      await syncRfmLists(user!.id).catch(() => undefined);
+    }
+
+    let segmentsAfter: { segment: string; label: string; count: number }[] | null = null;
+    if (applied) {
+      const { scored } = await loadRfm(null);
+      segmentsAfter = RFM_SEGMENT_ORDER.map((segment) => ({
+        segment,
+        label: RFM_SEGMENT_LABELS[segment].label,
+        count: scored.filter((r) => r.segment === segment).length,
+      }));
     }
 
     return NextResponse.json({
       ok: true,
       applied,
       summary: plan.summary,
-      serviceMapping: plan.serviceMapping.slice(0, 80),
+      serviceMapping: plan.serviceMapping,
+      services: state.services.sort((a, b) => a.name.localeCompare(b.name, "pl")),
       staffers: plan.staffers,
+      segmentsPreview: previewSegments(plan, rfm.windowDays, { thresholds: rfm.thresholds }),
+      segmentsAfter,
     });
   } catch (e) {
     return NextResponse.json({ ok: false, message: e instanceof Error ? e.message : "Import nie powiódł się" }, { status: 500 });

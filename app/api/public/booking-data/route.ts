@@ -29,7 +29,7 @@ export async function GET() {
       },
     }),
     prisma.service.findMany({
-      where: { name: { not: RESERVATION_SERVICE_NAME } },
+      where: { name: { not: RESERVATION_SERVICE_NAME }, isArchived: false },
       orderBy: { name: "asc" },
       select: {
         id: true,

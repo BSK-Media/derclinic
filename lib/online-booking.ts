@@ -92,7 +92,7 @@ export async function resolveBookingEntities(
       },
     }),
     prisma.service.findFirst({
-      where: { id: payload.serviceId, name: { not: RESERVATION_SERVICE_NAME } },
+      where: { id: payload.serviceId, name: { not: RESERVATION_SERVICE_NAME }, isArchived: false },
       select: { id: true, name: true, price: true, durationMin: true },
     }),
   ]);

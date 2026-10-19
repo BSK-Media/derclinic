@@ -125,7 +125,7 @@ export async function GET(req: Request) {
         },
       }),
       prisma.service.findMany({
-        where: { name: { not: RESERVATION_SERVICE_NAME } },
+        where: { name: { not: RESERVATION_SERVICE_NAME }, isArchived: false },
         orderBy: { name: "asc" },
       }),
     ]);

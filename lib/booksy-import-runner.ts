@@ -15,6 +15,7 @@ import {
   toGrosze,
   warsawLocalToDate,
 } from "@/lib/booksy-import";
+import { RFM_SEGMENT_LABELS, RFM_SEGMENT_ORDER, computeRfm, type RfmConfig } from "@/lib/rfm";
 
 const hash = (value: string) => createHash("sha1").update(value).digest("hex").slice(0, 16);
 
@@ -51,13 +52,30 @@ export type PlannedAppointment = {
 };
 
 export type ArchivalUser = { id: string; name: string; login: string };
+export type ArchivalService = { id: string; name: string; durationMin: number };
+
+/** Wybór dla nazwy usługi z Booksy: id istniejącej usługi albo ARCHIVE (utworzenie usługi archiwalnej). */
+export type ServiceDecisions = Record<string, string>;
+export const ARCHIVE = "ARCHIVE";
+
+export type ServiceMappingRow = {
+  booksy: string;
+  count: number;
+  /** exact — nazwa zgadza się z usługą aplikacji; similar — podobna (do potwierdzenia); none — brak odpowiednika. */
+  kind: "exact" | "similar" | "none";
+  suggestedId: string | null;
+  suggestedName: string | null;
+  /** Aktualny wybór: id usługi albo ARCHIVE. */
+  selected: string;
+};
 
 export type BooksyPlan = {
   patients: PlannedPatient[];
   appointments: PlannedAppointment[];
   archivalUsers: ArchivalUser[];
+  archivalServices: ArchivalService[];
   summary: Record<string, unknown>;
-  serviceMapping: { booksy: string; count: number; to: string; kind: string; score: number }[];
+  serviceMapping: ServiceMappingRow[];
   staffers: { name: string; count: number; archival: boolean }[];
 };
 
@@ -65,6 +83,7 @@ export function planBooksyImport(
   input: { clientsCsv: string; appointmentsCsv: string },
   state: ExistingState,
   now: Date = new Date(),
+  decisions: ServiceDecisions = {},
 ): BooksyPlan {
   const clients = parseCsv(input.clientsCsv);
   const appointments = parseCsv(input.appointmentsCsv);
@@ -86,6 +105,51 @@ export function planBooksyImport(
   }
 
   const matchService = buildServiceMatcher(state.services);
+  const validServiceIds = new Set(state.services.map((s) => s.id));
+  const serviceNameById = new Map(state.services.map((s) => [s.id, s.name]));
+
+  // Najczęstszy czas trwania wizyty dla nazwy usługi — do usług archiwalnych.
+  const durationVotes = new Map<string, Map<number, number>>();
+  for (const a of appointments) {
+    const start = warsawLocalToDate(a.booked_from);
+    const end = warsawLocalToDate(a.booked_till);
+    if (!start || !end || end <= start) continue;
+    const key = comparableName(cleanText(a.service_name) ?? "");
+    const minutes = Math.round((end.getTime() - start.getTime()) / 60000);
+    const votes = durationVotes.get(key) ?? new Map<number, number>();
+    votes.set(minutes, (votes.get(minutes) ?? 0) + 1);
+    durationVotes.set(key, votes);
+  }
+  const modalDuration = (key: string) => {
+    const votes = durationVotes.get(key);
+    if (!votes) return 30;
+    return [...votes.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  };
+
+  // Rozstrzygnięcie usługi dla każdej nazwy z Booksy (raz na nazwę).
+  const archivalServices = new Map<string, ArchivalService>();
+  const resolved = new Map<string, { serviceId: string; customName: string | null }>();
+  const resolveService = (rawName: string) => {
+    const cached = resolved.get(rawName);
+    if (cached) return cached;
+    const name = cleanText(rawName) ?? "Wizyta (bez nazwy usługi)";
+    const match = matchService(name);
+    const decision = decisions[rawName];
+    let result: { serviceId: string; customName: string | null };
+    const archive = () => {
+      const key = comparableName(name);
+      const id = `bks_s_${hash(key)}`;
+      if (!archivalServices.has(id)) archivalServices.set(id, { id, name, durationMin: modalDuration(key) });
+      return { serviceId: id, customName: null };
+    };
+    if (decision === ARCHIVE) result = archive();
+    else if (decision && validServiceIds.has(decision)) result = { serviceId: decision, customName: name };
+    else if (match && match.kind === "exact") result = { serviceId: match.serviceId, customName: null };
+    else if (match && match.kind === "similar") result = { serviceId: match.serviceId, customName: name };
+    else result = archive();
+    resolved.set(rawName, result);
+    return result;
+  };
 
   // --- klienci ---
   const firstVisit = new Map<string, Date>();
@@ -168,7 +232,7 @@ export function planBooksyImport(
   const plannedAppointments: PlannedAppointment[] = [];
   const skipped = { badDate: 0, noPatient: 0 };
   let derivedPatients = 0;
-  const serviceStats = new Map<string, { count: number; to: string; kind: string; score: number }>();
+  const serviceCounts = new Map<string, number>();
   const statusCounts: Record<string, number> = {};
 
   for (const a of appointments) {
@@ -212,28 +276,21 @@ export function planBooksyImport(
     if (startsAt < patient.createdAt) patient.createdAt = startsAt;
 
     const staffer = cleanText(a.staffer) ?? "Brak przypisania";
-    const match = matchService(cleanText(a.service_name) ?? "");
-    if (!match) {
-      throw new Error(
-        "W bazie nie ma usługi zastępczej „Konsultacja z indywidualnie dobranym zabiegiem” — nie mogę przypisać nieznanych usług.",
-      );
-    }
+    const service = resolveService(a.service_name);
     const mapped = mapStatus(a.status, startsAt, now);
     const price = toGrosze(a.price);
     const finalPrice = toGrosze(a.final_price) ?? price;
     const statusKey = `${a.status} → ${mapped.status}`;
     statusCounts[statusKey] = (statusCounts[statusKey] ?? 0) + 1;
 
-    const stat = serviceStats.get(a.service_name) ?? { count: 0, to: match.serviceName, kind: match.kind, score: match.score };
-    stat.count++;
-    serviceStats.set(a.service_name, stat);
+    serviceCounts.set(a.service_name, (serviceCounts.get(a.service_name) ?? 0) + 1);
 
     plannedAppointments.push({
       id: `bks_a_${a.booking_id}`,
       patientId: patient.id,
       specialistId: stafferToUser.get(staffer)!,
-      serviceId: match.serviceId,
-      customServiceName: match.kind === "exact" ? null : (cleanText(a.service_name) ?? null),
+      serviceId: service.serviceId,
+      customServiceName: service.customName,
       startsAt,
       endsAt,
       status: mapped.status,
@@ -246,8 +303,28 @@ export function planBooksyImport(
 
   const patientsToCreate = [...planned.values()].filter((p) => !p.existing);
   const completedWithPrice = plannedAppointments.filter((a) => a.status === "COMPLETED" && (a.priceFinal ?? 0) > 0);
-  const byKind: Record<string, number> = { exact: 0, similar: 0, fallback: 0 };
-  for (const s of serviceStats.values()) byKind[s.kind] += s.count;
+  const serviceMapping: ServiceMappingRow[] = [...serviceCounts.entries()]
+    .map(([booksy, count]) => {
+      const name = cleanText(booksy) ?? "Wizyta (bez nazwy usługi)";
+      const match = matchService(name);
+      const kind: ServiceMappingRow["kind"] = match?.kind === "exact" ? "exact" : match?.kind === "similar" ? "similar" : "none";
+      const chosen = resolveService(booksy);
+      return {
+        booksy,
+        count,
+        kind,
+        suggestedId: kind === "none" ? null : match!.serviceId,
+        suggestedName: kind === "none" ? null : (serviceNameById.get(match!.serviceId) ?? null),
+        selected: archivalServices.has(chosen.serviceId) ? ARCHIVE : chosen.serviceId,
+      };
+    })
+    .sort((a, b) => b.count - a.count);
+  const byKind = { mapowaneDokladnie: 0, mapowanePodobne: 0, archiwalne: 0 };
+  for (const row of serviceMapping) {
+    if (row.selected === ARCHIVE) byKind.archiwalne += row.count;
+    else if (row.kind === "exact") byKind.mapowaneDokladnie += row.count;
+    else byKind.mapowanePodobne += row.count;
+  }
 
   const summary = {
     klienciWPliku: clients.length,
@@ -264,6 +341,7 @@ export function planBooksyImport(
     sumaPlatnosciZl: Math.round(completedWithPrice.reduce((s, a) => s + (a.priceFinal ?? 0), 0)) / 100,
     kontaArchiwalneDoUtworzenia: archivalUsers.length,
     dopasowanieUslug: byKind,
+    uslugiArchiwalneDoUtworzenia: archivalServices.size,
   };
 
   return {
@@ -271,9 +349,8 @@ export function planBooksyImport(
     appointments: plannedAppointments,
     archivalUsers,
     summary,
-    serviceMapping: [...serviceStats.entries()]
-      .map(([booksy, s]) => ({ booksy, count: s.count, to: s.to, kind: s.kind, score: s.score }))
-      .sort((a, b) => b.count - a.count),
+    archivalServices: [...archivalServices.values()],
+    serviceMapping,
     staffers: staffers.map((name) => ({
       name,
       count: appointments.filter((a) => (cleanText(a.staffer) ?? "Brak przypisania") === name).length,
@@ -307,6 +384,19 @@ export async function applyBooksyPlan(db: PrismaClient, plan: BooksyPlan, locati
         },
       });
     }
+  }
+
+  if (plan.archivalServices.length) {
+    await db.service.createMany({
+      data: plan.archivalServices.map((s) => ({
+        id: s.id,
+        name: s.name,
+        category: "Archiwum (import z Booksy)",
+        durationMin: s.durationMin,
+        isArchived: true,
+      })),
+      skipDuplicates: true,
+    });
   }
 
   let patientsDone = 0;
@@ -387,7 +477,13 @@ export async function applyBooksyPlan(db: PrismaClient, plan: BooksyPlan, locati
     paymentsDone += res.count;
   }
 
-  return { patientsDone, appointmentsDone, paymentsDone, archivalUsers: plan.archivalUsers.length };
+  return {
+    patientsDone,
+    appointmentsDone,
+    paymentsDone,
+    archivalUsers: plan.archivalUsers.length,
+    archivalServices: plan.archivalServices.length,
+  };
 }
 
 /** Stan bazy potrzebny do planu (bez usługi technicznej blokady terminu). */
@@ -398,4 +494,29 @@ export async function loadExistingState(db: PrismaClient): Promise<ExistingState
     db.service.findMany({ where: { name: { not: "__DERCLINIC_REZERWACJA_CZASU__" } }, select: { id: true, name: true } }),
   ]);
   return { patients, users, services };
+}
+
+/**
+ * Podgląd segmentów RFM dla pacjentów z importu (liczony tylko z historii z Booksy, według bieżących ustawień RFM).
+ * Po zapisie segmenty liczą się już ze wszystkich danych w systemie.
+ */
+export function previewSegments(plan: BooksyPlan, windowDays: number, config: RfmConfig, now: Date = new Date()) {
+  const windowStart = new Date(now.getTime() - windowDays * 24 * 3600 * 1000);
+  const agg = new Map<string, { lastAt: Date; frequency: number; monetary: number }>();
+  for (const a of plan.appointments) {
+    if (a.status !== "COMPLETED") continue;
+    const cur = agg.get(a.patientId) ?? { lastAt: a.startsAt, frequency: 0, monetary: 0 };
+    if (a.startsAt > cur.lastAt) cur.lastAt = a.startsAt;
+    if (a.startsAt >= windowStart) {
+      cur.frequency += 1;
+      cur.monetary += a.priceFinal ?? a.priceEstimate ?? 0;
+    }
+    agg.set(a.patientId, cur);
+  }
+  const scored = computeRfm([...agg.entries()].map(([patientId, v]) => ({ patientId, ...v })), now, config);
+  return RFM_SEGMENT_ORDER.map((segment) => ({
+    segment,
+    label: RFM_SEGMENT_LABELS[segment].label,
+    count: scored.filter((r) => r.segment === segment).length,
+  }));
 }

@@ -47,7 +47,14 @@ type Patient = {
   rfmSegment?: string | null;
 };
 
-type SortKey = "name" | "createdAt" | "lastVisitAt" | "totalSpent" | "completedVisits";
+type SortKey = "name" | "createdAt" | "lastVisitAt" | "totalSpent" | "completedVisits" | "rfmSegment";
+
+// Kolejność segmentów przy sortowaniu: od najcenniejszych; pacjenci bez segmentu na końcu.
+const SEGMENT_ORDER = ["VIP", "LOYAL", "NEW", "WIN_BACK", "AT_RISK", "DORMANT", "OTHER"];
+const segmentRank = (segment?: string | null) => {
+  const index = segment ? SEGMENT_ORDER.indexOf(segment) : -1;
+  return index === -1 ? SEGMENT_ORDER.length : index;
+};
 type SortDirection = "asc" | "desc";
 type QuickSort = "all" | "lastVisitAt" | "completedVisits" | "totalSpent";
 
@@ -132,6 +139,11 @@ export default function AdminPatientsPage() {
       if (sortKey === "name") {
         const result = left.name.localeCompare(right.name, "pl", { sensitivity: "base" });
         return sortDirection === "asc" ? result : -result;
+      }
+      if (sortKey === "rfmSegment") {
+        const byRank = segmentRank(left.rfmSegment) - segmentRank(right.rfmSegment);
+        if (byRank !== 0) return sortDirection === "asc" ? byRank : -byRank;
+        return (right.totalSpent ?? 0) - (left.totalSpent ?? 0);
       }
       const leftValue =
         sortKey === "createdAt"
@@ -516,6 +528,7 @@ export default function AdminPatientsPage() {
               <SelectItem value="lastVisitAt:desc">Ostatnia wizyta</SelectItem>
               <SelectItem value="completedVisits:desc">Najwięcej wizyt</SelectItem>
               {isAdmin ? <SelectItem value="totalSpent:desc">Najwięcej wydali</SelectItem> : null}
+              {isAdmin ? <SelectItem value="rfmSegment:asc">Segment RFM</SelectItem> : null}
             </SelectContent>
           </Select>
         </div>

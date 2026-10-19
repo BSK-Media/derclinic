@@ -290,6 +290,9 @@ model Service {
   name          String
   category      String?
   categoryColor String?
+  // Usługa archiwalna (np. z importu historii z Booksy): zostaje w historii wizyt, ale nie można jej wybrać
+  // przy nowej rezerwacji ani w wyborze usług.
+  isArchived    Boolean @default(false)
   description   String?
   durationMin   Int     @default(30)
 
