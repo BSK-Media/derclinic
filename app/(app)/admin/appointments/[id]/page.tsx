@@ -23,6 +23,7 @@ import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
 import { appointmentStatusLabel, effectiveAppointmentStatus } from "@/lib/appointment-status";
 import { ApprovalBadge, RejectReasonDialog } from "@/components/appointment-approval";
 import { AppointmentPhotos } from "@/components/appointment-photos";
+import { DayVisitsPayment } from "@/components/day-visits-payment";
 import { AppointmentConsentCard } from "@/components/appointment-consent-card";
 import { AppointmentPaymentRequestCard } from "@/components/appointment-payment-request-card";
 
@@ -410,6 +411,8 @@ export default function AdminAppointmentDetail() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Wizyta — szczegóły</h1>
+
+      <DayVisitsPayment appointmentId={id} onChanged={() => mutate()} />
 
       <Card className="space-y-2 p-4">
         <div className="text-sm text-zinc-500">
