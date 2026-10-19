@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { effectiveAppointmentStatus } from "@/lib/appointment-status";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { APPOINTMENT_STATUS_LABELS, effectiveAppointmentStatus } from "@/lib/appointment-status";
 
 export type CalendarAppointment = {
   id: string;
@@ -218,6 +219,8 @@ export function AppointmentCalendar({
   showAddButton?: boolean;
 }) {
   const [clock, setClock] = React.useState(() => new Date());
+  // Dzień kliknięty w widoku miesiąca — pokazujemy listę wizyt z tego dnia.
+  const [dayListDate, setDayListDate] = React.useState<Date | null>(null);
   const [mode, setMode] = React.useState<CalendarViewMode>("day");
   // Filtr „Pracujący tego dnia": w widoku dnia pokazuje kolumny tylko tych specjalistów, którzy
   // w wybranym dniu pracują (grafik, dni niestandardowe, całodniowe wolne). Wybór jest zapamiętywany.
@@ -1440,8 +1443,84 @@ export function AppointmentCalendar({
     );
   }
 
+  function renderDayList() {
+    const day = dayListDate;
+    const list = day ? (byDay.get(dateKey(day)) ?? []) : [];
+    const time = (iso: string) => new Date(iso).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
+    return (
+      <Dialog open={day !== null} onOpenChange={(open) => (!open ? setDayListDate(null) : undefined)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="capitalize">
+              {day?.toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+            </DialogTitle>
+            <p className="text-sm text-zinc-500">
+              {list.length === 0 ? "Brak wizyt tego dnia" : `Wizyty: ${list.length}`}
+            </p>
+          </DialogHeader>
+          <div className="max-h-[55vh] space-y-2 overflow-y-auto">
+            {list.map((a) => {
+              const effective =
+                a.approvalStatus === "REJECTED" ? a.status : (effectiveAppointmentStatus(a.status, a.startsAt, clock) ?? a.status);
+              return (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => {
+                    setDayListDate(null);
+                    onOpenAppointment(a.id);
+                  }}
+                  className="flex w-full items-start gap-3 rounded-xl border p-3 text-left transition hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                >
+                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[effective] ?? "bg-zinc-400"}`} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold">
+                      {time(a.startsAt)}–{time(a.endsAt)} · {a.isReservation ? "Blokada terminu" : a.patient.name}
+                    </span>
+                    <span className="block truncate text-sm text-zinc-600 dark:text-zinc-300">
+                      {a.customServiceName || a.service.name}
+                    </span>
+                    <span className="block text-xs text-zinc-500">
+                      {showSpecialist && a.specialist ? `${a.specialist.name} · ` : ""}
+                      {APPOINTMENT_STATUS_LABELS[effective] ?? effective}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!day) return;
+                onAnchorChange(startOfDay(day));
+                setMode("day");
+                setDayListDate(null);
+              }}
+            >
+              Otwórz widok dnia
+            </Button>
+            {onAdd ? (
+              <Button
+                onClick={() => {
+                  const target = day;
+                  setDayListDate(null);
+                  if (target) onAdd(target);
+                }}
+              >
+                + Dodaj wizytę
+              </Button>
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <div className="appointment-calendar rounded-2xl border bg-white shadow-sm dark:bg-zinc-950">
+      {renderDayList()}
       <div className="sm:hidden">
         {mode === "month" ? (
           <>
@@ -1524,7 +1603,7 @@ export function AppointmentCalendar({
                         className="flex min-h-[68px] min-w-0 flex-col items-center px-0.5 py-2 active:bg-zinc-50 dark:active:bg-zinc-900"
                         onClick={() => {
                           onAnchorChange(startOfDay(day));
-                          setMode("day");
+                          setDayListDate(startOfDay(day));
                         }}
                       >
                         <span
@@ -1791,13 +1870,8 @@ export function AppointmentCalendar({
                     return (
                       <div
                         key={dateKey(d)}
-                        className={
-                          "calendar-vertical-line min-h-[110px] border-r p-2 align-top last:border-r-0 " +
-                          (onAdd
-                            ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/40"
-                            : "")
-                        }
-                        onClick={onAdd ? () => onAdd(d) : undefined}
+                        className="calendar-vertical-line min-h-[110px] cursor-pointer border-r p-2 align-top last:border-r-0 hover:bg-zinc-50 dark:hover:bg-zinc-900/40"
+                        onClick={() => setDayListDate(startOfDay(d))}
                       >
                         <div
                           className={
