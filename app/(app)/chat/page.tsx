@@ -6,7 +6,9 @@ import { StaffChat } from "@/components/staff-chat";
 
 function ChatContent() {
   const params = useSearchParams();
-  return <StaffChat initialWith={params.get("with")} />;
+  // key: kliknięcie powiadomienia z dzwonka otwiera rozmowę z wybraną osobą także wtedy, gdy czat jest już otwarty.
+  const withId = params.get("with");
+  return <StaffChat key={withId ?? "list"} initialWith={withId} />;
 }
 
 // Czat wewnętrzny personelu — każdy pracownik może napisać do każdego (administrator, manager, recepcja, specjaliści).

@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/api-helpers";
 import { resolveStaffNames } from "@/lib/audit";
+import { chatSenderLabel } from "@/lib/chat";
 
 const TIME_ZONE = "Europe/Warsaw";
 const NOTIFICATIONS_DAYS = 30;
@@ -317,6 +318,46 @@ async function getSpecialistNotifications(specialistId: string, locationId: stri
   return notifications;
 }
 
+// Nieprzeczytane wiadomości czatu: jedno powiadomienie na nadawcę (z liczbą wiadomości i fragmentem ostatniej).
+// Znika samo po otwarciu rozmowy; nowa wiadomość tworzy nowe powiadomienie (id zawiera id ostatniej wiadomości).
+async function getChatNotifications(userId: string): Promise<NotificationItem[]> {
+  const unread = await prisma.staffMessage.findMany({
+    where: { recipientId: userId, readAt: null },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+    select: { id: true, senderId: true, senderOperatorName: true, createdAt: true, body: true, image: { select: { id: true } } },
+  });
+  if (unread.length === 0) return [];
+
+  const bySender = new Map<string, typeof unread>();
+  for (const message of unread) {
+    const list = bySender.get(message.senderId) ?? [];
+    list.push(message);
+    bySender.set(message.senderId, list);
+  }
+  const senders = await prisma.user.findMany({
+    where: { id: { in: [...bySender.keys()] } },
+    select: { id: true, name: true },
+  });
+  const nameOf = new Map(senders.map((sender) => [sender.id, sender.name]));
+
+  return [...bySender.entries()].map(([senderId, messages]) => {
+    const latest = messages[0];
+    const preview = latest.body.trim() ? latest.body.trim().replace(/\s+/g, " ").slice(0, 80) : latest.image ? "📷 Zdjęcie" : "";
+    return {
+      id: `chat-${senderId}-${latest.id}`,
+      kind: "message" as const,
+      title:
+        messages.length > 1
+          ? `${messages.length} nowe wiadomości od ${chatSenderLabel(nameOf.get(senderId) ?? "pracownika", latest.senderOperatorName)}`
+          : `Nowa wiadomość od ${chatSenderLabel(nameOf.get(senderId) ?? "pracownika", latest.senderOperatorName)}`,
+      description: preview,
+      createdAt: latest.createdAt,
+      href: `/chat?with=${senderId}`,
+    };
+  });
+}
+
 export async function GET() {
   const { user, error } = await requireAuth();
   if (error) return error;
@@ -333,6 +374,11 @@ export async function GET() {
   } else {
     return NextResponse.json({ ok: true, notifications: [], unreadCount: 0 });
   }
+
+  // Wiadomości czatu dostaje każdy pracownik; najnowsze powiadomienia na górze.
+  notifications = [...(await getChatNotifications(user!.id)), ...notifications].sort(
+    (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+  );
 
   const readRows = notifications.length
     ? await prisma.notificationRead.findMany({

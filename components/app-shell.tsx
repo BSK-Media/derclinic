@@ -550,7 +550,7 @@ export function AppHeader() {
 
   React.useEffect(() => {
     loadNotifications();
-    const timer = window.setInterval(loadNotifications, 30_000);
+    const timer = window.setInterval(loadNotifications, 15_000);
     return () => window.clearInterval(timer);
   }, [loadNotifications]);
 
