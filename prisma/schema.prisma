@@ -1434,4 +1434,6 @@ model RfmSettings {
   windowDays Int      @default(365)
   // { r: [d1,d2,d3,d4] (dni), f: [..] (liczba), m: [..] (zł) } albo null
   thresholds Json?
+  // Reguły przydziału do segmentów (kolejność = priorytet) albo null = reguły domyślne.
+  segmentRules Json?
 }

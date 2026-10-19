@@ -5,6 +5,7 @@ i migracje w `prisma/migrations`.
 
 ## 2026-10-15
 ### Zmieniono
+- Ustawienia → Segmentacja pacjentów: administrator ustawia reguły przydziału do segmentów (VIP, Lojalni, Nowi, Do odzyskania, Zagrożeni, Uśpieni, Pozostali) — zakresy ocen R, F i M dla każdej reguły, kolejność (pierwsza pasująca wygrywa), dodawanie i usuwanie reguł, przywracanie domyślnych. Migracja `20261101120000_rfm_segment_rules`.
 - Segmentacja RFM: skala ocen wyliczona z historii kliniki (świeżość do 150/360/600/900 dni, częstotliwość od 2/3/5/8 wizyt, wartość od 600/1500/5000/12000 zł) i liczona z CAŁEJ historii pacjenta (okno 0 = cała historia). Wcześniej okno 365 dni sprawiało, że segmenty „Do odzyskania” i „Zagrożeni” były puste. W Ustawieniach → Segmentacja pacjentów widać tabelę skali i definicje segmentów.
 
 ### Dodano

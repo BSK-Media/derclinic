@@ -11,7 +11,7 @@ export const RFM_MAX_WINDOW_DAYS = 1095;
 // r — dni od ostatniej wizyty (do ilu dni ocena 5, 4, 3, 2; powyżej — 1);
 // f — liczba wizyt i zakupów (od ilu ocena 2, 3, 4, 5); m — wydane złotówki (jak f).
 export type RfmThresholds = { r: number[]; f: number[]; m: number[] };
-export type RfmConfig = { thresholds?: RfmThresholds | null };
+export type RfmConfig = { thresholds?: RfmThresholds | null; rules?: RfmRule[] | null };
 
 // Skala wyliczona z historii kliniki (Booksy, 2022–2026, ok. 2600 pacjentów z zakończoną wizytą): świeżość dzieli
 // pacjentów na pięć mniej więcej równych grup (długie cykle powrotów w medycynie estetycznej), częstotliwość i wartość
@@ -93,19 +93,62 @@ function quintileScores(values: number[]): number[] {
   });
 }
 
-export function classifyRfm(r: number, f: number, m: number): RfmSegment {
-  if (r >= 4 && f >= 4 && m >= 4) return "VIP";
-  if (r <= 2 && (f >= 4 || m >= 4)) return "WIN_BACK";
-  if (r <= 2 && f >= 3) return "AT_RISK";
-  if (r <= 2) return "DORMANT";
-  if (r >= 4 && f <= 2) return "NEW";
-  if (r >= 3 && f >= 3) return "LOYAL";
+/**
+ * Reguła przydziału do segmentu: pacjent pasuje, gdy jego oceny R, F i M mieszczą się w podanych zakresach (1–5,
+ * włącznie). Reguły sprawdzane są po kolei — pierwsza pasująca wygrywa; bez dopasowania pacjent jest w „Pozostali”.
+ * Ten sam segment może mieć kilka reguł (alternatywa „lub”).
+ */
+export type RfmRule = { segment: RfmSegment; r: [number, number]; f: [number, number]; m: [number, number] };
+
+export const DEFAULT_RFM_RULES: RfmRule[] = [
+  { segment: "VIP", r: [4, 5], f: [4, 5], m: [4, 5] },
+  { segment: "WIN_BACK", r: [1, 2], f: [4, 5], m: [1, 5] },
+  { segment: "WIN_BACK", r: [1, 2], f: [1, 5], m: [4, 5] },
+  { segment: "AT_RISK", r: [1, 2], f: [3, 5], m: [1, 5] },
+  { segment: "DORMANT", r: [1, 2], f: [1, 5], m: [1, 5] },
+  { segment: "NEW", r: [4, 5], f: [1, 2], m: [1, 5] },
+  { segment: "LOYAL", r: [3, 5], f: [3, 5], m: [1, 5] },
+];
+
+const SEGMENT_KEYS: RfmSegment[] = ["VIP", "LOYAL", "NEW", "WIN_BACK", "AT_RISK", "DORMANT", "OTHER"];
+
+/** Poprawne reguły (do 40, zakresy całkowite 1–5, od ≤ do); w przeciwnym razie null. */
+export function parseRfmRules(value: unknown): RfmRule[] | null {
+  if (!Array.isArray(value) || value.length > 40) return null;
+  const out: RfmRule[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") return null;
+    const rule = item as Record<string, unknown>;
+    if (!SEGMENT_KEYS.includes(rule.segment as RfmSegment)) return null;
+    const range = (key: string): [number, number] | null => {
+      const arr = rule[key];
+      if (!Array.isArray(arr) || arr.length !== 2) return null;
+      const [lo, hi] = arr.map((x) => Number(x));
+      if (![lo, hi].every((n) => Number.isInteger(n) && n >= 1 && n <= 5) || lo > hi) return null;
+      return [lo, hi];
+    };
+    const r = range("r");
+    const f = range("f");
+    const m = range("m");
+    if (!r || !f || !m) return null;
+    out.push({ segment: rule.segment as RfmSegment, r, f, m });
+  }
+  return out;
+}
+
+export function classifyRfm(r: number, f: number, m: number, rules: RfmRule[] = DEFAULT_RFM_RULES): RfmSegment {
+  for (const rule of rules) {
+    if (r >= rule.r[0] && r <= rule.r[1] && f >= rule.f[0] && f <= rule.f[1] && m >= rule.m[0] && m <= rule.m[1]) {
+      return rule.segment;
+    }
+  }
   return "OTHER";
 }
 
 export function computeRfm(inputs: RfmInput[], now: Date = new Date(), config: RfmConfig = {}): RfmResult[] {
   const days = inputs.map((i) => Math.max(0, Math.floor((now.getTime() - i.lastAt.getTime()) / DAY_MS)));
   const t = config.thresholds ? parseRfmThresholds(config.thresholds) : null;
+  const rules = (config.rules ? parseRfmRules(config.rules) : null) ?? DEFAULT_RFM_RULES;
   let rScores: number[];
   let fScores: number[];
   let mScores: number[];
@@ -126,7 +169,7 @@ export function computeRfm(inputs: RfmInput[], now: Date = new Date(), config: R
     r: rScores[idx],
     f: fScores[idx],
     m: mScores[idx],
-    segment: classifyRfm(rScores[idx], fScores[idx], mScores[idx]),
+    segment: classifyRfm(rScores[idx], fScores[idx], mScores[idx], rules),
   }));
 }
 

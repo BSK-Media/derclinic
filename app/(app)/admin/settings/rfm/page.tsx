@@ -9,14 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { rfmScaleRows } from "@/lib/rfm";
+import { RFM_SEGMENT_LABELS, RFM_SEGMENT_ORDER, rfmScaleRows, type RfmSegment } from "@/lib/rfm";
 
 type Thresholds = { r: number[]; f: number[]; m: number[] };
+type Rule = { segment: RfmSegment; r: [number, number]; f: [number, number]; m: [number, number] };
 type Resp = {
   ok: boolean;
   message?: string;
-  settings?: { windowDays: number; thresholds: Thresholds | null };
+  settings?: { windowDays: number; thresholds: Thresholds | null; rules: Rule[] };
   defaults?: Thresholds;
+  defaultRules?: Rule[];
 };
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -52,6 +54,7 @@ export default function RfmSettingsPage() {
             key={JSON.stringify(data.settings)}
             settings={data.settings}
             defaults={data.defaults}
+            defaultRules={data.defaultRules ?? []}
             canEdit={canEdit}
             onSaved={() => mutate()}
           />
@@ -64,11 +67,13 @@ export default function RfmSettingsPage() {
 function RfmForm({
   settings,
   defaults,
+  defaultRules,
   canEdit,
   onSaved,
 }: {
   settings: NonNullable<Resp["settings"]>;
   defaults?: Thresholds;
+  defaultRules: Rule[];
   canEdit: boolean;
   onSaved: () => Promise<unknown>;
 }) {
@@ -80,6 +85,7 @@ function RfmForm({
     f: source?.f.map(String) ?? [],
     m: source?.m.map(String) ?? [],
   });
+  const [rules, setRules] = React.useState<Rule[]>(settings.rules);
   const [saving, setSaving] = React.useState(false);
 
   async function save() {
@@ -91,7 +97,7 @@ function RfmForm({
       const res = await fetch("/api/admin/settings/rfm", {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ windowDays: Number(windowDays), thresholds }),
+        body: JSON.stringify({ windowDays: Number(windowDays), thresholds, rules }),
       });
       const out = await res.json().catch(() => ({}));
       if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się zapisać ustawień");
@@ -176,6 +182,8 @@ function RfmForm({
               </div>
             ) : null}
 
+            <RulesEditor rules={rules} setRules={setRules} defaultRules={defaultRules} canEdit={canEdit} />
+
             {canEdit ? (
               <div className="flex justify-end">
                 <Button onClick={save} disabled={saving}>{saving ? "Zapisywanie…" : "Zapisz ustawienia"}</Button>
@@ -220,10 +228,152 @@ function ScaleTable({ thresholds }: { thresholds: Thresholds }) {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+const SCORE_OPTIONS = [1, 2, 3, 4, 5];
+const SELECT_CLASS = "h-8 rounded-md border border-slate-300 bg-white px-1 text-sm dark:border-white/15 dark:bg-[#0b1220]";
+
+function RangeSelects({
+  value,
+  onChange,
+  canEdit,
+}: {
+  value: [number, number];
+  onChange: (next: [number, number]) => void;
+  canEdit: boolean;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <select
+        value={value[0]}
+        disabled={!canEdit}
+        className={SELECT_CLASS}
+        onChange={(e) => {
+          const lo = Number(e.target.value);
+          onChange([lo, Math.max(lo, value[1])]);
+        }}
+      >
+        {SCORE_OPTIONS.map((n) => (
+          <option key={n} value={n}>{n}</option>
+        ))}
+      </select>
+      <span className="text-slate-400">–</span>
+      <select
+        value={value[1]}
+        disabled={!canEdit}
+        className={SELECT_CLASS}
+        onChange={(e) => {
+          const hi = Number(e.target.value);
+          onChange([Math.min(hi, value[0]), hi]);
+        }}
+      >
+        {SCORE_OPTIONS.map((n) => (
+          <option key={n} value={n}>{n}</option>
+        ))}
+      </select>
+    </span>
+  );
+}
+
+function RulesEditor({
+  rules,
+  setRules,
+  defaultRules,
+  canEdit,
+}: {
+  rules: Rule[];
+  setRules: React.Dispatch<React.SetStateAction<Rule[]>>;
+  defaultRules: Rule[];
+  canEdit: boolean;
+}) {
+  const update = (index: number, patch: Partial<Rule>) =>
+    setRules((current) => current.map((rule, i) => (i === index ? { ...rule, ...patch } : rule)));
+  const move = (index: number, delta: number) =>
+    setRules((current) => {
+      const target = index + delta;
+      if (target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+
+  return (
+    <div className="space-y-2">
+      <div className="text-sm font-medium">Reguły segmentów</div>
       <p className="text-xs text-slate-500">
-        Segmenty: VIP = R, F i M ≥ 4; Do odzyskania = R ≤ 2 i (F ≥ 4 lub M ≥ 4); Zagrożeni = R ≤ 2 i F ≥ 3; Uśpieni = R ≤ 2;
-        Nowi = R ≥ 4 i F ≤ 2; Lojalni = R ≥ 3 i F ≥ 3.
+        Pacjent trafia do segmentu pierwszej pasującej reguły (od góry). Reguła pasuje, gdy oceny pacjenta (1–5) mieszczą się
+        we wszystkich trzech zakresach. Ten sam segment może mieć kilka reguł („lub”). Pacjent, którego nie złapie żadna
+        reguła, jest w „Pozostali”.
       </p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-slate-500">
+              <th className="py-1 pr-2 font-medium">#</th>
+              <th className="py-1 pr-2 font-medium">Segment</th>
+              <th className="py-1 pr-2 font-medium">Świeżość (R)</th>
+              <th className="py-1 pr-2 font-medium">Częstotliwość (F)</th>
+              <th className="py-1 pr-2 font-medium">Wartość (M)</th>
+              <th className="py-1 font-medium" />
+            </tr>
+          </thead>
+          <tbody>
+            {rules.map((rule, index) => (
+              <tr key={index} className="border-t border-slate-200 dark:border-white/10">
+                <td className="py-1.5 pr-2 text-xs text-slate-500">{index + 1}</td>
+                <td className="py-1.5 pr-2">
+                  <select
+                    value={rule.segment}
+                    disabled={!canEdit}
+                    onChange={(e) => update(index, { segment: e.target.value as RfmSegment })}
+                    className="h-8 rounded-md border border-slate-300 bg-white px-1 text-sm dark:border-white/15 dark:bg-[#0b1220]"
+                  >
+                    {RFM_SEGMENT_ORDER.map((segment) => (
+                      <option key={segment} value={segment}>
+                        {RFM_SEGMENT_LABELS[segment].label}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td className="py-1.5 pr-2"><RangeSelects canEdit={canEdit} value={rule.r} onChange={(r) => update(index, { r })} /></td>
+                <td className="py-1.5 pr-2"><RangeSelects canEdit={canEdit} value={rule.f} onChange={(f) => update(index, { f })} /></td>
+                <td className="py-1.5 pr-2"><RangeSelects canEdit={canEdit} value={rule.m} onChange={(m) => update(index, { m })} /></td>
+                <td className="py-1.5 text-right whitespace-nowrap">
+                  {canEdit ? (
+                    <>
+                      <button type="button" className="px-1.5 text-slate-500 hover:text-slate-900 disabled:opacity-30" disabled={index === 0} onClick={() => move(index, -1)} aria-label="W górę">↑</button>
+                      <button type="button" className="px-1.5 text-slate-500 hover:text-slate-900 disabled:opacity-30" disabled={index === rules.length - 1} onClick={() => move(index, 1)} aria-label="W dół">↓</button>
+                      <button type="button" className="px-1.5 text-red-600 hover:text-red-800" onClick={() => setRules((current) => current.filter((_, i) => i !== index))} aria-label="Usuń regułę">✕</button>
+                    </>
+                  ) : null}
+                </td>
+              </tr>
+            ))}
+            {rules.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-3 text-slate-500">Brak reguł — wszyscy pacjenci trafią do „Pozostali”.</td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+      {canEdit ? (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setRules((current) => [...current, { segment: "VIP", r: [1, 5], f: [1, 5], m: [1, 5] }])}
+          >
+            + Dodaj regułę
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setRules(defaultRules)}>
+            Przywróć reguły domyślne
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

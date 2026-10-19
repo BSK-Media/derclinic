@@ -51,7 +51,7 @@ export async function loadRfm(locationId: string | null, now: Date = new Date())
   let scored: RfmResult[] = computeRfm(
     [...agg.entries()].map(([id, v]) => ({ patientId: id, ...v })),
     now,
-    { thresholds: settings.thresholds },
+    { thresholds: settings.thresholds, rules: settings.rules },
   );
   if (locationId && scored.length) {
     const inLocation = new Set(

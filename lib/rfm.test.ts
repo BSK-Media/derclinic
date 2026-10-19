@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_RFM_THRESHOLDS, classifyRfm, computeRfm, parseRfmThresholds, rfmScaleRows } from "./rfm";
+import {
+  DEFAULT_RFM_RULES,
+  DEFAULT_RFM_THRESHOLDS,
+  classifyRfm,
+  computeRfm,
+  parseRfmRules,
+  parseRfmThresholds,
+  rfmScaleRows,
+  type RfmRule,
+} from "./rfm";
 
 const now = new Date("2026-10-15T12:00:00Z");
 const daysAgo = (d: number) => new Date(now.getTime() - d * 24 * 3600 * 1000);
@@ -76,5 +85,35 @@ describe("skala domyślna", () => {
     const [p] = computeRfm([{ patientId: "x", lastAt: daysAgo(700), frequency: 9, monetary: 2000000 }], now, { thresholds: DEFAULT_RFM_THRESHOLDS });
     expect([p.r, p.f, p.m]).toEqual([2, 5, 5]);
     expect(p.segment).toBe("WIN_BACK");
+  });
+});
+
+describe("reguły segmentów ustawiane przez administratora", () => {
+  it("domyślne reguły dają te same segmenty co dawniej", () => {
+    expect(classifyRfm(5, 5, 5, DEFAULT_RFM_RULES)).toBe("VIP");
+    expect(classifyRfm(2, 1, 5, DEFAULT_RFM_RULES)).toBe("WIN_BACK");
+    expect(classifyRfm(1, 3, 1, DEFAULT_RFM_RULES)).toBe("AT_RISK");
+    expect(classifyRfm(4, 2, 3, DEFAULT_RFM_RULES)).toBe("NEW");
+    expect(classifyRfm(3, 2, 2, DEFAULT_RFM_RULES)).toBe("OTHER");
+  });
+  it("własna reguła zmienia przydział, a pierwsza pasująca wygrywa", () => {
+    const rules: RfmRule[] = [
+      { segment: "DORMANT", r: [1, 3], f: [1, 5], m: [1, 5] },
+      { segment: "VIP", r: [1, 5], f: [1, 5], m: [1, 5] },
+    ];
+    expect(classifyRfm(5, 5, 5, rules)).toBe("VIP");
+    expect(classifyRfm(2, 5, 5, rules)).toBe("DORMANT");
+    expect(classifyRfm(5, 5, 5, [])).toBe("OTHER");
+  });
+  it("computeRfm używa reguł z konfiguracji", () => {
+    const rules: RfmRule[] = [{ segment: "LOYAL", r: [1, 5], f: [1, 5], m: [1, 5] }];
+    const [p] = computeRfm([{ patientId: "a", lastAt: daysAgo(10), frequency: 1, monetary: 100 }], now, { rules });
+    expect(p.segment).toBe("LOYAL");
+  });
+  it("odrzuca niepoprawne reguły", () => {
+    expect(parseRfmRules([{ segment: "VIP", r: [4, 2], f: [1, 5], m: [1, 5] }])).toBeNull();
+    expect(parseRfmRules([{ segment: "XYZ", r: [1, 5], f: [1, 5], m: [1, 5] }])).toBeNull();
+    expect(parseRfmRules([{ segment: "VIP", r: [0, 5], f: [1, 5], m: [1, 5] }])).toBeNull();
+    expect(parseRfmRules(DEFAULT_RFM_RULES)).toEqual(DEFAULT_RFM_RULES);
   });
 });
