@@ -22,6 +22,7 @@ import {
 import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
 import { useAuth } from "@/components/auth-provider";
 import { LocationSelect, useLocationOptions } from "@/components/location-select";
+import { NEW_PATIENT, PatientPicker } from "@/components/patient-picker";
 
 type Patient = { id: string; name: string; locationId: string };
 type Specialist = { id: string; name: string; locationId: string; serviceIds?: string[] };
@@ -32,129 +33,14 @@ type Service = {
   price?: number | null;
 };
 
-const NEW_PATIENT = "__NEW__";
-
 function toLocalDateTimeInput(d: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// Lista pacjentów z wyszukiwarką i opcją "Nowy klient" na górze
-function PatientCombobox({
-  patients,
-  value,
-  onChange,
-}: {
-  patients: Patient[];
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const [open, setOpen] = React.useState(false);
-  const [query, setQuery] = React.useState("");
-  const rootRef = React.useRef<HTMLDivElement | null>(null);
-  const searchRef = React.useRef<HTMLInputElement | null>(null);
-
-  const sorted = React.useMemo(
-    () => [...patients].sort((a, b) => a.name.localeCompare(b.name, "pl", { sensitivity: "base" })),
-    [patients],
-  );
-
-  const filtered = React.useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return sorted;
-    return sorted.filter((p) => p.name.toLowerCase().includes(q));
-  }, [sorted, query]);
-
-  React.useEffect(() => {
-    if (!open) return;
-    setQuery("");
-    const timer = window.setTimeout(() => searchRef.current?.focus(), 0);
-    const onPointerDown = (event: MouseEvent | TouchEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("touchstart", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.clearTimeout(timer);
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("touchstart", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
-  const selectedLabel =
-    value === NEW_PATIENT ? "➕ Nowy klient" : (sorted.find((p) => p.id === value)?.name ?? "");
-
-  function pick(next: string) {
-    onChange(next);
-    setOpen(false);
-  }
-
-  return (
-    <div className="relative" ref={rootRef}>
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        className="flex h-10 w-full items-center justify-between rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
-      >
-        <span className={selectedLabel ? "" : "text-zinc-400"}>
-          {selectedLabel || "Wybierz lub wyszukaj"}
-        </span>
-        <span className="text-zinc-400">▾</span>
-      </button>
-
-      {open ? (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-[#0b1220]">
-          <div className="border-b p-2">
-            <Input
-              ref={searchRef}
-              placeholder="Szukaj klienta…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
-          <div className="max-h-56 overflow-auto py-1 text-sm">
-            <button
-              type="button"
-              onClick={() => pick(NEW_PATIENT)}
-              className={
-                "block w-full border-b px-3 py-2 text-left font-medium text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-500/10 " +
-                (value === NEW_PATIENT ? "bg-emerald-50 dark:bg-emerald-500/10" : "")
-              }
-            >
-              ➕ Nowy klient
-            </button>
-            {filtered.length === 0 ? (
-              <div className="px-3 py-2 text-zinc-500">Brak wyników.</div>
-            ) : null}
-            {filtered.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => pick(p.id)}
-                className={
-                  "block w-full px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900 " +
-                  (value === p.id ? "bg-zinc-100 font-medium dark:bg-zinc-800" : "")
-                }
-              >
-                {p.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 export function AdminBookAppointmentDialog({
   open,
   onOpenChange,
-  patients,
   specialists,
   services,
   defaultDate,
@@ -163,7 +49,8 @@ export function AdminBookAppointmentDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  patients: Patient[];
+  /** Nieużywane: pacjentów wyszukuje serwer (od 3 znaków); zostawione, żeby nie zmieniać wywołań. */
+  patients?: Patient[];
   specialists: Specialist[];
   services: Service[];
   defaultDate?: Date | null;
@@ -221,11 +108,6 @@ export function AdminBookAppointmentDialog({
     () => specialists.filter((specialist) => !locationId || specialist.locationId === locationId),
     [locationId, specialists],
   );
-  const locationPatients = React.useMemo(
-    () => patients.filter((patient) => !locationId || patient.locationId === locationId),
-    [locationId, patients],
-  );
-
   const selectedSpecialist = React.useMemo(
     () => specialists.find((s) => s.id === specialistId),
     [specialists, specialistId],
@@ -340,7 +222,7 @@ export function AdminBookAppointmentDialog({
           </div>
           <div className="space-y-2">
             <Label>Pacjent</Label>
-            <PatientCombobox patients={locationPatients} value={patientId} onChange={setPatientId} />
+            <PatientPicker locationId={locationId} value={patientId} onChange={setPatientId} />
           </div>
           <div className="space-y-2">
             <Label>Specjalista</Label>

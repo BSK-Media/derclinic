@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { PatientPicker } from "@/components/patient-picker";
 import {
   Select,
   SelectContent,
@@ -63,7 +64,6 @@ export default function AdminAppointmentsPage() {
   );
 
   const appointments: Appointment[] = data?.appointments ?? [];
-  const patients: Patient[] = data?.patients ?? [];
   const specialists: Specialist[] = data?.specialists ?? [];
   const services: Service[] = data?.services ?? [];
 
@@ -152,18 +152,7 @@ export default function AdminAppointmentsPage() {
         <div className="grid gap-3 md:grid-cols-4">
           <div className="space-y-2">
             <Label>Pacjent</Label>
-            <Select value={patientId} onValueChange={setPatientId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Wybierz" />
-              </SelectTrigger>
-              <SelectContent>
-                {patients.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <PatientPicker value={patientId} onChange={setPatientId} allowNew={false} />
           </div>
           <div className="space-y-2">
             <Label>Specjalista</Label>

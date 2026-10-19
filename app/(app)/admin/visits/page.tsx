@@ -157,7 +157,6 @@ export default function AdminVisitsPage({
   );
 
   const appointments = data?.appointments ?? [];
-  const patients = data?.patients ?? [];
   const specialists = data?.specialists ?? [];
   const bookingSpecialists = data?.bookingSpecialists ?? specialists;
   const services = data?.services ?? [];
@@ -968,7 +967,6 @@ export default function AdminVisitsPage({
       <AdminBookAppointmentDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        patients={patients}
         specialists={bookingSpecialists}
         services={services}
         defaultDate={defaultDate}

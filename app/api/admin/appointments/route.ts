@@ -71,7 +71,7 @@ export async function GET(req: Request) {
     },
   });
 
-  const [rawAppointments, patients, specialists, bookingSpecialists, services] =
+  const [rawAppointments, specialists, bookingSpecialists, services] =
     await Promise.all([
       prisma.appointment.findMany({
         where: deletedOnly
@@ -93,14 +93,6 @@ export async function GET(req: Request) {
         },
         take: 500,
       }),
-      // Imię jest zaszyfrowane — sortowanie alfabetyczne i limit w pamięci.
-      prisma.patient
-        .findMany({
-          where: { ...locationWhere, name: { not: RESERVATION_PATIENT_NAME } },
-          // Bez hasha hasła i tokenu resetu.
-          select: PATIENT_PUBLIC_SELECT,
-        })
-        .then((rows) => rows.sort((a, b) => comparePolish(a.name, b.name)).slice(0, 500)),
       prisma.user.findMany({
         where: { role: "SPECIALIST", isArchived: false, ...locationWhere },
         orderBy: { name: "asc" },
@@ -163,7 +155,6 @@ export async function GET(req: Request) {
   return NextResponse.json({
     ok: true,
     appointments,
-    patients,
     specialists: shapedSpecialists,
     bookingSpecialists: bookingSpecialists.map(shapeSpecialist),
     services,
