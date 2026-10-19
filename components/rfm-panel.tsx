@@ -31,9 +31,36 @@ export const SEGMENT_TONE: Record<RfmSegment, string> = {
   OTHER: "bg-zinc-100 text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400",
 };
 
+const currentPageFrom = (page: number, size: number) => (page - 1) * size + 1;
+
 export function RfmPanel() {
   const [segment, setSegment] = React.useState<RfmSegment>("VIP");
-  const { data, isLoading } = useSWR(`/api/admin/analytics/rfm?segment=${segment}`, fetcher);
+  type SortKey = "name" | "rfm" | "daysSince" | "frequency" | "monetary";
+  const [sort, setSort] = React.useState<SortKey>("monetary");
+  const [dir, setDir] = React.useState<"asc" | "desc">("desc");
+  const [page, setPage] = React.useState(1);
+  const [pageSize, setPageSize] = React.useState(50);
+
+  function changeSegment(next: RfmSegment) {
+    setSegment(next);
+    setPage(1);
+  }
+  function changeSort(key: SortKey) {
+    setPage(1);
+    if (key === sort) setDir((current) => (current === "desc" ? "asc" : "desc"));
+    else {
+      setSort(key);
+      // Nazwa i „ostatnio (dni)” domyślnie rosnąco, reszta malejąco.
+      setDir(key === "name" || key === "daysSince" ? "asc" : "desc");
+    }
+  }
+  const arrow = (key: SortKey) => (sort === key ? (dir === "desc" ? " ↓" : " ↑") : " ↕");
+
+  const { data, isLoading } = useSWR(
+    `/api/admin/analytics/rfm?segment=${segment}&sort=${sort}&dir=${dir}&page=${page}&pageSize=${pageSize}`,
+    fetcher,
+    { keepPreviousData: true },
+  );
   const segments: SegmentRow[] = data?.segments ?? [];
   const patients: PatientRow[] = data?.patients ?? [];
   const active = segments.find((s) => s.segment === segment);
@@ -59,7 +86,7 @@ export function RfmPanel() {
               <button
                 key={s.segment}
                 type="button"
-                onClick={() => setSegment(s.segment)}
+                onClick={() => changeSegment(s.segment)}
                 className={
                   "rounded-xl border p-3 text-left transition " +
                   (segment === s.segment
@@ -88,11 +115,26 @@ export function RfmPanel() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs text-zinc-500">
-                      <th className="py-1 pr-3 font-medium">Pacjent</th>
-                      <th className="py-1 pr-3 font-medium">R-F-M</th>
-                      <th className="py-1 pr-3 font-medium">Ostatnio</th>
-                      <th className="py-1 pr-3 font-medium">Wizyty i zakupy</th>
-                      <th className="py-1 text-right font-medium">Wydano</th>
+                      {(
+                        [
+                          ["name", "Pacjent", ""],
+                          ["rfm", "R-F-M", ""],
+                          ["daysSince", "Ostatnio", ""],
+                          ["frequency", "Wizyty i zakupy", ""],
+                          ["monetary", "Wydano", "text-right"],
+                        ] as [SortKey, string, string][]
+                      ).map(([key, label, align]) => (
+                        <th key={key} className={"py-1 pr-3 font-medium last:pr-0 " + align}>
+                          <button
+                            type="button"
+                            onClick={() => changeSort(key)}
+                            className={"hover:text-zinc-900 dark:hover:text-white " + (sort === key ? "text-zinc-900 dark:text-white" : "")}
+                          >
+                            {label}
+                            {arrow(key)}
+                          </button>
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -113,11 +155,48 @@ export function RfmPanel() {
                     ))}
                   </tbody>
                 </table>
-                {(active?.count ?? 0) > patients.length ? (
-                  <div className="mt-2 text-xs text-zinc-500">
-                    Pokazano {patients.length} pacjentów o najwyższej wartości z {active?.count}.
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
+                  <span>
+                    {data?.segmentTotal ? (currentPageFrom(data.page, pageSize)) : 0}–
+                    {Math.min(data?.segmentTotal ?? 0, (data?.page ?? 1) * pageSize)} z {data?.segmentTotal ?? 0}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={(data?.page ?? 1) <= 1}
+                      onClick={() => setPage((current) => Math.max(1, current - 1))}
+                      className="rounded-md border px-2 py-1 disabled:opacity-40"
+                    >
+                      ‹ Poprzednia
+                    </button>
+                    <span>
+                      Strona {data?.page ?? 1} z {data?.pageCount ?? 1}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={(data?.page ?? 1) >= (data?.pageCount ?? 1)}
+                      onClick={() => setPage((current) => current + 1)}
+                      className="rounded-md border px-2 py-1 disabled:opacity-40"
+                    >
+                      Następna ›
+                    </button>
+                    <select
+                      value={pageSize}
+                      onChange={(event) => {
+                        setPageSize(Number(event.target.value));
+                        setPage(1);
+                      }}
+                      className="rounded-md border bg-transparent px-1 py-1"
+                      aria-label="Liczba pacjentów na stronie"
+                    >
+                      {[25, 50, 100].map((size) => (
+                        <option key={size} value={size}>
+                          {size} / str.
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                ) : null}
+                </div>
               </div>
             )}
           </Card>

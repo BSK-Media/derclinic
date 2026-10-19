@@ -23,6 +23,13 @@ export async function GET(req: Request) {
   const patientId = url.searchParams.get("patientId");
   const segmentParam = url.searchParams.get("segment");
   const segment = RFM_SEGMENT_ORDER.includes(segmentParam as RfmSegment) ? (segmentParam as RfmSegment) : "VIP";
+  const SORTS = ["name", "rfm", "daysSince", "frequency", "monetary"] as const;
+  type Sort = (typeof SORTS)[number];
+  const requestedSort = url.searchParams.get("sort") as Sort | null;
+  const sort: Sort = requestedSort && SORTS.includes(requestedSort) ? requestedSort : "monetary";
+  const dir = url.searchParams.get("dir") === "asc" ? "asc" : "desc";
+  const requestedSize = Number(url.searchParams.get("pageSize"));
+  const pageSize = [25, 50, 100].includes(requestedSize) ? requestedSize : 50;
 
   const { settings, scored } = await loadRfm(user!.locationScopeId);
 
@@ -55,17 +62,35 @@ export async function GET(req: Request) {
     monetary: scored.filter((r) => r.segment === key).reduce((sum, r) => sum + r.monetary, 0),
   }));
 
-  const listed = scored
-    .filter((r) => r.segment === segment)
-    .sort((a, b) => b.monetary - a.monetary)
-    .slice(0, 100);
-  const patients = listed.length
-    ? await prisma.patient.findMany({
-        where: { id: { in: listed.map((r) => r.patientId) } },
-        select: { id: true, name: true },
-      })
-    : [];
-  const names = new Map(patients.map((p) => [p.id, p.name]));
+  const inSegment = scored.filter((r) => r.segment === segment);
+  // Nazwiska są zaszyfrowane w bazie — do sortowania po nazwie pobieramy je dla całego segmentu, w pozostałych
+  // przypadkach tylko dla bieżącej strony.
+  const nameOf = new Map<string, string>();
+  if (sort === "name" && inSegment.length) {
+    const all = await prisma.patient.findMany({ where: { id: { in: inSegment.map((r) => r.patientId) } }, select: { id: true, name: true } });
+    for (const p of all) nameOf.set(p.id, p.name);
+  }
+  const sign = dir === "asc" ? 1 : -1;
+  const rfmKey = (r: { r: number; f: number; m: number }) => r.r * 100 + r.f * 10 + r.m;
+  inSegment.sort((x, y) => {
+    let result: number;
+    if (sort === "name") result = (nameOf.get(x.patientId) ?? "").localeCompare(nameOf.get(y.patientId) ?? "", "pl", { sensitivity: "base" });
+    else if (sort === "rfm") result = rfmKey(x) - rfmKey(y);
+    else if (sort === "daysSince") result = x.daysSince - y.daysSince;
+    else if (sort === "frequency") result = x.frequency - y.frequency;
+    else result = x.monetary - y.monetary;
+    return result !== 0 ? result * sign : x.patientId.localeCompare(y.patientId);
+  });
+
+  const total = inSegment.length;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(Math.max(1, Number(url.searchParams.get("page")) || 1), pageCount);
+  const listed = inSegment.slice((page - 1) * pageSize, page * pageSize);
+  if (sort !== "name" && listed.length) {
+    const rows = await prisma.patient.findMany({ where: { id: { in: listed.map((r) => r.patientId) } }, select: { id: true, name: true } });
+    for (const p of rows) nameOf.set(p.id, p.name);
+  }
+  const names = nameOf;
 
   return NextResponse.json({
     ok: true,
@@ -73,6 +98,10 @@ export async function GET(req: Request) {
     total: scored.length,
     segments,
     segment,
+    segmentTotal: total,
+    page,
+    pageSize,
+    pageCount,
     patients: listed.map((r) => ({
       id: r.patientId,
       name: names.get(r.patientId) ?? "—",
