@@ -1459,7 +1459,24 @@ model StaffMessage {
   // Moment przeczytania przez adresata (null = nieprzeczytana).
   readAt DateTime?
 
+  // Opcjonalne zdjęcie w wiadomości (osobna tabela, żeby lista wiadomości nie ciągnęła bajtów).
+  image StaffMessageImage?
+
   @@index([recipientId, readAt])
   @@index([senderId, recipientId, createdAt])
   @@index([recipientId, senderId, createdAt])
+}
+
+// Zdjęcie dołączone do wiadomości czatu. Bajty są zaszyfrowane aplikacyjnie (lib/data-encryption.ts), bo zdjęcia mogą
+// przedstawiać pacjentów. Dostęp tylko dla nadawcy i adresata wiadomości.
+model StaffMessageImage {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  messageId String       @unique
+  message   StaffMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  mimeType String
+  size     Int
+  data     Bytes
 }

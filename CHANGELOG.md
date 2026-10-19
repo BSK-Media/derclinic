@@ -5,7 +5,7 @@ i migracje w `prisma/migrations`.
 
 ## 2026-10-15
 ### Dodano
-- Czat wewnętrzny personelu (menu → Czat): każdy pracownik może napisać do każdego — administrator, manager, recepcja i specjaliści. Rozmowy 1:1, nieprzeczytane wiadomości ze znaczkiem w menu, status „przeczytano”. Treść wiadomości jest szyfrowana w bazie; pacjenci jej nie widzą. Migracja `20261102120000_staff_chat`.
+- Czat wewnętrzny personelu (menu → Czat): każdy pracownik może napisać do każdego — administrator, manager, recepcja i specjaliści. Rozmowy 1:1, nieprzeczytane wiadomości ze znaczkiem w menu, status „przeczytano”. Treść wiadomości jest szyfrowana w bazie; pacjenci jej nie widzą. Migracja `20261102120000_staff_chat`. W wiadomościach można dołączać zdjęcia (przycisk 📎 albo wklejenie ze schowka); zdjęcia są zmniejszane w przeglądarce, szyfrowane w bazie i dostępne tylko dla nadawcy i adresata. Migracja `20261103120000_staff_chat_images`.
 
 ### Zmieniono
 - Ustawienia → Segmentacja pacjentów: administrator ustawia reguły przydziału do segmentów (VIP, Lojalni, Nowi, Do odzyskania, Zagrożeni, Uśpieni, Pozostali) — zakresy ocen R, F i M dla każdej reguły, kolejność (pierwsza pasująca wygrywa), dodawanie i usuwanie reguł, przywracanie domyślnych. Migracja `20261101120000_rfm_segment_rules`.

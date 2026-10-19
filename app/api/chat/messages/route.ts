@@ -3,7 +3,9 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/api-helpers";
 import { getAuthUser } from "@/lib/auth-cookie";
-import { CHAT_ACTIVE_USER, CHAT_MAX_BODY, CHAT_PAGE_SIZE, chatSenderLabel } from "@/lib/chat";
+import { CHAT_ACTIVE_USER, CHAT_IMAGE_MAX_BYTES, CHAT_MAX_BODY, CHAT_PAGE_SIZE, chatSenderLabel } from "@/lib/chat";
+import { encryptBytes } from "@/lib/data-encryption";
+import { detectImageMime } from "@/lib/newsletter-images";
 import { RATE_LIMITS, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +31,7 @@ export async function GET(req: Request) {
     },
     orderBy: { createdAt: "desc" },
     take: CHAT_PAGE_SIZE,
-    select: { id: true, createdAt: true, senderId: true, senderOperatorName: true, body: true, readAt: true },
+    select: { id: true, createdAt: true, senderId: true, senderOperatorName: true, body: true, readAt: true, image: { select: { id: true } } },
   });
 
   await prisma.staffMessage.updateMany({
@@ -46,38 +48,61 @@ export async function GET(req: Request) {
       mine: m.senderId === user!.id,
       from: m.senderId === user!.id ? null : chatSenderLabel(other.name, m.senderOperatorName),
       body: m.body,
+      imageId: m.image?.id ?? null,
       readAt: m.readAt ? m.readAt.toISOString() : null,
     })),
   });
 }
 
-const SendSchema = z.object({
-  to: z.string().min(1).max(100),
-  body: z
-    .string()
-    .transform((value) => value.trim())
-    .pipe(z.string().min(1, "Wpisz wiadomość").max(CHAT_MAX_BODY, `Wiadomość może mieć najwyżej ${CHAT_MAX_BODY} znaków`)),
-});
+const BodyText = z
+  .string()
+  .transform((value) => value.trim())
+  .pipe(z.string().max(CHAT_MAX_BODY, `Wiadomość może mieć najwyżej ${CHAT_MAX_BODY} znaków`));
 
+// Wiadomość: JSON { to, body } albo multipart (to, body, image) ze zdjęciem. Wymagana jest treść lub zdjęcie.
 export async function POST(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
 
-  const parsed = SendSchema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) {
-    return NextResponse.json({ ok: false, message: parsed.error.issues[0]?.message ?? "Niepoprawne dane" }, { status: 400 });
+  let to = "";
+  let rawBody = "";
+  let image: { bytes: Uint8Array; mime: string } | null = null;
+
+  const contentType = req.headers.get("content-type") ?? "";
+  if (contentType.includes("multipart/form-data")) {
+    const form = await req.formData().catch(() => null);
+    if (!form) return NextResponse.json({ ok: false, message: "Niepoprawne dane" }, { status: 400 });
+    to = String(form.get("to") ?? "");
+    rawBody = String(form.get("body") ?? "");
+    const file = form.get("image");
+    if (file instanceof Blob && file.size > 0) {
+      if (file.size > CHAT_IMAGE_MAX_BYTES) {
+        return NextResponse.json({ ok: false, message: "Zdjęcie jest za duże (maksymalnie 4 MB)" }, { status: 413 });
+      }
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const mime = detectImageMime(bytes);
+      if (!mime) return NextResponse.json({ ok: false, message: "Dozwolone są zdjęcia JPG, PNG, GIF i WebP" }, { status: 400 });
+      image = { bytes, mime };
+    }
+  } else {
+    const json = (await req.json().catch(() => null)) as { to?: unknown; body?: unknown } | null;
+    to = typeof json?.to === "string" ? json.to : "";
+    rawBody = typeof json?.body === "string" ? json.body : "";
   }
-  if (parsed.data.to === user!.id) {
-    return NextResponse.json({ ok: false, message: "Nie można pisać do samego siebie" }, { status: 400 });
+
+  const bodyParsed = BodyText.safeParse(rawBody);
+  if (!bodyParsed.success) {
+    return NextResponse.json({ ok: false, message: bodyParsed.error.issues[0]?.message ?? "Niepoprawne dane" }, { status: 400 });
   }
+  const body = bodyParsed.data;
+  if (!to) return NextResponse.json({ ok: false, message: "Wybierz rozmówcę" }, { status: 400 });
+  if (!body && !image) return NextResponse.json({ ok: false, message: "Wpisz wiadomość lub dodaj zdjęcie" }, { status: 400 });
+  if (to === user!.id) return NextResponse.json({ ok: false, message: "Nie można pisać do samego siebie" }, { status: 400 });
 
   const limit = await hitRateLimit(RATE_LIMITS.chatSend, user!.id);
   if (!limit.allowed) return tooManyRequests(limit, "Zbyt wiele wiadomości. Spróbuj za chwilę.");
 
-  const recipient = await prisma.user.findFirst({
-    where: { id: parsed.data.to, ...CHAT_ACTIVE_USER },
-    select: { id: true },
-  });
+  const recipient = await prisma.user.findFirst({ where: { id: to, ...CHAT_ACTIVE_USER }, select: { id: true } });
   if (!recipient) return NextResponse.json({ ok: false, message: "Nie można wysłać wiadomości do tej osoby" }, { status: 404 });
 
   const message = await prisma.staffMessage.create({
@@ -85,13 +110,24 @@ export async function POST(req: Request) {
       senderId: user!.id,
       senderOperatorName: (await getAuthUser())?.operatorName ?? null,
       recipientId: recipient.id,
-      body: parsed.data.body,
+      body,
+      ...(image
+        ? { image: { create: { mimeType: image.mime, size: image.bytes.length, data: encryptBytes(image.bytes) } } }
+        : {}),
     },
-    select: { id: true, createdAt: true, body: true },
+    select: { id: true, createdAt: true, body: true, image: { select: { id: true } } },
   });
 
   return NextResponse.json({
     ok: true,
-    message: { id: message.id, createdAt: message.createdAt.toISOString(), mine: true, from: null, body: message.body, readAt: null },
+    message: {
+      id: message.id,
+      createdAt: message.createdAt.toISOString(),
+      mine: true,
+      from: null,
+      body: message.body,
+      imageId: message.image?.id ?? null,
+      readAt: null,
+    },
   });
 }

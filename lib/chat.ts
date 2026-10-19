@@ -17,3 +17,6 @@ export function chatSenderLabel(name: string, operatorName?: string | null) {
 
 /** Konto, do którego można pisać: aktywne, nie archiwalne. */
 export const CHAT_ACTIVE_USER = { disabledAt: null, isArchived: false } as const;
+
+/** Maksymalny rozmiar zdjęcia po stronie serwera (przeglądarka zmniejsza zdjęcia przed wysyłką). */
+export const CHAT_IMAGE_MAX_BYTES = 4 * 1024 * 1024;

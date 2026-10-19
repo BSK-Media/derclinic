@@ -17,9 +17,42 @@ type Contact = {
   unread: number;
   lastAt: string | null;
 };
-type Message = { id: string; createdAt: string; mine: boolean; from: string | null; body: string; readAt: string | null };
+type Message = {
+  id: string;
+  createdAt: string;
+  mine: boolean;
+  from: string | null;
+  body: string;
+  imageId?: string | null;
+  readAt: string | null;
+};
 
 const MAX_BODY = 2000;
+const MAX_IMAGE_SIDE = 1600;
+
+// Zmniejsza zdjęcie przed wysyłką (do 1600 px dłuższego boku, JPEG), żeby mieściło się w limicie i szybko się ładowało.
+// GIF zostaje bez zmian (animacja), a przy błędzie dekodowania wysyłamy oryginał.
+async function prepareImage(file: File): Promise<File> {
+  if (file.type === "image/gif") return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close?.();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+    if (!blob || blob.size >= file.size) return scale < 1 && blob ? new File([blob], "zdjecie.jpg", { type: "image/jpeg" }) : file;
+    return new File([blob], "zdjecie.jpg", { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
+}
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 function initials(name: string) {
@@ -61,6 +94,9 @@ export function StaffChat({ initialWith }: { initialWith?: string | null }) {
   const [search, setSearch] = React.useState("");
   const [draft, setDraft] = React.useState("");
   const [sending, setSending] = React.useState(false);
+  const [attachment, setAttachment] = React.useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+  const fileRef = React.useRef<HTMLInputElement | null>(null);
   const bottomRef = React.useRef<HTMLDivElement | null>(null);
 
   const { data: contactsData, mutate: mutateContacts } = useSWR<{ ok: boolean; contacts: Contact[]; me: { id: string; name: string } }>(
@@ -94,19 +130,40 @@ export function StaffChat({ initialWith }: { initialWith?: string | null }) {
     return q ? contacts.filter((c) => c.name.toLocaleLowerCase("pl").includes(q) || c.roleLabel.toLocaleLowerCase("pl").includes(q)) : contacts;
   }, [contacts, search]);
 
+  function clearAttachment() {
+    setAttachment(null);
+    setPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  async function chooseImage(file: File | null | undefined) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return toast.error("Można dołączyć tylko zdjęcie");
+    const prepared = await prepareImage(file);
+    setPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return URL.createObjectURL(prepared);
+    });
+    setAttachment(prepared);
+  }
+
   async function send() {
     const body = draft.trim();
-    if (!activeId || !body || sending) return;
+    if (!activeId || (!body && !attachment) || sending) return;
     setSending(true);
     try {
-      const res = await fetch("/api/chat/messages", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ to: activeId, body }),
-      });
+      const form = new FormData();
+      form.set("to", activeId);
+      form.set("body", body);
+      if (attachment) form.set("image", attachment, attachment.name || "zdjecie.jpg");
+      const res = await fetch("/api/chat/messages", { method: "POST", body: form });
       const out = await res.json().catch(() => ({}));
       if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się wysłać wiadomości");
       setDraft("");
+      clearAttachment();
       await mutateMessages();
       void mutateContacts();
     } finally {
@@ -195,6 +252,17 @@ export function StaffChat({ initialWith }: { initialWith?: string | null }) {
                       )}
                     >
                       {!m.mine && m.from && m.from !== active.name ? <div className="mb-0.5 text-[11px] font-semibold opacity-70">{m.from}</div> : null}
+                      {m.imageId ? (
+                        <a href={`/api/chat/images/${m.imageId}`} target="_blank" rel="noreferrer" className="mb-1 block">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={`/api/chat/images/${m.imageId}`}
+                            alt="Zdjęcie z czatu"
+                            loading="lazy"
+                            className="max-h-72 max-w-full rounded-xl object-cover"
+                          />
+                        </a>
+                      ) : null}
                       {m.body}
                       <div className={cn("mt-0.5 text-right text-[10px]", m.mine ? "text-emerald-100" : "text-zinc-400")}>
                         {timeFmt.format(new Date(m.createdAt))}
@@ -207,6 +275,16 @@ export function StaffChat({ initialWith }: { initialWith?: string | null }) {
               <div ref={bottomRef} />
             </div>
 
+            {previewUrl ? (
+              <div className="flex items-center gap-3 border-t bg-zinc-50 px-3 py-2 dark:bg-zinc-900/40">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={previewUrl} alt="Podgląd zdjęcia" className="h-16 w-16 rounded-lg object-cover" />
+                <div className="min-w-0 flex-1 text-xs text-zinc-500">Zdjęcie zostanie wysłane razem z wiadomością.</div>
+                <button type="button" onClick={clearAttachment} className="rounded-lg px-2 py-1 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10">
+                  Usuń
+                </button>
+              </div>
+            ) : null}
             <form
               className="flex items-end gap-2 border-t p-3"
               onSubmit={(event) => {
@@ -214,8 +292,31 @@ export function StaffChat({ initialWith }: { initialWith?: string | null }) {
                 void send();
               }}
             >
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => void chooseImage(e.target.files?.[0])}
+              />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-white text-lg hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                aria-label="Dołącz zdjęcie"
+                title="Dołącz zdjęcie"
+              >
+                📎
+              </button>
               <textarea
                 value={draft}
+                onPaste={(e) => {
+                  const image = [...e.clipboardData.files].find((file) => file.type.startsWith("image/"));
+                  if (image) {
+                    e.preventDefault();
+                    void chooseImage(image);
+                  }
+                }}
                 onChange={(e) => setDraft(e.target.value.slice(0, MAX_BODY))}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
@@ -228,7 +329,7 @@ export function StaffChat({ initialWith }: { initialWith?: string | null }) {
                 className="min-h-[44px] flex-1 resize-none rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-950"
                 aria-label="Treść wiadomości"
               />
-              <Button type="submit" disabled={sending || draft.trim().length === 0}>
+              <Button type="submit" disabled={sending || (draft.trim().length === 0 && !attachment)}>
                 Wyślij
               </Button>
             </form>
