@@ -43,8 +43,8 @@ export function RfmPanel() {
       <div>
         <h2 className="text-base font-semibold">Segmentacja pacjentów (RFM)</h2>
         <p className="mt-1 text-xs text-zinc-500">
-          Oceny 1–5: świeżość (R), częstotliwość (F) i wartość (M). Częstotliwość i wartość z ostatnich{" "}
-          {data?.windowDays ?? 365} dni; liczone zakończone, zaakceptowane wizyty i sprzedaż przypisana do pacjenta.
+          Oceny 1–5: świeżość (R), częstotliwość (F) i wartość (M). Częstotliwość i wartość liczone{" "}
+          {data?.windowDays ? `z ostatnich ${data.windowDays} dni` : "z całej historii pacjenta"}; liczone zakończone, zaakceptowane wizyty i sprzedaż przypisana do pacjenta.
         </p>
       </div>
 

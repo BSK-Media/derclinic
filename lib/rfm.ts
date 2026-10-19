@@ -1,7 +1,9 @@
 // Analiza RFM (Recency, Frequency, Monetary): ocena pacjentów w skali 1–5 według tego, jak dawno
 // byli ostatnio, jak często korzystają z usług i ile wydali. Czysta logika bez dostępu do bazy.
 
-export const RFM_WINDOW_DAYS = 365; // domyślne okno dla częstotliwości i wartości
+// Okno dla częstotliwości i wartości w dniach; 0 = cała historia pacjenta (domyślnie). Świeżość liczy się zawsze
+// od ostatniej wizyty lub zakupu.
+export const RFM_WINDOW_DAYS = 0;
 export const RFM_MIN_WINDOW_DAYS = 30;
 export const RFM_MAX_WINDOW_DAYS = 1095;
 
@@ -11,10 +13,13 @@ export const RFM_MAX_WINDOW_DAYS = 1095;
 export type RfmThresholds = { r: number[]; f: number[]; m: number[] };
 export type RfmConfig = { thresholds?: RfmThresholds | null };
 
+// Skala wyliczona z historii kliniki (Booksy, 2022–2026, ok. 2600 pacjentów z zakończoną wizytą): świeżość dzieli
+// pacjentów na pięć mniej więcej równych grup (długie cykle powrotów w medycynie estetycznej), częstotliwość i wartość
+// — z całej historii pacjenta (kwintyle po zaokrągleniu).
 export const DEFAULT_RFM_THRESHOLDS: RfmThresholds = {
-  r: [30, 90, 180, 365],
+  r: [150, 360, 600, 900],
   f: [2, 3, 5, 8],
-  m: [300, 800, 2000, 5000],
+  m: [600, 1500, 5000, 12000],
 };
 
 /** Poprawne progi: po cztery rosnące liczby nieujemne w każdej grupie; w przeciwnym razie null. */
@@ -123,4 +128,20 @@ export function computeRfm(inputs: RfmInput[], now: Date = new Date(), config: R
     m: mScores[idx],
     segment: classifyRfm(rScores[idx], fScores[idx], mScores[idx]),
   }));
+}
+
+export type RfmScaleRow = { score: number; r: string; f: string; m: string };
+
+const plPl = (n: number) => n.toLocaleString("pl-PL");
+
+/** Czytelna skala ocen 1–5 dla progów (do pokazania w ustawieniach). */
+export function rfmScaleRows(t: RfmThresholds): RfmScaleRow[] {
+  const days = (i: number) => `${plPl(t.r[i])} dni`;
+  return [
+    { score: 5, r: `do ${days(0)}`, f: `od ${t.f[3]} wizyt`, m: `od ${plPl(t.m[3])} zł` },
+    { score: 4, r: `${plPl(t.r[0] + 1)}–${days(1)}`, f: `${t.f[2]}–${t.f[3] - 1} wizyty`, m: `${plPl(t.m[2])}–${plPl(t.m[3] - 1)} zł` },
+    { score: 3, r: `${plPl(t.r[1] + 1)}–${days(2)}`, f: `${t.f[1]}–${t.f[2] - 1} wizyty`, m: `${plPl(t.m[1])}–${plPl(t.m[2] - 1)} zł` },
+    { score: 2, r: `${plPl(t.r[2] + 1)}–${days(3)}`, f: `${t.f[0]}–${t.f[1] - 1} wizyty`, m: `${plPl(t.m[0])}–${plPl(t.m[1] - 1)} zł` },
+    { score: 1, r: `powyżej ${days(3)}`, f: `poniżej ${t.f[0]} wizyt`, m: `poniżej ${plPl(t.m[0])} zł` },
+  ];
 }

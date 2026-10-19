@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyRfm, computeRfm, parseRfmThresholds } from "./rfm";
+import { DEFAULT_RFM_THRESHOLDS, classifyRfm, computeRfm, parseRfmThresholds, rfmScaleRows } from "./rfm";
 
 const now = new Date("2026-10-15T12:00:00Z");
 const daysAgo = (d: number) => new Date(now.getTime() - d * 24 * 3600 * 1000);
@@ -62,5 +62,19 @@ describe("własne progi", () => {
   it("niepoprawne progi są odrzucane", () => {
     expect(parseRfmThresholds({ r: [5, 3, 2, 1], f: [1, 2, 3, 4], m: [1, 2, 3, 4] })).toBeNull();
     expect(parseRfmThresholds(thresholds)).toEqual(thresholds);
+  });
+});
+
+describe("skala domyślna", () => {
+  it("opisuje oceny 1–5 czytelnie", () => {
+    const rows = rfmScaleRows(DEFAULT_RFM_THRESHOLDS);
+    expect(rows.map((r) => r.score)).toEqual([5, 4, 3, 2, 1]);
+    expect(rows[0].f).toBe("od 8 wizyt");
+    expect(rows[4].r).toContain("powyżej");
+  });
+  it("dawny dobry pacjent (niedawno nieobecny, dużo wizyt i kwot) trafia do odzyskania", () => {
+    const [p] = computeRfm([{ patientId: "x", lastAt: daysAgo(700), frequency: 9, monetary: 2000000 }], now, { thresholds: DEFAULT_RFM_THRESHOLDS });
+    expect([p.r, p.f, p.m]).toEqual([2, 5, 5]);
+    expect(p.segment).toBe("WIN_BACK");
   });
 });

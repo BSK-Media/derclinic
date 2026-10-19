@@ -4,6 +4,9 @@ Format: najnowsze na górze, zmiany pogrupowane według daty wdrożenia. Szczeg�
 i migracje w `prisma/migrations`.
 
 ## 2026-10-15
+### Zmieniono
+- Segmentacja RFM: skala ocen wyliczona z historii kliniki (świeżość do 150/360/600/900 dni, częstotliwość od 2/3/5/8 wizyt, wartość od 600/1500/5000/12000 zł) i liczona z CAŁEJ historii pacjenta (okno 0 = cała historia). Wcześniej okno 365 dni sprawiało, że segmenty „Do odzyskania” i „Zagrożeni” były puste. W Ustawieniach → Segmentacja pacjentów widać tabelę skali i definicje segmentów.
+
 ### Dodano
 - Lista pacjentów: paginacja (przechodzenie między stronami, skok do wybranej strony, 10/25/50/100 na stronę) i wszyscy pacjenci na liście (wcześniej tylko 200 najnowszych). Sortowanie „najwięcej wizyt / najwięcej wydali / ostatnia wizyta” oraz karty „Najwięcej wizyt/wydał” liczone są z całej historii każdego pacjenta, nie z wycinka listy.
 - Archiwum (Ustawienia → Archiwum): usługi i konta pracowników zachowane tylko w historii wizyt (np. z importu z Booksy) nie pojawiają się na zwykłych listach — usług, specjalistów, kalendarza, rozliczeń ani rezerwacji; są widoczne i można je przywrócić (usługi) w osobnym miejscu. Migracje `20261030120000_service_archived` i `20261031120000_user_archived`.

@@ -18,7 +18,11 @@ export async function GET() {
 }
 
 const BodySchema = z.object({
-  windowDays: z.coerce.number().int().min(RFM_MIN_WINDOW_DAYS).max(RFM_MAX_WINDOW_DAYS),
+  // 0 = cała historia pacjenta; inaczej okno w dniach.
+  windowDays: z.coerce
+    .number()
+    .int()
+    .refine((value) => value === 0 || (value >= RFM_MIN_WINDOW_DAYS && value <= RFM_MAX_WINDOW_DAYS)),
   thresholds: z.unknown().nullable().optional(),
 });
 
@@ -31,7 +35,7 @@ export async function PUT(req: Request) {
   const parsed = BodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, message: `Okno obliczeń musi mieścić się w zakresie ${RFM_MIN_WINDOW_DAYS}–${RFM_MAX_WINDOW_DAYS} dni` },
+      { ok: false, message: `Okno obliczeń: 0 (cała historia) albo ${RFM_MIN_WINDOW_DAYS}–${RFM_MAX_WINDOW_DAYS} dni` },
       { status: 400 },
     );
   }

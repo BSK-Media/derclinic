@@ -11,7 +11,8 @@ import { getRfmSettings } from "@/lib/rfm-settings";
 // aplikacji. Parametr locationId tylko zawęża wynik do pacjentów danej lokalizacji (widok managera).
 export async function loadRfm(locationId: string | null, now: Date = new Date()) {
   const settings = await getRfmSettings();
-  const windowStart = new Date(now.getTime() - settings.windowDays * 24 * 3600 * 1000);
+  // windowDays = 0 oznacza całą historię pacjenta.
+  const windowStart = settings.windowDays > 0 ? new Date(now.getTime() - settings.windowDays * 24 * 3600 * 1000) : new Date(0);
   const scope = {};
 
   const [appointments, sales] = await Promise.all([

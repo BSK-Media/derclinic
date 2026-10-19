@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { rfmScaleRows } from "@/lib/rfm";
 
 type Thresholds = { r: number[]; f: number[]; m: number[] };
 type Resp = {
@@ -104,18 +105,18 @@ function RfmForm({
   return (
     <>
             <div className="space-y-1">
-              <Label htmlFor="rfm-window">Okno obliczeń dla częstotliwości i wartości (dni)</Label>
+              <Label htmlFor="rfm-window">Okno obliczeń dla częstotliwości i wartości (dni; 0 = cała historia)</Label>
               <Input
                 id="rfm-window"
                 type="number"
-                min={30}
+                min={0}
                 max={1095}
                 value={windowDays}
                 disabled={!canEdit}
                 onChange={(e) => setWindowDays(e.target.value)}
                 className="max-w-[10rem]"
               />
-              <p className="text-xs text-slate-500">Od 30 do 1095 dni. Świeżość liczy się zawsze od ostatniej wizyty lub zakupu.</p>
+              <p className="text-xs text-slate-500">0 = cała historia pacjenta (zalecane przy długich cyklach powrotów) albo 30–1095 dni. Świeżość liczy się zawsze od ostatniej wizyty lub zakupu.</p>
             </div>
 
             <div className="space-y-2">
@@ -129,10 +130,20 @@ function RfmForm({
               <label className="flex items-start gap-2 text-sm">
                 <input type="radio" checked={custom} disabled={!canEdit} onChange={() => setCustom(true)} className="mt-1" />
                 <span>
-                  <strong>Własne progi</strong> — sam wyznaczasz, od jakich wartości przyznawane są oceny.
+                  <strong>Skala progów</strong> — oceny wynikają z ustalonych wartości (domyślnie wyliczonych z historii kliniki).
                 </span>
               </label>
             </div>
+
+            {custom ? (
+              <ScaleTable
+                thresholds={{
+                  r: vals.r.map(Number),
+                  f: vals.f.map(Number),
+                  m: vals.m.map(Number),
+                }}
+              />
+            ) : null}
 
             {custom ? (
               <div className="space-y-4">
@@ -173,5 +184,46 @@ function RfmForm({
               <p className="text-xs text-slate-500">Ustawienia może zmieniać tylko administrator.</p>
             )}
     </>
+  );
+}
+
+function ScaleTable({ thresholds }: { thresholds: Thresholds }) {
+  const valid = ["r", "f", "m"].every(
+    (key) =>
+      thresholds[key as keyof Thresholds].length === 4 &&
+      thresholds[key as keyof Thresholds].every((n) => Number.isFinite(n)),
+  );
+  if (!valid) return null;
+  const rows = rfmScaleRows(thresholds);
+  return (
+    <div className="space-y-1">
+      <div className="text-sm font-medium">Skala ocen</div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-slate-500">
+              <th className="py-1 pr-3 font-medium">Ocena</th>
+              <th className="py-1 pr-3 font-medium">Świeżość (R)</th>
+              <th className="py-1 pr-3 font-medium">Częstotliwość (F)</th>
+              <th className="py-1 font-medium">Wartość (M)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.score} className="border-t border-slate-200 dark:border-white/10">
+                <td className="py-1.5 pr-3 font-semibold">{row.score}</td>
+                <td className="py-1.5 pr-3">{row.r}</td>
+                <td className="py-1.5 pr-3">{row.f}</td>
+                <td className="py-1.5">{row.m}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-slate-500">
+        Segmenty: VIP = R, F i M ≥ 4; Do odzyskania = R ≤ 2 i (F ≥ 4 lub M ≥ 4); Zagrożeni = R ≤ 2 i F ≥ 3; Uśpieni = R ≤ 2;
+        Nowi = R ≥ 4 i F ≤ 2; Lojalni = R ≥ 3 i F ≥ 3.
+      </p>
+    </div>
   );
 }
