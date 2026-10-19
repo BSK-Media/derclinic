@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR from "swr";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -58,7 +58,6 @@ const segmentRank = (segment?: string | null) => {
 type SortDirection = "asc" | "desc";
 type QuickSort = "all" | "lastVisitAt" | "completedVisits" | "totalSpent";
 
-const MOBILE_PAGE_SIZE = 12;
 
 function initials(name: string) {
   return name
@@ -78,13 +77,159 @@ function avatarTone(name: string) {
       : "bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-200";
 }
 
+function pageNumbers(current: number, count: number): (number | "…")[] {
+  if (count <= 7) return Array.from({ length: count }, (_, i) => i + 1);
+  const pages = new Set([1, count, current - 1, current, current + 1]);
+  if (current <= 3) [2, 3, 4].forEach((n) => pages.add(n));
+  if (current >= count - 2) [count - 1, count - 2, count - 3].forEach((n) => pages.add(n));
+  const sorted = [...pages].filter((n) => n >= 1 && n <= count).sort((a, b) => a - b);
+  const out: (number | "…")[] = [];
+  sorted.forEach((n, i) => {
+    if (i > 0 && n - sorted[i - 1] > 1) out.push("…");
+    out.push(n);
+  });
+  return out;
+}
+
+function Pagination({
+  page,
+  pageCount,
+  total,
+  pageSize,
+  onPage,
+  onPageSize,
+}: {
+  page: number;
+  pageCount: number;
+  total: number;
+  pageSize: number;
+  onPage: (page: number) => void;
+  onPageSize: (size: number) => void;
+}) {
+  const [jump, setJump] = useState("");
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const to = Math.min(total, page * pageSize);
+  const go = (value: number) => onPage(Math.min(Math.max(1, value), pageCount));
+  const base = "inline-flex h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-sm font-medium transition disabled:opacity-40";
+  return (
+    <div className="flex flex-col items-center gap-3 border-t p-4 md:flex-row md:justify-between">
+      <div className="text-sm text-zinc-500">
+        {from}–{to} z {total}
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-1.5">
+        <button type="button" className={cn(base, "bg-white dark:bg-[#0b1220]")} disabled={page <= 1} onClick={() => go(page - 1)} aria-label="Poprzednia strona">
+          ‹
+        </button>
+        {pageNumbers(page, pageCount).map((entry, index) =>
+          entry === "…" ? (
+            <span key={`gap-${index}`} className="px-1 text-zinc-400">
+              …
+            </span>
+          ) : (
+            <button
+              key={entry}
+              type="button"
+              onClick={() => go(entry)}
+              aria-current={entry === page ? "page" : undefined}
+              className={cn(
+                base,
+                entry === page
+                  ? "border-emerald-600 bg-emerald-600 text-white"
+                  : "bg-white text-zinc-700 hover:bg-zinc-50 dark:bg-[#0b1220] dark:text-zinc-200",
+              )}
+            >
+              {entry}
+            </button>
+          ),
+        )}
+        <button type="button" className={cn(base, "bg-white dark:bg-[#0b1220]")} disabled={page >= pageCount} onClick={() => go(page + 1)} aria-label="Następna strona">
+          ›
+        </button>
+      </div>
+      <div className="flex items-center gap-2 text-sm">
+        <form
+          className="flex items-center gap-1.5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const value = Number(jump);
+            if (Number.isFinite(value) && value >= 1) go(Math.floor(value));
+            setJump("");
+          }}
+        >
+          <label className="text-zinc-500" htmlFor="patients-jump">
+            Idź do
+          </label>
+          <input
+            id="patients-jump"
+            inputMode="numeric"
+            value={jump}
+            onChange={(event) => setJump(event.target.value.replace(/\D/g, ""))}
+            placeholder={String(page)}
+            className="h-9 w-14 rounded-lg border bg-white px-2 text-center dark:bg-[#0b1220]"
+          />
+          <button type="submit" className={cn(base, "bg-white dark:bg-[#0b1220]")}>
+            OK
+          </button>
+        </form>
+        <select
+          value={pageSize}
+          onChange={(event) => onPageSize(Number(event.target.value))}
+          className="h-9 rounded-lg border bg-white px-2 dark:bg-[#0b1220]"
+          aria-label="Liczba pacjentów na stronie"
+        >
+          {[10, 25, 50, 100].map((size) => (
+            <option key={size} value={size}>
+              {size} / str.
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPatientsPage() {
   const [q, setQ] = useState("");
-  const { data, mutate, isLoading } = useSWR(
-    `/api/admin/patients?q=${encodeURIComponent(q)}`,
-    fetcher,
-  );
+  const [debouncedQ, setDebouncedQ] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("createdAt");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [quickSort, setQuickSort] = useState<QuickSort>("all");
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [emailFilter, setEmailFilter] = useState<"all" | "with" | "without">("all");
+  const [onlyWithNote, setOnlyWithNote] = useState(false);
+  const [segmentFilter, setSegmentFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  // Wyszukiwanie z krótkim opóźnieniem, żeby nie pytać serwera po każdej literze.
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQ(q), 300);
+    return () => window.clearTimeout(timer);
+  }, [q]);
+
+  // Zmiana wyszukiwania, filtrów lub sortowania wraca na pierwszą stronę.
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQ, emailFilter, onlyWithNote, segmentFilter, sortDirection, sortKey, pageSize]);
+
+  const query = new URLSearchParams({
+    q: debouncedQ,
+    page: String(page),
+    pageSize: String(pageSize),
+    sort: sortKey,
+    dir: sortDirection,
+    email: emailFilter,
+    note: onlyWithNote ? "1" : "0",
+    segment: segmentFilter,
+  }).toString();
+  const { data, mutate, isLoading } = useSWR(`/api/admin/patients?${query}`, fetcher, { keepPreviousData: true });
   const patients: Patient[] = data?.patients ?? [];
+  const sortedPatients = patients;
+  const total: number = data?.total ?? 0;
+  const totalAll: number = data?.totalAll ?? 0;
+  const pageCount: number = data?.pageCount ?? 1;
+  const currentPage: number = data?.page ?? page;
   const isAdmin = data?.viewerRole === "ADMIN";
 
   const { data: changeRequestsData } = useSWR("/api/admin/patient-data-change-requests", fetcher);
@@ -95,79 +240,11 @@ export default function AdminPatientsPage() {
   const pendingImageConsentRequests =
     (imageConsentData?.requests ?? []).filter((r: { status: string }) => r.status === "PENDING").length;
 
-  // Statystyki liczone z pełnej listy (niezależnie od pola wyszukiwania)
-  const { data: allData } = useSWR(`/api/admin/patients?q=`, fetcher);
-  const allPatients: Patient[] = allData?.patients ?? [];
-  const topVisits = useMemo(
-    () =>
-      allPatients.reduce<Patient | null>(
-        (best, p) => ((p.completedVisits ?? 0) > (best?.completedVisits ?? 0) ? p : best),
-        null,
-      ),
-    [allPatients],
-  );
-  const topSpender = useMemo(
-    () =>
-      allPatients.reduce<Patient | null>(
-        (best, p) => ((p.totalSpent ?? 0) > (best?.totalSpent ?? 0) ? p : best),
-        null,
-      ),
-    [allPatients],
-  );
-  const [sortKey, setSortKey] = useState<SortKey>("createdAt");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
-  const [quickSort, setQuickSort] = useState<QuickSort>("all");
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  const [emailFilter, setEmailFilter] = useState<"all" | "with" | "without">("all");
-  const [onlyWithNote, setOnlyWithNote] = useState(false);
-  const [segmentFilter, setSegmentFilter] = useState<string>("all");
-  const [visibleCount, setVisibleCount] = useState(MOBILE_PAGE_SIZE);
+  // „Najlepsi” pacjenci liczeni na serwerze z całej historii, niezależnie od wyszukiwania i filtrów.
+  const topVisits: { id: string; name: string; completedVisits?: number } | null = data?.top?.visits ?? null;
+  const topSpender: { id: string; name: string; totalSpent?: number } | null = data?.top?.spender ?? null;
 
   const activeFilterCount = (emailFilter === "all" ? 0 : 1) + (onlyWithNote ? 1 : 0) + (segmentFilter === "all" ? 0 : 1);
-
-  const sortedPatients = useMemo(() => {
-    const filtered = patients.filter((patient) => {
-      if (emailFilter === "with" && !patient.email) return false;
-      if (emailFilter === "without" && patient.email) return false;
-      if (onlyWithNote && !patient.note?.trim()) return false;
-      if (segmentFilter !== "all" && patient.rfmSegment !== segmentFilter) return false;
-      return true;
-    });
-
-    return [...filtered].sort((left, right) => {
-      if (sortKey === "name") {
-        const result = left.name.localeCompare(right.name, "pl", { sensitivity: "base" });
-        return sortDirection === "asc" ? result : -result;
-      }
-      if (sortKey === "rfmSegment") {
-        const byRank = segmentRank(left.rfmSegment) - segmentRank(right.rfmSegment);
-        if (byRank !== 0) return sortDirection === "asc" ? byRank : -byRank;
-        return (right.totalSpent ?? 0) - (left.totalSpent ?? 0);
-      }
-      const leftValue =
-        sortKey === "createdAt"
-          ? new Date(left.createdAt).getTime()
-          : sortKey === "lastVisitAt"
-            ? left.lastVisitAt
-              ? new Date(left.lastVisitAt).getTime()
-              : 0
-            : (left[sortKey] ?? 0);
-      const rightValue =
-        sortKey === "createdAt"
-          ? new Date(right.createdAt).getTime()
-          : sortKey === "lastVisitAt"
-            ? right.lastVisitAt
-              ? new Date(right.lastVisitAt).getTime()
-              : 0
-            : (right[sortKey] ?? 0);
-      return sortDirection === "asc" ? leftValue - rightValue : rightValue - leftValue;
-    });
-  }, [emailFilter, onlyWithNote, patients, segmentFilter, sortDirection, sortKey]);
-
-  useEffect(() => {
-    setVisibleCount(MOBILE_PAGE_SIZE);
-  }, [emailFilter, onlyWithNote, q, segmentFilter, sortDirection, sortKey]);
 
   function applyQuickSort(next: QuickSort) {
     setQuickSort(next);
@@ -258,7 +335,7 @@ export default function AdminPatientsPage() {
         <div>
           <h1 className="text-2xl font-semibold">Pacjenci</h1>
           <div className="mt-0.5 text-sm text-zinc-500 md:hidden">
-            {allPatients.length} {allPatients.length === 1 ? "pacjent" : "pacjentów"}
+            {totalAll} {totalAll === 1 ? "pacjent" : "pacjentów"}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -514,7 +591,7 @@ export default function AdminPatientsPage() {
           <div>
             <h2 className="text-lg font-semibold">Lista pacjentów</h2>
             <div className="mt-0.5 text-sm text-zinc-500">
-              {sortedPatients.length} {sortedPatients.length === 1 ? "wynik" : "wyników"}
+              {total} {total === 1 ? "wynik" : "wyników"}
             </div>
           </div>
           <Select value={`${sortKey}:${sortDirection}`} onValueChange={applyMobileSort}>
@@ -540,7 +617,7 @@ export default function AdminPatientsPage() {
           {!isLoading && sortedPatients.length === 0 ? (
             <Card className="p-5 text-center text-sm text-zinc-500">Brak wyników.</Card>
           ) : null}
-          {sortedPatients.slice(0, visibleCount).map((patient) => (
+          {sortedPatients.map((patient) => (
             <Link
               key={patient.id}
               href={`/admin/patients/${patient.id}`}
@@ -619,19 +696,7 @@ export default function AdminPatientsPage() {
           ))}
         </div>
 
-        {visibleCount < sortedPatients.length ? (
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 w-full rounded-2xl"
-            onClick={() => setVisibleCount((current) => current + MOBILE_PAGE_SIZE)}
-          >
-            Pokaż więcej
-          </Button>
-        ) : null}
-        <div className="pb-1 text-center text-sm text-zinc-500">
-          Wyświetlono {Math.min(visibleCount, sortedPatients.length)} z {sortedPatients.length}
-        </div>
+        <Pagination page={currentPage} pageCount={pageCount} total={total} pageSize={pageSize} onPage={setPage} onPageSize={setPageSize} />
       </section>
 
       <div className="hidden rounded-xl border bg-white shadow-sm dark:bg-zinc-950 md:block">
@@ -707,6 +772,7 @@ export default function AdminPatientsPage() {
             </tbody>
           </table>
         </div>
+        <Pagination page={currentPage} pageCount={pageCount} total={total} pageSize={pageSize} onPage={setPage} onPageSize={setPageSize} />
       </div>
     </div>
   );

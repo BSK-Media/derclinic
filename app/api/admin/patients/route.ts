@@ -5,9 +5,18 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { isAdminLike } from "@/lib/roles";
-import { patientIdsMatching } from "@/lib/patient-search";
+import { patientMatches } from "@/lib/patient-search";
+import { loadPatientStats } from "@/lib/patient-stats";
 import { segmentByPatient } from "@/lib/rfm-audience";
 
+const SORT_KEYS = ["name", "createdAt", "lastVisitAt", "totalSpent", "completedVisits", "rfmSegment"] as const;
+type SortKey = (typeof SORT_KEYS)[number];
+const SEGMENT_ORDER = ["VIP", "LOYAL", "NEW", "WIN_BACK", "AT_RISK", "DORMANT", "OTHER"];
+const PAGE_SIZES = [10, 25, 50, 100];
+
+// Lista pacjentów: WSZYSCY pacjenci z zakresu użytkownika, z filtrowaniem, sortowaniem i paginacją po stronie
+// serwera. Statystyki (wizyty, wydane kwoty, ostatnia wizyta) liczone są z całej historii każdego pacjenta,
+// więc sortowanie „najwięcej wizyt / najwięcej wydali” dotyczy całej bazy, a nie wycinka listy.
 export async function GET(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
@@ -16,107 +25,93 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const q = (url.searchParams.get("q") ?? "").trim();
+  const adminLike = isAdminLike(user!.role);
+  const requestedSort = url.searchParams.get("sort") as SortKey | null;
+  let sort: SortKey = requestedSort && SORT_KEYS.includes(requestedSort) ? requestedSort : "createdAt";
+  if (!adminLike && (sort === "totalSpent" || sort === "rfmSegment")) sort = "createdAt";
+  const dir = url.searchParams.get("dir") === "asc" ? "asc" : "desc";
+  const requestedSize = Number(url.searchParams.get("pageSize"));
+  const pageSize = PAGE_SIZES.includes(requestedSize) ? requestedSize : 25;
+  const emailFilter = url.searchParams.get("email");
+  const onlyWithNote = url.searchParams.get("note") === "1";
+  const segmentFilter = adminLike ? url.searchParams.get("segment") : null;
 
-  // Imię, telefon i e-mail są zaszyfrowane — szukamy w pamięci (lib/patient-search.ts).
-  const matchedIds = q ? await patientIdsMatching(q, scopedLocationWhere(user!)) : null;
+  const scope = scopedLocationWhere(user!);
+  const [allPatients, stats, segments] = await Promise.all([
+    prisma.patient.findMany({ where: scope, select: PATIENT_PUBLIC_SELECT }),
+    loadPatientStats(scope, { withSpending: adminLike }),
+    adminLike ? segmentByPatient(null) : Promise.resolve(null),
+  ]);
 
-  const patients = await prisma.patient.findMany({
-    where: matchedIds
-      ? { ...scopedLocationWhere(user!), id: { in: matchedIds } }
-      : scopedLocationWhere(user!),
-    orderBy: { createdAt: "desc" },
-    take: 200,
-    // Bez hasha hasła i tokenu resetu.
-    select: PATIENT_PUBLIC_SELECT,
-  });
-
-  if (patients.length === 0) {
-    return NextResponse.json({ ok: true, viewerRole: user!.role, patients });
-  }
-
-  const pastAppointments = await prisma.appointment.findMany({
-    where: {
-      patientId: { in: patients.map((patient) => patient.id) },
-      deletedAt: null,
-      startsAt: { lte: new Date() },
-      ...scopedLocationWhere(user!),
-    },
-    select: {
-      patientId: true,
-      startsAt: true,
-      status: true,
-      approvalStatus: true,
-      priceFinal: true,
-      priceEstimate: true,
-    },
-    orderBy: { startsAt: "desc" },
-    take: 20000,
-  });
-
-  const retailSales =
-    isAdminLike(user!.role)
-      ? await prisma.retailSale.findMany({
-          where: {
-            patientId: { in: patients.map((patient) => patient.id) },
-            status: "COMPLETED",
-            ...scopedLocationWhere(user!),
-          },
-          select: { patientId: true, total: true },
-          take: 20000,
-        })
-      : [];
-
-  const purchasesByPatient = new Map<string, number>();
-  for (const sale of retailSales) {
-    if (!sale.patientId) continue;
-    purchasesByPatient.set(sale.patientId, (purchasesByPatient.get(sale.patientId) ?? 0) + sale.total);
-  }
-
-  const totalsByPatient = new Map<
-    string,
-    { totalSpent: number; completedVisits: number; lastVisitAt: Date | null }
-  >();
-  for (const appointment of pastAppointments) {
-    const totals = totalsByPatient.get(appointment.patientId) ?? {
-      totalSpent: 0,
-      completedVisits: 0,
-      lastVisitAt: null,
+  const rows = allPatients.map((patient) => {
+    const s = stats.get(patient.id);
+    return {
+      ...patient,
+      ...(adminLike ? { totalSpent: s?.totalSpent ?? 0 } : {}),
+      ...(segments ? { rfmSegment: segments.get(patient.id) ?? null } : {}),
+      completedVisits: s?.completedVisits ?? 0,
+      lastVisitAt: s?.lastVisitAt ?? null,
     };
-    if (!totals.lastVisitAt) totals.lastVisitAt = appointment.startsAt;
-    if (appointment.status === "COMPLETED" && appointment.approvalStatus === "APPROVED") {
-      totals.completedVisits += 1;
-      if (isAdminLike(user!.role)) {
-        totals.totalSpent += appointment.priceFinal ?? appointment.priceEstimate ?? 0;
-      }
-    }
-    totalsByPatient.set(appointment.patientId, totals);
-  }
-  if (isAdminLike(user!.role)) {
-    for (const [patientId, purchasesTotal] of purchasesByPatient) {
-      const totals = totalsByPatient.get(patientId) ?? {
-        totalSpent: 0,
-        completedVisits: 0,
-        lastVisitAt: null,
-      };
-      totals.totalSpent += purchasesTotal;
-      totalsByPatient.set(patientId, totals);
-    }
+  });
+
+  // Statystyki „najlepszych” — z całej listy, niezależnie od wyszukiwania i filtrów.
+  let topVisits: (typeof rows)[number] | null = null;
+  let topSpender: (typeof rows)[number] | null = null;
+  for (const row of rows) {
+    if (!topVisits || row.completedVisits > topVisits.completedVisits) topVisits = row;
+    if (adminLike && (!topSpender || (row.totalSpent ?? 0) > (topSpender.totalSpent ?? 0))) topSpender = row;
   }
 
-  // Segment RFM tylko dla administratora i managera (dane o wartości pacjenta).
-  const segments = isAdminLike(user!.role) ? await segmentByPatient(null) : null;
+  const filtered = rows.filter((row) => {
+    if (q && !patientMatches(row, q)) return false;
+    if (emailFilter === "with" && !row.email) return false;
+    if (emailFilter === "without" && row.email) return false;
+    if (onlyWithNote && !row.note?.trim()) return false;
+    if (segmentFilter && segmentFilter !== "all" && (row as { rfmSegment?: string | null }).rfmSegment !== segmentFilter) return false;
+    return true;
+  });
 
-  const patientsWithStats = patients.map((patient) => ({
-    ...patient,
-    ...(segments ? { rfmSegment: segments.get(patient.id) ?? null } : {}),
-    ...(isAdminLike(user!.role)
-      ? { totalSpent: totalsByPatient.get(patient.id)?.totalSpent ?? 0 }
-      : {}),
-    completedVisits: totalsByPatient.get(patient.id)?.completedVisits ?? 0,
-    lastVisitAt: totalsByPatient.get(patient.id)?.lastVisitAt ?? null,
-  }));
+  const segmentRank = (value?: string | null) => {
+    const index = value ? SEGMENT_ORDER.indexOf(value) : -1;
+    return index === -1 ? SEGMENT_ORDER.length : index;
+  };
+  const sign = dir === "asc" ? 1 : -1;
+  filtered.sort((a, b) => {
+    let result: number;
+    if (sort === "name") result = a.name.localeCompare(b.name, "pl", { sensitivity: "base" });
+    else if (sort === "createdAt") result = a.createdAt.getTime() - b.createdAt.getTime();
+    else if (sort === "lastVisitAt") result = (a.lastVisitAt?.getTime() ?? 0) - (b.lastVisitAt?.getTime() ?? 0);
+    else if (sort === "totalSpent") result = (a.totalSpent ?? 0) - (b.totalSpent ?? 0);
+    else if (sort === "completedVisits") result = a.completedVisits - b.completedVisits;
+    else {
+      result = segmentRank((a as { rfmSegment?: string | null }).rfmSegment) - segmentRank((b as { rfmSegment?: string | null }).rfmSegment);
+      return result !== 0 ? result * sign : (b.totalSpent ?? 0) - (a.totalSpent ?? 0);
+    }
+    // Remis: nowsi pacjenci wyżej, a przy tym samym czasie po nazwie — kolejność jest stabilna między stronami.
+    if (result === 0) result = b.createdAt.getTime() - a.createdAt.getTime() || a.id.localeCompare(b.id);
+    else result *= sign;
+    return result;
+  });
 
-  return NextResponse.json({ ok: true, viewerRole: user!.role, patients: patientsWithStats });
+  const total = filtered.length;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(Math.max(1, Number(url.searchParams.get("page")) || 1), pageCount);
+  const pagePatients = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  const slim = (row: (typeof rows)[number] | null) =>
+    row ? { id: row.id, name: row.name, completedVisits: row.completedVisits, totalSpent: row.totalSpent } : null;
+
+  return NextResponse.json({
+    ok: true,
+    viewerRole: user!.role,
+    patients: pagePatients,
+    total,
+    totalAll: rows.length,
+    page,
+    pageSize,
+    pageCount,
+    top: { visits: slim(topVisits), spender: adminLike ? slim(topSpender) : null },
+  });
 }
 
 const CreateSchema = z.object({
