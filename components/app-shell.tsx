@@ -43,10 +43,22 @@ function ChatUnreadBadge() {
   );
 }
 
+type NavChild = {
+  label: string;
+  permission: SidebarPermission;
+  icon: React.ReactNode;
+  // Własny adres podstrony (domyślnie adres zakładki dla uprawnienia).
+  href?: string;
+  // Tylko dla personelu recepcji/administracji (bez specjalisty).
+  staffOnly?: boolean;
+};
+
 type NavItem = {
   label: string;
   permission: SidebarPermission;
   icon: React.ReactNode;
+  // Zakładki „córki” pokazywane pod zakładką „matką”.
+  children?: NavChild[];
 };
 
 type HeaderNotification = {
@@ -124,8 +136,15 @@ function LocationScopeSelect() {
 const NAV: NavItem[] = [
   { label: "Dashboard", permission: "dashboard", icon: <span className="text-lg">⌂</span> },
   { label: "Kalendarz", permission: "calendar", icon: <span className="text-lg">🗓️</span> },
-  { label: "Wizyty dziś", permission: "today", icon: <span className="text-lg">🕘</span> },
-  { label: "Wizyty", permission: "appointments", icon: <span className="text-lg">📅</span> },
+  {
+    label: "Wizyty",
+    permission: "appointments",
+    icon: <span className="text-lg">📅</span>,
+    children: [
+      { label: "Dzisiejsze wizyty", permission: "today", icon: <span>🕘</span> },
+      { label: "Przeszłe wizyty", permission: "appointments", icon: <span>🗂️</span>, href: "/admin/visits/past", staffOnly: true },
+    ],
+  },
   { label: "Specjaliści", permission: "specialists", icon: <span className="text-lg">👩‍⚕️</span> },
   { label: "Pacjenci", permission: "patients", icon: <span className="text-lg">👥</span> },
   { label: "POS - Sprzedaż", permission: "pos", icon: <span className="text-lg">🛒</span> },
@@ -145,6 +164,99 @@ const NAV: NavItem[] = [
   // Ustawienia zawsze na samym końcu menu.
   { label: "Ustawienia", permission: "settings", icon: <span className="text-lg">⚙️</span> },
 ];
+
+type NavUser = { role: string; sidebarPermissions: SidebarPermission[] };
+
+function navItemVisible(user: NavUser, permission: SidebarPermission) {
+  return (
+    hasSidebarPermission(user.role, user.sidebarPermissions, permission) &&
+    // Admin i recepcja mają kalendarz wewnątrz zakładki Wizyty —
+    // osobna pozycja "Kalendarz" zostaje tylko dla specjalisty.
+    !(permission === "calendar" && user.role !== "SPECIALIST")
+  );
+}
+
+function visibleChildren(user: NavUser, item: NavItem) {
+  return (item.children ?? []).filter(
+    (child) => navItemVisible(user, child.permission) && !(child.staffOnly && user.role === "SPECIALIST"),
+  );
+}
+
+function childHref(child: NavChild, role: string) {
+  return child.href ?? sidebarHref(child.permission, role);
+}
+
+function isActivePath(pathname: string, href: string) {
+  const path = href.split("?")[0];
+  return pathname === path || (path !== "/admin" && path !== "/specialist" && pathname.startsWith(path));
+}
+
+/** Wszystkie pozycje menu (także zakładki „córki”) — do dolnej nawigacji w PWA. */
+function flatNav(user: NavUser) {
+  return NAV.flatMap((item) => [
+    ...(navItemVisible(user, item.permission) ? [{ key: item.permission as string, label: item.label, icon: item.icon, permission: item.permission, href: sidebarHref(item.permission, user.role) }] : []),
+    ...visibleChildren(user, item).map((child) => ({
+      key: `${item.permission}/${child.label}`,
+      label: child.label,
+      icon: child.icon,
+      permission: child.permission,
+      href: childHref(child, user.role),
+    })),
+  ]);
+}
+
+const NAV_LINK_CLASS = "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition";
+const NAV_ACTIVE = "bg-emerald-50 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-200";
+const NAV_IDLE = "text-slate-700 hover:bg-slate-100/70 dark:text-slate-200 dark:hover:bg-white/5";
+
+/** Lista zakładek menu (boczne i mobilne): zakładki „matki” z wciętymi „córkami”. */
+function NavLinks({ user, pathname, onNavigate }: { user: NavUser; pathname: string; onNavigate?: () => void }) {
+  return (
+    <>
+      {NAV.map((item) => {
+        const parentVisible = navItemVisible(user, item.permission);
+        const children = visibleChildren(user, item);
+        if (!parentVisible && children.length === 0) return null;
+        const childLinks = children.map((child) => ({ child, href: childHref(child, user.role) }));
+        const activeChild = childLinks.find(({ href }) => isActivePath(pathname, href));
+        const href = sidebarHref(item.permission, user.role);
+        const active = !activeChild && isActivePath(pathname, href);
+
+        return (
+          <div key={item.permission} className="space-y-1">
+            {parentVisible ? (
+              <Link href={href} onClick={onNavigate} className={cn(NAV_LINK_CLASS, active ? NAV_ACTIVE : NAV_IDLE)}>
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/70 shadow-sm ring-1 ring-black/5 dark:bg-white/5 dark:ring-white/10">
+                  {item.icon}
+                </span>
+                <span className="truncate">{item.label}</span>
+                {item.permission === "chat" ? <ChatUnreadBadge /> : null}
+              </Link>
+            ) : null}
+            {childLinks.length ? (
+              <div className={cn("space-y-1", parentVisible && "ml-7 border-l border-slate-200 pl-3 dark:border-white/10")}>
+                {childLinks.map(({ child, href: link }) => (
+                  <Link
+                    key={child.label}
+                    href={link}
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition",
+                      activeChild?.href === link ? NAV_ACTIVE : NAV_IDLE,
+                    )}
+                  >
+                    <span className="text-base leading-none">{child.icon}</span>
+                    <span className="truncate">{child.label}</span>
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </>
+  );
+}
 
 function UserAvatar({
   name,
@@ -255,15 +367,6 @@ function NotificationGlyph({ kind }: { kind: HeaderNotification["kind"] }) {
 export function AppSidebar() {
   const pathname = usePathname();
   const { user, logout, switchOperator } = useAuth();
-  const visibleNav = user
-    ? NAV.filter(
-        (item) =>
-          hasSidebarPermission(user.role, user.sidebarPermissions, item.permission) &&
-          // Admin i recepcja mają kalendarz wewnątrz zakładki Wizyty —
-          // osobna pozycja "Kalendarz" zostaje tylko dla specjalisty.
-          !(item.permission === "calendar" && user.role !== "SPECIALIST"),
-      )
-    : [];
 
   return (
     <aside className="fixed left-0 top-0 z-50 hidden h-screen w-[280px] shrink-0 border-r border-white/70 bg-white/65 p-3 backdrop-blur dark:border-white/10 dark:bg-[#0b1220]/45 lg:block">
@@ -273,31 +376,7 @@ export function AppSidebar() {
         {/* min-h-0 + overflow-y-auto: przy niskim oknie lista zakładek się
             przewija, a logo i przyciski na dole zostają na miejscu. */}
         <nav className="mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-1 [scrollbar-width:thin]">
-          {visibleNav.map((item) => {
-            const href = sidebarHref(item.permission, user!.role);
-            const active =
-              pathname === href ||
-              (href !== "/admin" && href !== "/specialist" && pathname.startsWith(href));
-
-            return (
-              <Link
-                key={item.permission}
-                href={href}
-                className={cn(
-                  "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition",
-                  active
-                    ? "bg-emerald-50 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-200"
-                    : "text-slate-700 hover:bg-slate-100/70 dark:text-slate-200 dark:hover:bg-white/5",
-                )}
-              >
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/70 shadow-sm ring-1 ring-black/5 dark:bg-white/5 dark:ring-white/10">
-                  {item.icon}
-                </span>
-                <span className="truncate">{item.label}</span>
-                {item.permission === "chat" ? <ChatUnreadBadge /> : null}
-              </Link>
-            );
-          })}
+          {user ? <NavLinks user={user} pathname={pathname} /> : null}
         </nav>
 
         <div className="mt-2 space-y-2 rounded-2xl border border-white/60 bg-white/70 p-3 shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55">
@@ -338,13 +417,9 @@ function StaffBottomNav() {
   const standalone = useIsStandalone();
   if (!standalone || !user) return null;
 
-  const items = BOTTOM_NAV_PRIORITY.map((permission) => NAV.find((item) => item.permission === permission))
-    .filter(
-      (item): item is NavItem =>
-        Boolean(item) &&
-        hasSidebarPermission(user.role, user.sidebarPermissions, item!.permission) &&
-        !(item!.permission === "calendar" && user.role !== "SPECIALIST"),
-    )
+  const all = flatNav(user);
+  const items = BOTTOM_NAV_PRIORITY.map((permission) => all.find((item) => item.permission === permission))
+    .filter((item): item is (typeof all)[number] => Boolean(item))
     .slice(0, 4);
 
   return (
@@ -354,10 +429,10 @@ function StaffBottomNav() {
     >
       <ul className="mx-auto flex max-w-xl items-stretch justify-around">
         {items.map((item) => {
-          const href = sidebarHref(item.permission, user.role);
-          const active = pathname === href || (href !== "/admin" && href !== "/specialist" && pathname.startsWith(href));
+          const href = item.href;
+          const active = isActivePath(pathname, href);
           return (
-            <li key={item.permission} className="min-w-0 flex-1">
+            <li key={item.key} className="min-w-0 flex-1">
               <Link
                 href={href}
                 className={cn(
@@ -420,14 +495,6 @@ function MobileNav() {
     };
   }, [open]);
 
-  const visibleNav = user
-    ? NAV.filter(
-        (item) =>
-          hasSidebarPermission(user.role, user.sidebarPermissions, item.permission) &&
-          !(item.permission === "calendar" && user.role !== "SPECIALIST"),
-      )
-    : [];
-
   return (
     <div className="lg:hidden">
       <button
@@ -463,32 +530,7 @@ function MobileNav() {
                 </div>
 
                 <nav className="mt-3 flex-1 space-y-1 overflow-y-auto px-1">
-                  {visibleNav.map((item) => {
-                    const href = sidebarHref(item.permission, user!.role);
-                    const active =
-                      pathname === href ||
-                      (href !== "/admin" && href !== "/specialist" && pathname.startsWith(href));
-
-                    return (
-                      <Link
-                        key={item.permission}
-                        href={href}
-                        onClick={() => setOpen(false)}
-                        className={cn(
-                          "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition",
-                          active
-                            ? "bg-emerald-50 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-200"
-                            : "text-slate-700 hover:bg-slate-100/70 dark:text-slate-200 dark:hover:bg-white/5",
-                        )}
-                      >
-                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/70 shadow-sm ring-1 ring-black/5 dark:bg-white/5 dark:ring-white/10">
-                          {item.icon}
-                        </span>
-                        <span className="truncate">{item.label}</span>
-                        {item.permission === "chat" ? <ChatUnreadBadge /> : null}
-                      </Link>
-                    );
-                  })}
+                  {user ? <NavLinks user={user} pathname={pathname} onNavigate={() => setOpen(false)} /> : null}
                 </nav>
 
                 <div className="mt-2 space-y-2 rounded-2xl border border-white/60 bg-white/70 p-3 shadow-sm dark:border-white/10 dark:bg-[#0b1220]/55">

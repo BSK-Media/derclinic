@@ -601,6 +601,10 @@ model Appointment {
   deletedBy      User?     @relation("AppointmentDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
   deletionReason String?
 
+  // Recepcja potwierdziła zużycie preparatów po zakończeniu wizyty (także „bez preparatów”).
+  // Dopóki puste, zakończona wizyta bez zapisanego zużycia pokazuje okno uzupełnienia.
+  consumptionConfirmedAt DateTime?
+
   // pricing (grosze)
   priceEstimate Int?
   priceFinal    Int?

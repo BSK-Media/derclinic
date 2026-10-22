@@ -90,7 +90,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     summary: `Otwarcie karty wizyty (${appt.patient.name})`,
   });
 
-  const [products, warehouses, services, specialistAssignments] =
+  const [products, warehouses, services, specialistAssignments, stocks] =
     await Promise.all([
       prisma.product.findMany({ orderBy: { name: "asc" } }),
       prisma.warehouse.findMany({
@@ -105,6 +105,11 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
             select: { serviceId: true },
           })
         : Promise.resolve([] as { serviceId: string }[]),
+      // Stany preparatów w magazynach lokalizacji — okno zużycia podpowiada magazyn, w którym jest preparat.
+      prisma.stock.findMany({
+        where: { warehouse: { locationId: appt.locationId }, quantity: { gt: 0 } },
+        select: { productId: true, warehouseId: true, quantity: true },
+      }),
     ]);
 
   return NextResponse.json({
@@ -113,6 +118,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     products,
     warehouses,
     services,
+    stocks,
     specialistServiceIds: specialistAssignments.map(
       (a: { serviceId: string }) => a.serviceId,
     ),

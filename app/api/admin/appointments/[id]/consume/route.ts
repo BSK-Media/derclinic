@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { applyLotChange } from "@/lib/lot-allocation";
+import { recordAppointmentConsumption } from "@/lib/appointment-consumption";
 
 const BodySchema = z.object({
   productId: z.string().min(1),
@@ -85,52 +86,14 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     return NextResponse.json({ ok: false, message: "Nie znaleziono produktu" }, { status: 404 });
   }
 
-  const c = await prisma.consumption.create({
-    data: {
-      appointmentId: appt.id,
-      specialistId: appt.specialistId,
-      productId: parsed.data.productId,
-      warehouseId,
-      quantity: new Prisma.Decimal(parsed.data.quantity),
-      unit: product.unit,
-      kind: (parsed.data.kind ?? "APPOINTMENT") as any,
-      createdById: user!.id,
-      note: parsed.data.note ? parsed.data.note : null,
-    },
-  });
-
-  // decrement stock if warehouse specified
-  if (warehouseId) {
-    await prisma.stock.upsert({
-      where: { productId_warehouseId: { productId: parsed.data.productId, warehouseId } },
-      update: { quantity: { decrement: new Prisma.Decimal(parsed.data.quantity) } },
-      create: {
-        productId: parsed.data.productId,
-        warehouseId,
-        quantity: new Prisma.Decimal(0).minus(parsed.data.quantity),
-      },
-    });
-    const lotAllocations = await applyLotChange(prisma, parsed.data.productId, warehouseId, parsed.data.quantity);
-    if (lotAllocations.length > 0) {
-      await prisma.consumption.update({ where: { id: c.id }, data: { lotAllocations } });
-    }
-  }
-
-  await logAudit({
+  const c = await recordAppointmentConsumption(prisma, {
+    appointment: appt,
+    product,
+    warehouseId,
+    quantity: parsed.data.quantity,
+    kind: parsed.data.kind ?? "APPOINTMENT",
+    note: parsed.data.note || null,
     actorId: user!.id,
-    action: "CREATE",
-    entity: "Consumption",
-    entityId: c.id,
-    summary: `Zużycie preparatu „${product.name}": ${parsed.data.quantity} ${product.unit} (wizyta pacjenta ${appt.patient.name})`,
-    data: {
-      appointmentId: appt.id,
-      productId: product.id,
-      warehouseId,
-      quantity: parsed.data.quantity,
-      unit: product.unit,
-      kind: parsed.data.kind ?? "APPOINTMENT",
-      note: parsed.data.note || null,
-    },
   });
 
   return NextResponse.json({ ok: true, consumption: c });

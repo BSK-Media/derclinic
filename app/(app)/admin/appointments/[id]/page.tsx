@@ -4,7 +4,7 @@ import { SuggestedLotHint } from "@/components/suggested-lot-hint";
 import { NoteHistory } from "@/components/note-history";
 import { useConfirm } from "@/components/confirm-provider";
 import useSWR from "swr";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
@@ -26,6 +26,7 @@ import { AppointmentPhotos } from "@/components/appointment-photos";
 import { DayVisitsPayment } from "@/components/day-visits-payment";
 import { AppointmentConsentCard } from "@/components/appointment-consent-card";
 import { AppointmentPaymentRequestCard } from "@/components/appointment-payment-request-card";
+import { ConsumptionReviewDialog } from "@/components/consumption-review-dialog";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -75,6 +76,20 @@ export default function AdminAppointmentDetail() {
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
   const [editingPaymentAmount, setEditingPaymentAmount] = useState<string>("");
   const [paymentBusyId, setPaymentBusyId] = useState<string | null>(null);
+
+  // Okno potwierdzenia zużycia preparatów po zakończonej wizycie.
+  const [consumptionReviewOpen, setConsumptionReviewOpen] = useState(false);
+  const consumptionReviewDismissed = useRef(false);
+  const needsConsumptionReview = Boolean(
+    appt &&
+      data?.viewerRole !== "SPECIALIST" &&
+      appt.status === "COMPLETED" &&
+      !appt.consumptionConfirmedAt &&
+      (appt.consumptions ?? []).length === 0,
+  );
+  useEffect(() => {
+    if (needsConsumptionReview && !consumptionReviewDismissed.current) setConsumptionReviewOpen(true);
+  }, [needsConsumptionReview]);
 
   const [decidingApproval, setDecidingApproval] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -190,7 +205,9 @@ export default function AdminAppointmentDetail() {
     const out = await res.json().catch(() => ({}));
     if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
     toast.success("Zapisano");
-    mutate();
+    // Po oznaczeniu wizyty jako zakończonej od razu pytamy o zużycie preparatów.
+    if (status === "COMPLETED") consumptionReviewDismissed.current = false;
+    await mutate();
   }
 
   // Notatka wewnętrzna: zapis tylko pola notatki — działa dla każdej wizyty (stara, nowa, trwająca, odwołana…),
@@ -635,7 +652,25 @@ export default function AdminAppointmentDetail() {
       </Card>
 
       <Card className="space-y-4 p-4">
-        <div className="font-medium">Zużycie preparatów (magazyn)</div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="font-medium">Zużycie preparatów (magazyn)</div>
+          {needsConsumptionReview ? (
+            <Button
+              size="sm"
+              onClick={() => {
+                consumptionReviewDismissed.current = false;
+                setConsumptionReviewOpen(true);
+              }}
+            >
+              Potwierdź zużycie
+            </Button>
+          ) : null}
+        </div>
+        {needsConsumptionReview ? (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
+            Wizyta jest zakończona, ale nie zapisano zużycia preparatów.
+          </div>
+        ) : null}
 
         <div className="text-sm text-zinc-600 dark:text-zinc-300">
           Sugerowane preparaty dla tej usługi:
@@ -1067,6 +1102,25 @@ export default function AdminAppointmentDetail() {
         photoBefore={appt.photoBefore}
         photoAfter={appt.photoAfter}
         onChanged={() => mutate()}
+      />
+
+      <ConsumptionReviewDialog
+        open={consumptionReviewOpen}
+        onOpenChange={(open) => {
+          setConsumptionReviewOpen(open);
+          if (!open) consumptionReviewDismissed.current = true;
+        }}
+        appointmentId={id}
+        serviceId={appt.serviceId ?? null}
+        serviceName={appt.customServiceName || appt.service?.name || "zabieg"}
+        suggestions={(appt.service?.suggestedProducts ?? []).map((sp: any) => ({
+          productId: sp.productId,
+          quantity: sp.quantity,
+        }))}
+        products={products}
+        warehouses={warehouses}
+        stocks={data?.stocks ?? []}
+        onSaved={() => mutate()}
       />
     </div>
   );
