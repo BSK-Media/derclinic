@@ -35,3 +35,16 @@ export function appointmentStatusLabel(
   if (!effectiveStatus) return "—";
   return APPOINTMENT_STATUS_LABELS[effectiveStatus] ?? effectiveStatus;
 }
+
+/**
+ * Wizyta „po fakcie": oznaczona jako zakończona albo — gdy nikt nie zmienił statusu —
+ * jej godzina końca już minęła. Odwołane i nieobecności się nie liczą.
+ */
+export function isAppointmentEnded(
+  appointment: { status: string; startsAt: string | Date; endsAt?: string | Date | null },
+  now: Date = new Date(),
+) {
+  if (appointment.status === "CANCELED" || appointment.status === "NO_SHOW") return false;
+  if (appointment.status === "COMPLETED") return true;
+  return new Date(appointment.endsAt ?? appointment.startsAt).getTime() <= now.getTime();
+}

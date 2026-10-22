@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { effectiveAppointmentStatus, appointmentStatusLabel } from "@/lib/appointment-status";
+import { effectiveAppointmentStatus, appointmentStatusLabel, isAppointmentEnded } from "@/lib/appointment-status";
 import { warsawParts, warsawWallTimeToUtc } from "@/lib/warsaw-time";
 
 const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then((response) => response.json());
@@ -51,9 +51,9 @@ function parseDateKey(value: string) {
   return { year, month, day };
 }
 
-/** Zakończona wizyta, przy której nie zapisano zużycia preparatów (recepcja ma je uzupełnić). */
+/** Odbyta wizyta, przy której nie zapisano zużycia preparatów (recepcja ma je uzupełnić). */
 function missingConsumption(visit: VisitRow) {
-  return visit.status === "COMPLETED" && !visit.consumptionConfirmedAt && (visit.consumptions?.length ?? 0) === 0;
+  return isAppointmentEnded(visit) && !visit.consumptionConfirmedAt && (visit.consumptions?.length ?? 0) === 0;
 }
 
 function capitalizeFirst(value: string) {

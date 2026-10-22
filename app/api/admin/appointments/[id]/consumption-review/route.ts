@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { recordAppointmentConsumption } from "@/lib/appointment-consumption";
+import { isAppointmentEnded } from "@/lib/appointment-status";
 
 // Potwierdzenie zużycia preparatów po zakończonej wizycie (okno na karcie wizyty):
 // zapisuje użyte preparaty (zejście ze stanu) albo informację, że zabieg ich nie wymagał.
@@ -49,6 +50,8 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     select: {
       id: true,
       status: true,
+      startsAt: true,
+      endsAt: true,
       specialistId: true,
       locationId: true,
       serviceId: true,
@@ -58,8 +61,8 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     },
   });
   if (!appointment) return bad("Nie znaleziono wizyty", 404);
-  if (appointment.status !== "COMPLETED")
-    return bad("Zużycie potwierdza się dla zakończonej wizyty");
+  if (!isAppointmentEnded(appointment))
+    return bad("Zużycie potwierdza się po zakończeniu wizyty");
   if (appointment.consumptionConfirmedAt)
     return bad("Zużycie dla tej wizyty zostało już potwierdzone", 409);
 

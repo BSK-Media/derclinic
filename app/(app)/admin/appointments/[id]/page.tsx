@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
-import { appointmentStatusLabel, effectiveAppointmentStatus } from "@/lib/appointment-status";
+import { appointmentStatusLabel, effectiveAppointmentStatus, isAppointmentEnded } from "@/lib/appointment-status";
 import { ApprovalBadge, RejectReasonDialog } from "@/components/appointment-approval";
 import { AppointmentPhotos } from "@/components/appointment-photos";
 import { DayVisitsPayment } from "@/components/day-visits-payment";
@@ -83,7 +83,7 @@ export default function AdminAppointmentDetail() {
   const needsConsumptionReview = Boolean(
     appt &&
       data?.viewerRole !== "SPECIALIST" &&
-      appt.status === "COMPLETED" &&
+      isAppointmentEnded(appt) &&
       !appt.consumptionConfirmedAt &&
       (appt.consumptions ?? []).length === 0,
   );
@@ -668,7 +668,7 @@ export default function AdminAppointmentDetail() {
         </div>
         {needsConsumptionReview ? (
           <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
-            Wizyta jest zakończona, ale nie zapisano zużycia preparatów.
+            Wizyta się odbyła, ale nie zapisano zużycia preparatów.
           </div>
         ) : null}
 
