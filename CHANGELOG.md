@@ -5,6 +5,7 @@ i migracje w `prisma/migrations`.
 
 ## 2026-10-15
 ### Dodano
+- Karta wizyty: zmiana specjalisty przy istniejącej wizycie (np. zastępstwo) bez usuwania wizyty — przycisk „Zmień” przy specjaliście; lista pokazuje, kto jest zajęty w tym terminie i kto nie ma przypisanej usługi. Termin, cena i płatności zostają, pacjent dostaje e-mail o zmianie.
 - Wspólne rozliczenie wizyt pacjenta z jednego dnia: na karcie wizyty, gdy pacjent ma tego dnia kilka wizyt, pojawia się panel „Rozlicz razem” — lista wizyt z możliwością korekty cen, suma do zapłaty i jedna płatność wybraną metodą (gotówka/karta/bon), rozdzielana na poszczególne wizyty. Zapis trafia do dziennika zdarzeń.
 - Czat wewnętrzny personelu (menu → Czat): każdy pracownik może napisać do każdego — administrator, manager, recepcja i specjaliści. Rozmowy 1:1, nieprzeczytane wiadomości ze znaczkiem w menu, status „przeczytano”. Treść wiadomości jest szyfrowana w bazie; pacjenci jej nie widzą. Migracja `20261102120000_staff_chat`. W wiadomościach można dołączać zdjęcia (przycisk 📎 albo wklejenie ze schowka); zdjęcia są zmniejszane w przeglądarce, szyfrowane w bazie i dostępne tylko dla nadawcy i adresata. Migracja `20261103120000_staff_chat_images`.
 

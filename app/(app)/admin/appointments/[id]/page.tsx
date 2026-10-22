@@ -24,6 +24,7 @@ import { appointmentStatusLabel, effectiveAppointmentStatus, isAppointmentEnded 
 import { ApprovalBadge, RejectReasonDialog } from "@/components/appointment-approval";
 import { AppointmentPhotos } from "@/components/appointment-photos";
 import { DayVisitsPayment } from "@/components/day-visits-payment";
+import { AppointmentSpecialistSelect } from "@/components/appointment-specialist-select";
 import { AppointmentConsentCard } from "@/components/appointment-consent-card";
 import { AppointmentPaymentRequestCard } from "@/components/appointment-payment-request-card";
 import { ConsumptionReviewDialog } from "@/components/consumption-review-dialog";
@@ -443,8 +444,15 @@ export default function AdminAppointmentDetail() {
           {appt.patient.name} • {appt.customServiceName || appt.service.name}
         </div>
         <div className="text-sm text-zinc-600 dark:text-zinc-300">
-          Specjalista: {appt.specialist.name} • Status:{" "}
-          {appointmentStatusLabel(appointmentIsAwaiting ? "AWAITING" : appt.status)}
+          <AppointmentSpecialistSelect
+            key={appt.specialist.id}
+            appointmentId={id}
+            currentId={appt.specialist.id}
+            currentName={appt.specialist.name}
+            options={data?.specialistOptions ?? []}
+            onChanged={() => mutate()}
+          />{" "}
+          • Status: {appointmentStatusLabel(appointmentIsAwaiting ? "AWAITING" : appt.status)}
         </div>
       </Card>
 

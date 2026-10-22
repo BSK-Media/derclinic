@@ -112,9 +112,38 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       }),
     ]);
 
+  // Specjaliści, na których można przenieść wizytę: aktywni, z tej samej lokalizacji. Przy każdym informacja, czy mają
+  // przypisaną usługę tej wizyty i czy są zajęci w jej terminie.
+  const candidateSpecialists = await prisma.user.findMany({
+    where: { role: "SPECIALIST", locationId: appt.locationId, disabledAt: null, isArchived: false },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, assignedServices: { where: { serviceId: appt.serviceId }, select: { serviceId: true } } },
+  });
+  const busyRows = candidateSpecialists.length
+    ? await prisma.appointment.findMany({
+        where: {
+          specialistId: { in: candidateSpecialists.map((c) => c.id) },
+          deletedAt: null,
+          status: { in: ["SCHEDULED", "COMPLETED"] },
+          id: { not: appt.id },
+          startsAt: { lt: appt.endsAt },
+          endsAt: { gt: appt.startsAt },
+        },
+        select: { specialistId: true },
+      })
+    : [];
+  const busyIds = new Set(busyRows.map((row) => row.specialistId));
+  const specialistOptions = candidateSpecialists
+    .map((c) => ({ id: c.id, name: c.name, assignedToService: c.assignedServices.length > 0, busy: busyIds.has(c.id) }));
+  // Obecny specjalista zawsze na liście (także gdy konto jest już archiwalne albo wyłączone).
+  if (!specialistOptions.some((o) => o.id === appt.specialistId)) {
+    specialistOptions.unshift({ id: appt.specialistId, name: appt.specialist.name, assignedToService: true, busy: false });
+  }
+
   return NextResponse.json({
     ok: true,
     appointment: apptWithLots,
+    specialistOptions,
     products,
     warehouses,
     services,
