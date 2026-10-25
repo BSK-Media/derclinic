@@ -78,6 +78,11 @@ export default function AdminAppointmentDetail() {
   const [payVoucherId, setPayVoucherId] = useState<string>("");
   const [payPackageId, setPayPackageId] = useState<string>("");
   const [paySessions, setPaySessions] = useState<string>("1");
+  // Vouchery i pakiety odszukane kodem (np. anonimowe, kupione przez kogoś innego).
+  const [benefitCode, setBenefitCode] = useState("");
+  const [benefitCodeBusy, setBenefitCodeBusy] = useState(false);
+  const [codeVouchers, setCodeVouchers] = useState<any[]>([]);
+  const [codePackages, setCodePackages] = useState<any[]>([]);
   const [splitRows, setSplitRows] = useState<{ method: string; amount: string }[]>([
     { method: "CASH", amount: "" },
     { method: "CARD", amount: "" },
@@ -333,6 +338,31 @@ export default function AdminAppointmentDetail() {
     mutate();
   }
 
+  async function findBenefitByCode() {
+    const code = benefitCode.trim();
+    if (!code) return;
+    setBenefitCodeBusy(true);
+    try {
+      const res = await fetch(`/api/admin/appointments/${id}/benefit-code?code=${encodeURIComponent(code)}`);
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie znaleziono vouchera ani pakietu");
+      if (out.kind === "VOUCHER") {
+        setCodeVouchers((current) => [...current.filter((v) => v.id !== out.voucher.id), out.voucher]);
+        setPayMethod("VOUCHER");
+        setPayVoucherId(out.voucher.id);
+      } else {
+        setCodePackages((current) => [...current.filter((p) => p.id !== out.package.id), out.package]);
+        setPayMethod("PACKAGE");
+        setPayPackageId(out.package.id);
+      }
+      setPayAmount("");
+      setBenefitCode("");
+      toast.success(`Wybrano ${out.kind === "VOUCHER" ? "voucher" : "pakiet"} ${code.toUpperCase()}`);
+    } finally {
+      setBenefitCodeBusy(false);
+    }
+  }
+
   // Płatność dzielona: każdy wiersz (metoda + kwota) zapisujemy jako osobną płatność tej wizyty.
   async function saveSplit() {
     const rows = splitRows
@@ -450,8 +480,9 @@ export default function AdminAppointmentDetail() {
   const paymentBalance = paymentTotal - paymentsSum;
   const paymentRemaining = Math.max(0, paymentBalance);
   const paymentOverpaid = Math.max(0, -paymentBalance);
-  const patientVouchers: any[] = data?.patientVouchers ?? [];
-  const patientPackages: any[] = data?.patientPackages ?? [];
+  const withCodeMatches = (listed: any[], found: any[]) => [...listed, ...found.filter((f) => !listed.some((l) => l.id === f.id))];
+  const patientVouchers: any[] = withCodeMatches(data?.patientVouchers ?? [], codeVouchers);
+  const patientPackages: any[] = withCodeMatches(data?.patientPackages ?? [], codePackages);
   const paymentRefs: Record<string, string> = data?.paymentRefs ?? {};
   const chosenVoucher = patientVouchers.find((v) => v.id === payVoucherId) ?? null;
   const chosenPackage = patientPackages.find((p) => p.id === payPackageId) ?? null;
@@ -477,6 +508,25 @@ export default function AdminAppointmentDetail() {
     enteredPaymentAmount && enteredPaymentAmount > 0
       ? paymentLimitForSelectedMethod - enteredPaymentAmount
       : null;
+  const benefitCodeField = (
+    <div className="flex gap-2">
+      <Input
+        className="h-9"
+        placeholder="lub wpisz kod (V-… / P-…)"
+        value={benefitCode}
+        onChange={(e) => setBenefitCode(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            void findBenefitByCode();
+          }
+        }}
+      />
+      <Button type="button" size="sm" variant="outline" className="h-9" onClick={findBenefitByCode} disabled={benefitCodeBusy || !benefitCode.trim()}>
+        Szukaj
+      </Button>
+    </div>
+  );
   const appointmentIsAwaiting =
     appt.approvalStatus !== "REJECTED" &&
     effectiveAppointmentStatus(appt.status, appt.startsAt, clock) === "AWAITING";
@@ -1079,9 +1129,11 @@ export default function AdminAppointmentDetail() {
             <>
               {payMethod === "VOUCHER" ? (
                 <div className="space-y-2">
-                  <Label>Voucher pacjenta</Label>
+                  <Label>Voucher</Label>
                   {patientVouchers.length === 0 ? (
-                    <div className="rounded-xl border border-dashed p-2.5 text-sm text-zinc-500">Pacjent nie ma aktywnego vouchera.</div>
+                    <div className="rounded-xl border border-dashed p-2.5 text-sm text-zinc-500">
+                      Pacjent nie kupił vouchera — wpisz kod vouchera poniżej.
+                    </div>
                   ) : (
                     <select
                       value={payVoucherId}
@@ -1093,18 +1145,22 @@ export default function AdminAppointmentDetail() {
                     >
                       {patientVouchers.map((v) => (
                         <option key={v.id} value={v.id}>
-                          {v.code} · {v.title} · zostało {formatPLNFromGrosze(v.availableHere)}
+                          {v.code} · {v.title}
+                          {v.recipientName ? ` (dla: ${v.recipientName})` : ""} · zostało {formatPLNFromGrosze(v.availableHere)}
                         </option>
                       ))}
                     </select>
                   )}
+                  {benefitCodeField}
                 </div>
               ) : null}
               {payMethod === "PACKAGE" ? (
                 <div className="space-y-2">
-                  <Label>Pakiet pacjenta</Label>
+                  <Label>Pakiet</Label>
                   {patientPackages.length === 0 ? (
-                    <div className="rounded-xl border border-dashed p-2.5 text-sm text-zinc-500">Pacjent nie ma pakietu na tę usługę.</div>
+                    <div className="rounded-xl border border-dashed p-2.5 text-sm text-zinc-500">
+                      Pacjent nie ma pakietu na tę usługę — pakiet anonimowy wybierzesz kodem poniżej.
+                    </div>
                   ) : (
                     <>
                       <select
@@ -1114,7 +1170,8 @@ export default function AdminAppointmentDetail() {
                       >
                         {patientPackages.map((p) => (
                           <option key={p.id} value={p.id}>
-                            {p.code} · {p.title} · zostało zabiegów: {p.availableHere}
+                            {p.code} · {p.title}
+                            {p.anonymous ? " (anonimowy)" : ""} · {p.itemServiceName}: zostało {p.availableHere}
                           </option>
                         ))}
                       </select>
@@ -1129,6 +1186,7 @@ export default function AdminAppointmentDetail() {
                       </div>
                     </>
                   )}
+                  {benefitCodeField}
                 </div>
               ) : null}
               <div className="space-y-2">

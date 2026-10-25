@@ -107,14 +107,14 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  role               Role    @default(SPECIALIST)
-  login              String  @unique
+  role               Role      @default(SPECIALIST)
+  login              String    @unique
   name               String
-  email              String? @unique
+  email              String?   @unique
   passwordHash       String
   // Hasło nadane przez administratora (albo niespełniające obecnej polityki)
   // jest tymczasowe — przy logowaniu pracownik musi ustawić własne.
-  mustChangePassword Boolean @default(false)
+  mustChangePassword Boolean   @default(false)
   // Konto wyłączone: brak logowania, sesje unieważnione; historia (wizyty, dziennik) zostaje.
   disabledAt         DateTime?
   // Konto archiwalne (np. dawny specjalista z importu historii): nie pojawia się na listach pracowników,
@@ -162,23 +162,23 @@ model User {
   // Domyślna stawka kwotowa za pojedynczy zabieg (grosze); nadpisywana stawkami per zabieg
   baseRate Int?
 
-  appointments                     Appointment[]              @relation("AppointmentSpecialist")
-  createdConsumptions              Consumption[]              @relation("ConsumptionCreator")
-  specialistConsumptions           Consumption[]              @relation("ConsumptionSpecialist")
-  reviewedConsumptions             Consumption[]              @relation("ConsumptionReviewer")
-  retailSales                      RetailSale[]               @relation("RetailSaleSeller")
-  discountApprovals                RetailSale[]               @relation("RetailSaleDiscountApprover")
+  appointments                     Appointment[]                   @relation("AppointmentSpecialist")
+  createdConsumptions              Consumption[]                   @relation("ConsumptionCreator")
+  specialistConsumptions           Consumption[]                   @relation("ConsumptionSpecialist")
+  reviewedConsumptions             Consumption[]                   @relation("ConsumptionReviewer")
+  retailSales                      RetailSale[]                    @relation("RetailSaleSeller")
+  discountApprovals                RetailSale[]                    @relation("RetailSaleDiscountApprover")
   notificationReads                NotificationRead[]
   serviceRates                     SpecialistServiceRate[]
   servicePercents                  SpecialistServicePercent[]
   warehouseAssignments             SpecialistWarehouse[]
-  approvedAppointments             Appointment[]              @relation("AppointmentApprover")
-  deletedAppointments              Appointment[]              @relation("AppointmentDeleter")
-  decidedPatientDataChangeRequests PatientDataChangeRequest[] @relation("PatientDataChangeDecider")
+  approvedAppointments             Appointment[]                   @relation("AppointmentApprover")
+  deletedAppointments              Appointment[]                   @relation("AppointmentDeleter")
+  decidedPatientDataChangeRequests PatientDataChangeRequest[]      @relation("PatientDataChangeDecider")
   decidedImageConsentRevocations   ImageConsentRevocationRequest[] @relation("ImageConsentRevocationDecider")
-  operators                        StaffOperator[]            @relation("StaffOperators")
-  decidedConsentSubmissions        ProcedureConsentSubmission[] @relation("ProcedureConsentDecider")
-  decidedPaymentRequests           PaymentRequest[]           @relation("PaymentRequestDecider")
+  operators                        StaffOperator[]                 @relation("StaffOperators")
+  decidedConsentSubmissions        ProcedureConsentSubmission[]    @relation("ProcedureConsentDecider")
+  decidedPaymentRequests           PaymentRequest[]                @relation("PaymentRequestDecider")
   newsletterCampaigns              NewsletterCampaign[]
   newsletterImages                 NewsletterImage[]
   newsletterLists                  NewsletterList[]
@@ -190,10 +190,10 @@ model User {
   pushSubscriptions                PushSubscription[]
   mfaRecoveryCodes                 MfaRecoveryCode[]
   passkeys                         WebAuthnPasskey[]
-  sentChatMessages                 StaffMessage[]             @relation("StaffMessageSender")
-  createdVouchers                  Voucher[]                  @relation("VoucherCreator")
-  createdPatientPackages           PatientPackage[]           @relation("PatientPackageCreator")
-  receivedChatMessages             StaffMessage[]             @relation("StaffMessageRecipient")
+  sentChatMessages                 StaffMessage[]                  @relation("StaffMessageSender")
+  createdVouchers                  Voucher[]                       @relation("VoucherCreator")
+  createdPatientPackages           PatientPackage[]                @relation("PatientPackageCreator")
+  receivedChatMessages             StaffMessage[]                  @relation("StaffMessageRecipient")
 
   @@index([role])
   @@index([locationId])
@@ -252,22 +252,25 @@ model Patient {
   // niezmienna historia operacji w LoyaltyPointsTransaction (patrz niżej).
   loyaltyPoints             Int                        @default(0)
   loyaltyPointsTransactions LoyaltyPointsTransaction[]
+  // Kupione przez pacjenta (pakiet i voucher zawsze mają kupującego).
   vouchers                  Voucher[]
-  patientPackages           PatientPackage[]
+  patientPackages           PatientPackage[]           @relation("PatientPackageBuyer")
+  // Pakiety imienne, z których pacjent korzysta (może je kupić ktoś inny).
+  heldPatientPackages       PatientPackage[]           @relation("PatientPackageHolder")
 
   locationId String   @default("grodzisk-mazowiecki")
   location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
 
-  appointments       Appointment[]
-  retailSales        RetailSale[]
-  dataChangeRequests PatientDataChangeRequest[]
+  appointments                   Appointment[]
+  retailSales                    RetailSale[]
+  dataChangeRequests             PatientDataChangeRequest[]
   imageConsentRevocationRequests ImageConsentRevocationRequest[]
-  imageConsentChanges ImageConsentChange[]
-  consents           PatientConsent[]
-  newsletterListMemberships NewsletterListMember[]
-  consentEvents      PatientConsentEvent[]
-  sessions           PatientSession[]
-  pushSubscriptions  PushSubscription[]
+  imageConsentChanges            ImageConsentChange[]
+  consents                       PatientConsent[]
+  newsletterListMemberships      NewsletterListMember[]
+  consentEvents                  PatientConsentEvent[]
+  sessions                       PatientSession[]
+  pushSubscriptions              PushSubscription[]
 
   @@index([nameHash])
   @@index([emailHash])
@@ -318,7 +321,7 @@ model Service {
   suggestedProducts     ServiceSuggestedProduct[]
   appointments          Appointment[]
   packageTemplates      PackageTemplate[]
-  patientPackages       PatientPackage[]
+  patientPackageItems   PatientPackageItem[]
   specialistRates       SpecialistServiceRate[]
   specialistPercents    SpecialistServicePercent[]
   specialistAssignments SpecialistService[]
@@ -644,8 +647,8 @@ model Appointment {
   // Faktura na życzenie klienta (checkbox "Chcę fakturę" przy rezerwacji online): dane
   // nabywcy do wystawienia faktury przez recepcję/administratora.
   // Wersje regulaminu i polityki prywatności zaakceptowane przy rezerwacji online (lib/legal.ts).
-  termsVersion       String?
-  privacyVersion     String?
+  termsVersion   String?
+  privacyVersion String?
 
   invoiceRequested   Boolean @default(false)
   invoiceNip         String?
@@ -658,7 +661,7 @@ model Appointment {
   payments     Payment[]
 
   imageConsentRevocationRequests ImageConsentRevocationRequest[]
-  imageConsentChanges ImageConsentChange[]
+  imageConsentChanges            ImageConsentChange[]
 
   // Zgoda pacjenta na zabieg (podpisywana elektronicznie, patrz
   // lib/procedure-consent.ts): NOT_REQUIRED — wizyty sprzed wprowadzenia zgód i
@@ -666,7 +669,7 @@ model Appointment {
   // podpisaną zgodę; PENDING_REVIEW — plik złożony, czeka na decyzję personelu;
   // SIGNED — zgoda przyjęta. Bez zgody do chwili zabiegu rezerwacja jest
   // anulowana, a zaliczka przepada (consentForfeitedAt).
-  consentStatus          String    @default("NOT_REQUIRED")
+  consentStatus          String                       @default("NOT_REQUIRED")
   consentSignedAt        DateTime?
   consentRejectionReason String?
   consentForfeitedAt     DateTime?
@@ -806,15 +809,18 @@ model Payment {
   voucherId String?
   voucher   Voucher? @relation(fields: [voucherId], references: [id], onDelete: SetNull)
 
-  // Rozliczenie pakietem: z którego pakietu pacjenta i ile zabiegów zużyto.
-  patientPackageId String?
-  patientPackage   PatientPackage? @relation(fields: [patientPackageId], references: [id], onDelete: SetNull)
-  packageSessions  Int?
+  // Rozliczenie pakietem: z którego pakietu pacjenta, z której jego pozycji (usługi) i ile zabiegów zużyto.
+  patientPackageId     String?
+  patientPackage       PatientPackage?     @relation(fields: [patientPackageId], references: [id], onDelete: SetNull)
+  patientPackageItemId String?
+  patientPackageItem   PatientPackageItem? @relation(fields: [patientPackageItemId], references: [id], onDelete: SetNull)
+  packageSessions      Int?
 
   @@index([appointmentId])
   @@index([retailSaleId])
   @@index([voucherId])
   @@index([patientPackageId])
+  @@index([patientPackageItemId])
 }
 
 // Niezmienny, w pełni udokumentowany ślad każdej operacji na punktach
@@ -1004,24 +1010,24 @@ enum AuditActorType {
 // (SHA-256), więc zrzut bazy nie pozwala przejąć sesji. Sesję można w każdej
 // chwili unieważnić (wylogowanie, zmiana hasła/roli/MFA, decyzja admina).
 model StaffSession {
-  id            String    @id // SHA-256 identyfikatora z tokenu
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt     DateTime  @default(now())
-  lastSeenAt    DateTime  @default(now())
-  expiresAt     DateTime
-  revokedAt     DateTime?
-  revokedReason String?
+  id               String         @id // SHA-256 identyfikatora z tokenu
+  userId           String
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime       @default(now())
+  lastSeenAt       DateTime       @default(now())
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  revokedReason    String?
   // Jak potwierdzono drugi składnik: TOTP / RECOVERY_CODE / PASSKEY
-  mfaMethod     String
+  mfaMethod        String
   // Ostatnie ponowne potwierdzenie MFA (step-up) przed operacją wysokiego ryzyka.
-  stepUpAt      DateTime?
-  ipAddress     String?
-  userAgent     String?
+  stepUpAt         DateTime?
+  ipAddress        String?
+  userAgent        String?
   // Konto wspólne (recepcja): która osoba jest przy komputerze — wybierana PIN-em
   // po zalogowaniu. Puste, gdy konto nie ma operatorów albo PIN nie został podany.
-  operatorId    String?
-  operator      StaffOperator? @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  operatorId       String?
+  operator         StaffOperator? @relation(fields: [operatorId], references: [id], onDelete: SetNull)
   // Wejście administratora na cudze konto: id administratora, który uruchomił
   // sesję. Taka sesja nie wymaga MFA/PIN-u konta docelowego (administrator
   // potwierdził własne MFA), jest krótka i nie pozwala na operacje wysokiego ryzyka.
@@ -1059,18 +1065,18 @@ model NewsletterCampaign {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  subject String
+  subject   String
   // Tekst widoczny w podglądzie skrzynki obok tematu (opcjonalny).
   preheader String?
   // Treść HTML (już po oczyszczeniu z skryptów) — to, co trafia do klientów.
-  html String
+  html      String
 
   // DRAFT — do edycji; SENT — wysyłka rozpoczęta (można dokończyć brakujące).
-  status String @default("DRAFT")
-  sentAt DateTime?
+  status         String    @default("DRAFT")
+  sentAt         DateTime?
   // Ilu adresatów zakwalifikowano przy pierwszej wysyłce i ilu dostało wiadomość.
-  recipientCount Int @default(0)
-  sentCount      Int @default(0)
+  recipientCount Int       @default(0)
+  sentCount      Int       @default(0)
 
   // Do kogo idzie wysyłka: ALL — wszyscy ze zgodą marketingową; LISTS —
   // członkowie wybranych list; PATIENTS — ręcznie wybrani klienci. W każdym
@@ -1169,12 +1175,12 @@ model PaymentRequest {
   appointmentId String
   appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
 
-  amount Int // grosze
+  amount    Int // grosze
   // "DEPOSIT_10" albo "FULL" (patrz lib/booking-payment.ts)
-  choice String
+  choice    String
   // BLIK | TRANSFER | P24 — puste, dopóki klient nie wybierze metody.
-  method String?
-  reference String @unique
+  method    String?
+  reference String  @unique
 
   status          String    @default("AWAITING")
   claimedAt       DateTime?
@@ -1366,15 +1372,15 @@ model EmailSettings {
   updatedAt DateTime @updatedAt
 
   // Rodzaje wiadomości wyłączone przez administratora (patrz lib/email-types.ts).
-  disabledTypes    String[] @default([])
+  disabledTypes     String[] @default([])
   // To samo dla powiadomień push (te same rodzaje, osobne przełączniki).
   disabledPushTypes String[] @default([])
   // Adresy, na które idą powiadomienia dla personelu (np. recepcja).
-  staffRecipients  String[] @default([])
+  staffRecipients   String[] @default([])
   // Czy o nowej rezerwacji online powiadamiać też specjalistę, którego dotyczy.
-  notifySpecialist Boolean  @default(true)
+  notifySpecialist  Boolean  @default(true)
   // Adres, na który trafi odpowiedź klienta na naszą wiadomość (opcjonalnie).
-  replyTo          String?
+  replyTo           String?
 }
 
 // Dziennik wysyłek e-mail — co, do kogo i z jakim skutkiem. Treści wiadomości
@@ -1454,11 +1460,11 @@ model ProductUnitOption {
 // Ustawienia analizy RFM — jeden wiersz "rfm". Administrator ustawia w Ustawieniach → Segmentacja pacjentów (RFM)
 // okno obliczeń (dni) oraz opcjonalnie własne progi ocen 1–5; brak progów = automatyczne kwintyle.
 model RfmSettings {
-  id         String   @id
-  updatedAt  DateTime @updatedAt
-  windowDays Int      @default(365)
+  id           String   @id
+  updatedAt    DateTime @updatedAt
+  windowDays   Int      @default(365)
   // { r: [d1,d2,d3,d4] (dni), f: [..] (liczba), m: [..] (zł) } albo null
-  thresholds Json?
+  thresholds   Json?
   // Reguły przydziału do segmentów (kolejność = priorytet) albo null = reguły domyślne.
   segmentRules Json?
 }
@@ -1469,8 +1475,8 @@ model StaffMessage {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
 
-  senderId String
-  sender   User   @relation("StaffMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  senderId           String
+  sender             User    @relation("StaffMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
   // Konto wspólne (recepcja): imię osoby wybranej PIN-em, która napisała wiadomość.
   senderOperatorName String?
 
@@ -1504,7 +1510,9 @@ model StaffMessageImage {
   data     Bytes
 }
 
-// Voucher / karta podarunkowa na kwotę dla konkretnego pacjenta. Saldo = kwota minus suma płatności z tego vouchera
+// Voucher / karta podarunkowa na kwotę. Kupujący to pacjent z bazy (patientId); voucher jest anonimowy (na okaziciela)
+// albo imienny — wtedy recipientName to dowolne imię i nazwisko obdarowanego. Zrealizować go można przy wizycie
+// dowolnego pacjenta. Saldo = kwota minus suma płatności z tego vouchera
 // (Payment.voucherId); usunięcie takiej płatności zwraca środki na voucher. Sprzedaż (kto i jak zapłacił) zapisana jest tu.
 model Voucher {
   id        String   @id @default(cuid())
@@ -1513,12 +1521,16 @@ model Voucher {
   // Krótki, czytelny kod do podania klientowi i odszukania vouchera (np. V-8K2M4Q).
   code String @unique
 
+  // Kupujący.
   patientId String
   patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
-  title String
+  // Imię i nazwisko obdarowanego (voucher imienny); null = voucher anonimowy.
+  recipientName String?
+
+  title     String
   // Kwota vouchera (grosze).
-  amount Int
+  amount    Int
   // Termin ważności (ostatni dzień ważności); null = bez terminu.
   expiresAt DateTime?
 
@@ -1551,9 +1563,9 @@ model PackageTemplate {
   serviceId String?
   service   Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
 
-  sessions Int
+  sessions     Int
   // Cena całego pakietu (grosze).
-  price    Int
+  price        Int
   // Ważność od daty sprzedaży w dniach; null = bez terminu.
   validityDays Int?
 
@@ -1562,29 +1574,35 @@ model PackageTemplate {
   patientPackages PatientPackage[]
 }
 
-// Pakiet sprzedany pacjentowi. Pozostałe zabiegi = sessionsTotal minus suma Payment.packageSessions rozliczeń pakietem.
+// Pakiet zabiegów. Kupujący to pacjent z bazy (patientId). Pakiet imienny wykorzystuje posiadacz (holderPatientId),
+// anonimowy (holderPatientId = null) — dowolny pacjent, który poda kod. Pakiet obejmuje jedną lub więcej usług,
+// każdą z własną liczbą zabiegów (PatientPackageItem); pozostało = liczba zabiegów pozycji minus rozliczenia pakietem.
 model PatientPackage {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
 
   code String @unique
 
+  // Kupujący.
   patientId String
-  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patient   Patient @relation("PatientPackageBuyer", fields: [patientId], references: [id], onDelete: Cascade)
+
+  // Posiadacz pakietu imiennego; null = pakiet anonimowy (na okaziciela).
+  holderPatientId String?
+  holder          Patient? @relation("PatientPackageHolder", fields: [holderPatientId], references: [id], onDelete: Cascade)
 
   templateId String?
   template   PackageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
 
   title String
 
-  // Usługa, którą można rozliczać pakietem (null = dowolna).
-  serviceId String?
-  service   Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-
+  // Suma zabiegów ze wszystkich pozycji.
   sessionsTotal Int
   // Cena zapłacona za pakiet (grosze).
-  price     Int
-  expiresAt DateTime?
+  price         Int
+  // Wartość tych zabiegów w cenach standardowych w chwili sprzedaży (grosze); null = nieznana.
+  standardValue Int?
+  expiresAt     DateTime?
 
   saleMethod PaymentMethod
   note       String?
@@ -1595,8 +1613,28 @@ model PatientPackage {
   canceledAt   DateTime?
   cancelReason String?
 
+  items    PatientPackageItem[]
   payments Payment[]
 
   @@index([patientId])
+  @@index([holderPatientId])
   @@index([createdAt])
+}
+
+// Pozycja pakietu: usługa i liczba zabiegów (serviceId = null — dowolna usługa, tylko w starszych pakietach).
+model PatientPackageItem {
+  id String @id @default(cuid())
+
+  packageId String
+  package   PatientPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  serviceId String?
+  service   Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+
+  sessions Int
+  position Int @default(0)
+
+  payments Payment[]
+
+  @@index([packageId])
 }

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { benefitStatus, packageSessionsLeft, parseExpiryDate, voucherRemaining } from "./vouchers";
+import {
+  benefitStatus,
+  packageItemForService,
+  packageItemsLeft,
+  packageSessionsLeft,
+  packageStandardValue,
+  parseExpiryDate,
+  voucherRemaining,
+} from "./vouchers";
 import { generateCode } from "./voucher-code";
 
 describe("kody", () => {
@@ -40,5 +48,30 @@ describe("termin ważności", () => {
     expect(parseExpiryDate("2026-12-31")?.toISOString()).toBe("2026-12-31T00:00:00.000Z");
     expect(parseExpiryDate("")).toBeNull();
     expect(parseExpiryDate("31.12.2026")).toBeUndefined();
+  });
+});
+
+describe("pakiety z wieloma usługami", () => {
+  const items = [
+    { id: "a", serviceId: "botox", sessions: 3 },
+    { id: "b", serviceId: "lifting", sessions: 2 },
+  ];
+  it("liczy pozostałe zabiegi osobno dla każdej usługi", () => {
+    const left = packageItemsLeft(items, [
+      { patientPackageItemId: "a", packageSessions: 1 },
+      { patientPackageItemId: "a", packageSessions: 1 },
+      { patientPackageItemId: "b", packageSessions: 5 },
+      { patientPackageItemId: null, packageSessions: 1 },
+    ]);
+    expect(left.map((item) => item.left)).toEqual([1, 0]);
+  });
+  it("dobiera pozycję do usługi wizyty, a w jej braku pozycję „dowolna usługa”", () => {
+    expect(packageItemForService(items, "lifting")?.id).toBe("b");
+    expect(packageItemForService(items, "inna")).toBeNull();
+    expect(packageItemForService([...items, { id: "c", serviceId: null, sessions: 1 }], "inna")?.id).toBe("c");
+  });
+  it("wartość standardowa = suma cen usług razy liczba zabiegów", () => {
+    expect(packageStandardValue([{ sessions: 3, unitPrice: 100000 }, { sessions: 2, unitPrice: 100000 }])).toBe(500000);
+    expect(packageStandardValue([{ sessions: 3, unitPrice: null }])).toBeNull();
   });
 });

@@ -6,7 +6,7 @@ import useSWR from "swr";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth-provider";
 import { useConfirm } from "@/components/confirm-provider";
-import { PatientPicker } from "@/components/patient-picker";
+import { PatientQuickField, type PickedPatient } from "@/components/patient-quick-field";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -20,12 +20,15 @@ type VoucherRow = {
   id: string;
   code: string;
   title: string;
+  // Imię i nazwisko obdarowanego; null = voucher anonimowy.
+  recipientName: string | null;
   amount: number;
   remaining: number;
   expiresAt: string | null;
   createdAt: string;
   saleMethod: string;
   status: BenefitStatus;
+  // Kupujący.
   patient: { id: string; name: string; phone: string | null };
 };
 type VoucherDetail = VoucherRow & {
@@ -33,7 +36,15 @@ type VoucherDetail = VoucherRow & {
   note: string | null;
   canceledAt: string | null;
   cancelReason: string | null;
-  usage: { id: string; amount: number; at: string; appointmentId: string | null; visitAt: string | null; serviceName: string | null }[];
+  usage: {
+    id: string;
+    amount: number;
+    at: string;
+    appointmentId: string | null;
+    visitAt: string | null;
+    serviceName: string | null;
+    patientName: string | null;
+  }[];
 };
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -77,7 +88,7 @@ export default function VouchersPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Vouchery i karty podarunkowe</h1>
-          <p className="text-sm text-zinc-500">Sprzedaż voucherów na kwotę dla konkretnego pacjenta. Saldo i wykorzystanie widać też na karcie pacjenta.</p>
+          <p className="text-sm text-zinc-500">Sprzedaż voucherów na kwotę — anonimowych lub imiennych. Saldo i wykorzystanie widać też na karcie kupującego.</p>
         </div>
         <Button onClick={() => setSellOpen(true)}>+ Sprzedaj voucher</Button>
       </div>
@@ -101,7 +112,7 @@ export default function VouchersPage() {
 
       <Card className="space-y-3 p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <Input className="max-w-sm" placeholder="Szukaj: pacjent, telefon, kod, tytuł" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Input className="max-w-sm" placeholder="Szukaj: kupujący, obdarowany, telefon, kod, tytuł" value={q} onChange={(e) => setQ(e.target.value)} />
           {[
             ["ALL", "Wszystkie"],
             ["ACTIVE", "Aktywne"],
@@ -131,7 +142,7 @@ export default function VouchersPage() {
             <thead className="text-left text-xs text-zinc-500">
               <tr>
                 <th className="p-2">Kod</th>
-                <th className="p-2">Pacjent</th>
+                <th className="p-2">Kupujący / dla kogo</th>
                 <th className="p-2">Tytuł</th>
                 <th className="p-2 text-right">Kwota</th>
                 <th className="p-2 text-right">Pozostało</th>
@@ -145,7 +156,7 @@ export default function VouchersPage() {
                   <td className="p-2 font-mono text-xs">{v.code}</td>
                   <td className="p-2">
                     <div className="font-medium">{v.patient.name}</div>
-                    <div className="text-xs text-zinc-500">{v.patient.phone ?? ""}</div>
+                    <div className="text-xs text-zinc-500">{v.recipientName ? `dla: ${v.recipientName}` : "anonimowy"}</div>
                   </td>
                   <td className="p-2">{v.title}</td>
                   <td className="p-2 text-right">{formatPLNFromGrosze(v.amount)}</td>
@@ -204,28 +215,33 @@ export default function VouchersPage() {
 }
 
 function SellVoucherDialog({ open, onOpenChange, onSold }: { open: boolean; onOpenChange: (open: boolean) => void; onSold: (code: string) => void }) {
-  const [patientId, setPatientId] = React.useState("");
+  const [buyer, setBuyer] = React.useState<PickedPatient | null>(null);
+  const [named, setNamed] = React.useState(false);
+  const [recipientName, setRecipientName] = React.useState("");
   const [title, setTitle] = React.useState("");
   const [amount, setAmount] = React.useState("");
   const [expiresAt, setExpiresAt] = React.useState("");
   const [saleMethod, setSaleMethod] = React.useState("CARD");
   const [note, setNote] = React.useState("");
   const [saving, setSaving] = React.useState(false);
-  const [pickerKey, setPickerKey] = React.useState(0);
+  const [formKey, setFormKey] = React.useState(0);
 
   function reset() {
-    setPatientId("");
+    setBuyer(null);
+    setNamed(false);
+    setRecipientName("");
     setTitle("");
     setAmount("");
     setExpiresAt("");
     setSaleMethod("CARD");
     setNote("");
-    setPickerKey((k) => k + 1);
+    setFormKey((k) => k + 1);
   }
 
   async function sell() {
     const grosze = parsePLNToGrosze(amount);
-    if (!patientId) return toast.error("Wybierz pacjenta");
+    if (!buyer) return toast.error("Wybierz kupującego albo dodaj nowego klienta");
+    if (named && recipientName.trim().length < 2) return toast.error("Wpisz imię i nazwisko osoby, dla której jest voucher");
     if (title.trim().length < 2) return toast.error("Podaj tytuł vouchera");
     if (!grosze || grosze < 100) return toast.error("Podaj kwotę vouchera (min. 1 zł)");
     setSaving(true);
@@ -233,7 +249,10 @@ function SellVoucherDialog({ open, onOpenChange, onSold }: { open: boolean; onOp
       const res = await fetch("/api/admin/vouchers", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ patientId, title: title.trim(), amount: grosze, expiresAt: expiresAt || null, saleMethod, note: note.trim() || null }),
+        body: JSON.stringify({
+          buyerPatientId: buyer.id,
+          recipientName: named ? recipientName.trim() : null,
+          title: title.trim(), amount: grosze, expiresAt: expiresAt || null, saleMethod, note: note.trim() || null }),
       });
       const out = await res.json().catch(() => ({}));
       if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się sprzedać vouchera");
@@ -251,10 +270,41 @@ function SellVoucherDialog({ open, onOpenChange, onSold }: { open: boolean; onOp
         <DialogHeader>
           <DialogTitle>Sprzedaż vouchera</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
+        <div key={formKey} className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
           <div className="space-y-1">
-            <Label>Pacjent (imię, nazwisko lub telefon)</Label>
-            <PatientPicker key={pickerKey} value={patientId} onChange={setPatientId} allowNew={false} />
+            <Label>Kupujący (imię, nazwisko lub telefon)</Label>
+            <PatientQuickField value={buyer} onChange={setBuyer} />
+          </div>
+          <div className="space-y-2">
+            <Label>Rodzaj vouchera</Label>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  [false, "Anonimowy (na okaziciela)"],
+                  [true, "Imienny"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setNamed(value)}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-sm font-medium",
+                    named === value ? "border-emerald-600 bg-emerald-600 text-white" : "bg-white text-zinc-600 dark:bg-[#0b1220] dark:text-zinc-300",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {named ? (
+              <div className="space-y-1">
+                <Label htmlFor="v-recipient">Imię i nazwisko obdarowanego</Label>
+                <Input id="v-recipient" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} placeholder="np. Anna Kowalska" />
+              </div>
+            ) : (
+              <p className="text-xs text-zinc-500">Voucher zrealizuje każdy, kto poda jego kod przy rozliczeniu wizyty.</p>
+            )}
           </div>
           <div className="space-y-1">
             <Label htmlFor="v-title">Tytuł</Label>
@@ -348,11 +398,13 @@ function VoucherDetailDialog({ id, canCancel, onClose, onChanged }: { id: string
             <div>
               <div className="font-medium">{v.title}</div>
               <div className="text-zinc-500">
+                Kupujący:{" "}
                 <Link href={`/admin/patients/${v.patient.id}`} className="hover:underline">
                   {v.patient.name}
                 </Link>
                 {v.patient.phone ? ` · ${v.patient.phone}` : ""}
               </div>
+              <div className="text-zinc-500">{v.recipientName ? `Imienny dla: ${v.recipientName}` : "Voucher anonimowy (na okaziciela)"}</div>
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="rounded-xl border p-3">
@@ -387,6 +439,7 @@ function VoucherDetailDialog({ id, canCancel, onClose, onChanged }: { id: string
                     <li key={u.id} className="flex items-center justify-between gap-2 p-2.5">
                       <span>
                         {u.visitAt ? fmtDate(u.visitAt) : fmtDate(u.at)} · {u.serviceName ?? "wizyta"}
+                        {u.patientName ? ` · ${u.patientName}` : ""}
                       </span>
                       <span className="flex items-center gap-2">
                         <strong>−{formatPLNFromGrosze(u.amount)}</strong>

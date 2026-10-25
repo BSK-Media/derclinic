@@ -6,7 +6,8 @@ import useSWR from "swr";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth-provider";
 import { useConfirm } from "@/components/confirm-provider";
-import { PatientPicker } from "@/components/patient-picker";
+import { PatientQuickField, type PickedPatient } from "@/components/patient-quick-field";
+import { ServiceSearchSelect, type ServiceOption } from "@/components/service-search-select";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,26 +17,39 @@ import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
 import { BENEFIT_STATUS_LABELS, type BenefitStatus } from "@/lib/vouchers";
 import { cn } from "@/lib/utils";
 
+type PackagePerson = { id: string; name: string; phone: string | null };
 type PackageRow = {
   id: string;
   code: string;
   title: string;
-  serviceName: string | null;
+  servicesLabel: string;
+  items: { id: string; serviceName: string | null; sessions: number; left: number }[];
   sessionsTotal: number;
   sessionsLeft: number;
   price: number;
+  standardValue: number | null;
   expiresAt: string | null;
   createdAt: string;
   saleMethod: string;
   status: BenefitStatus;
-  patient: { id: string; name: string; phone: string | null };
+  // Kupujący i posiadacz (null = pakiet anonimowy).
+  patient: PackagePerson;
+  holder: PackagePerson | null;
 };
 type PackageDetail = PackageRow & {
   createdBy: string | null;
   note: string | null;
   canceledAt: string | null;
   cancelReason: string | null;
-  usage: { id: string; sessions: number; at: string; appointmentId: string | null; visitAt: string | null; serviceName: string | null }[];
+  usage: {
+    id: string;
+    sessions: number;
+    at: string;
+    appointmentId: string | null;
+    visitAt: string | null;
+    serviceName: string | null;
+    patientName: string | null;
+  }[];
 };
 type Template = {
   id: string;
@@ -48,7 +62,6 @@ type Template = {
   validityDays: number | null;
   isActive: boolean;
 };
-type ServiceOption = { id: string; name: string };
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const METHOD_LABELS: Record<string, string> = { CASH: "Gotówka", CARD: "Karta", TRANSFER: "Przelew", BLIK: "BLIK" };
@@ -147,7 +160,7 @@ function SoldTab({ canCancel }: { canCancel: boolean }) {
 
       <Card className="space-y-3 p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <Input className="max-w-sm" placeholder="Szukaj: pacjent, telefon, kod, tytuł" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Input className="max-w-sm" placeholder="Szukaj: kupujący, posiadacz, telefon, kod, usługa" value={q} onChange={(e) => setQ(e.target.value)} />
           {[
             ["ALL", "Wszystkie"],
             ["ACTIVE", "Aktywne"],
@@ -176,7 +189,7 @@ function SoldTab({ canCancel }: { canCancel: boolean }) {
             <thead className="text-left text-xs text-zinc-500">
               <tr>
                 <th className="p-2">Kod</th>
-                <th className="p-2">Pacjent</th>
+                <th className="p-2">Kupujący / dla kogo</th>
                 <th className="p-2">Pakiet</th>
                 <th className="p-2 text-right">Zabiegi</th>
                 <th className="p-2">Ważny do</th>
@@ -189,11 +202,16 @@ function SoldTab({ canCancel }: { canCancel: boolean }) {
                   <td className="p-2 font-mono text-xs">{p.code}</td>
                   <td className="p-2">
                     <div className="font-medium">{p.patient.name}</div>
-                    <div className="text-xs text-zinc-500">{p.patient.phone ?? ""}</div>
+                    <div className="text-xs text-zinc-500">
+                      {!p.holder ? "anonimowy (na okaziciela)" : p.holder.id === p.patient.id ? (p.patient.phone ?? "") : `dla: ${p.holder.name}`}
+                    </div>
                   </td>
                   <td className="p-2">
                     <div>{p.title}</div>
-                    {p.serviceName ? <div className="text-xs text-zinc-500">{p.serviceName}</div> : null}
+                    {/* Tytuł nadany automatycznie z usług — nie powtarzamy ich drugi raz. */}
+                    {p.title !== p.items.map((item) => `${item.serviceName ?? "dowolna usługa"} ×${item.sessions}`).join(" + ") ? (
+                      <div className="text-xs text-zinc-500">{p.servicesLabel}</div>
+                    ) : null}
                   </td>
                   <td className="p-2 text-right font-semibold">
                     {p.sessionsLeft} / {p.sessionsTotal}
@@ -243,69 +261,90 @@ function SoldTab({ canCancel }: { canCancel: boolean }) {
   );
 }
 
+type PackageRowInput = { key: number; serviceId: string; sessions: string };
+
+let rowKey = 0;
+const emptyRow = (serviceId = "", sessions = ""): PackageRowInput => ({ key: ++rowKey, serviceId, sessions });
+
 function SellPackageDialog({ open, onOpenChange, onSold }: { open: boolean; onOpenChange: (open: boolean) => void; onSold: (code: string) => void }) {
   const { data } = useSWR<{ ok: boolean; templates: Template[]; services: ServiceOption[] }>(open ? "/api/admin/packages/templates" : null, fetcher);
   const templates = React.useMemo(() => (data?.templates ?? []).filter((t) => t.isActive), [data]);
-  const services = data?.services ?? [];
+  const services = React.useMemo(() => data?.services ?? [], [data]);
 
-  const [patientId, setPatientId] = React.useState("");
-  const [pickerKey, setPickerKey] = React.useState(0);
+  const [formKey, setFormKey] = React.useState(0);
+  const [buyer, setBuyer] = React.useState<PickedPatient | null>(null);
+  const [holderType, setHolderType] = React.useState<"PATIENT" | "ANONYMOUS">("PATIENT");
+  const [holderIsBuyer, setHolderIsBuyer] = React.useState(true);
+  const [holder, setHolder] = React.useState<PickedPatient | null>(null);
   const [templateId, setTemplateId] = React.useState("");
+  const [rows, setRows] = React.useState<PackageRowInput[]>(() => [emptyRow()]);
   const [title, setTitle] = React.useState("");
-  const [sessions, setSessions] = React.useState("");
   const [price, setPrice] = React.useState("");
-  const [serviceId, setServiceId] = React.useState("");
   const [expiresAt, setExpiresAt] = React.useState("");
   const [saleMethod, setSaleMethod] = React.useState("CARD");
   const [note, setNote] = React.useState("");
   const [saving, setSaving] = React.useState(false);
+
+  const serviceById = React.useMemo(() => new Map(services.map((service) => [service.id, service] as const)), [services]);
+  const filledRows = rows.filter((row) => row.serviceId && Number(row.sessions) > 0);
+  const missingPrice = filledRows.filter((row) => typeof serviceById.get(row.serviceId)?.price !== "number");
+  const standardValue = filledRows.reduce((sum, row) => sum + Number(row.sessions) * (serviceById.get(row.serviceId)?.price ?? 0), 0);
+  const priceGrosze = price.trim() ? parsePLNToGrosze(price) : null;
+  const discount = priceGrosze !== null && standardValue > 0 ? standardValue - priceGrosze : null;
+  const autoTitle = filledRows.map((row) => `${serviceById.get(row.serviceId)?.name ?? ""} ×${row.sessions}`).join(" + ");
 
   function chooseTemplate(id: string) {
     setTemplateId(id);
     const t = templates.find((x) => x.id === id);
     if (!t) return;
     setTitle(t.name);
-    setSessions(String(t.sessions));
+    setRows([emptyRow(t.serviceId ?? "", String(t.sessions))]);
     setPrice(toInput(t.price));
-    setServiceId(t.serviceId ?? "");
     if (t.validityDays) {
       const date = new Date(Date.now() + t.validityDays * 24 * 3600 * 1000);
       setExpiresAt(date.toISOString().slice(0, 10));
     } else setExpiresAt("");
   }
 
+  function updateRow(key: number, patch: Partial<PackageRowInput>) {
+    setRows((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
+  }
+
   function reset() {
-    setPatientId("");
-    setPickerKey((k) => k + 1);
+    setFormKey((k) => k + 1);
+    setBuyer(null);
+    setHolderType("PATIENT");
+    setHolderIsBuyer(true);
+    setHolder(null);
     setTemplateId("");
+    setRows([emptyRow()]);
     setTitle("");
-    setSessions("");
     setPrice("");
-    setServiceId("");
     setExpiresAt("");
     setSaleMethod("CARD");
     setNote("");
   }
 
   async function sell() {
-    const grosze = parsePLNToGrosze(price);
-    const count = Number(sessions);
-    if (!patientId) return toast.error("Wybierz pacjenta");
-    if (title.trim().length < 2) return toast.error("Podaj tytuł pakietu");
-    if (!Number.isInteger(count) || count < 1) return toast.error("Podaj liczbę zabiegów");
-    if (grosze === null || grosze < 0) return toast.error("Podaj cenę pakietu");
+    if (!buyer) return toast.error("Wybierz kupującego albo dodaj nowego klienta");
+    const holderPatient = holderType === "ANONYMOUS" ? null : holderIsBuyer ? buyer : holder;
+    if (holderType === "PATIENT" && !holderPatient) return toast.error("Wybierz pacjenta, dla którego jest pakiet");
+    if (rows.some((row) => !row.serviceId)) return toast.error("Wybierz usługę w każdym wierszu (albo usuń pusty wiersz)");
+    if (rows.some((row) => !Number.isInteger(Number(row.sessions)) || Number(row.sessions) < 1)) return toast.error("Podaj liczbę zabiegów przy każdej usłudze");
+    if (priceGrosze === null || priceGrosze < 0) return toast.error("Podaj cenę pakietu");
     setSaving(true);
     try {
       const res = await fetch("/api/admin/packages", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          patientId,
+          buyerPatientId: buyer.id,
+          holderType,
+          holderPatientId: holderPatient?.id ?? null,
           templateId: templateId || null,
-          title: title.trim(),
-          sessions: count,
-          price: grosze,
-          serviceId: serviceId || null,
+          title: title.trim() || null,
+          items: rows.map((row) => ({ serviceId: row.serviceId, sessions: Number(row.sessions) })),
+          price: priceGrosze,
           expiresAt: expiresAt || null,
           saleMethod,
           note: note.trim() || null,
@@ -323,17 +362,58 @@ function SellPackageDialog({ open, onOpenChange, onSold }: { open: boolean; onOp
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Sprzedaż pakietu</DialogTitle>
         </DialogHeader>
-        <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
+        <div key={formKey} className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
           <div className="space-y-1">
-            <Label>Pacjent (imię, nazwisko lub telefon)</Label>
-            <PatientPicker key={pickerKey} value={patientId} onChange={setPatientId} allowNew={false} />
+            <Label>Kupujący (imię, nazwisko lub telefon)</Label>
+            <PatientQuickField value={buyer} onChange={setBuyer} />
           </div>
+
+          <div className="space-y-2">
+            <Label>Dla kogo jest pakiet</Label>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ["PATIENT", "Imienny — dla pacjenta"],
+                  ["ANONYMOUS", "Anonimowy (na okaziciela)"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setHolderType(value)}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-sm font-medium",
+                    holderType === value ? "border-emerald-600 bg-emerald-600 text-white" : "bg-white text-zinc-600 dark:bg-[#0b1220] dark:text-zinc-300",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {holderType === "ANONYMOUS" ? (
+              <p className="text-xs text-zinc-500">Z pakietu skorzysta każdy, kto poda jego kod przy rozliczeniu wizyty.</p>
+            ) : (
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={holderIsBuyer} onChange={(e) => setHolderIsBuyer(e.target.checked)} />
+                  Pakiet dla kupującego{buyer ? ` (${buyer.name})` : ""}
+                </label>
+                {!holderIsBuyer ? (
+                  <div className="space-y-1">
+                    <Label>Pacjent, który będzie korzystał z pakietu</Label>
+                    <PatientQuickField value={holder} onChange={setHolder} />
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
           <div className="space-y-1">
-            <Label htmlFor="p-template">Pakiet z katalogu (lub wpisz własny poniżej)</Label>
+            <Label htmlFor="p-template">Pakiet z katalogu (opcjonalnie)</Label>
             <select id="p-template" value={templateId} onChange={(e) => chooseTemplate(e.target.value)} className={selectClass}>
               <option value="">— własny pakiet —</option>
               {templates.map((t) => (
@@ -343,31 +423,93 @@ function SellPackageDialog({ open, onOpenChange, onSold }: { open: boolean; onOp
               ))}
             </select>
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="p-title">Tytuł</Label>
-            <Input id="p-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="np. 10 zabiegów Icoone 2 obszary" />
+
+          <div className="space-y-2">
+            <Label>Usługi w pakiecie</Label>
+            {rows.map((row, index) => {
+              const service = serviceById.get(row.serviceId);
+              const count = Number(row.sessions) || 0;
+              return (
+                <div key={row.key} className="space-y-1 rounded-xl border p-2 sm:border-0 sm:p-0">
+                  <div className="flex items-center gap-2">
+                    <ServiceSearchSelect services={services} value={row.serviceId} onChange={(serviceId) => updateRow(row.key, { serviceId })} />
+                    <Input
+                      aria-label="Liczba zabiegów"
+                      className="w-20 text-center"
+                      inputMode="numeric"
+                      placeholder="ilość"
+                      value={row.sessions}
+                      onChange={(e) => updateRow(row.key, { sessions: e.target.value.replace(/\D/g, "").slice(0, 3) })}
+                    />
+                    <span className="hidden w-16 text-xs text-zinc-500 sm:inline">zabiegów</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-10 w-10 shrink-0 px-0 text-lg"
+                      aria-label="Usuń usługę"
+                      title="Usuń usługę"
+                      disabled={rows.length === 1}
+                      onClick={() => setRows((current) => current.filter((r) => r.key !== row.key))}
+                    >
+                      −
+                    </Button>
+                    {index === rows.length - 1 ? (
+                      <Button type="button" variant="outline" size="sm" className="h-10 w-10 shrink-0 px-0 text-lg" aria-label="Dodaj usługę" title="Dodaj kolejną usługę" onClick={() => setRows((current) => [...current, emptyRow()])}>
+                        +
+                      </Button>
+                    ) : (
+                      <span className="w-10 shrink-0" />
+                    )}
+                  </div>
+                  {service && count > 0 ? (
+                    <div className="pl-1 text-xs text-zinc-500">
+                      {typeof service.price === "number"
+                        ? `${count} × ${formatPLNFromGrosze(service.price)} = ${formatPLNFromGrosze(count * service.price)}`
+                        : "Usługa nie ma ustalonej ceny standardowej"}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="p-title">Tytuł (opcjonalnie)</Label>
+            <Input id="p-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={autoTitle || "np. Pakiet odmładzający"} />
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label htmlFor="p-sessions">Liczba zabiegów</Label>
-              <Input id="p-sessions" inputMode="numeric" value={sessions} onChange={(e) => setSessions(e.target.value.replace(/\D/g, ""))} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="p-price">Cena pakietu (zł)</Label>
+              <Label htmlFor="p-price">Cena pakietu za całość (zł)</Label>
               <Input id="p-price" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} />
             </div>
+            <div className="space-y-1">
+              <Label>Wartość w cenach standardowych</Label>
+              <div className="flex h-10 items-center rounded-xl border border-dashed px-3 text-sm">
+                {filledRows.length === 0 ? (
+                  <span className="text-zinc-400">wybierz usługi i ilości</span>
+                ) : (
+                  <span>
+                    <strong>{formatPLNFromGrosze(standardValue)}</strong>
+                    {discount !== null && discount > 0 ? (
+                      <span className="ml-2 text-emerald-700 dark:text-emerald-300">
+                        rabat {formatPLNFromGrosze(discount)} ({Math.round((discount / standardValue) * 100)}%)
+                      </span>
+                    ) : discount !== null && discount < 0 ? (
+                      <span className="ml-2 text-amber-700 dark:text-amber-300">cena wyższa o {formatPLNFromGrosze(-discount)}</span>
+                    ) : null}
+                  </span>
+                )}
+              </div>
+              {missingPrice.length > 0 ? (
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  Bez ceny standardowej: {missingPrice.map((row) => serviceById.get(row.serviceId)?.name).join(", ")} — nie wliczono do wartości.
+                </p>
+              ) : null}
+            </div>
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="p-service">Usługa (do jakiej wizyty pasuje pakiet)</Label>
-            <select id="p-service" value={serviceId} onChange={(e) => setServiceId(e.target.value)} className={selectClass}>
-              <option value="">dowolna usługa</option>
-              {services.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <Label htmlFor="p-exp">Termin ważności</Label>
@@ -447,13 +589,35 @@ function PackageDetailDialog({ id, canCancel, onClose, onChanged }: { id: string
             <div>
               <div className="font-medium">{p.title}</div>
               <div className="text-zinc-500">
+                Kupujący:{" "}
                 <Link href={`/admin/patients/${p.patient.id}`} className="hover:underline">
                   {p.patient.name}
                 </Link>
                 {p.patient.phone ? ` · ${p.patient.phone}` : ""}
-                {p.serviceName ? ` · ${p.serviceName}` : ""}
+              </div>
+              <div className="text-zinc-500">
+                {p.holder ? (
+                  <>
+                    Dla:{" "}
+                    <Link href={`/admin/patients/${p.holder.id}`} className="hover:underline">
+                      {p.holder.name}
+                    </Link>
+                  </>
+                ) : (
+                  "Pakiet anonimowy (na okaziciela) — rozlicza się go kodem przy wizycie dowolnego pacjenta"
+                )}
               </div>
             </div>
+            <ul className="divide-y rounded-xl border">
+              {p.items.map((item) => (
+                <li key={item.id} className="flex items-center justify-between gap-2 p-2.5">
+                  <span>{item.serviceName ?? "dowolna usługa"}</span>
+                  <span>
+                    zostało <strong>{item.left}</strong> z {item.sessions}
+                  </span>
+                </li>
+              ))}
+            </ul>
             <div className="grid grid-cols-3 gap-2">
               <div className="rounded-xl border p-3">
                 <div className="text-xs text-zinc-500">Zabiegi</div>
@@ -464,6 +628,9 @@ function PackageDetailDialog({ id, canCancel, onClose, onChanged }: { id: string
               <div className="rounded-xl border p-3">
                 <div className="text-xs text-zinc-500">Cena</div>
                 <div className="font-semibold">{formatPLNFromGrosze(p.price)}</div>
+                {p.standardValue !== null && p.standardValue > p.price ? (
+                  <div className="text-xs text-zinc-500">standardowo {formatPLNFromGrosze(p.standardValue)}</div>
+                ) : null}
               </div>
               <div className="rounded-xl border p-3">
                 <div className="text-xs text-zinc-500">Ważny do</div>
@@ -489,6 +656,7 @@ function PackageDetailDialog({ id, canCancel, onClose, onChanged }: { id: string
                     <li key={u.id} className="flex items-center justify-between gap-2 p-2.5">
                       <span>
                         {u.visitAt ? fmtDate(u.visitAt) : fmtDate(u.at)} · {u.serviceName ?? "wizyta"}
+                        {u.patientName && u.patientName !== p.holder?.name ? ` · ${u.patientName}` : ""}
                       </span>
                       <span className="flex items-center gap-2">
                         <strong>−{u.sessions}</strong>

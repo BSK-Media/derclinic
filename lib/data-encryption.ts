@@ -59,6 +59,8 @@ export const ENCRYPTED_FIELDS = {
   noteVersion: ["note"],
   // Czat wewnętrzny personelu — treść wiadomości.
   staffMessage: ["body"],
+  // Imię i nazwisko obdarowanego na voucherze imiennym.
+  voucher: ["recipientName"],
 } as const;
 
 type EncryptedModel = keyof typeof ENCRYPTED_FIELDS;

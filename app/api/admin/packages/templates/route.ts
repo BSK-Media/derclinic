@@ -25,7 +25,7 @@ export async function GET() {
     prisma.service.findMany({
       where: { isArchived: false, name: { not: "__DERCLINIC_REZERWACJA_CZASU__" } },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: { id: true, name: true, price: true },
     }),
   ]);
 

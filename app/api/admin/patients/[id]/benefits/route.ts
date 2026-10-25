@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole, scopedLocationWhere } from "@/lib/api-helpers";
-import { benefitStatus, packageSessionsLeft, voucherRemaining } from "@/lib/vouchers";
+import { benefitStatus, voucherRemaining } from "@/lib/vouchers";
+import { PACKAGE_INCLUDE, summarizePackage } from "@/lib/package-summary";
 
 export const dynamic = "force-dynamic";
 
-// Vouchery i pakiety pacjenta wraz z wykorzystaniem — do karty pacjenta.
+// Vouchery kupione przez pacjenta oraz jego pakiety (kupione lub imienne) wraz z wykorzystaniem — do karty pacjenta.
 export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const { user, error } = await requireAuth();
@@ -30,10 +31,14 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       orderBy: { createdAt: "desc" },
       include: { payments: { orderBy: { createdAt: "asc" }, select: paymentSelect } },
     }),
+    // Pakiety kupione przez pacjenta i pakiety imienne, z których pacjent korzysta.
     prisma.patientPackage.findMany({
-      where: { patientId: patient.id },
+      where: { OR: [{ patientId: patient.id }, { holderPatientId: patient.id }] },
       orderBy: { createdAt: "desc" },
-      include: { service: { select: { name: true } }, payments: { orderBy: { createdAt: "asc" }, select: paymentSelect } },
+      include: {
+        ...PACKAGE_INCLUDE,
+        payments: { orderBy: { createdAt: "asc" }, select: { ...paymentSelect, patientPackageItemId: true, appointmentId: true } },
+      },
     }),
   ]);
 
@@ -55,6 +60,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
         id: v.id,
         code: v.code,
         title: v.title,
+        recipientName: v.recipientName,
         amount: v.amount,
         remaining,
         expiresAt: v.expiresAt ? v.expiresAt.toISOString() : null,
@@ -63,16 +69,18 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       };
     }),
     packages: packages.map((p) => {
-      const left = packageSessionsLeft(p.sessionsTotal, p.payments);
+      const summary = summarizePackage(p);
       return {
         id: p.id,
         code: p.code,
         title: p.title,
-        serviceName: p.service?.name ?? null,
+        items: summary.items,
         sessionsTotal: p.sessionsTotal,
-        sessionsLeft: left,
+        sessionsLeft: summary.sessionsLeft,
         expiresAt: p.expiresAt ? p.expiresAt.toISOString() : null,
-        status: benefitStatus({ canceledAt: p.canceledAt, expiresAt: p.expiresAt, remaining: left }),
+        status: summary.status,
+        buyer: p.patient,
+        holder: p.holder,
         usage: p.payments.map(usage),
       };
     }),

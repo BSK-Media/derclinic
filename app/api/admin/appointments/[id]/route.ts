@@ -1,7 +1,7 @@
 import { isAdminLike } from "@/lib/roles";
 import { logRecordAccess } from "@/lib/access-log";
 import { recordNoteVersion } from "@/lib/note-versions";
-import { benefitStatus, packageSessionsLeft, voucherRemaining } from "@/lib/vouchers";
+import { packageProblem, visitBenefits, voucherProblem } from "@/lib/visit-benefits";
 import { suggestLotsByProduct } from "@/lib/lot-allocation";
 import { NextResponse, after } from "next/server";
 import {
@@ -141,52 +141,11 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     specialistOptions.unshift({ id: appt.specialistId, name: appt.specialist.name, assignedToService: true, busy: false });
   }
 
-  // Vouchery i pakiety pacjenta, którymi można rozliczyć tę wizytę (aktywne, z saldem). Wliczamy też te już użyte
-  // przy tej wizycie, żeby dało się je zmienić.
-  const [patientVouchers, patientPackages] = await Promise.all([
-    prisma.voucher.findMany({
-      where: { patientId: appt.patientId },
-      orderBy: { createdAt: "asc" },
-      include: { payments: { select: { id: true, amount: true, appointmentId: true } } },
-    }),
-    prisma.patientPackage.findMany({
-      where: { patientId: appt.patientId },
-      orderBy: { createdAt: "asc" },
-      include: { payments: { select: { id: true, packageSessions: true, appointmentId: true } } },
-    }),
-  ]);
-  const usableVouchers = patientVouchers
-    .map((v) => {
-      const remaining = voucherRemaining(v.amount, v.payments);
-      const usedHere = v.payments.filter((p) => p.appointmentId === appt.id).reduce((sum, p) => sum + p.amount, 0);
-      return {
-        id: v.id,
-        code: v.code,
-        title: v.title,
-        remaining,
-        // Saldo dostępne dla tej wizyty (łącznie z kwotą już z niej pobraną).
-        availableHere: remaining + usedHere,
-        expiresAt: v.expiresAt ? v.expiresAt.toISOString() : null,
-        status: benefitStatus({ canceledAt: v.canceledAt, expiresAt: v.expiresAt, remaining: Math.max(1, remaining + usedHere) }),
-      };
-    })
-    .filter((v) => v.status === "ACTIVE" && v.availableHere > 0);
-  const usablePackages = patientPackages
-    .map((p) => {
-      const left = packageSessionsLeft(p.sessionsTotal, p.payments);
-      const usedHere = p.payments.filter((x) => x.appointmentId === appt.id).reduce((sum, x) => sum + (x.packageSessions ?? 0), 0);
-      return {
-        id: p.id,
-        code: p.code,
-        title: p.title,
-        sessionsLeft: left,
-        availableHere: left + usedHere,
-        serviceId: p.serviceId,
-        expiresAt: p.expiresAt ? p.expiresAt.toISOString() : null,
-        status: benefitStatus({ canceledAt: p.canceledAt, expiresAt: p.expiresAt, remaining: Math.max(1, left + usedHere) }),
-      };
-    })
-    .filter((p) => p.status === "ACTIVE" && p.availableHere > 0 && (!p.serviceId || p.serviceId === appt.serviceId));
+  // Vouchery i pakiety, którymi można rozliczyć tę wizytę (aktywne, z saldem). Wliczamy też te już użyte przy tej
+  // wizycie, żeby dało się je zmienić. Inne (np. pakiet anonimowy kupiony przez kogoś innego) odszukuje się kodem.
+  const benefits = await visitBenefits(prisma, { id: appt.id, patientId: appt.patientId, serviceId: appt.serviceId });
+  const usableVouchers = benefits.vouchers.filter((v) => !voucherProblem(v));
+  const usablePackages = benefits.packages.filter((p) => !packageProblem(p));
 
   return NextResponse.json({
     ok: true,
@@ -196,8 +155,8 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     // Opis płatności voucherem/pakietem (kod i tytuł) do tabeli płatności na karcie wizyty.
     paymentRefs: Object.fromEntries(
       appt.payments.flatMap((p) => {
-        const voucher = p.voucherId ? patientVouchers.find((v) => v.id === p.voucherId) : null;
-        const pack = p.patientPackageId ? patientPackages.find((x) => x.id === p.patientPackageId) : null;
+        const voucher = p.voucherId ? benefits.vouchers.find((v) => v.id === p.voucherId) : null;
+        const pack = p.patientPackageId ? benefits.packages.find((x) => x.id === p.patientPackageId) : null;
         if (voucher) return [[p.id, `${voucher.code} · ${voucher.title}`]];
         if (pack) return [[p.id, `${pack.code} · ${pack.title} (zabiegów: ${p.packageSessions ?? 1})`]];
         return [];

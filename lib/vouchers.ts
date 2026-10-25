@@ -37,6 +37,38 @@ export function packageSessionsLeft(total: number, payments: { packageSessions: 
   return Math.max(0, total - payments.reduce((sum, p) => sum + (p.packageSessions ?? 0), 0));
 }
 
+export type PackageItemUsage = {
+  id: string;
+  serviceId: string | null;
+  sessions: number;
+};
+
+/** Pozostałe zabiegi w każdej pozycji pakietu (usłudze): liczba zabiegów pozycji minus jej rozliczenia. */
+export function packageItemsLeft<T extends PackageItemUsage>(
+  items: T[],
+  payments: { patientPackageItemId: string | null; packageSessions: number | null }[],
+): (T & { left: number })[] {
+  return items.map((item) => ({
+    ...item,
+    left: Math.max(
+      0,
+      item.sessions -
+        payments.filter((p) => p.patientPackageItemId === item.id).reduce((sum, p) => sum + (p.packageSessions ?? 0), 0),
+    ),
+  }));
+}
+
+/** Pozycja pakietu, z której rozlicza się wizyta danej usługi: najpierw ta sama usługa, potem pozycja „dowolna usługa”. */
+export function packageItemForService<T extends PackageItemUsage>(items: T[], serviceId: string | null): T | null {
+  return items.find((item) => item.serviceId && item.serviceId === serviceId) ?? items.find((item) => !item.serviceId) ?? null;
+}
+
+/** Wartość pakietu w cenach standardowych (grosze); null, gdy któraś usługa nie ma ceny. */
+export function packageStandardValue(items: { sessions: number; unitPrice: number | null | undefined }[]): number | null {
+  if (items.length === 0 || items.some((item) => item.unitPrice === null || item.unitPrice === undefined)) return null;
+  return items.reduce((sum, item) => sum + item.sessions * (item.unitPrice ?? 0), 0);
+}
+
 /** Data w formacie z pola <input type="date"> (RRRR-MM-DD) → północ UTC tego dnia; puste = brak terminu. */
 export function parseExpiryDate(value: string | null | undefined): Date | null | undefined {
   if (value === undefined) return undefined;

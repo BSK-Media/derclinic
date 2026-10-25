@@ -22,7 +22,15 @@ async function load(id: string, user: { locationScopeId: string | null }) {
           id: true,
           amount: true,
           createdAt: true,
-          appointment: { select: { id: true, startsAt: true, customServiceName: true, service: { select: { name: true } } } },
+          appointment: {
+            select: {
+              id: true,
+              startsAt: true,
+              customServiceName: true,
+              service: { select: { name: true } },
+              patient: { select: { id: true, name: true } },
+            },
+          },
         },
       },
     },
@@ -46,6 +54,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       id: v.id,
       code: v.code,
       title: v.title,
+      recipientName: v.recipientName,
       amount: v.amount,
       remaining,
       expiresAt: v.expiresAt ? v.expiresAt.toISOString() : null,
@@ -64,6 +73,8 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
         appointmentId: p.appointment?.id ?? null,
         visitAt: p.appointment?.startsAt.toISOString() ?? null,
         serviceName: p.appointment ? p.appointment.customServiceName || p.appointment.service.name : null,
+        // Kto zrealizował voucher (może to być inna osoba niż kupujący).
+        patientName: p.appointment?.patient.name ?? null,
       })),
     },
   });
@@ -113,8 +124,8 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
     entity: "Voucher",
     entityId: v.id,
     summary: parsed.data.cancel
-      ? `Anulowano voucher ${v.code} pacjenta ${v.patient.name} (niewykorzystane: ${formatPLNFromGrosze(voucherRemaining(v.amount, v.payments))})`
-      : `Zmiana vouchera ${v.code} pacjenta ${v.patient.name}`,
+      ? `Anulowano voucher ${v.code} (kupujący ${v.patient.name}; niewykorzystane: ${formatPLNFromGrosze(voucherRemaining(v.amount, v.payments))})`
+      : `Zmiana vouchera ${v.code} (kupujący ${v.patient.name})`,
     data: { ...parsed.data },
   });
   return NextResponse.json({ ok: true });

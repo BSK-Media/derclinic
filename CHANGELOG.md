@@ -3,6 +3,12 @@
 Format: najnowsze na górze, zmiany pogrupowane według daty wdrożenia. Szczegóły techniczne: historia commitów
 i migracje w `prisma/migrations`.
 
+## 2026-10-25
+### Zmieniono
+- Sprzedaż pakietu: kupujący wybierany z bazy albo dodawany w miejscu (imię, nazwisko, telefon, e-mail — bez dublowania po numerze telefonu); pakiet imienny (dla kupującego lub innego pacjenta) albo anonimowy (na okaziciela, rozliczany kodem przy wizycie dowolnego pacjenta). Pakiet może obejmować kilka usług, każdą z własną liczbą zabiegów (wiersze dodawane „+” i usuwane „−”, usługa z wyszukiwaniem); obok ceny za całość widać wartość tych zabiegów w cenach standardowych i rabat. Pozostałe zabiegi liczą się osobno dla każdej usługi.
+- Sprzedaż vouchera: kupujący z bazy lub dodany w miejscu; voucher anonimowy albo imienny z dowolnym imieniem i nazwiskiem obdarowanego (zaszyfrowanym w bazie). Voucher realizuje każdy, kto poda kod.
+- Karta wizyty: przy płatności voucherem lub pakietem można wpisać kod (V-… / P-…), żeby rozliczyć voucher lub pakiet anonimowy kupiony przez kogoś innego. Migracja `20261106120000_package_items_buyers`.
+
 ## 2026-10-15
 ### Dodano
 - Vouchery (karty podarunkowe): zakładka Vouchery — sprzedaż na kwotę dla pacjenta (tytuł, kwota, termin ważności, sposób zapłaty), kod vouchera, saldo i historia wykorzystania; widoczne też na karcie pacjenta. Voucherem rozlicza się wizytę (całość lub część) przy płatności.

@@ -3,7 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
-import { benefitStatus, packageSessionsLeft, parseExpiryDate } from "@/lib/vouchers";
+import { parseExpiryDate } from "@/lib/vouchers";
+import { PACKAGE_INCLUDE, summarizePackage } from "@/lib/package-summary";
 
 export const dynamic = "force-dynamic";
 
@@ -13,8 +14,7 @@ async function load(id: string, user: { locationScopeId: string | null }) {
   return prisma.patientPackage.findFirst({
     where: { id, patient: { ...scopedLocationWhere(user) } },
     include: {
-      patient: { select: { id: true, name: true, phone: true } },
-      service: { select: { name: true } },
+      ...PACKAGE_INCLUDE,
       createdBy: { select: { name: true } },
       payments: {
         orderBy: { createdAt: "asc" },
@@ -22,15 +22,25 @@ async function load(id: string, user: { locationScopeId: string | null }) {
           id: true,
           amount: true,
           packageSessions: true,
+          patientPackageItemId: true,
+          appointmentId: true,
           createdAt: true,
-          appointment: { select: { id: true, startsAt: true, customServiceName: true, service: { select: { name: true } } } },
+          appointment: {
+            select: {
+              id: true,
+              startsAt: true,
+              customServiceName: true,
+              service: { select: { name: true } },
+              patient: { select: { id: true, name: true } },
+            },
+          },
         },
       },
     },
   });
 }
 
-// Szczegóły pakietu: ile zabiegów zostało i historia rozliczeń.
+// Szczegóły pakietu: pozostałe zabiegi w rozbiciu na usługi i historia rozliczeń.
 export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const { user, error } = await requireAuth();
@@ -40,17 +50,19 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
 
   const p = await load(params.id, user!);
   if (!p) return NextResponse.json({ ok: false, message: "Nie znaleziono pakietu" }, { status: 404 });
-  const left = packageSessionsLeft(p.sessionsTotal, p.payments);
+  const summary = summarizePackage(p);
   return NextResponse.json({
     ok: true,
     package: {
       id: p.id,
       code: p.code,
       title: p.title,
-      serviceName: p.service?.name ?? null,
+      servicesLabel: summary.servicesLabel,
+      items: summary.items,
       sessionsTotal: p.sessionsTotal,
-      sessionsLeft: left,
+      sessionsLeft: summary.sessionsLeft,
       price: p.price,
+      standardValue: p.standardValue,
       expiresAt: p.expiresAt ? p.expiresAt.toISOString() : null,
       createdAt: p.createdAt.toISOString(),
       createdBy: p.createdBy?.name ?? null,
@@ -58,8 +70,9 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       note: p.note,
       canceledAt: p.canceledAt ? p.canceledAt.toISOString() : null,
       cancelReason: p.cancelReason,
-      status: benefitStatus({ canceledAt: p.canceledAt, expiresAt: p.expiresAt, remaining: left }),
+      status: summary.status,
       patient: p.patient,
+      holder: p.holder,
       usage: p.payments.map((x) => ({
         id: x.id,
         sessions: x.packageSessions ?? 0,
@@ -67,6 +80,8 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
         appointmentId: x.appointment?.id ?? null,
         visitAt: x.appointment?.startsAt.toISOString() ?? null,
         serviceName: x.appointment ? x.appointment.customServiceName || x.appointment.service.name : null,
+        // Przy pakiecie anonimowym ważne, kto z niego skorzystał.
+        patientName: x.appointment?.patient.name ?? null,
       })),
     },
   });
@@ -115,8 +130,8 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
     entity: "PatientPackage",
     entityId: p.id,
     summary: parsed.data.cancel
-      ? `Anulowano pakiet ${p.code} pacjenta ${p.patient.name} (pozostało zabiegów: ${packageSessionsLeft(p.sessionsTotal, p.payments)})`
-      : `Zmiana pakietu ${p.code} pacjenta ${p.patient.name}`,
+      ? `Anulowano pakiet ${p.code} (kupujący ${p.patient.name}; pozostało zabiegów: ${summarizePackage(p).sessionsLeft})`
+      : `Zmiana pakietu ${p.code} (kupujący ${p.patient.name})`,
     data: { ...parsed.data },
   });
   return NextResponse.json({ ok: true });

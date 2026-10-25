@@ -11,6 +11,7 @@ import {
   scopedLocationWhere,
 } from "@/lib/api-helpers";
 import { logAudit, formatWarsaw } from "@/lib/audit";
+import { findOrCreatePatientByPhone } from "@/lib/quick-patient";
 
 const RESERVATION_SERVICE_NAME = "__DERCLINIC_REZERWACJA_CZASU__";
 const RESERVATION_PATIENT_NAME = "__DERCLINIC_REZERWACJA_CZASU__";
@@ -202,13 +203,6 @@ const CreateSchema = z
     }
   });
 
-function normalizePhone(value: string) {
-  const trimmed = value.trim();
-  const digits = trimmed.replace(/\D/g, "");
-  if (!digits) return trimmed;
-  return trimmed.startsWith("+") ? `+${digits}` : digits;
-}
-
 export async function POST(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
@@ -306,54 +300,16 @@ export async function POST(req: Request) {
   }
   if (!patientId && parsed.data.newPatient) {
     const newPatient = parsed.data.newPatient;
-    const patientName = `${newPatient.firstName} ${newPatient.lastName}`
-      .replace(/\s+/g, " ")
-      .trim();
-    const phone = normalizePhone(newPatient.phone);
-    const email = newPatient.email?.trim() || null;
-
     // Ten sam numer telefonu = ten sam klient — nie duplikujemy kartotek
-    const existingPatient = await prisma.patient.findFirst({
-      where: { phone, locationId: appointmentLocationId },
-      orderBy: { updatedAt: "desc" },
-      select: { id: true, email: true },
+    const { patient } = await findOrCreatePatientByPhone(prisma, {
+      name: `${newPatient.firstName} ${newPatient.lastName}`,
+      phone: newPatient.phone,
+      email: newPatient.email,
+      locationId: appointmentLocationId,
+      actorId: user!.id,
+      context: "przy dodawaniu wizyty",
     });
-    if (existingPatient) {
-      patientId = existingPatient.id;
-      if (email && !existingPatient.email) {
-        await prisma.patient.update({
-          where: { id: existingPatient.id },
-          data: { email },
-        });
-        await logAudit({
-          actorId: user!.id,
-          action: "UPDATE",
-          entity: "Patient",
-          entityId: existingPatient.id,
-          summary: `Uzupełnienie adresu e-mail pacjenta przy dodawaniu wizyty: ${email}`,
-          data: { changes: { email: { from: null, to: email } } },
-        });
-      }
-    } else {
-      const createdPatient = await prisma.patient.create({
-        data: {
-          name: patientName,
-          phone,
-          email,
-          locationId: appointmentLocationId,
-        },
-        select: { id: true },
-      });
-      patientId = createdPatient.id;
-      await logAudit({
-        actorId: user!.id,
-        action: "CREATE",
-        entity: "Patient",
-        entityId: createdPatient.id,
-        summary: `Nowa karta pacjenta przy dodawaniu wizyty: ${patientName} (${phone})`,
-        data: { name: patientName, phone, email, locationId: appointmentLocationId },
-      });
-    }
+    patientId = patient.id;
   }
   if (!patientId) {
     return NextResponse.json(

@@ -15,11 +15,17 @@ export function PatientPicker({
   value,
   onChange,
   allowNew = true,
+  valueLabel,
+  onPick,
 }: {
   locationId?: string;
   value: string;
   onChange: (value: string) => void;
   allowNew?: boolean;
+  // Nazwa pacjenta ustawionego z zewnątrz (np. właśnie dodanego), gdy nie wybrano go z listy.
+  valueLabel?: string;
+  // Wybrany z listy pacjent (identyfikator i nazwa).
+  onPick?: (patient: { id: string; name: string }) => void;
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -67,11 +73,12 @@ export function PatientPicker({
     };
   }, [open]);
 
-  const selectedLabel = value === NEW_PATIENT ? "➕ Nowy klient" : value ? pickedName : "";
+  const selectedLabel = value === NEW_PATIENT ? "➕ Nowy klient" : value ? pickedName || valueLabel || "" : "";
 
   function pick(next: string, name = "") {
     setPickedName(name);
     onChange(next);
+    if (next !== NEW_PATIENT) onPick?.({ id: next, name });
     setOpen(false);
   }
 

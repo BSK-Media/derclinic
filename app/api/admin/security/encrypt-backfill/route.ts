@@ -20,6 +20,7 @@ const TABLES = {
   consumption: "Consumption",
   retailSale: "RetailSale",
   staffMessage: "StaffMessage",
+  voucher: "Voucher",
 } as const;
 const BATCH = 25;
 

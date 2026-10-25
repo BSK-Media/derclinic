@@ -9,12 +9,14 @@ import { BENEFIT_STATUS_LABELS, type BenefitStatus } from "@/lib/vouchers";
 import { cn } from "@/lib/utils";
 
 type Usage = { id: string; amount: number; sessions: number | null; at: string; appointmentId: string | null; visitAt: string | null; serviceName: string | null };
-type VoucherItem = { id: string; code: string; title: string; amount: number; remaining: number; expiresAt: string | null; status: BenefitStatus; usage: Usage[] };
+type VoucherItem = { id: string; code: string; title: string; recipientName: string | null; amount: number; remaining: number; expiresAt: string | null; status: BenefitStatus; usage: Usage[] };
 type PackageItem = {
   id: string;
   code: string;
   title: string;
-  serviceName: string | null;
+  items: { id: string; serviceName: string | null; sessions: number; left: number }[];
+  buyer: { id: string; name: string };
+  holder: { id: string; name: string } | null;
   sessionsTotal: number;
   sessionsLeft: number;
   expiresAt: string | null;
@@ -32,7 +34,7 @@ const TONE: Record<BenefitStatus, string> = {
   CANCELED: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-200",
 };
 
-// Vouchery i pakiety pacjenta z saldem / pozostałymi zabiegami i historią wykorzystania (karta pacjenta).
+// Vouchery kupione przez pacjenta i jego pakiety (kupione lub imienne) z saldem / pozostałymi zabiegami i historią wykorzystania (karta pacjenta).
 export function PatientBenefits({ patientId }: { patientId: string }) {
   const { data } = useSWR<{ ok: boolean; vouchers: VoucherItem[]; packages: PackageItem[] }>(`/api/admin/patients/${patientId}/benefits`, fetcher);
   if (!data?.ok || (data.vouchers.length === 0 && data.packages.length === 0)) return null;
@@ -59,7 +61,9 @@ export function PatientBenefits({ patientId }: { patientId: string }) {
                 </span>
               </summary>
               <div className="mt-2 space-y-1 text-sm">
-                <div className="text-xs text-zinc-500">Ważny do: {fmtDate(v.expiresAt)}</div>
+                <div className="text-xs text-zinc-500">
+                  {v.recipientName ? `Imienny dla: ${v.recipientName}` : "Anonimowy (na okaziciela)"} · Ważny do: {fmtDate(v.expiresAt)}
+                </div>
                 {v.usage.length === 0 ? (
                   <div className="text-zinc-500">Voucher nie był jeszcze użyty.</div>
                 ) : (
@@ -104,7 +108,16 @@ export function PatientBenefits({ patientId }: { patientId: string }) {
               </summary>
               <div className="mt-2 space-y-1 text-sm">
                 <div className="text-xs text-zinc-500">
-                  {p.serviceName ? `Usługa: ${p.serviceName} · ` : ""}Ważny do: {fmtDate(p.expiresAt)}
+                  {p.buyer.id === patientId ? "Kupiony przez pacjenta" : `Kupujący: ${p.buyer.name}`} ·{" "}
+                  {p.holder ? (p.holder.id === patientId ? "imienny dla pacjenta" : `dla: ${p.holder.name}`) : "anonimowy (na okaziciela)"} · Ważny do:{" "}
+                  {fmtDate(p.expiresAt)}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {p.items.map((item) => (
+                    <span key={item.id} className="rounded-full border px-2 py-0.5 text-xs">
+                      {item.serviceName ?? "dowolna usługa"}: <strong>{item.left}</strong> z {item.sessions}
+                    </span>
+                  ))}
                 </div>
                 {p.usage.length === 0 ? (
                   <div className="text-zinc-500">Żaden zabieg nie został jeszcze rozliczony.</div>

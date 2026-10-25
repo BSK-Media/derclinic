@@ -5,7 +5,7 @@ import { requireAuth, requireStrictRole, scopedLocationWhere } from "@/lib/api-h
 import { logAudit } from "@/lib/audit";
 import { AUDIT_PAYMENT_METHOD_LABELS } from "@/lib/audit-labels";
 import { formatPLNFromGrosze } from "@/lib/money";
-import { benefitStatus, packageSessionsLeft, voucherRemaining } from "@/lib/vouchers";
+import { packageProblem, visitPackageById, visitVoucherById, voucherProblem } from "@/lib/visit-benefits";
 
 const BodySchema = z.object({
   method: z.enum(["CASH", "CARD", "TRANSFER", "BLIK", "VOUCHER", "PACKAGE"]),
@@ -79,43 +79,37 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     return NextResponse.json({ ok: false, message: "Kwota przekracza należność dostępną dla tej metody" }, { status: 400 });
   }
 
+  const visit = { id: appointment.id, patientId: appointment.patientId, serviceId: appointment.serviceId };
+  const scope = scopedLocationWhere(user!);
   let detail = "";
+  let patientPackageItemId: string | null = null;
   if (method === "VOUCHER") {
-    const voucher = await prisma.voucher.findFirst({
-      where: { id: voucherId, patientId: appointment.patientId },
-      include: { payments: { select: { id: true, amount: true } } },
-    });
-    if (!voucher) return NextResponse.json({ ok: false, message: "Ten voucher nie należy do pacjenta tej wizyty" }, { status: 400 });
-    const withoutThisVisit = voucher.payments.filter((p) => p.id !== existing?.id);
-    const remaining = voucherRemaining(voucher.amount, withoutThisVisit);
-    const status = benefitStatus({ canceledAt: voucher.canceledAt, expiresAt: voucher.expiresAt, remaining: Math.max(1, remaining) });
-    if (status === "CANCELED") return NextResponse.json({ ok: false, message: "Voucher został anulowany" }, { status: 400 });
-    if (status === "EXPIRED") return NextResponse.json({ ok: false, message: "Voucher stracił ważność" }, { status: 400 });
-    if (amount > remaining) {
+    // Voucher (anonimowy lub imienny) może zrealizować każdy pacjent, który go przyniesie.
+    const voucher = await visitVoucherById(prisma, visit, voucherId!, scope);
+    if (!voucher) return NextResponse.json({ ok: false, message: "Nie znaleziono vouchera" }, { status: 400 });
+    const problem = voucherProblem(voucher);
+    if (problem) return NextResponse.json({ ok: false, message: problem }, { status: 400 });
+    if (amount > voucher.availableHere) {
       return NextResponse.json(
-        { ok: false, message: `Na voucherze zostało tylko ${formatPLNFromGrosze(remaining)}` },
+        { ok: false, message: `Na voucherze zostało tylko ${formatPLNFromGrosze(voucher.availableHere)}` },
         { status: 400 },
       );
     }
     detail = ` (voucher ${voucher.code})`;
   }
   if (method === "PACKAGE") {
-    const pack = await prisma.patientPackage.findFirst({
-      where: { id: patientPackageId, patientId: appointment.patientId },
-      include: { payments: { select: { id: true, packageSessions: true } } },
-    });
-    if (!pack) return NextResponse.json({ ok: false, message: "Ten pakiet nie należy do pacjenta tej wizyty" }, { status: 400 });
-    if (pack.serviceId && pack.serviceId !== appointment.serviceId) {
-      return NextResponse.json({ ok: false, message: "Ten pakiet dotyczy innej usługi niż ta wizyta" }, { status: 400 });
+    const pack = await visitPackageById(prisma, visit, patientPackageId!, scope);
+    if (!pack) return NextResponse.json({ ok: false, message: "Nie znaleziono pakietu" }, { status: 400 });
+    const problem = packageProblem(pack);
+    if (problem) return NextResponse.json({ ok: false, message: problem }, { status: 400 });
+    if (packageSessions > pack.availableHere) {
+      return NextResponse.json(
+        { ok: false, message: `W pakiecie zostało tylko zabiegów (${pack.itemServiceName}): ${pack.availableHere}` },
+        { status: 400 },
+      );
     }
-    const left = packageSessionsLeft(pack.sessionsTotal, pack.payments.filter((p) => p.id !== existing?.id));
-    const status = benefitStatus({ canceledAt: pack.canceledAt, expiresAt: pack.expiresAt, remaining: Math.max(1, left) });
-    if (status === "CANCELED") return NextResponse.json({ ok: false, message: "Pakiet został anulowany" }, { status: 400 });
-    if (status === "EXPIRED") return NextResponse.json({ ok: false, message: "Pakiet stracił ważność" }, { status: 400 });
-    if (packageSessions > left) {
-      return NextResponse.json({ ok: false, message: `W pakiecie zostało tylko zabiegów: ${left}` }, { status: 400 });
-    }
-    detail = ` (pakiet ${pack.code}, zabiegów: ${packageSessions})`;
+    patientPackageItemId = pack.itemId;
+    detail = ` (pakiet ${pack.code}, ${pack.itemServiceName}, zabiegów: ${packageSessions})`;
   }
 
   const replaced = Boolean(existing);
@@ -128,6 +122,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
         amount,
         voucherId: method === "VOUCHER" ? voucherId : null,
         patientPackageId: method === "PACKAGE" ? patientPackageId : null,
+        patientPackageItemId,
         packageSessions: method === "PACKAGE" ? packageSessions : null,
       },
     });
