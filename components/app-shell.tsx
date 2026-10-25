@@ -160,6 +160,8 @@ const NAV: NavItem[] = [
   { label: "Logi", permission: "logs", icon: <span className="text-lg">🧾</span> },
   { label: "Powiadomienia push", permission: "push", icon: <span className="text-lg">🔔</span> },
   { label: "Newsletter", permission: "newsletter", icon: <span className="text-lg">📰</span> },
+  { label: "Vouchery", permission: "vouchers", icon: <span className="text-lg">🎁</span> },
+  { label: "Pakiety", permission: "packages", icon: <span className="text-lg">🎟️</span> },
   { label: "Czat", permission: "chat", icon: <span className="text-lg">💬</span> },
   // Ustawienia zawsze na samym końcu menu.
   { label: "Ustawienia", permission: "settings", icon: <span className="text-lg">⚙️</span> },

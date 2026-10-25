@@ -88,6 +88,9 @@ export const AUDIT_ENTITY_LABELS: Record<string, string> = {
   EmailSettings: "Ustawienia poczty e-mail",
   Push: "Powiadomienia push",
   PushSettings: "Ustawienia powiadomień push",
+  Voucher: "Voucher",
+  PatientPackage: "Pakiet pacjenta",
+  PackageTemplate: "Katalog pakietów",
 };
 
 export const AUDIT_PAYMENT_METHOD_LABELS: Record<string, string> = {
@@ -97,6 +100,7 @@ export const AUDIT_PAYMENT_METHOD_LABELS: Record<string, string> = {
   ONLINE: "online",
   BLIK: "BLIK",
   TRANSFER: "przelew",
+  PACKAGE: "pakiet",
 };
 
 export const AUDIT_ACTOR_TYPE_LABELS: Record<string, string> = {

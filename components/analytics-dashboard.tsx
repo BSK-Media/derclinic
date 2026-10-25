@@ -63,6 +63,7 @@ const METHOD_LABELS: Record<string, string> = {
   CASH: "Gotówka",
   CARD: "Karta",
   VOUCHER: "Voucher",
+  PACKAGE: "Pakiet",
   ONLINE: "Online",
   BLIK: "BLIK",
   TRANSFER: "Przelew",

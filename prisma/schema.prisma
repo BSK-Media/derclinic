@@ -62,6 +62,8 @@ enum PaymentMethod {
   // potwierdzeniu powstaje zwykła Payment z tą metodą.
   BLIK
   TRANSFER
+  // Rozliczenie wizyty pakietem: zużywa zabiegi z pakietu pacjenta (PatientPackage), nie jest nową wpłatą pieniędzy.
+  PACKAGE
 }
 
 enum ConsumptionStatus {
@@ -189,6 +191,8 @@ model User {
   mfaRecoveryCodes                 MfaRecoveryCode[]
   passkeys                         WebAuthnPasskey[]
   sentChatMessages                 StaffMessage[]             @relation("StaffMessageSender")
+  createdVouchers                  Voucher[]                  @relation("VoucherCreator")
+  createdPatientPackages           PatientPackage[]           @relation("PatientPackageCreator")
   receivedChatMessages             StaffMessage[]             @relation("StaffMessageRecipient")
 
   @@index([role])
@@ -248,6 +252,8 @@ model Patient {
   // niezmienna historia operacji w LoyaltyPointsTransaction (patrz niżej).
   loyaltyPoints             Int                        @default(0)
   loyaltyPointsTransactions LoyaltyPointsTransaction[]
+  vouchers                  Voucher[]
+  patientPackages           PatientPackage[]
 
   locationId String   @default("grodzisk-mazowiecki")
   location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
@@ -311,6 +317,8 @@ model Service {
 
   suggestedProducts     ServiceSuggestedProduct[]
   appointments          Appointment[]
+  packageTemplates      PackageTemplate[]
+  patientPackages       PatientPackage[]
   specialistRates       SpecialistServiceRate[]
   specialistPercents    SpecialistServicePercent[]
   specialistAssignments SpecialistService[]
@@ -794,8 +802,19 @@ model Payment {
   retailSaleId String?
   retailSale   RetailSale? @relation(fields: [retailSaleId], references: [id], onDelete: Cascade)
 
+  // Płatność voucherem: z którego vouchera (saldo = kwota vouchera minus suma takich płatności).
+  voucherId String?
+  voucher   Voucher? @relation(fields: [voucherId], references: [id], onDelete: SetNull)
+
+  // Rozliczenie pakietem: z którego pakietu pacjenta i ile zabiegów zużyto.
+  patientPackageId String?
+  patientPackage   PatientPackage? @relation(fields: [patientPackageId], references: [id], onDelete: SetNull)
+  packageSessions  Int?
+
   @@index([appointmentId])
   @@index([retailSaleId])
+  @@index([voucherId])
+  @@index([patientPackageId])
 }
 
 // Niezmienny, w pełni udokumentowany ślad każdej operacji na punktach
@@ -1483,4 +1502,101 @@ model StaffMessageImage {
   mimeType String
   size     Int
   data     Bytes
+}
+
+// Voucher / karta podarunkowa na kwotę dla konkretnego pacjenta. Saldo = kwota minus suma płatności z tego vouchera
+// (Payment.voucherId); usunięcie takiej płatności zwraca środki na voucher. Sprzedaż (kto i jak zapłacił) zapisana jest tu.
+model Voucher {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // Krótki, czytelny kod do podania klientowi i odszukania vouchera (np. V-8K2M4Q).
+  code String @unique
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  title String
+  // Kwota vouchera (grosze).
+  amount Int
+  // Termin ważności (ostatni dzień ważności); null = bez terminu.
+  expiresAt DateTime?
+
+  // Jak klient zapłacił za voucher (gotówka, karta, przelew, BLIK).
+  saleMethod PaymentMethod
+  note       String?
+
+  createdById String?
+  createdBy   User?   @relation("VoucherCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  canceledAt   DateTime?
+  cancelReason String?
+
+  payments Payment[]
+
+  @@index([patientId])
+  @@index([createdAt])
+}
+
+// Katalog pakietów oferowanych przez klinikę (np. „10 zabiegów Icoone 2 obszary”).
+model PackageTemplate {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  name        String
+  description String?
+
+  // Usługa, którą można rozliczać tym pakietem (null = dowolna).
+  serviceId String?
+  service   Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+
+  sessions Int
+  // Cena całego pakietu (grosze).
+  price    Int
+  // Ważność od daty sprzedaży w dniach; null = bez terminu.
+  validityDays Int?
+
+  isActive Boolean @default(true)
+
+  patientPackages PatientPackage[]
+}
+
+// Pakiet sprzedany pacjentowi. Pozostałe zabiegi = sessionsTotal minus suma Payment.packageSessions rozliczeń pakietem.
+model PatientPackage {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  code String @unique
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  templateId String?
+  template   PackageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  title String
+
+  // Usługa, którą można rozliczać pakietem (null = dowolna).
+  serviceId String?
+  service   Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+
+  sessionsTotal Int
+  // Cena zapłacona za pakiet (grosze).
+  price     Int
+  expiresAt DateTime?
+
+  saleMethod PaymentMethod
+  note       String?
+
+  createdById String?
+  createdBy   User?   @relation("PatientPackageCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  canceledAt   DateTime?
+  cancelReason String?
+
+  payments Payment[]
+
+  @@index([patientId])
+  @@index([createdAt])
 }

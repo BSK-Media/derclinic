@@ -46,7 +46,8 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   VOUCHER: "Voucher",
   ONLINE: "Online (przy rezerwacji)",
   BLIK: "BLIK na telefon",
-  TRANSFER: "Przelew tradycyjny",
+  TRANSFER: "Przelew",
+  PACKAGE: "Pakiet",
 };
 
 export default function AdminAppointmentDetail() {
@@ -73,6 +74,15 @@ export default function AdminAppointmentDetail() {
 
   const [payMethod, setPayMethod] = useState<string>("CARD");
   const [payAmount, setPayAmount] = useState<string>("");
+  // Voucher / pakiet wybrany do rozliczenia oraz płatność dzielona (kilka metod naraz).
+  const [payVoucherId, setPayVoucherId] = useState<string>("");
+  const [payPackageId, setPayPackageId] = useState<string>("");
+  const [paySessions, setPaySessions] = useState<string>("1");
+  const [splitRows, setSplitRows] = useState<{ method: string; amount: string }[]>([
+    { method: "CASH", amount: "" },
+    { method: "CARD", amount: "" },
+  ]);
+  const [splitSaving, setSplitSaving] = useState(false);
   // Edycja / usuwanie pojedynczej zapisanej płatności
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
   const [editingPaymentAmount, setEditingPaymentAmount] = useState<string>("");
@@ -309,13 +319,47 @@ export default function AdminAppointmentDetail() {
     const res = await fetch(`/api/admin/appointments/${id}/pay`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ method: payMethod, amount }),
+      body: JSON.stringify({
+        method: payMethod,
+        amount,
+        ...(payMethod === "VOUCHER" ? { voucherId: payVoucherId } : {}),
+        ...(payMethod === "PACKAGE" ? { patientPackageId: payPackageId, packageSessions: Math.max(1, Number(paySessions) || 1) } : {}),
+      }),
     });
     const out = await res.json().catch(() => ({}));
     if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
     toast.success(out.replaced ? "Zaktualizowano płatność" : "Dodano płatność");
     setPayAmount("");
     mutate();
+  }
+
+  // Płatność dzielona: każdy wiersz (metoda + kwota) zapisujemy jako osobną płatność tej wizyty.
+  async function saveSplit() {
+    const rows = splitRows
+      .map((row) => ({ method: row.method, amount: row.amount.trim() ? parsePLNToGrosze(row.amount) : null }))
+      .filter((row): row is { method: string; amount: number } => row.amount !== null && row.amount > 0);
+    if (rows.length === 0) return toast.error("Wpisz kwoty w co najmniej jednej metodzie");
+    setSplitSaving(true);
+    try {
+      for (const row of rows) {
+        const res = await fetch(`/api/admin/appointments/${id}/pay`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ method: row.method, amount: row.amount }),
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok || !out?.ok) {
+          toast.error(`${PAYMENT_METHOD_LABELS[row.method] ?? row.method}: ${out?.message || "Błąd"}`);
+          mutate();
+          return;
+        }
+      }
+      toast.success("Zapisano płatność dzieloną");
+      setSplitRows((current) => current.map((row) => ({ ...row, amount: "" })));
+      mutate();
+    } finally {
+      setSplitSaving(false);
+    }
   }
 
   function startEditPayment(p: any) {
@@ -406,10 +450,28 @@ export default function AdminAppointmentDetail() {
   const paymentBalance = paymentTotal - paymentsSum;
   const paymentRemaining = Math.max(0, paymentBalance);
   const paymentOverpaid = Math.max(0, -paymentBalance);
+  const patientVouchers: any[] = data?.patientVouchers ?? [];
+  const patientPackages: any[] = data?.patientPackages ?? [];
+  const paymentRefs: Record<string, string> = data?.paymentRefs ?? {};
+  const chosenVoucher = patientVouchers.find((v) => v.id === payVoucherId) ?? null;
+  const chosenPackage = patientPackages.find((p) => p.id === payPackageId) ?? null;
+  // „Ta sama pozycja”: dla vouchera i pakietu konkretny voucher / pakiet, dla pozostałych — metoda.
+  const sameKey = (payment: any) =>
+    payment.method === payMethod &&
+    (payMethod === "VOUCHER" ? payment.voucherId === payVoucherId : payMethod === "PACKAGE" ? payment.patientPackageId === payPackageId : true);
   const selectedMethodAmount = (appt.payments ?? [])
-    .filter((payment: any) => payment.method === payMethod)
+    .filter(sameKey)
     .reduce((sum: number, payment: any) => sum + (payment.amount ?? 0), 0);
-  const paymentLimitForSelectedMethod = paymentRemaining + selectedMethodAmount;
+  let paymentLimitForSelectedMethod = paymentRemaining + selectedMethodAmount;
+  if (payMethod === "VOUCHER") paymentLimitForSelectedMethod = chosenVoucher ? Math.min(paymentLimitForSelectedMethod, chosenVoucher.availableHere) : 0;
+  if (payMethod === "PACKAGE" && !chosenPackage) paymentLimitForSelectedMethod = 0;
+  const splitTotal = splitRows.reduce((sum, row) => sum + (row.amount.trim() ? Math.max(0, parsePLNToGrosze(row.amount) ?? 0) : 0), 0);
+  const splitMethods = new Set(splitRows.map((row) => row.method));
+  const splitLimit =
+    paymentRemaining +
+    (appt.payments ?? [])
+      .filter((payment: any) => splitMethods.has(payment.method) && !payment.voucherId && !payment.patientPackageId)
+      .reduce((sum: number, payment: any) => sum + (payment.amount ?? 0), 0);
   const enteredPaymentAmount = payAmount.trim() ? parsePLNToGrosze(payAmount) : null;
   const balanceAfterEnteredPayment =
     enteredPaymentAmount && enteredPaymentAmount > 0
@@ -932,33 +994,174 @@ export default function AdminAppointmentDetail() {
         <div className="grid gap-3 md:grid-cols-3">
           <div className="space-y-2">
             <Label>Metoda</Label>
-            <Select value={payMethod} onValueChange={setPayMethod}>
+            <Select
+              value={payMethod}
+              onValueChange={(value) => {
+                setPayMethod(value);
+                setPayAmount("");
+                if (value === "VOUCHER" && !payVoucherId && patientVouchers[0]) setPayVoucherId(patientVouchers[0].id);
+                if (value === "PACKAGE" && !payPackageId && patientPackages[0]) setPayPackageId(patientPackages[0].id);
+              }}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="CASH">Gotówka</SelectItem>
                 <SelectItem value="CARD">Karta</SelectItem>
+                <SelectItem value="TRANSFER">Przelew</SelectItem>
+                <SelectItem value="VOUCHER">Voucher</SelectItem>
+                <SelectItem value="PACKAGE">Pakiet</SelectItem>
+                <SelectItem value="SPLIT">Płatność dzielona</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label>Kwota (PLN)</Label>
-            <Input value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
-          </div>
-          <div className="flex items-end space-y-2">
-            <Button
-              onClick={addPayment}
-              disabled={
-                paymentLimitForSelectedMethod <= 0 ||
-                !enteredPaymentAmount ||
-                enteredPaymentAmount <= 0 ||
-                enteredPaymentAmount > paymentLimitForSelectedMethod
-              }
-            >
-              Dodaj płatność
-            </Button>
-          </div>
+
+          {payMethod === "SPLIT" ? (
+            <div className="space-y-2 md:col-span-2">
+              <Label>Podziel płatność na metody (pozostało {formatPLNFromGrosze(paymentRemaining)})</Label>
+              <div className="space-y-2">
+                {splitRows.map((row, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <select
+                      value={row.method}
+                      onChange={(e) =>
+                        setSplitRows((current) => current.map((r, i) => (i === index ? { ...r, method: e.target.value } : r)))
+                      }
+                      className="h-10 rounded-xl border border-zinc-200 bg-white px-3 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                    >
+                      <option value="CASH">Gotówka</option>
+                      <option value="CARD">Karta</option>
+                      <option value="TRANSFER">Przelew</option>
+                    </select>
+                    <Input
+                      className="max-w-[10rem]"
+                      inputMode="decimal"
+                      placeholder="kwota"
+                      value={row.amount}
+                      onChange={(e) => setSplitRows((current) => current.map((r, i) => (i === index ? { ...r, amount: e.target.value } : r)))}
+                    />
+                    <button
+                      type="button"
+                      className="rounded-lg px-2 py-1 text-xs text-indigo-700 hover:bg-indigo-50"
+                      onClick={() => {
+                        const others = splitRows.reduce(
+                          (sum, r, i) => sum + (i === index || !r.amount.trim() ? 0 : Math.max(0, parsePLNToGrosze(r.amount) ?? 0)),
+                          0,
+                        );
+                        const rest = Math.max(0, splitLimit - others);
+                        setSplitRows((current) => current.map((r, i) => (i === index ? { ...r, amount: (rest / 100).toFixed(2).replace(".", ",") } : r)));
+                      }}
+                    >
+                      reszta
+                    </button>
+                    {splitRows.length > 2 ? (
+                      <button type="button" className="text-red-600" onClick={() => setSplitRows((current) => current.filter((_, i) => i !== index))} aria-label="Usuń wiersz">
+                        ✕
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button size="sm" variant="outline" onClick={() => setSplitRows((current) => [...current, { method: "CASH", amount: "" }])}>
+                  + wiersz
+                </Button>
+                <span className={splitTotal > splitLimit ? "text-sm font-medium text-red-600" : "text-sm text-zinc-500"}>
+                  Razem {formatPLNFromGrosze(splitTotal)} z {formatPLNFromGrosze(splitLimit)}
+                </span>
+                <Button onClick={saveSplit} disabled={splitSaving || splitTotal <= 0 || splitTotal > splitLimit}>
+                  {splitSaving ? "Zapisywanie…" : "Zapisz płatność dzieloną"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {payMethod === "VOUCHER" ? (
+                <div className="space-y-2">
+                  <Label>Voucher pacjenta</Label>
+                  {patientVouchers.length === 0 ? (
+                    <div className="rounded-xl border border-dashed p-2.5 text-sm text-zinc-500">Pacjent nie ma aktywnego vouchera.</div>
+                  ) : (
+                    <select
+                      value={payVoucherId}
+                      onChange={(e) => {
+                        setPayVoucherId(e.target.value);
+                        setPayAmount("");
+                      }}
+                      className="h-10 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                    >
+                      {patientVouchers.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.code} · {v.title} · zostało {formatPLNFromGrosze(v.availableHere)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              ) : null}
+              {payMethod === "PACKAGE" ? (
+                <div className="space-y-2">
+                  <Label>Pakiet pacjenta</Label>
+                  {patientPackages.length === 0 ? (
+                    <div className="rounded-xl border border-dashed p-2.5 text-sm text-zinc-500">Pacjent nie ma pakietu na tę usługę.</div>
+                  ) : (
+                    <>
+                      <select
+                        value={payPackageId}
+                        onChange={(e) => setPayPackageId(e.target.value)}
+                        className="h-10 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                      >
+                        {patientPackages.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.code} · {p.title} · zostało zabiegów: {p.availableHere}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-zinc-500">Zabiegów z pakietu:</span>
+                        <Input
+                          className="h-9 w-20"
+                          inputMode="numeric"
+                          value={paySessions}
+                          onChange={(e) => setPaySessions(e.target.value.replace(/\D/g, ""))}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : null}
+              <div className="space-y-2">
+                <Label>{payMethod === "PACKAGE" ? "Wartość pokryta pakietem (PLN)" : "Kwota (PLN)"}</Label>
+                <div className="flex gap-2">
+                  <Input value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setPayAmount((paymentLimitForSelectedMethod / 100).toFixed(2).replace(".", ","))}
+                    disabled={paymentLimitForSelectedMethod <= 0}
+                  >
+                    Całość
+                  </Button>
+                </div>
+              </div>
+              <div className="flex items-end space-y-2">
+                <Button
+                  onClick={addPayment}
+                  disabled={
+                    paymentLimitForSelectedMethod <= 0 ||
+                    !enteredPaymentAmount ||
+                    enteredPaymentAmount <= 0 ||
+                    enteredPaymentAmount > paymentLimitForSelectedMethod ||
+                    (payMethod === "VOUCHER" && !payVoucherId) ||
+                    (payMethod === "PACKAGE" && !payPackageId)
+                  }
+                >
+                  Dodaj płatność
+                </Button>
+              </div>
+            </>
+          )}
         </div>
 
         {balanceAfterEnteredPayment === null ? (
@@ -1015,7 +1218,10 @@ export default function AdminAppointmentDetail() {
               {(appt.payments ?? []).map((p: any) => (
                 <tr key={p.id} className="border-t">
                   <td className="p-3">{new Date(p.createdAt).toLocaleString("pl-PL")}</td>
-                  <td className="p-3">{PAYMENT_METHOD_LABELS[p.method] ?? p.method}</td>
+                  <td className="p-3">
+                    {PAYMENT_METHOD_LABELS[p.method] ?? p.method}
+                    {paymentRefs[p.id] ? <div className="text-xs text-zinc-500">{paymentRefs[p.id]}</div> : null}
+                  </td>
                   <td className="p-3">
                     {editingPaymentId === p.id ? (
                       <Input

@@ -43,7 +43,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
 }
 
 const PaySchema = z.object({
-  method: z.enum(["CASH", "CARD", "VOUCHER"]),
+  method: z.enum(["CASH", "CARD", "TRANSFER"]),
   // Cena końcowa wizyty w groszach — opcjonalna korekta przed płatnością (np. dwie okolice zamiast jednej).
   items: z
     .array(z.object({ appointmentId: z.string().min(1).max(100), priceFinal: z.number().int().min(0).max(100_000_00).optional() }))

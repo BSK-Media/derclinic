@@ -5,6 +5,7 @@ import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { AUDIT_PAYMENT_METHOD_LABELS } from "@/lib/audit-labels";
 import { formatPLNFromGrosze } from "@/lib/money";
+import { voucherRemaining } from "@/lib/vouchers";
 
 const PatchSchema = z.object({
   amount: z.number().int().min(1),
@@ -22,7 +23,7 @@ async function loadAppointmentWithPayment(appointmentId: string, paymentId: stri
       priceFinal: true,
       priceEstimate: true,
       service: { select: { price: true } },
-      payments: { select: { id: true, amount: true, method: true } },
+      payments: { select: { id: true, amount: true, method: true, voucherId: true } },
     },
   });
   if (!appointment || appointment.deletedAt) return { appointment: null, payment: null };
@@ -63,6 +64,19 @@ export async function PATCH(req: Request, props: RouteParams) {
       { ok: false, message: "Kwota przekracza pozostałą należność dla tej płatności" },
       { status: 400 },
     );
+  }
+
+  if (payment.method === "VOUCHER" && payment.voucherId) {
+    const voucher = await prisma.voucher.findUnique({
+      where: { id: payment.voucherId },
+      include: { payments: { select: { id: true, amount: true } } },
+    });
+    if (voucher) {
+      const remaining = voucherRemaining(voucher.amount, voucher.payments.filter((p) => p.id !== payment.id));
+      if (parsed.data.amount > remaining) {
+        return NextResponse.json({ ok: false, message: `Na voucherze zostało tylko ${formatPLNFromGrosze(remaining)}` }, { status: 400 });
+      }
+    }
   }
 
   const updated = await prisma.payment.update({

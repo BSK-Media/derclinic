@@ -28,7 +28,7 @@ const timeFmt = new Intl.DateTimeFormat("pl-PL", { hour: "2-digit", minute: "2-d
 const METHODS = [
   { value: "CASH", label: "Gotówka" },
   { value: "CARD", label: "Karta" },
-  { value: "VOUCHER", label: "Bon" },
+  { value: "TRANSFER", label: "Przelew" },
 ] as const;
 
 const toInput = (grosze: number) => (grosze / 100).toFixed(2).replace(".", ",");

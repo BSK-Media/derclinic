@@ -24,7 +24,7 @@ describe("uprawnienie logs (dziennik zdarzeń) — tylko administrator", () => {
     expect(hasSidebarPermission("RECEPTION", stored, "logs")).toBe(false);
     expect(hasSidebarPermission("SPECIALIST", stored, "logs")).toBe(false);
     // pozostałe uprawnienia zostają
-    expect(normalizeSidebarPermissions("RECEPTION", stored)).toEqual(["today", "appointments", "patients", "chat"]);
+    expect(normalizeSidebarPermissions("RECEPTION", stored)).toEqual(["today", "appointments", "patients", "chat", "vouchers", "packages"]);
   });
 
   it("ścieżki strony i API wymagają uprawnienia logs (middleware blokuje resztę)", () => {
@@ -37,6 +37,20 @@ describe("uprawnienie logs (dziennik zdarzeń) — tylko administrator", () => {
   it("pracownik bez uprawnienia nie ma logs jako pierwszej strony docelowej", () => {
     // Zostaje tylko czat (dostępny dla każdego pracownika), a nie dziennik zdarzeń.
     expect(firstAllowedSidebarHref("RECEPTION", ["logs"])).toBe("/chat");
+  });
+});
+
+describe("vouchery i pakiety — administrator, manager i recepcja", () => {
+  it("recepcja ma je zawsze, specjalista nie", () => {
+    for (const permission of ["vouchers", "packages"] as const) {
+      expect(hasSidebarPermission("ADMIN", null, permission)).toBe(true);
+      expect(hasSidebarPermission("MANAGER", null, permission)).toBe(true);
+      expect(hasSidebarPermission("RECEPTION", ["patients"], permission)).toBe(true);
+      expect(hasSidebarPermission("SPECIALIST", null, permission)).toBe(false);
+    }
+    expect(sidebarPermissionForPath("/admin/vouchers")).toBe("vouchers");
+    expect(sidebarPermissionForPath("/api/admin/packages/templates")).toBe("packages");
+    expect(sidebarHref("vouchers", "RECEPTION")).toBe("/admin/vouchers");
   });
 });
 

@@ -30,6 +30,9 @@ export const SIDEBAR_PERMISSION_KEYS = [
   "newsletter",
   // Czat wewnętrzny — dostępny dla każdego pracownika (nie ma osobnej opcji w ustawieniach kont).
   "chat",
+  // Sprzedaż voucherów (kart podarunkowych) i pakietów zabiegów — jak POS: administrator, manager i recepcja.
+  "vouchers",
+  "packages",
 ] as const;
 
 export type SidebarPermission = (typeof SIDEBAR_PERMISSION_KEYS)[number];
@@ -44,6 +47,8 @@ export const SIDEBAR_PERMISSION_OPTIONS: ReadonlyArray<{
   { key: "specialists", label: "Specjaliści" },
   { key: "patients", label: "Pacjenci" },
   { key: "pos", label: "POS - Sprzedaż" },
+  { key: "vouchers", label: "Vouchery" },
+  { key: "packages", label: "Pakiety" },
   { key: "inventory", label: "Magazyn" },
   { key: "products", label: "Produkty" },
   { key: "services", label: "Zabiegi i Procedury" },
@@ -66,6 +71,8 @@ const DEFAULT_NON_ADMIN_PERMISSIONS: SidebarPermission[] = SIDEBAR_PERMISSION_KE
     key !== "specialists" &&
     key !== "locations" &&
     key !== "pos" &&
+    key !== "vouchers" &&
+    key !== "packages" &&
     key !== "loyalty" &&
     !ADMIN_ONLY_PERMISSIONS.includes(key),
 );
@@ -76,6 +83,8 @@ export function normalizeSidebarPermissions(role: string, value: unknown): Sideb
   const withExtras = (extra: SidebarPermission[]) =>
     SIDEBAR_PERMISSION_KEYS.filter((key) => extra.includes(key) || base.includes(key));
   const extras: SidebarPermission[] = ["chat"];
+  // Recepcja sprzedaje vouchery i pakiety domyślnie (istniejące konta z zapisaną listą menu też).
+  if (role === "RECEPTION") extras.push("vouchers", "packages");
   if (base.includes("appointments")) extras.push("today");
   return withExtras(extras);
 }
@@ -209,6 +218,8 @@ export function sidebarPermissionForPath(pathname: string): SidebarPermission | 
     return "newsletter";
   }
   if (path.startsWith("/chat") || path.startsWith("/api/chat")) return "chat";
+  if (path.startsWith("/admin/vouchers") || path.startsWith("/api/admin/vouchers")) return "vouchers";
+  if (path.startsWith("/admin/packages") || path.startsWith("/api/admin/packages")) return "packages";
   if (path.startsWith("/admin/settings") || path.startsWith("/admin/profile")) {
     return "settings";
   }
@@ -247,6 +258,8 @@ export function sidebarHref(permission: SidebarPermission, role: string) {
     email: "/admin/email",
     newsletter: "/admin/newsletter",
     chat: "/chat",
+    vouchers: "/admin/vouchers",
+    packages: "/admin/packages",
   };
 
   return hrefs[permission];
