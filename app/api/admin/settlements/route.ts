@@ -2,13 +2,12 @@ import { effectivePercent, loadPercentOverrides } from "@/lib/payout-percent";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
+import { applyMonthOverrides, isMonthKey, warsawMonthRange, type OverrideItem } from "@/lib/specialist-overrides";
+import { loadMonthOverrides } from "@/lib/specialist-overrides-db";
 
 function ymToRange(ym: string) {
-  // ym: YYYY-MM
-  const [y, m] = ym.split("-").map((x) => parseInt(x, 10));
-  const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0));
-  const end = new Date(Date.UTC(y, m, 1, 0, 0, 0));
-  return { start, end };
+  // Miesiąc RRRR-MM w czasie warszawskim — tak samo jak szczegóły pracownika i rozliczenia niestandardowe.
+  return isMonthKey(ym) ? warsawMonthRange(ym) : warsawMonthRange(new Date().toISOString().slice(0, 7));
 }
 
 export async function GET(req: Request) {
@@ -41,36 +40,40 @@ export async function GET(req: Request) {
   });
 
   const overridesBySpecialist = await loadPercentOverrides(specialistIds);
+  const monthOverrides = await loadMonthOverrides(specialistIds, start, end);
 
   const rows = specialists.map((s) => {
     const overrides = overridesBySpecialist.get(s.id);
     const appts = appointments.filter((a) => a.specialistId === s.id);
-    const revenue = appts.reduce((sum, a) => sum + (a.priceFinal ?? a.priceEstimate ?? 0), 0);
-    const materials = appts.flatMap((a) => a.consumptions);
-    const materialCost = materials.reduce((sum, c) => {
-      const purchase = c.product.purchasePrice ?? 0;
-      const q = Math.abs(parseFloat(String(c.quantity)));
-      return sum + Math.round(purchase * q);
-    }, 0);
     // Procent liczony per wizyta: wyjątek od zabiegu nadpisuje ogólny procent pracownika.
     const percentOf = (a: (typeof appts)[number]) => effectivePercent(s.payoutPercent ?? 50, overrides, a.serviceId);
-    const payout = appts.reduce(
-      (sum, a) => sum + Math.round(((a.priceFinal ?? a.priceEstimate ?? 0) * percentOf(a)) / 100),
-      0,
-    );
-    const profit = revenue - materialCost;
-    const payoutFromProfit = appts.reduce((sum, a) => {
+    const items: OverrideItem[] = appts.map((a) => {
+      const price = a.priceFinal ?? a.priceEstimate ?? 0;
       const cost = a.consumptions.reduce(
         (acc, c) => acc + Math.round((c.product.purchasePrice ?? 0) * Math.abs(parseFloat(String(c.quantity)))),
         0,
       );
-      return sum + Math.round((((a.priceFinal ?? a.priceEstimate ?? 0) - cost) * percentOf(a)) / 100);
-    }, 0);
+      return {
+        startsAt: a.startsAt,
+        revenue: price,
+        materialCost: cost,
+        payout: Math.round((price * percentOf(a)) / 100),
+        payoutFromProfit: Math.round(((price - cost) * percentOf(a)) / 100),
+      };
+    });
+    // Rozliczenie niestandardowe za ten miesiąc (jeśli jest) zastępuje wartości policzone z wizyt.
+    const totals = applyMonthOverrides(items, monthOverrides.get(s.id) ?? []);
+    const revenue = totals.revenue;
+    const materialCost = totals.materialCost;
+    const payout = totals.payout;
+    const payoutFromProfit = totals.payoutFromProfit;
+    const profit = revenue - materialCost;
     return {
       specialistId: s.id,
       name: s.name,
       payoutPercent: s.payoutPercent,
-      appointments: appts.length,
+      appointments: totals.count,
+      overriddenMonths: totals.overriddenMonths,
       revenue,
       materialCost,
       profit,

@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { normalizeSidebarPermissions } from "@/lib/sidebar-permissions";
 import { resolveSettlementRange } from "@/lib/settlement-range";
+import { applyMonthOverrides } from "@/lib/specialist-overrides";
+import { loadMonthOverrides } from "@/lib/specialist-overrides-db";
 
 export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -93,9 +95,15 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
 
   // Statystyki i wypłata liczone wyłącznie z wizyt zakończonych ORAZ zaakceptowanych przez recepcję/admina
   const completed = rows.filter((r) => r.status === "COMPLETED" && r.approvalStatus === "APPROVED");
-  const revenue = completed.reduce((s, r) => s + r.revenue, 0);
-  const materialCost = completed.reduce((s, r) => s + r.materialCost, 0);
-  const payout = completed.reduce((s, r) => s + r.payout, 0);
+  // Rozliczenia niestandardowe (miesiące objęte zakresem w całości) zastępują wartości policzone z wizyt.
+  const monthOverrides = (await loadMonthOverrides([params.id], start, end)).get(params.id) ?? [];
+  const totals = applyMonthOverrides(
+    completed.map((r) => ({ startsAt: new Date(r.startsAt), revenue: r.revenue, materialCost: r.materialCost, payout: r.payout })),
+    monthOverrides,
+  );
+  const revenue = totals.revenue;
+  const materialCost = totals.materialCost;
+  const payout = totals.payout;
   const profit = revenue - materialCost - payout;
 
   return NextResponse.json({
@@ -113,7 +121,8 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
     },
     stats: {
       appointmentsTotal: rows.length,
-      appointmentsCompleted: completed.length,
+      appointmentsCompleted: totals.count,
+      overriddenMonths: totals.overriddenMonths,
       revenue,
       materialCost,
       payout,

@@ -193,6 +193,8 @@ model User {
   sentChatMessages                 StaffMessage[]                  @relation("StaffMessageSender")
   createdVouchers                  Voucher[]                       @relation("VoucherCreator")
   createdPatientPackages           PatientPackage[]                @relation("PatientPackageCreator")
+  monthSettlements                 SpecialistMonthSettlement[]     @relation("MonthSettlementSpecialist")
+  editedMonthSettlements           SpecialistMonthSettlement[]     @relation("MonthSettlementEditor")
   receivedChatMessages             StaffMessage[]                  @relation("StaffMessageRecipient")
 
   @@index([role])
@@ -1637,4 +1639,33 @@ model PatientPackageItem {
   payments Payment[]
 
   @@index([packageId])
+}
+
+// Rozliczenie niestandardowe specjalisty za miesiąc (wpisane ręcznie przez administratora). Wartości zastępują policzone
+// z wizyt wszędzie, gdzie pokazujemy finanse specjalisty; pole puste (null) = zostaje wartość standardowa.
+// Wizyty, ceny i płatności nie są zmieniane.
+model SpecialistMonthSettlement {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  specialistId String
+  specialist   User   @relation("MonthSettlementSpecialist", fields: [specialistId], references: [id], onDelete: Cascade)
+
+  // Miesiąc RRRR-MM (czas warszawski).
+  month String
+
+  appointments Int?
+  // Kwoty w groszach.
+  revenue      Int?
+  materialCost Int?
+  payout       Int?
+
+  note String?
+
+  updatedById String?
+  updatedBy   User?   @relation("MonthSettlementEditor", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([specialistId, month])
+  @@index([month])
 }

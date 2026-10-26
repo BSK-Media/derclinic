@@ -11,6 +11,7 @@ i migracje w `prisma/migrations`.
 
 ## 2026-10-15
 ### Dodano
+- Rozliczenie niestandardowe specjalisty (administrator, na stronie specjalisty): ręczne wpisanie za wybrany miesiąc liczby zabiegów, przychodu, kosztu i wynagrodzenia. Wartości zastępują policzone z wizyt w rozliczeniach, podsumowaniu finansowym, szczegółach pracownika i rankingu w analityce (pole puste = wartość standardowa; wizyty i płatności bez zmian). Zmiany w dzienniku zdarzeń. Migracja `20261107120000_specialist_month_settlement`.
 - Vouchery (karty podarunkowe): zakładka Vouchery — sprzedaż na kwotę dla pacjenta (tytuł, kwota, termin ważności, sposób zapłaty), kod vouchera, saldo i historia wykorzystania; widoczne też na karcie pacjenta. Voucherem rozlicza się wizytę (całość lub część) przy płatności.
 - Pakiety zabiegów: zakładka Pakiety — katalog pakietów (np. 10 zabiegów Icoone 2 obszary) i sprzedaż ich pacjentom; rozliczanie wizyt pakietem zużywa zabiegi, widać ile zostało.
 - Metody płatności za wizytę: gotówka, karta, przelew, voucher, pakiet i płatność dzielona (kilka metod naraz). Migracja `20261105120000_vouchers_packages`.

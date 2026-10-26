@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { resolveSettlementRange } from "@/lib/settlement-range";
+import { applyMonthOverrides, type OverrideItem } from "@/lib/specialist-overrides";
+import { loadMonthOverrides } from "@/lib/specialist-overrides-db";
 
 export async function GET(req: Request) {
   const { user, error } = await requireAuth();
@@ -44,6 +46,7 @@ export async function GET(req: Request) {
       id: true,
       specialistId: true,
       serviceId: true,
+      startsAt: true,
       priceEstimate: true,
       priceFinal: true,
       consumptions: {
@@ -57,6 +60,8 @@ export async function GET(req: Request) {
   });
 
   const overridesBySpecialist = await loadPercentOverrides(specialistIds);
+  // Rozliczenia niestandardowe (miesiące objęte zakresem w całości) zastępują wartości policzone z wizyt.
+  const monthOverrides = await loadMonthOverrides(specialistIds, period.start, period.end);
 
   const rows = specialists.map((specialist) => {
     const overrides = overridesBySpecialist.get(specialist.id);
@@ -65,9 +70,7 @@ export async function GET(req: Request) {
     );
     const percent = specialist.payoutPercent ?? 0;
 
-    let revenue = 0;
-    let materialCost = 0;
-    let payout = 0;
+    const items: OverrideItem[] = [];
 
     for (const appointment of completed) {
       const appointmentMaterials = appointment.consumptions.reduce((sum, consumption) => {
@@ -77,15 +80,19 @@ export async function GET(req: Request) {
       }, 0);
       const appointmentRevenue = appointment.priceFinal ?? appointment.priceEstimate ?? 0;
 
-      revenue += appointmentRevenue;
-      materialCost += appointmentMaterials;
       // Wypłata = (przychód − materiały) × % pracownika, zaokrąglana per wizyta —
       // identycznie jak w szczegółach pracownika, żeby sumy się zgadzały co do grosza.
       // Wyjątek procentowy od zabiegu nadpisuje ogólny procent pracownika.
-      payout += Math.round(
-        ((appointmentRevenue - appointmentMaterials) * effectivePercent(percent, overrides, appointment.serviceId)) / 100,
-      );
+      items.push({
+        startsAt: appointment.startsAt,
+        revenue: appointmentRevenue,
+        materialCost: appointmentMaterials,
+        payout: Math.round(
+          ((appointmentRevenue - appointmentMaterials) * effectivePercent(percent, overrides, appointment.serviceId)) / 100,
+        ),
+      });
     }
+    const totals = applyMonthOverrides(items, monthOverrides.get(specialist.id) ?? []);
 
     return {
       specialistId: specialist.id,
@@ -94,10 +101,11 @@ export async function GET(req: Request) {
       avatarUrl: specialist.avatarUrl,
       jobTitle: specialist.jobTitle,
       payoutPercent: percent,
-      revenue,
-      materialCost,
-      appointmentsCount: completed.length,
-      payout,
+      revenue: totals.revenue,
+      materialCost: totals.materialCost,
+      appointmentsCount: totals.count,
+      payout: totals.payout,
+      overriddenMonths: totals.overriddenMonths,
     };
   });
 

@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/components/auth-provider";
+import { SpecialistMonthSettlement } from "@/components/specialist-month-settlement";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { appointmentStatusLabel } from "@/lib/appointment-status";
 import { SIDEBAR_PERMISSION_OPTIONS, type SidebarPermission } from "@/lib/sidebar-permissions";
@@ -64,7 +65,7 @@ function StatusBadge({ status }: { status: string }) {
 export default function SpecialistDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
-  const [tab, setTab] = React.useState<"overview" | "schedule">("overview");
+  const [tab, setTab] = React.useState<"overview" | "schedule" | "custom">("overview");
   const [range, setRange] = React.useState<RangeKey>("30d");
   const now = React.useMemo(() => new Date(), []);
   const [from, setFrom] = React.useState(() =>
@@ -212,9 +213,25 @@ export default function SpecialistDetailPage() {
         >
           Grafik
         </button>
+        {user?.role === "ADMIN" ? (
+          <button
+            type="button"
+            onClick={() => setTab("custom")}
+            className={
+              "rounded-2xl px-4 py-1.5 font-medium " +
+              (tab === "custom"
+                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200"
+                : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white")
+            }
+          >
+            Rozliczenie niestandardowe
+          </button>
+        ) : null}
       </div>
 
-      {tab === "schedule" ? (
+      {tab === "custom" && user?.role === "ADMIN" ? (
+        <SpecialistMonthSettlement specialistId={id} />
+      ) : tab === "schedule" ? (
         <SpecialistSchedule specialistId={id} />
       ) : (
         <>

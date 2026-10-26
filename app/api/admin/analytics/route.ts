@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole } from "@/lib/api-helpers";
+import { applyMonthOverrides, type OverrideItem } from "@/lib/specialist-overrides";
+import { loadMonthOverrides } from "@/lib/specialist-overrides-db";
 
 export const dynamic = "force-dynamic";
 
@@ -251,8 +253,24 @@ export async function GET(req: Request) {
     }
     bySpec.set(a.specialistId, row);
   }
+  // Rozliczenia niestandardowe specjalistów (miesiące objęte zakresem w całości) zastępują w rankingu wartości policzone z wizyt.
+  const rankingOverrides = await loadMonthOverrides([...bySpec.keys()], from, to);
   const specialistsRanking = Array.from(bySpec.entries())
-    .map(([id, r]) => ({
+    .map(([id, base]) => {
+      const ovs = rankingOverrides.get(id);
+      if (!ovs?.length) return { id, r: base };
+      const items: OverrideItem[] = billable
+        .filter((a) => a.specialistId === id)
+        .map((a) => ({
+          startsAt: a.startsAt,
+          revenue: apptPrice(a),
+          materialCost: a.consumptions.reduce((sum, c) => (c.status === "REJECTED" ? sum : sum + Math.round((c.product.purchasePrice ?? 0) * Math.abs(toNum(c.quantity)))), 0),
+          payout: 0,
+        }));
+      const totals = applyMonthOverrides(items, ovs);
+      return { id, r: { ...base, appointments: totals.count, revenue: totals.revenue, materialsCost: totals.materialCost } };
+    })
+    .map(({ id, r }) => ({
       id,
       name: r.name,
       appointments: r.appointments,

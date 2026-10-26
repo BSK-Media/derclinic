@@ -18,6 +18,7 @@ type Row = {
   profit: number;
   payout: number;
   payoutFromProfit: number;
+  overriddenMonths?: string[];
 };
 
 export default function AdminSettlementsPage() {
@@ -79,7 +80,14 @@ export default function AdminSettlementsPage() {
               {!isLoading && rows.length === 0 && <tr><td className="p-3 text-zinc-500" colSpan={8}>Brak danych.</td></tr>}
               {rows.map((r) => (
                 <tr key={r.specialistId} className="border-t">
-                  <td className="p-3 font-medium">{r.name}</td>
+                  <td className="p-3 font-medium">
+                    {r.name}
+                    {r.overriddenMonths?.length ? (
+                      <span className="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200" title="Wartości wpisane ręcznie (rozliczenie niestandardowe)">
+                        ręczne
+                      </span>
+                    ) : null}
+                  </td>
                   <td className="p-3">{r.appointments}</td>
                   <td className="p-3">{formatPLNFromGrosze(r.revenue)}</td>
                   <td className="p-3">{formatPLNFromGrosze(r.materialCost)}</td>
