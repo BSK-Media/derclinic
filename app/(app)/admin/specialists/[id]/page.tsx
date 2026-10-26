@@ -66,7 +66,7 @@ export default function SpecialistDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
   const [tab, setTab] = React.useState<"overview" | "schedule" | "custom">("overview");
-  const [range, setRange] = React.useState<RangeKey>("30d");
+  const [range, setRange] = React.useState<RangeKey>("month");
   const now = React.useMemo(() => new Date(), []);
   const [from, setFrom] = React.useState(() =>
     toDateInput(new Date(now.getFullYear(), now.getMonth(), 1)),

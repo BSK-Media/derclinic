@@ -487,7 +487,7 @@ function toDateInput(date: Date) {
 
 function SpecialistFinancialSettlements() {
   const now = React.useMemo(() => new Date(), []);
-  const [range, setRange] = React.useState<FinancialRange>("30d");
+  const [range, setRange] = React.useState<FinancialRange>("month");
   const [hideZero, setHideZero] = React.useState(true);
   const [mobileSort, setMobileSort] = React.useState<MobileSettlementSort>("revenue");
   const [from, setFrom] = React.useState(() =>
