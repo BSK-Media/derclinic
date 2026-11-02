@@ -9,6 +9,8 @@ import useSWR from "swr";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LotActions } from "@/components/lot-actions";
+import { QuickStockDialog } from "@/components/quick-stock-dialog";
+import { Minus, Plus } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,6 +48,8 @@ export default function ProductDetailsPage() {
   const { data, mutate } = useSWR(id ? `/api/admin/products/${id}` : null, fetcher);
   const product = data?.product;
   const services: ServiceLite[] = data?.services ?? [];
+  const [quickMode, setQuickMode] = useState<"add" | "remove" | null>(null);
+  const [quickWarehouse, setQuickWarehouse] = useState<string | undefined>(undefined);
 
   if (!product) {
     return <div className="text-sm text-slate-500 dark:text-slate-400">Ładowanie danych produktu...</div>;
@@ -82,18 +86,47 @@ export default function ProductDetailsPage() {
       />
 
       <Card>
-        <CardHeader><CardTitle>Stany magazynowe</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle>Stany magazynowe</CardTitle>
+          <div className="flex gap-2">
+            <Button size="sm" className="gap-1 bg-emerald-700 text-white hover:bg-emerald-800" onClick={() => { setQuickWarehouse(undefined); setQuickMode("add"); }}>
+              <Plus className="h-4 w-4" /> Dodaj
+            </Button>
+            <Button size="sm" variant="outline" className="gap-1" disabled={totalQty <= 0} onClick={() => { setQuickWarehouse(undefined); setQuickMode("remove"); }}>
+              <Minus className="h-4 w-4" /> Odejmij
+            </Button>
+          </div>
+        </CardHeader>
         <CardContent>
           <Table>
-            <TableHeader><TableRow><TableHead>Magazyn</TableHead><TableHead>Ilość</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Magazyn</TableHead><TableHead>Ilość</TableHead><TableHead className="w-24" aria-label="Akcje" /></TableRow></TableHeader>
             <TableBody>
               {product.stocks.map((stock: any) => (
-                <TableRow key={stock.id}><TableCell>{stock.warehouse.name}</TableCell><TableCell>{Number(stock.quantity)}</TableCell></TableRow>
+                <TableRow key={stock.id}>
+                  <TableCell>{stock.warehouse.name}</TableCell>
+                  <TableCell>{Number(stock.quantity)}</TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-1">
+                      <button type="button" title="Dodaj sztuki" aria-label={`Dodaj stan w magazynie ${stock.warehouse.name}`} onClick={() => { setQuickWarehouse(stock.warehouse.id); setQuickMode("add"); }} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-500/10"><Plus className="h-4 w-4" /></button>
+                      <button type="button" title="Odejmij sztuki" aria-label={`Odejmij stan w magazynie ${stock.warehouse.name}`} onClick={() => { setQuickWarehouse(stock.warehouse.id); setQuickMode("remove"); }} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-500/10"><Minus className="h-4 w-4" /></button>
+                    </div>
+                  </TableCell>
+                </TableRow>
               ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      <QuickStockDialog
+        open={quickMode !== null}
+        onOpenChange={(open) => { if (!open) setQuickMode(null); }}
+        product={{ id: product.id, name: product.name, unitLabel: product.customUnit || undefined }}
+        stocks={product.stocks.map((st: any) => ({ warehouseId: st.warehouse.id, warehouseName: st.warehouse.name, quantity: Number(st.quantity) }))}
+        initialMode={quickMode ?? "add"}
+        defaultWarehouseId={quickWarehouse}
+        onDone={() => mutate()}
+      />
 
       <Card>
         <CardHeader><CardTitle>Serie / partie</CardTitle></CardHeader>

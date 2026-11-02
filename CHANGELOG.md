@@ -3,6 +3,10 @@
 Format: najnowsze na górze, zmiany pogrupowane według daty wdrożenia. Szczegóły techniczne: historia commitów
 i migracje w `prisma/migrations`.
 
+## 2026-11-02
+### Dodano
+- Magazyn: szybka zmiana stanu produktu — „Dodaj” / „Odejmij” z wyborem magazynu i ilości (przyciski +/−). Dostępna po zeskanowaniu produktu (od razu na pierwszym ekranie, termin ważności i partia z kodu GS1 uzupełniają się same), na karcie produktu (ogólnie i przy każdym magazynie) oraz na liście produktów w magazynie, także w widoku telefonu. Odejmowanie nie pozwala zdjąć więcej niż jest na stanie; zmiana trafia do dziennika zdarzeń.
+
 ## 2026-10-25
 ### Zmieniono
 - Sprzedaż pakietu: kupujący wybierany z bazy albo dodawany w miejscu (imię, nazwisko, telefon, e-mail — bez dublowania po numerze telefonu); pakiet imienny (dla kupującego lub innego pacjenta) albo anonimowy (na okaziciela, rozliczany kodem przy wizycie dowolnego pacjenta). Pakiet może obejmować kilka usług, każdą z własną liczbą zabiegów (wiersze dodawane „+” i usuwane „−”, usługa z wyszukiwaniem); obok ceny za całość widać wartość tych zabiegów w cenach standardowych i rabat. Pozostałe zabiegi liczą się osobno dla każdej usługi.

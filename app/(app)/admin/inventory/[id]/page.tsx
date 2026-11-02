@@ -27,6 +27,7 @@ import { eanMatchesGtin, gs1SearchGtin } from "@/lib/barcode";
 import { deleteProductConfirmMessage, deleteProductRequest } from "@/lib/delete-product-client";
 import { toast } from "sonner";
 import { AdminAddProductDialog } from "@/components/admin-add-product-dialog";
+import { QuickStockDialog } from "@/components/quick-stock-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -194,6 +195,7 @@ export default function WarehouseDetailsPage() {
   const [transferQuantity, setTransferQuantity] = React.useState("1");
   const [transferNote, setTransferNote] = React.useState("");
   const [transferSaving, setTransferSaving] = React.useState(false);
+  const [quick, setQuick] = React.useState<{ product: InventoryProduct; mode: "add" | "remove" } | null>(null);
   const [removingId, setRemovingId] = React.useState<string | null>(null);
   const [expandedIds, setExpandedIds] = React.useState<Set<string>>(() => new Set());
   const toggleExpanded = (id: string) =>
@@ -593,10 +595,10 @@ export default function WarehouseDetailsPage() {
         ) : (
           <div className="space-y-3">
             {mobileProducts.map((product) => (
+              <div key={product.productId} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-zinc-950">
               <Link
-                key={product.productId}
                 href={`/admin/products/${product.productId}`}
-                className="block overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-colors active:bg-slate-50 dark:border-white/10 dark:bg-zinc-950 dark:active:bg-zinc-900"
+                className="block p-4 pb-3 transition-colors active:bg-slate-50 dark:active:bg-zinc-900"
               >
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
@@ -653,6 +655,15 @@ export default function WarehouseDetailsPage() {
                   </div>
                 </div>
               </Link>
+              <div className="grid grid-cols-2 gap-2 border-t border-slate-100 p-3 dark:border-white/10">
+                <Button type="button" variant="outline" className="gap-1.5 border-emerald-300 text-emerald-800 dark:border-emerald-500/40 dark:text-emerald-200" onClick={() => setQuick({ product, mode: "add" })}>
+                  <Plus className="h-4 w-4" /> Dodaj
+                </Button>
+                <Button type="button" variant="outline" className="gap-1.5 border-amber-300 text-amber-800 dark:border-amber-500/40 dark:text-amber-200" onClick={() => setQuick({ product, mode: "remove" })}>
+                  <Minus className="h-4 w-4" /> Odejmij
+                </Button>
+              </div>
+              </div>
             ))}
           </div>
         )}
@@ -745,10 +756,10 @@ export default function WarehouseDetailsPage() {
                     <TableCell><StatusBadge status={product.status} /></TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">
-                        <button type="button" onClick={() => openAdd(product)} title="Dodaj sztuki" aria-label={`Dodaj stan: ${product.name}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-700 transition hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-500/10">
+                        <button type="button" onClick={() => setQuick({ product, mode: "add" })} title="Dodaj sztuki" aria-label={`Dodaj stan: ${product.name}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-700 transition hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-500/10">
                           <Plus className="h-4 w-4" />
                         </button>
-                        <button type="button" onClick={() => openRemove(product)} title="Odejmij sztuki" aria-label={`Odejmij stan: ${product.name}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-amber-700 transition hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-500/10">
+                        <button type="button" onClick={() => setQuick({ product, mode: "remove" })} title="Odejmij sztuki" aria-label={`Odejmij stan: ${product.name}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-amber-700 transition hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-500/10">
                           <Minus className="h-4 w-4" />
                         </button>
                         <button type="button" onClick={() => openTransfer(product)} title="Przenieś do innego magazynu" aria-label={`Przenieś: ${product.name}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-blue-700 transition hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-500/10">
@@ -829,6 +840,16 @@ export default function WarehouseDetailsPage() {
         fixedWarehouseId={params.id}
         fixedWarehouseName={warehouse.name}
         onSaved={() => mutate()}
+      />
+
+      <QuickStockDialog
+        open={quick !== null}
+        onOpenChange={(open) => { if (!open) setQuick(null); }}
+        product={quick ? { id: quick.product.productId, name: quick.product.name } : null}
+        stocks={quick ? [{ warehouseId: params.id, warehouseName: warehouse.name, quantity: quick.product.quantity }] : []}
+        initialMode={quick?.mode}
+        defaultWarehouseId={params.id}
+        onDone={() => mutate()}
       />
 
       <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>

@@ -3,7 +3,9 @@
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRightLeft, PackageMinus, PackagePlus, PackageSearch, Pencil, ShoppingCart, Trash2, Warehouse } from "lucide-react";
+import { mutate } from "swr";
 import { useAuth } from "@/components/auth-provider";
+import { QuickStockDialog } from "@/components/quick-stock-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatPLNFromGrosze } from "@/lib/money";
@@ -165,6 +167,18 @@ export function GlobalScanDialog() {
     setState(null);
   }
 
+  // Szybka zmiana stanu (dodaj / odejmij ilość) — okno skanu zamyka się, a produkt zostaje w osobnym oknie.
+  const [quick, setQuick] = React.useState<{
+    product: LookupProduct;
+    mode: "add" | "remove";
+    prefill: { expiryDate?: string | null; batchNumber?: string | null };
+  } | null>(null);
+
+  function openQuick(product: LookupProduct, mode: "add" | "remove", scan: LookupScan) {
+    close();
+    setQuick({ product, mode, prefill: scan.kind === "gs1" ? scan.data : {} });
+  }
+
   function choose(action: ScanAction, productId: string) {
     const code = state?.code ?? "";
     close();
@@ -175,11 +189,22 @@ export function GlobalScanDialog() {
   }
 
   const product = state?.status === "found" ? state.product : null;
+  const foundScan = state?.status === "found" ? state.scan : null;
   const gs1 = state?.status === "found" && state.scan.kind === "gs1" ? state.scan.data : null;
   const totalStock = product ? product.stocks.reduce((sum, stock) => sum + Number(stock.quantity), 0) : 0;
   const unit = product ? UNIT_LABELS[product.unit] ?? product.unit : "";
 
   return (
+    <>
+    <QuickStockDialog
+      open={quick !== null}
+      onOpenChange={(open) => (open ? null : setQuick(null))}
+      product={quick ? { id: quick.product.id, name: quick.product.name, unitLabel: UNIT_LABELS[quick.product.unit] ?? quick.product.unit } : null}
+      stocks={quick ? quick.product.stocks.map((s) => ({ warehouseId: s.warehouse.id, warehouseName: s.warehouse.name, quantity: Number(s.quantity) })) : []}
+      initialMode={quick?.mode}
+      prefill={quick?.prefill}
+      onDone={() => void mutate(() => true)}
+    />
     <Dialog open={state !== null} onOpenChange={(open) => (open ? null : close())}>
       <DialogContent
         className="max-w-lg"
@@ -279,6 +304,24 @@ export function GlobalScanDialog() {
                     />
                   ) : null}
                   {canManage ? (
+                    <>
+                      <ActionTile
+                        icon={<PackagePlus className="h-4 w-4" />}
+                        title="Dodaj do stanu"
+                        description="Wybierz magazyn i ilość, którą chcesz dodać"
+                        onClick={() => openQuick(product, "add", foundScan!)}
+                        tone="emerald"
+                      />
+                      <ActionTile
+                        icon={<PackageMinus className="h-4 w-4" />}
+                        title="Odejmij ze stanu"
+                        description="Wybierz magazyn i ilość, którą chcesz zdjąć ze stanu"
+                        onClick={() => openQuick(product, "remove", foundScan!)}
+                        disabled={totalStock <= 0}
+                      />
+                    </>
+                  ) : null}
+                  {canManage ? (
                     <ActionTile
                       icon={<Warehouse className="h-4 w-4" />}
                       title="Zarządzanie w magazynie"
@@ -354,5 +397,6 @@ export function GlobalScanDialog() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
