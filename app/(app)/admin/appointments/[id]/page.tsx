@@ -315,8 +315,10 @@ export default function AdminAppointmentDetail() {
   }
 
   async function addPayment() {
-    const amount = parsePLNToGrosze(payAmount);
-    if (!amount || amount <= 0) return toast.error("Niepoprawna kwota");
+    const entered = parsePLNToGrosze(payAmount);
+    if (!entered || entered <= 0) return toast.error("Niepoprawna kwota");
+    // Gotówka powyżej należności: zapisujemy należność, resztę wydaje kasjer.
+    const amount = payMethod === "CASH" ? Math.min(entered, paymentLimitForSelectedMethod) : entered;
     if (amount > paymentLimitForSelectedMethod) {
       return toast.error(
         `Kwota przekracza należność dostępną dla tej metody o ${formatPLNFromGrosze(amount - paymentLimitForSelectedMethod)}.`,
@@ -334,7 +336,13 @@ export default function AdminAppointmentDetail() {
     });
     const out = await res.json().catch(() => ({}));
     if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
-    toast.success(out.replaced ? "Zaktualizowano płatność" : "Dodano płatność");
+    toast.success(
+      entered > amount
+        ? `Dodano płatność. Do wydania: ${formatPLNFromGrosze(entered - amount)}`
+        : out.replaced
+          ? "Zaktualizowano płatność"
+          : "Dodano płatność",
+    );
     setPayAmount("");
     mutate();
   }
@@ -505,9 +513,16 @@ export default function AdminAppointmentDetail() {
       .filter((payment: any) => splitMethods.has(payment.method) && !payment.voucherId && !payment.patientPackageId)
       .reduce((sum: number, payment: any) => sum + (payment.amount ?? 0), 0);
   const enteredPaymentAmount = payAmount.trim() ? parsePLNToGrosze(payAmount) : null;
+  // Gotówka: kwota większa od należności to wpłata klienta — zapisujemy należność, a nadwyżkę pokazujemy jako resztę do wydania.
+  const cashChangeDue =
+    payMethod === "CASH" && enteredPaymentAmount && paymentLimitForSelectedMethod > 0 && enteredPaymentAmount > paymentLimitForSelectedMethod
+      ? enteredPaymentAmount - paymentLimitForSelectedMethod
+      : 0;
   const balanceAfterEnteredPayment =
     enteredPaymentAmount && enteredPaymentAmount > 0
-      ? paymentLimitForSelectedMethod - enteredPaymentAmount
+      ? cashChangeDue > 0
+        ? 0
+        : paymentLimitForSelectedMethod - enteredPaymentAmount
       : null;
   const benefitCodeField = (
     <div className="flex gap-2">
@@ -1218,7 +1233,7 @@ export default function AdminAppointmentDetail() {
                   </Button>
                 </div>
               </div>
-              {payMethod === "CASH" && enteredPaymentAmount && enteredPaymentAmount > 0 ? (
+              {payMethod === "CASH" && enteredPaymentAmount && enteredPaymentAmount > 0 && cashChangeDue === 0 ? (
                 <div className="md:col-span-2">
                   <CashChange amount={enteredPaymentAmount} />
                 </div>
@@ -1230,7 +1245,7 @@ export default function AdminAppointmentDetail() {
                     paymentLimitForSelectedMethod <= 0 ||
                     !enteredPaymentAmount ||
                     enteredPaymentAmount <= 0 ||
-                    enteredPaymentAmount > paymentLimitForSelectedMethod ||
+                    (payMethod !== "CASH" && enteredPaymentAmount > paymentLimitForSelectedMethod) ||
                     (payMethod === "VOUCHER" && !payVoucherId) ||
                     (payMethod === "PACKAGE" && !payPackageId)
                   }
@@ -1267,7 +1282,15 @@ export default function AdminAppointmentDetail() {
           </div>
         ) : balanceAfterEnteredPayment === 0 ? (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
-            Ta płatność rozliczy wizytę w całości.
+            {cashChangeDue > 0 ? (
+              <>
+                Klient daje {formatPLNFromGrosze(enteredPaymentAmount ?? 0)} — do wydania{" "}
+                <span className="text-lg font-semibold">{formatPLNFromGrosze(cashChangeDue)}</span>. Zapisana zostanie należność{" "}
+                {formatPLNFromGrosze(paymentLimitForSelectedMethod)} i wizyta zostanie rozliczona w całości.
+              </>
+            ) : (
+              "Ta płatność rozliczy wizytę w całości."
+            )}
           </div>
         ) : (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
