@@ -1064,7 +1064,11 @@ export default function AdminAppointmentDetail() {
               value={payMethod}
               onValueChange={(value) => {
                 setPayMethod(value);
-                setPayAmount("");
+                // Gotówka startuje z pełną należnością (można zmienić); pozostałe metody — puste pole.
+                const cashLimit =
+                  paymentRemaining +
+                  (appt.payments ?? []).filter((p: any) => p.method === "CASH").reduce((sum: number, p: any) => sum + (p.amount ?? 0), 0);
+                setPayAmount(value === "CASH" && cashLimit > 0 ? (cashLimit / 100).toFixed(2).replace(".", ",") : "");
                 if (value === "VOUCHER" && !payVoucherId && patientVouchers[0]) setPayVoucherId(patientVouchers[0].id);
                 if (value === "PACKAGE" && !payPackageId && patientPackages[0]) setPayPackageId(patientPackages[0].id);
               }}
