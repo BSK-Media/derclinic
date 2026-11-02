@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { toast } from "sonner";
+import { CashChange } from "@/components/cash-change";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -148,6 +149,7 @@ export function DayVisitsPayment({ appointmentId, onChanged }: { appointmentId: 
               </select>
             </label>
           </div>
+          {method === "CASH" ? <CashChange amount={payNowTotal} /> : null}
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>
               Anuluj

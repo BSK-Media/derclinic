@@ -24,6 +24,7 @@ import { appointmentStatusLabel, effectiveAppointmentStatus, isAppointmentEnded 
 import { ApprovalBadge, RejectReasonDialog } from "@/components/appointment-approval";
 import { AppointmentPhotos } from "@/components/appointment-photos";
 import { DayVisitsPayment } from "@/components/day-visits-payment";
+import { CashChange } from "@/components/cash-change";
 import { AppointmentSpecialistSelect } from "@/components/appointment-specialist-select";
 import { AppointmentConsentCard } from "@/components/appointment-consent-card";
 import { AppointmentPaymentRequestCard } from "@/components/appointment-payment-request-card";
@@ -1089,7 +1090,18 @@ export default function AdminAppointmentDetail() {
                       inputMode="decimal"
                       placeholder="kwota"
                       value={row.amount}
-                      onChange={(e) => setSplitRows((current) => current.map((r, i) => (i === index ? { ...r, amount: e.target.value } : r)))}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setSplitRows((current) => {
+                          const next = current.map((r, i) => (i === index ? { ...r, amount: value } : r));
+                          // Przy dwóch metodach druga kwota liczy się sama (reszta do zapłaty).
+                          if (next.length === 2) {
+                            const rest = Math.max(0, splitLimit - Math.max(0, parsePLNToGrosze(value) ?? 0));
+                            return next.map((r, i) => (i === index ? r : { ...r, amount: rest > 0 ? (rest / 100).toFixed(2).replace(".", ",") : "" }));
+                          }
+                          return next;
+                        });
+                      }}
                     />
                     <button
                       type="button"
@@ -1113,6 +1125,9 @@ export default function AdminAppointmentDetail() {
                   </div>
                 ))}
               </div>
+              <CashChange
+                amount={splitRows.filter((r) => r.method === "CASH").reduce((s, r) => s + (r.amount.trim() ? Math.max(0, parsePLNToGrosze(r.amount) ?? 0) : 0), 0)}
+              />
               <div className="flex flex-wrap items-center gap-3">
                 <Button size="sm" variant="outline" onClick={() => setSplitRows((current) => [...current, { method: "CASH", amount: "" }])}>
                   + wiersz
@@ -1203,6 +1218,11 @@ export default function AdminAppointmentDetail() {
                   </Button>
                 </div>
               </div>
+              {payMethod === "CASH" && enteredPaymentAmount && enteredPaymentAmount > 0 ? (
+                <div className="md:col-span-2">
+                  <CashChange amount={enteredPaymentAmount} />
+                </div>
+              ) : null}
               <div className="flex items-end space-y-2">
                 <Button
                   onClick={addPayment}

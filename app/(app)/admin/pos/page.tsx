@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { toast } from "sonner";
 import Link from "next/link";
 import { History, ShoppingCart, Trash2, Search, Tag, X } from "lucide-react";
+import { CashChange } from "@/components/cash-change";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -581,7 +582,16 @@ export default function PosPage() {
   }
 
   function updatePaymentRow(id: string, patch: Partial<PaymentRow>) {
-    setPayments((current) => current.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    setPayments((current) => {
+      const next = current.map((p) => (p.id === id ? { ...p, ...patch } : p));
+      // Przy dwóch metodach druga kwota liczy się sama: należność minus to, co wpisano w edytowanym wierszu.
+      if (patch.amountInput !== undefined && next.length === 2) {
+        const entered = parsePLNToGrosze(patch.amountInput) ?? 0;
+        const rest = Math.max(0, totalDue - entered);
+        return next.map((p) => (p.id === id ? p : { ...p, amountInput: rest > 0 ? formatGrosze(rest) : "" }));
+      }
+      return next;
+    });
   }
 
   function fillRemaining(id: string) {
@@ -965,6 +975,9 @@ export default function PosPage() {
                   </div>
                 ))}
               </div>
+              <CashChange
+                amount={payments.filter((p) => p.method === "CASH").reduce((s, p) => s + (parsePLNToGrosze(p.amountInput) ?? 0), 0)}
+              />
             </div>
 
             <div className="space-y-2">
