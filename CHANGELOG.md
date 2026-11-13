@@ -5,6 +5,7 @@ i migracje w `prisma/migrations`.
 
 ## 2026-11-02
 ### Dodano
+- Kalendarz: podziałki co 15 minut (linie przerywane i etykiety 15 / 30 / 45 na osi godzin) w widoku tygodnia, dnia ze specjalistami i na telefonie. Kliknięcie w kwadrans otwiera dodawanie wizyty od tej godziny (np. 10:15).
 - Płatności: przy płatności dzielonej na dwie metody (karta wizyty i POS) wpisanie kwoty w jednym wierszu od razu wylicza kwotę drugiego (np. 200 zł gotówką → reszta należności na kartę).
 - Płatność gotówką: kalkulator reszty — „Klient daje” (kwota wpisana albo szybki wybór: dokładnie / 50 / 100 / 200 zł) i wyliczone „Do wydania”. Działa na karcie wizyty, w płatności dzielonej, we wspólnym rozliczeniu wizyt z dnia i w POS; kwota od klienta nie jest zapisywana.
 - Magazyn: szybka zmiana stanu produktu — „Dodaj” / „Odejmij” z wyborem magazynu i ilości (przyciski +/−). Dostępna po zeskanowaniu produktu (od razu na pierwszym ekranie, termin ważności i partia z kodu GS1 uzupełniają się same), na karcie produktu (ogólnie i przy każdym magazynie) oraz na liście produktów w magazynie, także w widoku telefonu. Odejmowanie nie pozwala zdjąć więcej niż jest na stanie; zmiana trafia do dziennika zdarzeń.

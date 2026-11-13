@@ -45,6 +45,32 @@ function weekdayLabel(date: Date) {
 
 // Wysokość jednej godziny w widokach Dzień/Tydzień (px)
 const HOUR_HEIGHT = 64;
+// Podziałki kalendarza co 15 minut: każdy kwadrans jest osobnym polem (linia + kliknięcie dodaje wizytę o tej godzinie).
+const QUARTERS = [0, 15, 30, 45] as const;
+const QUARTER_HEIGHT = HOUR_HEIGHT / 4;
+const quarterLineClass = (minute: number) =>
+  minute === 0
+    ? "border-t border-zinc-100 dark:border-zinc-800"
+    : "border-t border-dashed border-zinc-100/80 dark:border-zinc-800/60";
+
+// Etykiety kwadransów na osi godzin (pełne godziny mają własne, większe etykiety).
+function QuarterLabels({ hours, hideFirst }: { hours: number[]; hideFirst?: boolean }) {
+  return (
+    <>
+      {hours.flatMap((hour, index) =>
+        QUARTERS.filter((minute) => minute !== 0 && !(hideFirst && index === hours.length - 1)).map((minute) => (
+          <div
+            key={`q-${hour}-${minute}`}
+            className="absolute right-2 -translate-y-1/2 text-[9px] tabular-nums text-zinc-300 dark:text-zinc-600"
+            style={{ top: index * HOUR_HEIGHT + (minute / 60) * HOUR_HEIGHT }}
+          >
+            {minute}
+          </div>
+        )),
+      )}
+    </>
+  );
+}
 // Domyślny zakres godzin — rozszerzany automatycznie, gdy wizyty wykraczają poza
 const DEFAULT_START_HOUR = 7;
 const DEFAULT_END_HOUR = 21;
@@ -744,6 +770,7 @@ export function AppointmentCalendar({
                   {index === 0 ? "" : `${String(hour).padStart(2, "0")}:00`}
                 </div>
               ))}
+              <QuarterLabels hours={hours} hideFirst />
             </div>
 
             {/* Kolumny dni */}
@@ -758,27 +785,31 @@ export function AppointmentCalendar({
                   style={{ height: gridHeight }}
                 >
                   {/* Linie godzin + kliknięcie w pusty slot */}
-                  {hours.map((hour, index) => (
-                    <div
-                      key={hour}
-                      className={
-                        "absolute inset-x-0 border-t border-zinc-100 dark:border-zinc-800 " +
-                        (onAdd
-                          ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/40"
-                          : "")
-                      }
-                      style={{ top: index * HOUR_HEIGHT, height: HOUR_HEIGHT }}
-                      onClick={
-                        onAdd
-                          ? () => {
-                              const slot = new Date(day);
-                              slot.setHours(hour, 0, 0, 0);
-                              onAdd(slot);
-                            }
-                          : undefined
-                      }
-                    />
-                  ))}
+                  {hours.flatMap((hour, index) =>
+                    QUARTERS.map((minute) => (
+                      <div
+                        key={`${hour}-${minute}`}
+                        className={
+                          "absolute inset-x-0 " +
+                          quarterLineClass(minute) +
+                          " " +
+                          (onAdd
+                            ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/40"
+                            : "")
+                        }
+                        style={{ top: index * HOUR_HEIGHT + (minute / 60) * HOUR_HEIGHT, height: QUARTER_HEIGHT }}
+                        onClick={
+                          onAdd
+                            ? () => {
+                                const slot = new Date(day);
+                                slot.setHours(hour, minute, 0, 0);
+                                onAdd(slot);
+                              }
+                            : undefined
+                        }
+                      />
+                    )),
+                  )}
 
                   {/* Wskaźnik bieżącej godziny */}
                   {isToday && nowVisible ? (
@@ -989,6 +1020,7 @@ export function AppointmentCalendar({
                   {index === 0 ? "" : `${String(hour).padStart(2, "0")}:00`}
                 </div>
               ))}
+              <QuarterLabels hours={hours} hideFirst />
             </div>
 
             {columnSpecialists.map((specialist) => {
@@ -1047,27 +1079,31 @@ export function AppointmentCalendar({
                     setDraggedAppointmentId(null);
                   }}
                 >
-                  {hours.map((hour, index) => (
-                    <div
-                      key={hour}
-                      className={
-                        "absolute inset-x-0 border-t border-zinc-100 dark:border-zinc-800 " +
-                        (onAdd
-                          ? "cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-500/5"
-                          : "")
-                      }
-                      style={{ top: index * HOUR_HEIGHT, height: HOUR_HEIGHT }}
-                      onClick={
-                        onAdd
-                          ? () => {
-                              const slot = new Date(day);
-                              slot.setHours(hour, 0, 0, 0);
-                              onAdd(slot, specialist.id);
-                            }
-                          : undefined
-                      }
-                    />
-                  ))}
+                  {hours.flatMap((hour, index) =>
+                    QUARTERS.map((minute) => (
+                      <div
+                        key={`${hour}-${minute}`}
+                        className={
+                          "absolute inset-x-0 " +
+                          quarterLineClass(minute) +
+                          " " +
+                          (onAdd
+                            ? "cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-500/5"
+                            : "")
+                        }
+                        style={{ top: index * HOUR_HEIGHT + (minute / 60) * HOUR_HEIGHT, height: QUARTER_HEIGHT }}
+                        onClick={
+                          onAdd
+                            ? () => {
+                                const slot = new Date(day);
+                                slot.setHours(hour, minute, 0, 0);
+                                onAdd(slot, specialist.id);
+                              }
+                            : undefined
+                        }
+                      />
+                    )),
+                  )}
 
                   <div
                     className="pointer-events-none absolute inset-x-0 z-[1]"
@@ -1311,37 +1347,43 @@ export function AppointmentCalendar({
               {String(hour).padStart(2, "0")}:00
             </div>
           ))}
+          <QuarterLabels hours={mobileHours} hideFirst />
         </div>
         <div className="relative" style={{ height: gridHeight }}>
-          {mobileHours.map((hour, index) => (
-            <div
-              key={hour}
-              className={
-                "absolute inset-x-0 border-t border-zinc-100 dark:border-zinc-800 " +
-                (onAdd && index < mobileHours.length - 1
-                  ? "cursor-pointer active:bg-zinc-50 dark:active:bg-zinc-900/40"
-                  : "")
-              }
-              style={{
-                top: index * HOUR_HEIGHT,
-                height: index < mobileHours.length - 1 ? HOUR_HEIGHT : 0,
-              }}
-              onClick={
-                onAdd && index < mobileHours.length - 1
-                  ? () => {
-                      const slot = new Date(day);
-                      slot.setHours(hour, 0, 0, 0);
-                      onAdd(
-                        slot,
-                        specialists.length === 1
-                          ? specialists[0]?.id
-                          : undefined,
-                      );
-                    }
-                  : undefined
-              }
-            />
-          ))}
+          {mobileHours.flatMap((hour, index) =>
+            // Ostatnia pełna godzina to tylko linia końca siatki — bez kwadransów.
+            (index < mobileHours.length - 1 ? QUARTERS : ([0] as const)).map((minute) => (
+              <div
+                key={`${hour}-${minute}`}
+                className={
+                  "absolute inset-x-0 " +
+                  quarterLineClass(minute) +
+                  " " +
+                  (onAdd && index < mobileHours.length - 1
+                    ? "cursor-pointer active:bg-zinc-50 dark:active:bg-zinc-900/40"
+                    : "")
+                }
+                style={{
+                  top: index * HOUR_HEIGHT + (minute / 60) * HOUR_HEIGHT,
+                  height: index < mobileHours.length - 1 ? QUARTER_HEIGHT : 0,
+                }}
+                onClick={
+                  onAdd && index < mobileHours.length - 1
+                    ? () => {
+                        const slot = new Date(day);
+                        slot.setHours(hour, minute, 0, 0);
+                        onAdd(
+                          slot,
+                          specialists.length === 1
+                            ? specialists[0]?.id
+                            : undefined,
+                        );
+                      }
+                    : undefined
+                }
+              />
+            )),
+          )}
 
           {isToday && nowVisible ? (
             <div
