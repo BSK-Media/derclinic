@@ -1,5 +1,6 @@
-import { effectivePercent, loadPercentOverrides } from "@/lib/payout-percent";
-import { settlementMaterialCost } from "@/lib/material-cost";
+import { loadPercentOverrides } from "@/lib/payout-percent";
+import { settlementConsumptionCost } from "@/lib/material-cost";
+import { loadPercentTimelines } from "@/lib/percent-history";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
@@ -41,17 +42,19 @@ export async function GET(req: Request) {
   });
 
   const overridesBySpecialist = await loadPercentOverrides(specialistIds);
+  // Procent obowiązujący w dniu wizyty (historia zmian), a nie bieżący.
+  const timelines = await loadPercentTimelines(specialists, overridesBySpecialist);
   const monthOverrides = await loadMonthOverrides(specialistIds, start, end);
 
   const rows = specialists.map((s) => {
-    const overrides = overridesBySpecialist.get(s.id);
+    const timeline = timelines.get(s.id)!;
     const appts = appointments.filter((a) => a.specialistId === s.id);
     // Procent liczony per wizyta: wyjątek od zabiegu nadpisuje ogólny procent pracownika.
-    const percentOf = (a: (typeof appts)[number]) => effectivePercent(s.payoutPercent ?? 50, overrides, a.serviceId);
+    const percentOf = (a: (typeof appts)[number]) => timeline.at(a.serviceId, a.startsAt);
     const items: OverrideItem[] = appts.map((a) => {
       const price = a.priceFinal ?? a.priceEstimate ?? 0;
       const cost = a.consumptions.reduce(
-        (acc, c) => acc + settlementMaterialCost(c.product, parseFloat(String(c.quantity))),
+        (acc, c) => acc + settlementConsumptionCost(c),
         0,
       );
       return {

@@ -4,8 +4,9 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { formatPLNFromGrosze } from "@/lib/money";
-import { effectivePercent, loadPercentOverrides } from "@/lib/payout-percent";
-import { settlementMaterialCost } from "@/lib/material-cost";
+import { loadPercentOverrides } from "@/lib/payout-percent";
+import { settlementConsumptionCost } from "@/lib/material-cost";
+import { loadPercentTimelines } from "@/lib/percent-history";
 import { isMonthKey, warsawMonthRange } from "@/lib/specialist-overrides";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ async function standardFigures(specialistId: string, month: string, scope: { loc
   const specialist = await prisma.user.findUnique({ where: { id: specialistId }, select: { payoutPercent: true } });
   const percent = specialist?.payoutPercent ?? 0;
   const overrides = (await loadPercentOverrides([specialistId])).get(specialistId);
+  const timeline = (await loadPercentTimelines([{ id: specialistId, payoutPercent: percent }], new Map([[specialistId, overrides ?? new Map()]]))).get(specialistId)!;
   const appointments = await prisma.appointment.findMany({
     where: {
       specialistId,
@@ -28,9 +30,10 @@ async function standardFigures(specialistId: string, month: string, scope: { loc
     },
     select: {
       serviceId: true,
+      startsAt: true,
       priceFinal: true,
       priceEstimate: true,
-      consumptions: { select: { quantity: true, product: { select: { purchasePrice: true, salePrice: true } } } },
+      consumptions: { select: { quantity: true, purchasePriceAtUse: true, salePriceAtUse: true, product: { select: { purchasePrice: true, salePrice: true } } } },
     },
     take: 10000,
   });
@@ -38,11 +41,11 @@ async function standardFigures(specialistId: string, month: string, scope: { loc
   let materialCost = 0;
   let payout = 0;
   for (const a of appointments) {
-    const material = a.consumptions.reduce((sum, c) => sum + settlementMaterialCost(c.product, Number(c.quantity)), 0);
+    const material = a.consumptions.reduce((sum, c) => sum + settlementConsumptionCost(c), 0);
     const price = a.priceFinal ?? a.priceEstimate ?? 0;
     revenue += price;
     materialCost += material;
-    payout += Math.round(((price - material) * effectivePercent(percent, overrides, a.serviceId)) / 100);
+    payout += Math.round(((price - material) * timeline.at(a.serviceId, a.startsAt)) / 100);
   }
   return { appointments: appointments.length, revenue, materialCost, payout };
 }

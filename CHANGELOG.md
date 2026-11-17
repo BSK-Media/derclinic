@@ -5,6 +5,7 @@ i migracje w `prisma/migrations`.
 
 ## 2026-11-17
 ### Zmieniono
+- Historia cen i procentów: zmiana ceny produktu albo procentu specjalisty działa od momentu zmiany i nie zmienia danych historycznych. Przy każdym zużyciu zapisywane są ceny zakupu i sprzedaży produktu z tej chwili (rozliczenia specjalistów, analityka kliniki i panel specjalisty liczą z nich, a nie z ceny bieżącej). Procent specjalisty (ogólny i wyjątki od zabiegów) ma historię zmian — wizyta jest rozliczana procentem obowiązującym w dniu wizyty. Cena zabiegu była już zapisywana przy wizycie. Dotychczasowe zużycia i procenty dostają wartości z dnia wdrożenia (wcześniejszych cen nie zapisywano). Migracja `20261117120000_price_and_percent_history`.
 - Rozliczenia specjalistów: koszt materiałów liczony od ceny sprzedaży produktu (klinika kupuje za X, a specjaliście rozlicza za X+Y), nie od ceny zakupu. Dotyczy rozliczeń, podsumowania finansowego, szczegółów pracownika i rozliczenia niestandardowego (wartości standardowe). Produkt bez ceny sprzedaży rozliczany jest po cenie zakupu. Analityka kliniki (rzeczywiste koszty) nadal liczy od ceny zakupu.
 
 ### Dodano

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { recordPercentChange } from "@/lib/percent-history";
 
 // Zabiegi przypisane do specjalisty z jego procentem: ogólnym (User.payoutPercent) albo wyjątkiem
 // dla konkretnego zabiegu (SpecialistServicePercent), który nadpisuje procent ogólny.
@@ -94,6 +95,11 @@ export async function PUT(req: Request, props: { params: Promise<{ id: string }>
       update: { percent },
       create: { specialistId: params.id, serviceId, percent },
     });
+  }
+
+  // Zmiana wyjątku działa od teraz — poprzednie okresy zostają rozliczone dawnym procentem (historia procentów).
+  if ((previous?.percent ?? null) !== percent) {
+    await recordPercentChange({ specialistId: params.id, serviceId, percent, changedById: user!.id });
   }
 
   const label = (value: number | null | undefined) => (value == null ? `ogólny (${specialist.payoutPercent}%)` : `${value}%`);

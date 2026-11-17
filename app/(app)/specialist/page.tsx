@@ -1,4 +1,6 @@
-import { effectivePercent, loadPercentOverrides } from "@/lib/payout-percent";
+import { loadPercentOverrides } from "@/lib/payout-percent";
+import { settlementConsumptionCost } from "@/lib/material-cost";
+import { loadPercentTimelines } from "@/lib/percent-history";
 import type { ReactNode } from "react";
 import { PATIENT_PUBLIC_SELECT } from "@/lib/patient-select";
 import type { Prisma } from "@prisma/client";
@@ -284,11 +286,12 @@ export default async function SpecialistHome() {
       },
       select: {
         serviceId: true,
+        startsAt: true,
         priceFinal: true,
         priceEstimate: true,
         consumptions: {
           where: { status: "APPLIED" },
-          select: { quantity: true, product: { select: { purchasePrice: true } } },
+          select: { quantity: true, purchasePriceAtUse: true, salePriceAtUse: true, product: { select: { purchasePrice: true, salePrice: true } } },
         },
       },
     }),
@@ -371,13 +374,14 @@ export default async function SpecialistHome() {
 
   // Wyjątki procentowe od zabiegów nadpisują ogólny procent specjalisty.
   const percentOverrides = (await loadPercentOverrides([auth.id])).get(auth.id);
+  // Procent obowiązujący w dniu wizyty (historia zmian), a nie bieżący.
+  const percentTimeline = (
+    await loadPercentTimelines([{ id: auth.id, payoutPercent: specialist.payoutPercent }], new Map([[auth.id, percentOverrides ?? new Map()]]))
+  ).get(auth.id)!;
   const monthlyEarnings = monthlyCompleted.reduce((sum, appointment) => {
     const revenue = appointment.priceFinal ?? appointment.priceEstimate ?? 0;
-    const materials = appointment.consumptions.reduce((materialSum, consumption) => {
-      const purchasePrice = consumption.product.purchasePrice ?? 0;
-      return materialSum + Math.round(purchasePrice * Math.abs(Number(consumption.quantity)));
-    }, 0);
-    const percent = effectivePercent(specialist.payoutPercent, percentOverrides, appointment.serviceId);
+    const materials = appointment.consumptions.reduce((materialSum, consumption) => materialSum + settlementConsumptionCost(consumption), 0);
+    const percent = percentTimeline.at(appointment.serviceId, appointment.startsAt);
     return sum + Math.round(((revenue - materials) * percent) / 100);
   }, 0);
 

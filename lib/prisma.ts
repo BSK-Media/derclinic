@@ -21,6 +21,25 @@ function withPatientBlindIndexes(operation: string, args: any) {
   return next;
 }
 
+// Ceny produktu z chwili zużycia (Consumption.purchasePriceAtUse / salePriceAtUse): zapisujemy je przy każdym utworzeniu zużycia,
+// żeby późniejsza zmiana ceny w katalogu nie zmieniała rozliczeń ani analityki z przeszłości.
+async function withConsumptionPrices(base: PrismaClient, operation: string, args: any) {
+  if (!args || typeof args !== "object" || !args.data) return args;
+  if (!["create", "createMany", "createManyAndReturn"].includes(operation)) return args;
+  const rows: any[] = Array.isArray(args.data) ? args.data : [args.data];
+  const idOf = (row: any): string | undefined => row?.productId ?? row?.product?.connect?.id;
+  const needed = Array.from(new Set(rows.filter((row) => row && row.purchasePriceAtUse === undefined && row.salePriceAtUse === undefined).map(idOf).filter(Boolean) as string[]));
+  if (needed.length === 0) return args;
+  const products = await base.product.findMany({ where: { id: { in: needed } }, select: { id: true, purchasePrice: true, salePrice: true } });
+  const byId = new Map(products.map((product) => [product.id, product] as const));
+  const fill = (row: any) => {
+    const product = byId.get(idOf(row) ?? "");
+    if (!product || row.purchasePriceAtUse !== undefined || row.salePriceAtUse !== undefined) return row;
+    return { ...row, purchasePriceAtUse: product.purchasePrice, salePriceAtUse: product.salePrice };
+  };
+  return { ...args, data: Array.isArray(args.data) ? args.data.map(fill) : fill(args.data) };
+}
+
 function createClient(): PrismaClient {
   const base = new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
@@ -38,6 +57,7 @@ function createClient(): PrismaClient {
             prepared = { ...prepared, where: rewritePatientWhere(prepared.where, modelKey === "patient") };
           }
           if (modelKey === "patient") prepared = withPatientBlindIndexes(operation, prepared);
+          if (modelKey === "consumption") prepared = await withConsumptionPrices(base, operation, prepared);
           const nextArgs = isEncryptedModel(modelKey) ? encryptWriteArgs(modelKey, operation, prepared) : prepared;
           return decryptDeep(await query(nextArgs));
         },

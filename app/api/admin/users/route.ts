@@ -6,6 +6,7 @@ import { randomBytes } from "crypto";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireStrictRole } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { recordPercentChange } from "@/lib/percent-history";
 import { validatePassword } from "@/lib/password-policy";
 import { requireStepUp } from "@/lib/mfa";
 import { STAFF_BCRYPT_COST } from "@/lib/staff-credentials";
@@ -136,6 +137,13 @@ export async function POST(req: Request) {
         avatarUrl: avatarUrl || null,
       },
       select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true, location: true, locationId: true, assignedLocation: { select: { id: true, name: true } }, specialization: true },
+    });
+    // Procent początkowy w historii procentów (obowiązuje od początku, późniejsze zmiany działają od momentu zmiany).
+    await recordPercentChange({
+      specialistId: created.id,
+      percent: created.payoutPercent,
+      changedById: user!.id,
+      effectiveFrom: new Date(0),
     });
   } catch (e) {
     // Login i e-mail są unikalne — zamiast ogólnego błędu mówimy, co jest zajęte.

@@ -7,6 +7,7 @@ import { logAudit, diffFields } from "@/lib/audit";
 import { validatePassword } from "@/lib/password-policy";
 import { STAFF_BCRYPT_COST } from "@/lib/staff-credentials";
 import { requireStepUp } from "@/lib/mfa";
+import { recordPercentChange } from "@/lib/percent-history";
 import { revokeAllStaffSessions } from "@/lib/session-core";
 import { canManageAccount } from "@/lib/roles";
 
@@ -167,6 +168,11 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
     data,
     select: { id: true, login: true, name: true, role: true, email: true, payoutPercent: true, phone: true, specialistCode: true, isVisible: true, isAvailable: true, avatarUrl: true, jobTitle: true, location: true, locationId: true, assignedLocation: { select: { id: true, name: true } }, specialization: true },
   });
+
+  // Zmiana procentu działa od teraz — poprzednie okresy zostają rozliczone starym procentem (historia procentów).
+  if (parsed.data.payoutPercent !== undefined && before && before.payoutPercent !== parsed.data.payoutPercent) {
+    await recordPercentChange({ specialistId: params.id, percent: parsed.data.payoutPercent, changedById: user!.id });
+  }
 
   // Nowa rola lub hasło unieważniają aktywne sesje tego pracownika
   // (przy zmianie własnego hasła zostaje bieżąca sesja administratora).

@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { resolveSettlementRange } from "@/lib/settlement-range";
-import { settlementMaterialCost } from "@/lib/material-cost";
+import { settlementConsumptionCost } from "@/lib/material-cost";
+import { loadPercentTimelines } from "@/lib/percent-history";
 import { applyMonthOverrides, type OverrideItem } from "@/lib/specialist-overrides";
 import { loadMonthOverrides } from "@/lib/specialist-overrides-db";
 
@@ -53,6 +54,8 @@ export async function GET(req: Request) {
       consumptions: {
         select: {
           quantity: true,
+          purchasePriceAtUse: true,
+          salePriceAtUse: true,
           product: { select: { purchasePrice: true, salePrice: true } },
         },
       },
@@ -61,11 +64,13 @@ export async function GET(req: Request) {
   });
 
   const overridesBySpecialist = await loadPercentOverrides(specialistIds);
+  // Procent obowiązujący w dniu wizyty (historia zmian), a nie bieżący.
+  const timelines = await loadPercentTimelines(specialists, overridesBySpecialist);
   // Rozliczenia niestandardowe (miesiące objęte zakresem w całości) zastępują wartości policzone z wizyt.
   const monthOverrides = await loadMonthOverrides(specialistIds, period.start, period.end);
 
   const rows = specialists.map((specialist) => {
-    const overrides = overridesBySpecialist.get(specialist.id);
+    const timeline = timelines.get(specialist.id)!;
     const completed = appointments.filter(
       (appointment) => appointment.specialistId === specialist.id,
     );
@@ -75,7 +80,7 @@ export async function GET(req: Request) {
 
     for (const appointment of completed) {
       const appointmentMaterials = appointment.consumptions.reduce((sum, consumption) => {
-        return sum + settlementMaterialCost(consumption.product, Number(consumption.quantity));
+        return sum + settlementConsumptionCost(consumption);
       }, 0);
       const appointmentRevenue = appointment.priceFinal ?? appointment.priceEstimate ?? 0;
 
@@ -87,7 +92,7 @@ export async function GET(req: Request) {
         revenue: appointmentRevenue,
         materialCost: appointmentMaterials,
         payout: Math.round(
-          ((appointmentRevenue - appointmentMaterials) * effectivePercent(percent, overrides, appointment.serviceId)) / 100,
+          ((appointmentRevenue - appointmentMaterials) * timeline.at(appointment.serviceId, appointment.startsAt)) / 100,
         ),
       });
     }

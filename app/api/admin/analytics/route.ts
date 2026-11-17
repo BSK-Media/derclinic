@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireRole } from "@/lib/api-helpers";
 import { applyMonthOverrides, type OverrideItem } from "@/lib/specialist-overrides";
 import { loadMonthOverrides } from "@/lib/specialist-overrides-db";
+import { purchaseConsumptionCost, saleConsumptionValue } from "@/lib/material-cost";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +83,8 @@ export async function GET(req: Request) {
             select: {
               status: true,
               quantity: true,
+              purchasePriceAtUse: true,
+              salePriceAtUse: true,
               product: {
                 select: { id: true, name: true, unit: true, salePrice: true, purchasePrice: true },
               },
@@ -139,8 +142,8 @@ export async function GET(req: Request) {
     for (const c of a.consumptions) {
       if (c.status === "REJECTED") continue;
       const q = Math.abs(toNum(c.quantity));
-      materialsSaleValue += Math.round((c.product.salePrice ?? 0) * q);
-      materialsCost += Math.round((c.product.purchasePrice ?? 0) * q);
+      materialsSaleValue += saleConsumptionValue(c);
+      materialsCost += purchaseConsumptionCost(c);
     }
   }
   const margin = revenue - materialsCost;
@@ -247,8 +250,8 @@ export async function GET(req: Request) {
       for (const c of a.consumptions) {
         if (c.status === "REJECTED") continue;
         const q = Math.abs(toNum(c.quantity));
-        row.materialsCost += Math.round((c.product.purchasePrice ?? 0) * q);
-        row.materialsValue += Math.round((c.product.salePrice ?? 0) * q);
+        row.materialsCost += purchaseConsumptionCost(c);
+        row.materialsValue += saleConsumptionValue(c);
       }
     }
     bySpec.set(a.specialistId, row);
@@ -264,7 +267,7 @@ export async function GET(req: Request) {
         .map((a) => ({
           startsAt: a.startsAt,
           revenue: apptPrice(a),
-          materialCost: a.consumptions.reduce((sum, c) => (c.status === "REJECTED" ? sum : sum + Math.round((c.product.purchasePrice ?? 0) * Math.abs(toNum(c.quantity)))), 0),
+          materialCost: a.consumptions.reduce((sum, c) => (c.status === "REJECTED" ? sum : sum + purchaseConsumptionCost(c)), 0),
           payout: 0,
         }));
       const totals = applyMonthOverrides(items, ovs);
@@ -315,8 +318,8 @@ export async function GET(req: Request) {
         value: 0,
       };
       row.quantity += q;
-      row.cost += Math.round((c.product.purchasePrice ?? 0) * q);
-      row.value += Math.round((c.product.salePrice ?? 0) * q);
+      row.cost += purchaseConsumptionCost(c);
+      row.value += saleConsumptionValue(c);
       byProduct.set(c.product.id, row);
     }
   }

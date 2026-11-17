@@ -387,6 +387,22 @@ model SpecialistServicePercent {
   @@index([serviceId])
 }
 
+// Historia procentu specjalisty: od `effectiveFrom` obowiązuje dany procent (ogólny, gdy serviceId = null, albo wyjątek od zabiegu).
+// percent = null przy wyjątku oznacza jego usunięcie (wraca procent ogólny). Rozliczenie wizyty bierze wpis obowiązujący
+// w dniu wizyty, więc zmiana procentu działa tylko od momentu zmiany i nie przelicza poprzednich okresów.
+model SpecialistPercentChange {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  specialistId String
+  serviceId    String?
+  percent      Int?
+  effectiveFrom DateTime
+  changedById  String?
+
+  @@index([specialistId, serviceId, effectiveFrom])
+}
+
 // Usługi rzeczywiście wykonywane przez danego pracownika.
 // To osobna relacja od stawki, ponieważ pusta stawka nie oznacza braku przypisania.
 model SpecialistService {
@@ -705,6 +721,11 @@ model Consumption {
 
   quantity Decimal  @db.Decimal(14, 2)
   unit     UnitType @default(UNIT)
+
+  // Ceny produktu (grosze) z chwili zużycia — rozliczenia i analityka historyczne nie zmieniają się po zmianie ceny w katalogu.
+  // Zapis automatyczny w lib/prisma.ts; brak (null) = zużycie sprzed wprowadzenia historii, wtedy cena bieżąca.
+  purchasePriceAtUse Int?
+  salePriceAtUse     Int?
 
   createdById String
   createdBy   User   @relation("ConsumptionCreator", fields: [createdById], references: [id], onDelete: Restrict)

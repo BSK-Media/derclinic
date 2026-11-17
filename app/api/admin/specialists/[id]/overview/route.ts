@@ -1,5 +1,6 @@
 import { effectivePercent, loadPercentOverrides } from "@/lib/payout-percent";
-import { settlementMaterialCost } from "@/lib/material-cost";
+import { settlementConsumptionCost } from "@/lib/material-cost";
+import { loadPercentTimelines } from "@/lib/percent-history";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
@@ -58,15 +59,17 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   const percent = specialist.payoutPercent ?? 0;
   // Wyjątki procentowe od zabiegów nadpisują ogólny procent pracownika.
   const percentOverrides = (await loadPercentOverrides([params.id])).get(params.id);
+  // Procent obowiązujący w dniu wizyty (historia zmian), a nie bieżący.
+  const timeline = (await loadPercentTimelines([{ id: params.id, payoutPercent: percent }], new Map([[params.id, percentOverrides ?? new Map()]]))).get(params.id)!;
 
   const rows = appointments.map((a) => {
     const materialCost = a.consumptions.reduce((sum, c) => {
-      return sum + settlementMaterialCost(c.product, parseFloat(String(c.quantity)));
+      return sum + settlementConsumptionCost(c);
     }, 0);
     const revenue = a.priceFinal ?? a.priceEstimate ?? 0;
     // Nowy model rozliczeń: baza = przychód − materiały, wypłata = baza × % pracownika
     const base = revenue - materialCost;
-    const rowPercent = effectivePercent(percent, percentOverrides, a.serviceId);
+    const rowPercent = timeline.at(a.serviceId, a.startsAt);
     const payout = Math.round((base * rowPercent) / 100);
 
     return {
@@ -84,7 +87,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
         id: c.id,
         productName: c.product.name,
         quantity: String(c.quantity),
-        cost: settlementMaterialCost(c.product, parseFloat(String(c.quantity))),
+        cost: settlementConsumptionCost(c),
       })),
       base,
       percent: rowPercent,
