@@ -23,6 +23,7 @@ import { formatPLNFromGrosze, parsePLNToGrosze } from "@/lib/money";
 import { useAuth } from "@/components/auth-provider";
 import { LocationSelect, useLocationOptions } from "@/components/location-select";
 import { NEW_PATIENT, PatientPicker } from "@/components/patient-picker";
+import { EMPTY_MARKETING_CONSENT, MarketingConsentField, saveMarketingConsent, type MarketingConsentValue } from "@/components/marketing-consent-field";
 
 type Patient = { id: string; name: string; locationId: string };
 type Specialist = { id: string; name: string; locationId: string; serviceIds?: string[] };
@@ -71,6 +72,7 @@ export function AdminBookAppointmentDialog({
   const [priceFinal, setPriceFinal] = React.useState("");
   const [note, setNote] = React.useState("");
   const [saving, setSaving] = React.useState(false);
+  const [marketing, setMarketing] = React.useState<MarketingConsentValue>(EMPTY_MARKETING_CONSENT);
 
   const isNewPatient = patientId === NEW_PATIENT;
 
@@ -94,6 +96,7 @@ export function AdminBookAppointmentDialog({
     setServiceId("");
     setPriceFinal("");
     setNote("");
+    setMarketing(EMPTY_MARKETING_CONSENT);
     const defaultSpecialistLocation = specialists.find(
       (specialist) => specialist.id === defaultSpecialistId,
     )?.locationId;
@@ -191,7 +194,13 @@ export function AdminBookAppointmentDialog({
       });
       const out = await res.json().catch(() => ({}));
       if (!res.ok || !out?.ok) return toast.error(out?.message || "Błąd");
-      toast.success("Wizyta dodana");
+      // Zgoda marketingowa z papierowego dokumentu (opcjonalnie ze skanem) — zapisywana przy kartotece pacjenta.
+      if (marketing.checked && out.appointment?.patientId) {
+        const saved = await saveMarketingConsent(out.appointment.patientId, marketing);
+        toast.success(saved ? "Wizyta dodana, zgoda marketingowa zapisana" : "Wizyta dodana (zgody nie udało się zapisać — uzupełnij ją w karcie pacjenta)");
+      } else {
+        toast.success("Wizyta dodana");
+      }
       onOpenChange(false);
       onCreated();
     } finally {
@@ -282,6 +291,12 @@ export function AdminBookAppointmentDialog({
                 Jeśli klient z tym numerem telefonu już istnieje, wizyta zostanie przypisana do jego
                 kartoteki.
               </div>
+            </div>
+          ) : null}
+
+          {patientId ? (
+            <div className="md:col-span-2">
+              <MarketingConsentField value={marketing} onChange={setMarketing} patientId={isNewPatient ? null : patientId} />
             </div>
           ) : null}
 

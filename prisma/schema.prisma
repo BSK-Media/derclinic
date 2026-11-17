@@ -271,6 +271,7 @@ model Patient {
   consents                       PatientConsent[]
   newsletterListMemberships      NewsletterListMember[]
   consentEvents                  PatientConsentEvent[]
+  consentDocuments               PatientConsentDocument[]
   sessions                       PatientSession[]
   pushSubscriptions              PushSubscription[]
 
@@ -969,6 +970,31 @@ model PatientConsentEvent {
 
   type    PatientConsentType
   granted Boolean
+
+  // Kto i jak zapisał zmianę: null = pacjent sam (panel klienta, link w newsletterze); PAPER = recepcja na podstawie
+  // papierowego dokumentu (recordedById = pracownik).
+  channel      String?
+  recordedById String?
+
+  @@index([patientId, createdAt])
+}
+
+// Skan podpisanej zgody (np. marketingowej) wgrany przez recepcję. Plik jest szyfrowany w bazie (lib/data-encryption.ts).
+model PatientConsentDocument {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  type PatientConsentType
+
+  fileName String
+  mimeType String
+  size     Int
+  data     Bytes
+
+  uploadedById String?
 
   @@index([patientId, createdAt])
 }

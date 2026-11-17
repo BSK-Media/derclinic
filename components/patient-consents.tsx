@@ -15,7 +15,7 @@ function formatDate(date: Date) {
 }
 
 type ConsentState = { type: string; granted: boolean; grantedAt: Date | null; revokedAt: Date | null };
-type ConsentEvent = { id: string; type: string; granted: boolean; createdAt: Date };
+type ConsentEvent = { id: string; type: string; granted: boolean; createdAt: Date; channel?: string | null };
 
 function StatusBadge({ granted }: { granted: boolean }) {
   return granted ? (
@@ -75,6 +75,7 @@ export function PatientConsents({ state, events }: { state: ConsentState[]; even
                   <span className={event.granted ? "font-medium text-emerald-700" : "font-medium text-red-600"}>
                     {event.granted ? "wyrażona" : "wycofana"}
                   </span>
+                  {event.channel === "PAPER" ? <span className="text-zinc-500"> (na recepcji, dokument papierowy)</span> : null}
                 </span>
                 <span className="shrink-0 text-xs text-zinc-400">{formatDate(event.createdAt)}</span>
               </li>

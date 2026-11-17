@@ -52,6 +52,7 @@ export const AUDIT_ENTITY_LABELS: Record<string, string> = {
   ImageConsent: "Zgoda na wizerunek",
   PatientAccount: "Konto pacjenta",
   PatientConsent: "Zgoda pacjenta",
+  PatientConsentDocument: "Skan zgody pacjenta",
   PatientDataChangeRequest: "Prośba o zmianę danych",
   ImageConsentRevocationRequest: "Prośba o cofnięcie zgody na wizerunek",
   PatientPhoneFix: "Naprawa numerów telefonów",

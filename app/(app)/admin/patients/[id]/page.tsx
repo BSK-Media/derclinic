@@ -8,6 +8,7 @@ import { RfmBadge } from "@/components/rfm-panel";
 import { PatientBenefits } from "@/components/patient-benefits";
 import { PatientHistoryTabs } from "@/components/patient-history-tabs";
 import { PatientConsents } from "@/components/patient-consents";
+import { PatientMarketingConsent } from "@/components/patient-marketing-consent";
 import { getEffectiveAuth } from "@/lib/effective-auth";
 
 export default async function AdminPatientDetailPage(props: { params: Promise<{ id: string }> }) {
@@ -97,6 +98,7 @@ export default async function AdminPatientDetailPage(props: { params: Promise<{ 
         }))}
       />
 
+      <PatientMarketingConsent patientId={patient.id} />
       <PatientConsents state={consentState} events={consentEvents} />
     </div>
   );

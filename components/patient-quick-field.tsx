@@ -3,6 +3,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { NEW_PATIENT, PatientPicker } from "@/components/patient-picker";
+import { EMPTY_MARKETING_CONSENT, MarketingConsentField, saveMarketingConsent, type MarketingConsentValue } from "@/components/marketing-consent-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +25,7 @@ export function PatientQuickField({
   const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [saving, setSaving] = React.useState(false);
+  const [marketing, setMarketing] = React.useState<MarketingConsentValue>(EMPTY_MARKETING_CONSENT);
   const isNew = pickerValue === NEW_PATIENT;
 
   async function create() {
@@ -39,6 +41,11 @@ export function PatientQuickField({
       const out = await res.json().catch(() => ({}));
       if (!res.ok || !out?.ok) return toast.error(out?.message || "Nie udało się dodać klienta");
       toast.success(out.created ? `Dodano klienta ${out.patient.name}` : `Klient z tym numerem już jest w bazie: ${out.patient.name}`);
+      if (marketing.checked) {
+        const saved = await saveMarketingConsent(out.patient.id, marketing);
+        if (saved) toast.success("Zapisano zgodę marketingową");
+      }
+      setMarketing(EMPTY_MARKETING_CONSENT);
       setPickerValue(out.patient.id);
       onChange({ id: out.patient.id, name: out.patient.name });
       setFirstName("");
@@ -82,6 +89,7 @@ export function PatientQuickField({
               <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="opcjonalnie" />
             </div>
           </div>
+          <MarketingConsentField value={marketing} onChange={setMarketing} />
           <div className="flex justify-end">
             <Button type="button" size="sm" onClick={create} disabled={saving}>
               {saving ? "Dodawanie…" : "Dodaj klienta do bazy"}
