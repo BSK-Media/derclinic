@@ -13,7 +13,7 @@ const INTERACTIVE =
 
 const DRAG_THRESHOLD = 5;
 
-function horizontalScroller(start: HTMLElement | null): HTMLElement | null {
+export function horizontalScroller(start: HTMLElement | null): HTMLElement | null {
   let node = start;
   while (node && node !== document.body && node !== document.documentElement) {
     if (node.scrollWidth > node.clientWidth + 1) {

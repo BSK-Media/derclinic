@@ -5,6 +5,7 @@ i migracje w `prisma/migrations`.
 
 ## 2026-11-17
 ### Dodano
+- Szerokie tabele (magazyn, produkty, wizyty, rozliczenia i pozostałe listy): poziomy suwak przyklejony do dołu okna, widoczny także wtedy, gdy koniec tabeli jest poniżej ekranu. Działa razem z przeciąganiem tabeli myszką.
 - Produkty i magazyn: kolumna „Starczy na wizyty” — czy zapas wystarczy na zaplanowane wizyty (zamiast samej średniej WOS z poprzednich tygodni). Zapotrzebowanie liczone z zaplanowanych wizyt w wybranym okresie (14 / 30 / 60 / 90 dni, domyślnie 30) według produktów przypisanych do usług; pokazuje „zostanie X” albo „brakuje X od daty (usługa)”, wizyty układane chronologicznie. Bilans liczony względem łącznego stanu produktu we wszystkich magazynach. Dostępne w zakładce Produkty oraz w każdym magazynie, także w widoku telefonu.
 
 ## 2026-11-02

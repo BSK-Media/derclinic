@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React from "react";
 import { DragScroll } from "@/components/drag-scroll";
+import { StickyXScrollbar } from "@/components/sticky-x-scrollbar";
 import useSWR from "swr";
 import { createPortal } from "react-dom";
 import { useTheme } from "next-themes";
@@ -841,6 +842,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       <DragScroll />
+      <StickyXScrollbar />
       {!loading && user ? <GlobalScanDialog /> : null}
       {user ? <StaffBottomNav /> : null}
     </div>
