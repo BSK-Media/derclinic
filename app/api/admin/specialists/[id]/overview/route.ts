@@ -1,4 +1,5 @@
 import { effectivePercent, loadPercentOverrides } from "@/lib/payout-percent";
+import { settlementMaterialCost } from "@/lib/material-cost";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
@@ -49,7 +50,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
       patient: { select: { id: true, name: true } },
       service: { select: { id: true, name: true } },
       consumptions: {
-        include: { product: { select: { id: true, name: true, purchasePrice: true } } },
+        include: { product: { select: { id: true, name: true, purchasePrice: true, salePrice: true } } },
       },
     },
   });
@@ -60,9 +61,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
 
   const rows = appointments.map((a) => {
     const materialCost = a.consumptions.reduce((sum, c) => {
-      const purchase = c.product.purchasePrice ?? 0;
-      const q = Math.abs(parseFloat(String(c.quantity)));
-      return sum + Math.round(purchase * q);
+      return sum + settlementMaterialCost(c.product, parseFloat(String(c.quantity)));
     }, 0);
     const revenue = a.priceFinal ?? a.priceEstimate ?? 0;
     // Nowy model rozliczeń: baza = przychód − materiały, wypłata = baza × % pracownika
@@ -85,7 +84,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
         id: c.id,
         productName: c.product.name,
         quantity: String(c.quantity),
-        cost: Math.round((c.product.purchasePrice ?? 0) * Math.abs(parseFloat(String(c.quantity)))),
+        cost: settlementMaterialCost(c.product, parseFloat(String(c.quantity))),
       })),
       base,
       percent: rowPercent,

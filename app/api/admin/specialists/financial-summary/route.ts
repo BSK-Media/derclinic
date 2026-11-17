@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { resolveSettlementRange } from "@/lib/settlement-range";
+import { settlementMaterialCost } from "@/lib/material-cost";
 import { applyMonthOverrides, type OverrideItem } from "@/lib/specialist-overrides";
 import { loadMonthOverrides } from "@/lib/specialist-overrides-db";
 
@@ -52,7 +53,7 @@ export async function GET(req: Request) {
       consumptions: {
         select: {
           quantity: true,
-          product: { select: { purchasePrice: true } },
+          product: { select: { purchasePrice: true, salePrice: true } },
         },
       },
     },
@@ -74,9 +75,7 @@ export async function GET(req: Request) {
 
     for (const appointment of completed) {
       const appointmentMaterials = appointment.consumptions.reduce((sum, consumption) => {
-        const purchasePrice = consumption.product.purchasePrice ?? 0;
-        const quantity = Math.abs(Number(consumption.quantity));
-        return sum + Math.round(purchasePrice * quantity);
+        return sum + settlementMaterialCost(consumption.product, Number(consumption.quantity));
       }, 0);
       const appointmentRevenue = appointment.priceFinal ?? appointment.priceEstimate ?? 0;
 

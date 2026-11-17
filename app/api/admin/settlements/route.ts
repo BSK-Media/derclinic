@@ -1,4 +1,5 @@
 import { effectivePercent, loadPercentOverrides } from "@/lib/payout-percent";
+import { settlementMaterialCost } from "@/lib/material-cost";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
@@ -50,7 +51,7 @@ export async function GET(req: Request) {
     const items: OverrideItem[] = appts.map((a) => {
       const price = a.priceFinal ?? a.priceEstimate ?? 0;
       const cost = a.consumptions.reduce(
-        (acc, c) => acc + Math.round((c.product.purchasePrice ?? 0) * Math.abs(parseFloat(String(c.quantity)))),
+        (acc, c) => acc + settlementMaterialCost(c.product, parseFloat(String(c.quantity))),
         0,
       );
       return {

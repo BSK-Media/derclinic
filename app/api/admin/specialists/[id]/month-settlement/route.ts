@@ -5,6 +5,7 @@ import { requireAuth, requireStrictRole, scopedLocationWhere } from "@/lib/api-h
 import { logAudit } from "@/lib/audit";
 import { formatPLNFromGrosze } from "@/lib/money";
 import { effectivePercent, loadPercentOverrides } from "@/lib/payout-percent";
+import { settlementMaterialCost } from "@/lib/material-cost";
 import { isMonthKey, warsawMonthRange } from "@/lib/specialist-overrides";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +30,7 @@ async function standardFigures(specialistId: string, month: string, scope: { loc
       serviceId: true,
       priceFinal: true,
       priceEstimate: true,
-      consumptions: { select: { quantity: true, product: { select: { purchasePrice: true } } } },
+      consumptions: { select: { quantity: true, product: { select: { purchasePrice: true, salePrice: true } } } },
     },
     take: 10000,
   });
@@ -37,7 +38,7 @@ async function standardFigures(specialistId: string, month: string, scope: { loc
   let materialCost = 0;
   let payout = 0;
   for (const a of appointments) {
-    const material = a.consumptions.reduce((sum, c) => sum + Math.round((c.product.purchasePrice ?? 0) * Math.abs(Number(c.quantity))), 0);
+    const material = a.consumptions.reduce((sum, c) => sum + settlementMaterialCost(c.product, Number(c.quantity)), 0);
     const price = a.priceFinal ?? a.priceEstimate ?? 0;
     revenue += price;
     materialCost += material;

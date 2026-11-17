@@ -378,7 +378,7 @@ export default function SpecialistDetailPage() {
               <div className="font-medium">Historia wizyt</div>
               <div className="mt-1 text-xs text-slate-500">
                 {isAdmin
-                  ? "Kwoty: przychód (cena wizyty), materiały (koszt zakupu zużytych produktów), wypłata = (przychód − materiały) × procent pracownika. Do statystyk i wypłaty liczą się tylko wizyty zakończone i zaakceptowane."
+                  ? "Kwoty: przychód (cena wizyty), materiały (zużyte produkty × ich cena sprzedaży), wypłata = (przychód − materiały) × procent pracownika. Do statystyk i wypłaty liczą się tylko wizyty zakończone i zaakceptowane."
                   : "Do statystyk liczą się tylko wizyty zakończone i zaakceptowane."}
               </div>
             </div>

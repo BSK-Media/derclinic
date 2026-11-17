@@ -4,6 +4,9 @@ Format: najnowsze na górze, zmiany pogrupowane według daty wdrożenia. Szczeg�
 i migracje w `prisma/migrations`.
 
 ## 2026-11-17
+### Zmieniono
+- Rozliczenia specjalistów: koszt materiałów liczony od ceny sprzedaży produktu (klinika kupuje za X, a specjaliście rozlicza za X+Y), nie od ceny zakupu. Dotyczy rozliczeń, podsumowania finansowego, szczegółów pracownika i rozliczenia niestandardowego (wartości standardowe). Produkt bez ceny sprzedaży rozliczany jest po cenie zakupu. Analityka kliniki (rzeczywiste koszty) nadal liczy od ceny zakupu.
+
 ### Dodano
 - Szerokie tabele (magazyn, produkty, wizyty, rozliczenia i pozostałe listy): poziomy suwak przyklejony do dołu okna, widoczny także wtedy, gdy koniec tabeli jest poniżej ekranu. Działa razem z przeciąganiem tabeli myszką.
 - Produkty i magazyn: kolumna „Starczy na wizyty” — czy zapas wystarczy na zaplanowane wizyty (zamiast samej średniej WOS z poprzednich tygodni). Zapotrzebowanie liczone z zaplanowanych wizyt w wybranym okresie (14 / 30 / 60 / 90 dni, domyślnie 30) według produktów przypisanych do usług; pokazuje „zostanie X” albo „brakuje X od daty (usługa)”, wizyty układane chronologicznie. Bilans liczony względem łącznego stanu produktu we wszystkich magazynach. Dostępne w zakładce Produkty oraz w każdym magazynie, także w widoku telefonu.
