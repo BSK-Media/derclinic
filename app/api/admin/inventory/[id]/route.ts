@@ -2,11 +2,12 @@ import { ConsumptionKind } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
+import { loadStockCoverage, parseCoverageHorizon } from "@/lib/stock-coverage-db";
 
 const WOS_WEEKS = 10;
 const LOW_STOCK_DAYS = 14;
 
-export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const { user, error } = await requireAuth();
   if (error) return error;
@@ -59,6 +60,19 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     }),
   ]);
 
+  // Pokrycie zaplanowanych wizyt: zapotrzebowanie z wizyt względem łącznego stanu produktu (we wszystkich magazynach zakresu).
+  const horizonDays = parseCoverageHorizon(new URL(req.url).searchParams.get("horizon"));
+  const totalStocks = await prisma.stock.groupBy({
+    by: ["productId"],
+    where: { productId: { in: stocks.map((stock) => stock.productId) }, warehouse: scopedLocationWhere(user!) },
+    _sum: { quantity: true },
+  });
+  const coverage = await loadStockCoverage({
+    horizonDays,
+    locationScopeId: user!.locationScopeId,
+    stockByProduct: new Map(totalStocks.map((row) => [row.productId, Number(row._sum.quantity ?? 0)] as const)),
+  });
+
   const usedByProduct = new Map<string, number>();
   for (const consumption of consumptions) {
     usedByProduct.set(
@@ -107,6 +121,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
         expiryDate: lot.expiryDate,
       })),
       weeklyUsage,
+      coverage: coverage.get(stock.productId) ?? null,
       coverageDays,
       isLowStock,
       isShortExpiry,
@@ -131,6 +146,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       lowStockCount: products.filter((product) => product.isLowStock).length,
       shortExpiryCount,
     },
+    coverageHorizon: horizonDays,
     settings: {
       wosWeeks: WOS_WEEKS,
       lowStockDays: LOW_STOCK_DAYS,

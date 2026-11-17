@@ -5,15 +5,17 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireRole, scopedLocationWhere } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { VAT_RATE_VALUES } from "@/lib/vat";
+import { loadStockCoverage, parseCoverageHorizon } from "@/lib/stock-coverage-db";
 
 const WOS_WEEKS = 10;
 
-export async function GET() {
+export async function GET(req: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
   const deny = await requireRole(user!.role, ["ADMIN", "MANAGER"]);
   if (deny) return deny;
 
+  const horizonDays = parseCoverageHorizon(new URL(req.url).searchParams.get("horizon"));
   const wosStart = new Date();
   wosStart.setDate(wosStart.getDate() - WOS_WEEKS * 7);
   const warehouseRelationWhere = user!.locationScopeId
@@ -59,6 +61,11 @@ export async function GET() {
     );
   }
 
+  const stockByProduct = new Map(
+    products.map((product) => [product.id, product.stocks.reduce((sum, item) => sum + Number(item.quantity), 0)] as const),
+  );
+  const coverage = await loadStockCoverage({ horizonDays, locationScopeId: user!.locationScopeId, stockByProduct });
+
   const productsWithWos = products.map((product) => {
     const stock = product.stocks.reduce((sum, item) => sum + Number(item.quantity), 0);
     const weeklyUsage = (usedByProduct.get(product.id) ?? 0) / WOS_WEEKS;
@@ -66,10 +73,11 @@ export async function GET() {
     return {
       ...product,
       wosWeeks: weeklyUsage > 0 ? stock / weeklyUsage : null,
+      coverage: coverage.get(product.id) ?? null,
     };
   });
 
-  return NextResponse.json({ ok: true, products: productsWithWos, warehouses });
+  return NextResponse.json({ ok: true, products: productsWithWos, warehouses, coverageHorizon: horizonDays });
 }
 
 const CreateSchema = z.object({

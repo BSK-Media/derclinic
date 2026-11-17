@@ -28,6 +28,8 @@ import { deleteProductConfirmMessage, deleteProductRequest } from "@/lib/delete-
 import { toast } from "sonner";
 import { AdminAddProductDialog } from "@/components/admin-add-product-dialog";
 import { QuickStockDialog } from "@/components/quick-stock-dialog";
+import { CoverageCell, CoverageHorizonSelect } from "@/components/stock-coverage-cell";
+import type { ProductCoverageDto } from "@/lib/stock-coverage-db";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,6 +69,7 @@ type InventoryProduct = {
   lotsCount: number;
   lots: { id: string; batchNumber: string; serialNumber: string | null; quantity: number; expiryDate: string | null }[];
   weeklyUsage: number;
+  coverage?: ProductCoverageDto | null;
   coverageDays: number | null;
   isLowStock: boolean;
   isShortExpiry: boolean;
@@ -164,7 +167,9 @@ export default function WarehouseDetailsPage() {
   // W tej wersji Next.js `params` przekazywane do strony jest obietnicą, więc
   // `params.id` było puste — id magazynu bierzemy z adresu przez useParams.
   const params = useParams<{ id: string }>();
-  const { data, error, isLoading, mutate } = useSWR(`/api/admin/inventory/${params.id}`, fetcher);
+  // Horyzont zaplanowanych wizyt, na które sprawdzamy, czy starczy materiałów.
+  const [coverageHorizon, setCoverageHorizon] = React.useState<number>(30);
+  const { data, error, isLoading, mutate } = useSWR(`/api/admin/inventory/${params.id}?horizon=${coverageHorizon}`, fetcher, { keepPreviousData: true });
   const products: InventoryProduct[] = data?.products ?? [];
   const catalogProducts: CatalogProduct[] = data?.catalogProducts ?? [];
   const warehouses: Warehouse[] = data?.warehouses ?? [];
@@ -547,6 +552,9 @@ export default function WarehouseDetailsPage() {
           </Card>
         ) : null}
 
+        <div className="flex justify-end">
+          <CoverageHorizonSelect value={coverageHorizon} onChange={setCoverageHorizon} />
+        </div>
         <div className="grid grid-cols-4 gap-2">
           {([
             ["all", "Wszystkie", mobileCounts.all],
@@ -648,8 +656,12 @@ export default function WarehouseDetailsPage() {
                       {date(product.expiryDate)}
                     </div>
                   </div>
-                  <div className="col-span-2 flex items-center justify-end">
-                    <span className="rounded-lg bg-slate-50 px-2 py-1 text-[10px] text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                  <div className="col-span-2 flex items-center justify-between gap-2">
+                    <div className="min-w-0 text-xs">
+                      <div className="text-[10px] text-slate-400">Wizyty (najbliższe {coverageHorizon} dni)</div>
+                      <CoverageCell coverage={product.coverage} compact />
+                    </div>
+                    <span className="shrink-0 rounded-lg bg-slate-50 px-2 py-1 text-[10px] text-slate-500 dark:bg-white/5 dark:text-slate-400">
                       WOS: {product.coverageDays == null ? "—" : `${quantity(product.coverageDays / 7)} tyg.`}
                     </span>
                   </div>
@@ -673,12 +685,15 @@ export default function WarehouseDetailsPage() {
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-xl">Lista produktów</CardTitle>
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Szukaj po nazwie, SKU, firmie..."
-              className="w-full rounded-2xl sm:max-w-sm"
-            />
+            <div className="flex w-full items-center gap-3 sm:w-auto">
+              <CoverageHorizonSelect value={coverageHorizon} onChange={setCoverageHorizon} />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Szukaj po nazwie, SKU, firmie..."
+                className="w-full rounded-2xl sm:w-80"
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent className="pt-0">
@@ -706,6 +721,12 @@ export default function WarehouseDetailsPage() {
                         className="h-3.5 w-3.5 cursor-help text-slate-400 dark:text-slate-500"
                         aria-label="Przewidywany czas wystarczalności"
                       />
+                    </span>
+                  </TableHead>
+                  <TableHead className="min-w-40 whitespace-nowrap py-2">
+                    <span className="inline-flex items-center gap-1.5" title="Czy łączny zapas produktu wystarczy na zaplanowane wizyty z wybranego okresu (według produktów przypisanych do usług)">
+                      Starczy na wizyty
+                      <CircleHelp className="h-3.5 w-3.5 cursor-help text-slate-400 dark:text-slate-500" aria-label="Czy zapas wystarczy na zaplanowane wizyty" />
                     </span>
                   </TableHead>
                   <SortableHead label="Status" column="status" activeColumn={sortKey} direction={sortDirection} onSort={handleSort} />
@@ -753,6 +774,7 @@ export default function WarehouseDetailsPage() {
                     <TableCell className="whitespace-nowrap">
                       {product.coverageDays == null ? "—" : `${quantity(product.coverageDays / 7)} tyg.`}
                     </TableCell>
+                    <TableCell className="whitespace-nowrap"><CoverageCell coverage={product.coverage} /></TableCell>
                     <TableCell><StatusBadge status={product.status} /></TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">
@@ -797,6 +819,7 @@ export default function WarehouseDetailsPage() {
                             <TableCell />
                             <TableCell className="whitespace-nowrap">{date(lot.expiryDate)}</TableCell>
                             <TableCell />
+                            <TableCell />
                             <TableCell>
                               {expired ? (
                                 <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">Przeterminowana</span>
@@ -821,7 +844,7 @@ export default function WarehouseDetailsPage() {
 
                 {visibleProducts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={13} className="h-28 text-center text-slate-500">
+                    <TableCell colSpan={14} className="h-28 text-center text-slate-500">
                       {query ? "Brak produktów pasujących do wyszukiwania." : "Ten magazyn nie ma jeszcze produktów."}
                     </TableCell>
                   </TableRow>

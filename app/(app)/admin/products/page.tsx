@@ -35,6 +35,8 @@ import { deleteProductConfirmMessage, deleteProductRequest } from "@/lib/delete-
 import { eanMatchesGtin, gs1SearchGtin } from "@/lib/barcode";
 import { vatRateLabel } from "@/lib/vat";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { CoverageCell, CoverageHorizonSelect } from "@/components/stock-coverage-cell";
+import type { ProductCoverageDto } from "@/lib/stock-coverage-db";
 
 async function fetcher(url: string) {
   const response = await fetch(url);
@@ -77,6 +79,7 @@ type Product = {
   vatRate: string;
   isActive: boolean;
   wosWeeks: number | null;
+  coverage?: ProductCoverageDto | null;
   lots: ProductLot[];
   stocks: ProductStock[];
 };
@@ -241,7 +244,9 @@ function StockBreakdown({ product, warehouses }: { product: Product; warehouses:
 
 export default function ProductsPage() {
   const confirm = useConfirm();
-  const { data, error, isLoading, mutate } = useSWR("/api/admin/products", fetcher);
+  // Horyzont zaplanowanych wizyt, na które sprawdzamy, czy starczy materiałów.
+  const [coverageHorizon, setCoverageHorizon] = React.useState<number>(30);
+  const { data, error, isLoading, mutate } = useSWR(`/api/admin/products?horizon=${coverageHorizon}`, fetcher, { keepPreviousData: true });
   const products: Product[] = data?.products ?? [];
   const warehouses: Warehouse[] = data?.warehouses ?? [];
 
@@ -670,6 +675,9 @@ export default function ProductsPage() {
           </Card>
         ) : null}
 
+        <div className="flex justify-end">
+          <CoverageHorizonSelect value={coverageHorizon} onChange={setCoverageHorizon} />
+        </div>
         <div className="grid grid-cols-4 gap-2">
           {([
             ["all", "Wszystkie", mobileCounts.all],
@@ -777,8 +785,12 @@ export default function ProductsPage() {
                         {date(expiry)}
                       </div>
                     </div>
-                    <div className="col-span-2 flex items-center justify-end">
-                      <span className="rounded-lg bg-slate-50 px-2 py-1 text-[10px] text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                    <div className="col-span-2 flex items-center justify-between gap-2">
+                      <div className="min-w-0 text-xs">
+                        <div className="text-[10px] text-slate-400">Wizyty (najbliższe {coverageHorizon} dni)</div>
+                        <CoverageCell coverage={product.coverage} compact />
+                      </div>
+                      <span className="shrink-0 rounded-lg bg-slate-50 px-2 py-1 text-[10px] text-slate-500 dark:bg-white/5 dark:text-slate-400">
                         WOS: {product.wosWeeks == null ? "—" : `${quantity(product.wosWeeks)} tyg.`}
                       </span>
                     </div>
@@ -794,12 +806,15 @@ export default function ProductsPage() {
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-xl">Lista produktów</CardTitle>
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Szukaj po nazwie, SKU, EAN, firmie..."
-              className="w-full rounded-2xl sm:max-w-sm"
-            />
+            <div className="flex w-full items-center gap-3 sm:w-auto">
+              <CoverageHorizonSelect value={coverageHorizon} onChange={setCoverageHorizon} />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Szukaj po nazwie, SKU, EAN, firmie..."
+                className="w-full rounded-2xl sm:w-80"
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent className="pt-0">
@@ -827,6 +842,12 @@ export default function ProductsPage() {
                         className="h-3.5 w-3.5 cursor-help text-slate-400 dark:text-slate-500"
                         aria-label="Przewidywany czas wystarczalności"
                       />
+                    </span>
+                  </TableHead>
+                  <TableHead className="min-w-40 whitespace-nowrap py-2">
+                    <span className="inline-flex items-center gap-1.5" title="Czy zapas wystarczy na zaplanowane wizyty z wybranego okresu (według produktów przypisanych do usług)">
+                      Starczy na wizyty
+                      <CircleHelp className="h-3.5 w-3.5 cursor-help text-slate-400 dark:text-slate-500" aria-label="Czy zapas wystarczy na zaplanowane wizyty" />
                     </span>
                   </TableHead>
                   <SortableHead label="Status" sortKey="status" activeKey={sortKey} direction={sortDirection} onSort={handleSort} />
@@ -882,6 +903,7 @@ export default function ProductsPage() {
                       <TableCell className="whitespace-nowrap">
                         {product.wosWeeks == null ? "—" : `${quantity(product.wosWeeks)} tyg.`}
                       </TableCell>
+                      <TableCell className="whitespace-nowrap"><CoverageCell coverage={product.coverage} /></TableCell>
                       <TableCell><StatusBadge status={status} /></TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
@@ -986,7 +1008,7 @@ export default function ProductsPage() {
 
                 {visibleProducts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={13} className="h-28 text-center text-slate-500">
+                    <TableCell colSpan={14} className="h-28 text-center text-slate-500">
                       Brak produktów pasujących do wybranych filtrów.
                     </TableCell>
                   </TableRow>

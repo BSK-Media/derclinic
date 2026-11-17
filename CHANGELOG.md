@@ -3,6 +3,10 @@
 Format: najnowsze na górze, zmiany pogrupowane według daty wdrożenia. Szczegóły techniczne: historia commitów
 i migracje w `prisma/migrations`.
 
+## 2026-11-17
+### Dodano
+- Produkty i magazyn: kolumna „Starczy na wizyty” — czy zapas wystarczy na zaplanowane wizyty (zamiast samej średniej WOS z poprzednich tygodni). Zapotrzebowanie liczone z zaplanowanych wizyt w wybranym okresie (14 / 30 / 60 / 90 dni, domyślnie 30) według produktów przypisanych do usług; pokazuje „zostanie X” albo „brakuje X od daty (usługa)”, wizyty układane chronologicznie. Bilans liczony względem łącznego stanu produktu we wszystkich magazynach. Dostępne w zakładce Produkty oraz w każdym magazynie, także w widoku telefonu.
+
 ## 2026-11-02
 ### Dodano
 - Kalendarz: podziałki co 15 minut (linie przerywane i etykiety 15 / 30 / 45 na osi godzin) w widoku tygodnia, dnia ze specjalistami i na telefonie. Kliknięcie w kwadrans otwiera dodawanie wizyty od tej godziny (np. 10:15).
